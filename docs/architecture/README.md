@@ -9,7 +9,9 @@ as ADRs in [`adr/`](adr/).
 | [0001](adr/0001-architecture-baseline.md) | Phoenix modular monolith, API-only, PostgreSQL, UUID keys |
 | [0002](adr/0002-openapi-strategy.md) | OpenAPI: code-first with `open_api_spex`, committed artifact, Scalar docs |
 | [0003](adr/0003-api-versioning-and-errors.md) | URL layout / versioning and the JSON error contract |
-| [0004](adr/0004-deferred-infrastructure.md) | Infrastructure intentionally deferred (Oban, Sentry, CORS, providers, ...) |
+| [0004](adr/0004-deferred-infrastructure.md) | Infrastructure intentionally deferred (Sentry, CORS, auth, PostGIS, ...) |
+| [0005](adr/0005-provider-boundaries-and-http-client.md) | Provider boundaries, Req as the HTTP client, S3 storage, Resend email |
+| [0006](adr/0006-background-jobs-oban.md) | Background jobs with Oban (queues, pruning, testing, worker conventions) |
 
 ---
 
@@ -31,8 +33,12 @@ own ADR, not a default.
 ```
 lib/
   simple_fit/                 # Domain: contexts, schemas, business rules
-    application.ex            # OTP supervision tree
+    application.ex            # OTP supervision tree (Repo, Oban, Endpoint)
     repo.ex                   # Ecto repo (the only DB entry point)
+    provider.ex               # Shared provider error vocabulary
+    http.ex                   # Canonical outbound HTTP client (Req) for adapters
+    storage.ex, storage/      # Object storage boundary + S3 / Fake adapters
+    email.ex, email/          # Transactional email boundary + Resend / Log adapters, delivery worker
   simple_fit_web/             # HTTP interface: no business rules
     endpoint.ex               # Plug pipeline: request id, security headers, JSON parsing
     router.ex                 # Routes and pipelines
@@ -105,30 +111,43 @@ context.
 
 ### Providers / adapters
 
-Vendor integrations (S3, Resend, Google/Apple identity, Stripe, push) sit
-behind a behaviour owned by the domain, named for the capability, not the
-vendor:
+Vendor integrations sit behind a SimpleFit-owned boundary named for the
+capability, never the vendor ([ADR 0005](adr/0005-provider-boundaries-and-http-client.md)):
 
 ```
-SimpleFit.Storage         (behaviour: put/get/presign ...)
-  SimpleFit.Storage.S3    (adapter, the only module that knows about AWS)
-  SimpleFit.Storage.Local (adapter for dev/test, or a Mox mock)
+Domain context
+    ↓
+SimpleFit.Storage           SimpleFit.Email            (boundary + behaviour)
+    ↓                           ↓
+SimpleFit.Storage.S3        SimpleFit.Email.Resend     (adapter, the only vendor-aware module)
+    ↓                           ↓
+AWS S3 (presigned URLs)     Resend API via SimpleFit.HTTP
 ```
 
-* Domain code calls the behaviour (resolved via application config), never a
-  vendor SDK.
-* Vendor payloads are translated to domain terms at the adapter edge.
-* The behaviour is introduced **with the first real adapter**, not before.
-  No speculative empty behaviours exist today.
-
-Future boundaries: `Storage`, `Email`, `Payments`, `Identity` (Google/Apple
-token verification), `Push`. See [ADR 0004](adr/0004-deferred-infrastructure.md).
+* Domain code calls the boundary (`Storage.presign_upload/2`,
+  `Email.deliver_later/1`), never an adapter, `Req` or a vendor library.
+* The adapter is chosen by application config. Production always uses the
+  real adapters; tests use `SimpleFit.Storage.Fake` and a test email adapter;
+  development uses the real adapters only when credentials are exported,
+  otherwise Fake / `SimpleFit.Email.Log`.
+* Adapters return `{:error, reason}` with reasons from
+  `SimpleFit.Provider` (`:invalid_request`, `:unauthorized`, `:rate_limited`,
+  `:timeout`, `:unavailable`, `:configuration_error`). Vendor payloads,
+  credentials and signed URLs never cross the boundary or reach logs.
+* Outbound HTTP goes only through `SimpleFit.HTTP` (Req with verified TLS,
+  short timeouts, no redirects, no automatic retries). Base URLs are
+  constants or trusted config, never user input.
+* A boundary is introduced with its first real adapter. Future ones:
+  `Payments`, `Identity` (Google/Apple), `Push`. See ADR 0004.
 
 ### Workers (background jobs)
 
-Oban will be the job system (PostgreSQL-backed, no Redis). Workers will live
-next to their context (`SimpleFit.Accounts.Workers.SendWelcomeEmail`), stay
-thin, and call context functions. Oban is not installed yet; see ADR 0004.
+Oban, PostgreSQL-backed ([ADR 0006](adr/0006-background-jobs-oban.md)).
+Queues: `default`, `mailers`. Workers live next to their capability or
+context (`SimpleFit.Email.DeliveryWorker`), stay thin, take small
+JSON-serializable arguments that `perform/1` re-validates, use idempotency
+keys for side effects, and retry only transient provider failures. Tests run
+Oban in `:manual` mode.
 
 ### Authorization
 
@@ -167,7 +186,9 @@ All non-2xx responses use the envelope defined in `SimpleFitWeb.APIError`
 | Secrets | Read only from env in `config/runtime.exs`; prod raises if required ones are missing. `.env*` git-ignored. Dev/test `secret_key_base` values are non-secret placeholders. | Deployment ticket: secret manager |
 | Request IDs | `Plug.RequestId` on every request; `x-request-id` response header; echoed as `request_id` in error bodies; in every log line. Valid client-supplied IDs are kept for end-to-end correlation. | — |
 | Response headers | Endpoint sets `content-security-policy: default-src 'none'; frame-ancestors 'none'; base-uri 'none'`, `x-content-type-options: nosniff`, `x-frame-options: DENY`, `referrer-policy: no-referrer`, `x-permitted-cross-domain-policies: none` on every response including errors. `/api/docs` gets its own CSP. | — |
-| JSON only | `Plug.Parsers` accepts only `application/json` (others → 415); `:accepts ["json"]` (others → 406). No cookie session, no method override, no static files. | Uploads will go direct-to-S3 via presigned URLs, not multipart through the API |
+| JSON only | `Plug.Parsers` accepts only `application/json` (others → 415); `:accepts ["json"]` (others → 406). No cookie session, no method override, no static files. | — |
+| Object storage | Private bucket, uploads/downloads direct to S3 with short-lived presigned URLs (content type and exact size signed; max 1 h). Keys from validated segments only. AWS credentials stay server-side; signed URLs are redacted from `inspect`/logs. | Media domains add per-purpose content-type and size limits |
+| Outbound HTTP / providers | Only adapters call out, via `SimpleFit.HTTP`: verified TLS, 5 s/15 s timeouts, no redirects (no SSRF steering), no automatic retries (Oban owns bounded retries with idempotency keys). Provider errors normalized; bodies, headers, API keys never logged. Missing provider config fails closed (`:configuration_error`), never falls back to fakes in prod. | — |
 | Error handling | Fixed messages per error code; exception messages, stack traces and request bodies never reach responses. `debug_errors` only in dev. | — |
 | CORS | **Deny by default**: no CORS headers are sent, so browsers block cross-origin calls. No browser client exists yet. | Web-client ticket: add `Corsica` in the endpoint with an explicit `CORS_ALLOWED_ORIGINS` allow-list (never `*` in prod), exposing `x-request-id` |
 | HTTPS / proxies | `force_ssl` + HSTS in prod, trusting `x-forwarded-proto` from the load balancer (`/api/health` excluded so plain-HTTP health checks work). The app must only be reachable through that proxy. | Deployment ticket. When client IPs matter (rate limiting, audit), add `remote_ip` configured with the proxy's CIDRs only |
@@ -188,6 +209,11 @@ All non-2xx responses use the envelope defined in `SimpleFitWeb.APIError`
   * never log secrets, tokens, full request/response bodies or personal data
     beyond opaque IDs
   * `:error` level means someone should look at it
+* **Providers and jobs**: `[:simple_fit, :email, :deliver]` and
+  `[:simple_fit, :storage, :presign]` telemetry spans (adapter + result
+  only) and Oban's job events, with metric definitions in
+  `SimpleFitWeb.Telemetry`. Oban's structured job logger is attached outside
+  tests. Provider failures log `provider`, `status` and `reason` metadata.
 * **Error tracking (Sentry)**: deferred to the observability ticket
   (ADR 0004). `SENTRY_DSN` is reserved in `.env.example`.
 * **OpenTelemetry (future)**: add `opentelemetry`, `opentelemetry_exporter`,
@@ -203,7 +229,15 @@ returns only `{"status":"ok","service":"simplefit-api"}`. If a deployment
 needs a **readiness** check (DB reachable, migrations applied), add a
 separate `GET /api/health/ready` rather than changing this contract.
 
-## 7. Dependencies
+## 7. Database extensions
+
+PostgreSQL with UUID keys only. **PostGIS is intentionally deferred** to the
+first gyms/discovery/location-search ticket, which will add
+`CREATE EXTENSION postgis` in a migration together with the Ecto types it
+needs (ADR 0004). Oban's tables (`oban_jobs`, `oban_peers`) are the only
+infrastructure tables.
+
+## 8. Dependencies
 
 Every dependency in `mix.exs` has a comment-level justification and a
 current use. Adding one requires stating in the PR: the problem it solves

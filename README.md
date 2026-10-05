@@ -56,8 +56,9 @@ curl -s localhost:4000/api/health
 
 Configuration comes from environment variables, read only in
 [`config/runtime.exs`](config/runtime.exs). [`.env.example`](.env.example)
-documents every variable, split into **required now**, **optional** and
-**future providers** (reserved names that are not read yet).
+documents every variable, split into **required now**, **optional**,
+**providers** (S3 storage and Resend email, implemented) and **future
+providers** (reserved names that are not read yet).
 
 ```bash
 cp .env.example .env          # .env is git-ignored; never commit secrets
@@ -65,8 +66,13 @@ set -a; source .env; set +a   # export into your shell (or use direnv)
 ```
 
 The app deliberately does not auto-load `.env` (see ADR 0001). Development
-works with **no variables set**. Production requires `DATABASE_URL`,
-`SECRET_KEY_BASE` and `PHX_HOST` and refuses to boot without them.
+works with **no variables set**: storage returns fake URLs and emails are
+logged instead of sent unless you export AWS / Resend credentials. Production
+requires `DATABASE_URL`, `SECRET_KEY_BASE` and `PHX_HOST` and refuses to boot
+without them; storage and email fail closed until their variables are set
+(see [ADR 0005](docs/architecture/adr/0005-provider-boundaries-and-http-client.md)).
+Background jobs run on Oban in the same PostgreSQL database
+([ADR 0006](docs/architecture/adr/0006-background-jobs-oban.md)).
 
 ## PostgreSQL
 
