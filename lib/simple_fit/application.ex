@@ -7,9 +7,8 @@ defmodule SimpleFit.Application do
 
   @impl true
   def start(_type, _args) do
-    if Application.get_env(:simple_fit, :attach_oban_logger, false) do
-      :ok = Oban.Telemetry.attach_default_logger(level: :info)
-    end
+    # Logs, error tracking and tracing (handlers only; no backend is required).
+    :ok = SimpleFit.Observability.setup()
 
     children = [
       SimpleFitWeb.Telemetry,

@@ -21,9 +21,38 @@ config :logger, level: :info
 # Structured JSON logs in production, one object per line, carrying the
 # request id. Log aggregation (CloudWatch, Datadog, Loki, ...) can index the
 # fields without regex parsing.
+# One JSON object per line. Metadata is an allow-list; credentials that
+# slip into metadata are redacted by key as defence in depth.
 config :logger, :default_handler,
   formatter:
-    {LoggerJSON.Formatters.Basic, metadata: [:request_id, :provider, :status, :reason, :missing]}
+    {LoggerJSON.Formatters.Basic,
+     metadata: [
+       :service,
+       :environment,
+       :release,
+       :request_id,
+       :otel_trace_id,
+       :otel_span_id,
+       :method,
+       :route,
+       :status,
+       :duration_ms,
+       :provider,
+       :reason,
+       :missing,
+       :worker,
+       :queue,
+       :job_id,
+       :attempt,
+       :max_attempts,
+       :state,
+       :error_kind,
+       :error_type
+     ],
+     redactors: [
+       {LoggerJSON.Redactors.RedactKeys,
+        ["password", "secret", "token", "authorization", "api_key", "cookie"]}
+     ]}
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.
