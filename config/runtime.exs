@@ -118,6 +118,14 @@ case config_env() do
       | Keyword.update!(email, :from, &(&1 || "SimpleFit Dev <dev@simplefit.invalid>"))
     ]
 
+    # The local web client (simplefit-platform `pnpm dev`) by default;
+    # CORS_ALLOWED_ORIGINS replaces the list (e.g. to add 127.0.0.1:3000).
+    config :simple_fit, SimpleFitWeb.CORS,
+      allowed_origins:
+        SimpleFitWeb.CORS.parse_origins!(
+          System.get_env("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
+        )
+
   :test ->
     # Never fall back to DATABASE_URL here: tests must not touch the
     # development (or any shared) database. The URL must name a dedicated
@@ -183,5 +191,14 @@ case config_env() do
     end
 
     config :simple_fit, SimpleFit.Storage, [{:adapter, SimpleFit.Storage.S3} | storage]
+
+    # Explicit https origins only; unset = no browser origin allowed (mobile
+    # and server clients are unaffected). Malformed values fail at boot.
+    config :simple_fit, SimpleFitWeb.CORS,
+      allowed_origins:
+        SimpleFitWeb.CORS.parse_origins!(System.get_env("CORS_ALLOWED_ORIGINS"),
+          require_https: true
+        )
+
     config :simple_fit, SimpleFit.Email, [{:adapter, SimpleFit.Email.Resend} | email_env.()]
 end

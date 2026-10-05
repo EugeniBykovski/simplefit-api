@@ -39,7 +39,10 @@ defmodule SimpleFitWeb.ApiSpec do
         ## Conventions
 
         * JSON request and response bodies (`application/json`) only.
-        * Errors use a single envelope (`ErrorResponse`) with a stable machine-readable `code`.
+        * Errors use a single envelope (`ErrorResponse`) with a stable machine-readable `code`;
+          validation errors add per-field reason codes (`ValidationErrorDetails`). Clients branch
+          on codes, never on human-readable messages.
+        * Browser clients must be on the API's CORS allow-list (explicit origins, no wildcard).
         * Every response carries an `x-request-id` header; error bodies echo it as `request_id`.
         * Product resources will be served under `/api/v1`. Operational endpoints live under `/api`.
         """
@@ -61,7 +64,11 @@ defmodule SimpleFitWeb.ApiSpec do
         }
       }
     }
-    |> OpenApiSpex.add_schemas([Schemas.Error, Schemas.ErrorResponse])
+    |> OpenApiSpex.add_schemas([
+      Schemas.Error,
+      Schemas.ErrorResponse,
+      Schemas.ValidationErrorDetails
+    ])
     |> OpenApiSpex.resolve_schema_modules()
   end
 
@@ -125,8 +132,7 @@ defmodule SimpleFitWeb.ApiSpec do
     end)
   end
 
-  defp example_details("validation_error"),
-    do: %{fields: %{email: ["has invalid format"], date_of_birth: ["can't be blank"]}}
+  defp example_details("validation_error"), do: Schemas.ValidationErrorDetails.schema().example
 
   defp example_details(_code), do: %{}
 

@@ -206,11 +206,21 @@
               "error": {
                 "code": "validation_error",
                 "details": {
-                  "fields": {
+                  "field_codes": {
                     "date_of_birth": [
-                      "can't be blank"
+                      "invalid_type"
                     ],
                     "email": [
+                      "required",
+                      "invalid_format"
+                    ]
+                  },
+                  "fields": {
+                    "date_of_birth": [
+                      "is invalid"
+                    ],
+                    "email": [
+                      "can't be blank",
                       "has invalid format"
                     ]
                   }
@@ -246,7 +256,7 @@
           },
           "details": {
             "additionalProperties": true,
-            "description": "Code-specific structured data; an empty object when there is nothing to add.\nFor `validation_error`, `fields` maps each invalid field to a list of messages.\n",
+            "description": "Code-specific structured data; an empty object when there is nothing to add.\nFor `validation_error` it is a `ValidationErrorDetails`: `fields` maps each invalid\nfield to human-readable messages and `field_codes` to the matching machine-readable\nreason codes (same order).\n",
             "example": {},
             "type": "object"
           },
@@ -322,6 +332,72 @@
         ],
         "title": "HealthResponse",
         "type": "object"
+      },
+      "ValidationErrorDetails": {
+        "description": "`details` of a `validation_error`. Both maps have the same keys (field names; nested\nfields use dotted paths such as `address.city`) and, per field, the same number of entries\nin the same order: `field_codes[field][i]` is the reason for `fields[field][i]`.\nClients branch on `field_codes`, never on the messages in `fields`. New reason codes may\nbe added; treat unknown ones as `invalid`.\n",
+        "example": {
+          "field_codes": {
+            "date_of_birth": [
+              "invalid_type"
+            ],
+            "email": [
+              "required",
+              "invalid_format"
+            ]
+          },
+          "fields": {
+            "date_of_birth": [
+              "is invalid"
+            ],
+            "email": [
+              "can't be blank",
+              "has invalid format"
+            ]
+          }
+        },
+        "properties": {
+          "field_codes": {
+            "additionalProperties": {
+              "items": {
+                "enum": [
+                  "required",
+                  "invalid_format",
+                  "too_short",
+                  "too_long",
+                  "wrong_length",
+                  "out_of_range",
+                  "invalid_choice",
+                  "invalid_type",
+                  "already_exists",
+                  "does_not_exist",
+                  "must_be_accepted",
+                  "does_not_match",
+                  "invalid"
+                ],
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "description": "Field name to stable machine-readable reason codes.",
+            "type": "object"
+          },
+          "fields": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "description": "Field name to human-readable messages (English, for display and debugging).",
+            "type": "object"
+          }
+        },
+        "required": [
+          "fields",
+          "field_codes"
+        ],
+        "title": "ValidationErrorDetails",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -333,7 +409,7 @@
     }
   },
   "info": {
-    "description": "Backend API for SimpleFit Boxing: the operating system and professional network for boxing.\n\n## Conventions\n\n* JSON request and response bodies (`application/json`) only.\n* Errors use a single envelope (`ErrorResponse`) with a stable machine-readable `code`.\n* Every response carries an `x-request-id` header; error bodies echo it as `request_id`.\n* Product resources will be served under `/api/v1`. Operational endpoints live under `/api`.\n",
+    "description": "Backend API for SimpleFit Boxing: the operating system and professional network for boxing.\n\n## Conventions\n\n* JSON request and response bodies (`application/json`) only.\n* Errors use a single envelope (`ErrorResponse`) with a stable machine-readable `code`;\n  validation errors add per-field reason codes (`ValidationErrorDetails`). Clients branch\n  on codes, never on human-readable messages.\n* Browser clients must be on the API's CORS allow-list (explicit origins, no wildcard).\n* Every response carries an `x-request-id` header; error bodies echo it as `request_id`.\n* Product resources will be served under `/api/v1`. Operational endpoints live under `/api`.\n",
     "title": "SimpleFit API",
     "version": "0.1.0"
   },
