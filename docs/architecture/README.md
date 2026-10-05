@@ -13,6 +13,7 @@ as ADRs in [`adr/`](adr/).
 | [0005](adr/0005-provider-boundaries-and-http-client.md) | Provider boundaries, Req as the HTTP client, S3 storage, Resend email |
 | [0006](adr/0006-background-jobs-oban.md) | Background jobs with Oban (queues, pruning, testing, worker conventions) |
 | [0007](adr/0007-cors-policy.md) | Cross-origin (CORS) policy: explicit allow-list, preflight, no credentials |
+| [0008](adr/0008-observability.md) | Observability: structured logs, Sentry, OpenTelemetry, privacy rules |
 
 ---
 
@@ -207,28 +208,27 @@ All non-2xx responses use the envelope defined in `SimpleFitWeb.APIError`
 
 ## 5. Observability
 
-* **Telemetry**: Phoenix, Ecto and VM metrics are defined in
-  `SimpleFitWeb.Telemetry.metrics/0`; no reporter is attached yet.
-* **Logging**: Elixir `Logger` with `request_id` metadata. Plain text in dev,
-  one JSON object per line in prod (`logger_json`, `Basic` formatter).
-  Conventions:
-  * log events, not prose: `Logger.info("booking confirmed", booking_id: id)`;
-    put identifiers in metadata, not interpolated into the message
-  * never log secrets, tokens, full request/response bodies or personal data
-    beyond opaque IDs
-  * `:error` level means someone should look at it
-* **Providers and jobs**: `[:simple_fit, :email, :deliver]` and
-  `[:simple_fit, :storage, :presign]` telemetry spans (adapter + result
-  only) and Oban's job events, with metric definitions in
-  `SimpleFitWeb.Telemetry`. Oban's structured job logger is attached outside
-  tests. Provider failures log `provider`, `status` and `reason` metadata.
-* **Error tracking (Sentry)**: deferred to the observability ticket
-  (ADR 0004). `SENTRY_DSN` is reserved in `.env.example`.
-* **OpenTelemetry (future)**: add `opentelemetry`, `opentelemetry_exporter`,
-  `opentelemetry_phoenix`, `opentelemetry_bandit` and `opentelemetry_ecto`,
-  started from `SimpleFit.Application`. Traces correlate with logs via
-  `otel_trace_id` metadata, which `logger_json` already understands. No code
-  changes in contexts are needed for the baseline instrumentation.
+See [ADR 0008](adr/0008-observability.md). **Observe system behaviour, never
+user content.**
+
+* **Logs** (`Logger`, JSON in prod):
+  * one `request completed` event per request (method, route template, status,
+    duration) and one event per job outcome (worker, queue, state; never args)
+  * `request_id`, `otel_trace_id`/`otel_span_id`, `service`, `environment`,
+    `release` metadata
+  * conventions: log events with identifiers in metadata; never secrets,
+    tokens, bodies or personal data; `:error` means someone should look at it
+    (and goes to Sentry)
+* **Error tracking** (Sentry, `SENTRY_DSN`): unexpected failures only, every
+  event sanitized by `SimpleFit.Observability.SentryFilter`.
+* **Tracing** (OpenTelemetry, `OTEL_EXPORTER_OTLP_ENDPOINT`): Bandit/Phoenix,
+  Ecto (no SQL), Oban (no args), Req (no query or headers) and provider
+  boundary spans; `SimpleFit.Observability.SpanSanitizer` strips sensitive
+  attributes. Not exported without an endpoint.
+* **Metrics**: definitions in `SimpleFitWeb.Telemetry.metrics/0`; no reporter
+  yet (no Prometheus/Grafana/vendor agent).
+* Every backend is optional and asynchronous: their absence or outage never
+  affects requests.
 
 ## 6. Health
 

@@ -31,9 +31,9 @@ media coordination and webhook follow-ups need the same foundation.
 * **Tests:** `testing: :manual`. Jobs never run on their own; tests use
   `Oban.Testing` (`assert_enqueued`, `perform_job`) or drain a queue
   explicitly.
-* **Logging:** Oban's structured default logger is attached outside tests
-  (job start/stop/exception, JSON). Job metrics are declared in
-  `SimpleFitWeb.Telemetry`; reporters and alerting belong to SF-8.
+* **Logging:** `SimpleFit.Observability.JobLogger` (SF-8) logs one event per
+  job outcome without `args`. Oban's default logger is no longer used: it
+  wrote job args (email contents) into logs. See ADR 0008.
 
 ### Worker conventions
 

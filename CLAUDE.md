@@ -81,7 +81,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
     requires them.
 16. Never log secrets, tokens, full request bodies or personal data, nor
     API keys, authorization headers, provider response bodies or presigned
-    URLs. Storage stays private: clients upload/download directly with
+    URLs. **Observe system behaviour, not user content** (ADR 0008): job args,
+    query strings, SQL text and headers never reach logs, Sentry or traces;
+    keep `SentryFilter`/`SpanSanitizer` allow-lists tight and use `:error`
+    only for failures someone must act on (they go to Sentry). Storage stays private: clients upload/download directly with
     short-lived presigned URLs; Phoenix never proxies file bytes.
 
 ### Quality

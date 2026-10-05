@@ -1,6 +1,6 @@
 # ADR 0004 — Deferred infrastructure and dependencies
 
-* Status: Accepted (amended by SF-15: Oban, Req, S3 and Resend introduced; SF-6: CORS introduced)
+* Status: Accepted (amended by SF-15: Oban, Req, S3 and Resend introduced; SF-6: CORS introduced; SF-8: Sentry and OpenTelemetry introduced)
 * Date: 2026-10-05
 * Ticket: SF-2
 
@@ -16,8 +16,8 @@ and deliberately **not** installed.
 | Item | Why deferred | Introduced by |
 | --- | --- | --- |
 | **Oban** (background jobs) | **Introduced in SF-15** ([ADR 0006](0006-background-jobs-oban.md)): queues `default` and `mailers`, first worker delivers transactional email. | SF-15 |
-| **Sentry** (`sentry`) | Error tracking needs release/environment tagging and a deploy target to be meaningful, and belongs with the rest of production observability. | Observability ticket. Must stay disabled unless `SENTRY_DSN` is set. |
-| **OpenTelemetry** (SDK, exporter, phoenix/bandit/ecto instrumentation) | Needs a collector/backend decision. Telemetry events are already emitted, and `logger_json` already picks up trace metadata. | Observability ticket (see architecture README §5). |
+| **Sentry** | **Introduced in SF-8** ([ADR 0008](0008-observability.md)): unexpected failures only, sanitized, off without `SENTRY_DSN`. | SF-8 |
+| **OpenTelemetry** | **Introduced in SF-8** ([ADR 0008](0008-observability.md)): Phoenix/Bandit, Ecto, Oban, Req and provider spans, sanitized; exported only with `OTEL_EXPORTER_OTLP_ENDPOINT`. Metrics reporters remain deferred. | SF-8 |
 | **CORS** | **Introduced in SF-6** ([ADR 0007](0007-cors-policy.md)): an owned `SimpleFitWeb.CORS` plug with an explicit `CORS_ALLOWED_ORIGINS` allow-list (never `*`, https-only in prod, fail closed), exposing `x-request-id`. `corsica` was not adopted (no release since 2023). | SF-6 |
 | **Trusted proxy client IP** (`remote_ip`) | Nothing consumes the client IP yet; misconfigured proxy trust is a spoofing risk. HTTPS detection already uses `x-forwarded-proto` via `force_ssl`. | Rate limiting / audit logging, configured with the load balancer's CIDRs. |
 | **Rate limiting** (e.g. `hammer` with ETS/PostgreSQL backend) | No authentication or abuse-prone endpoints exist. `429 rate_limited` is already in the error contract. | Authentication ticket (login, OTP, password reset endpoints). |
