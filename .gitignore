@@ -1,0 +1,62 @@
+# --- Build artifacts -------------------------------------------------------
+
+# The directory Mix will write compiled artifacts to.
+/_build/
+
+# The directory Mix downloads your dependencies sources to.
+/deps/
+
+# Where 3rd-party dependencies like ExDoc output generated docs.
+/doc/
+
+# Coverage output (mix test --cover).
+/cover/
+
+# Dialyzer PLTs (see `dialyzer` in mix.exs).
+/priv/plts/
+
+# Ignore .fetch files in case you like to edit your project deps locally.
+/.fetch
+
+# If the VM crashes, it generates a dump, let's ignore it too.
+erl_crash.dump
+
+# Also ignore archive artifacts (built via "mix archive.build").
+*.ez
+
+# Ignore package tarball (built via "mix hex.build").
+simple_fit-*.tar
+
+# Temporary files, for example, from tests.
+/tmp/
+
+# Elixir language server / editor tooling caches.
+/.elixir_ls/
+/.elixir-tools/
+/.lexical/
+/.expert/
+
+# Node tooling (only used ad hoc via npx for OpenAPI linting).
+node_modules/
+
+# --- Secrets ---------------------------------------------------------------
+# Never commit real configuration. .env.example is the committed template.
+
+.env
+.env.*
+!.env.example
+.envrc
+*.pem
+*.key
+*.p8
+*.p12
+
+# --- Editors and OS --------------------------------------------------------
+
+.idea/
+.vscode/
+*.iml
+*.swp
+*~
+.DS_Store
+Thumbs.db

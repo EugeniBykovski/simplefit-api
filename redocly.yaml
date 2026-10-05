@@ -1,0 +1,20 @@
+# Redocly CLI configuration: structural validation and linting of the
+# generated OpenAPI artifact. Run with:
+#
+#   npx --yes @redocly/cli@2.57.0 lint
+#
+# `recommended-strict` turns every recommended warning into an error.
+apis:
+  simplefit:
+    root: openapi/simplefit.api.json
+
+extends:
+  - recommended-strict
+
+rules:
+  # components.responses is a deliberate library of reusable error responses
+  # (one per error code) and bearerAuth is reserved for the auth ticket.
+  # Both are referenced as endpoints are added.
+  no-unused-components: off
+  # Proprietary API: there is no public license to declare.
+  info-license: off

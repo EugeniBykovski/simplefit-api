@@ -1,0 +1,8 @@
+# This file instructs Redocly's linter to ignore the rules contained for specific parts of your API.
+# See https://redocly.com/docs/cli/ for more information.
+#
+# Every entry needs a justification. Do not add entries to silence real problems.
+openapi/simplefit.api.json:
+  operation-4xx-response:
+    # GET /api/health takes no input and requires no auth: it has no 4xx outcome.
+    - '#/paths/~1api~1health/get/responses'

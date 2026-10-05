@@ -1,0 +1,384 @@
+{
+  "components": {
+    "responses": {
+      "BadRequest": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "bad_request",
+                "details": {},
+                "message": "The request could not be processed",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "400 The request could not be processed"
+      },
+      "Conflict": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "conflict",
+                "details": {},
+                "message": "The request conflicts with the current state of the resource",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "409 The request conflicts with the current state of the resource"
+      },
+      "Forbidden": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "forbidden",
+                "details": {},
+                "message": "You do not have permission to perform this action",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "403 You do not have permission to perform this action"
+      },
+      "InternalError": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "internal_error",
+                "details": {},
+                "message": "An unexpected error occurred",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "500 An unexpected error occurred"
+      },
+      "NotAcceptable": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "not_acceptable",
+                "details": {},
+                "message": "The requested response format is not supported",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "406 The requested response format is not supported"
+      },
+      "NotFound": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "not_found",
+                "details": {},
+                "message": "The requested resource was not found",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "404 The requested resource was not found"
+      },
+      "PayloadTooLarge": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "payload_too_large",
+                "details": {},
+                "message": "The request body is too large",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "413 The request body is too large"
+      },
+      "RateLimited": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "rate_limited",
+                "details": {},
+                "message": "Too many requests, retry later",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "429 Too many requests, retry later"
+      },
+      "ServiceUnavailable": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "service_unavailable",
+                "details": {},
+                "message": "The service is temporarily unavailable",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "503 The service is temporarily unavailable"
+      },
+      "Unauthorized": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "unauthorized",
+                "details": {},
+                "message": "Authentication is required",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "401 Authentication is required"
+      },
+      "UnsupportedMediaType": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "unsupported_media_type",
+                "details": {},
+                "message": "The request content type is not supported",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "415 The request content type is not supported"
+      },
+      "ValidationError": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "validation_error",
+                "details": {
+                  "fields": {
+                    "date_of_birth": [
+                      "can't be blank"
+                    ],
+                    "email": [
+                      "has invalid format"
+                    ]
+                  }
+                },
+                "message": "Request validation failed",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "422 Request validation failed"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "additionalProperties": false,
+        "description": "Machine-readable error. See the ErrorResponse schema for the contract.",
+        "example": {
+          "code": "not_found",
+          "details": {},
+          "message": "The requested resource was not found",
+          "request_id": "GHx3kP0vZ8sAAAAB"
+        },
+        "properties": {
+          "code": {
+            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `not_found`, `not_acceptable`, `conflict`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
+            "example": "not_found",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "details": {
+            "additionalProperties": true,
+            "description": "Code-specific structured data; an empty object when there is nothing to add.\nFor `validation_error`, `fields` maps each invalid field to a list of messages.\n",
+            "example": {},
+            "type": "object"
+          },
+          "message": {
+            "description": "Human-readable English summary. Not localised; may change without notice.",
+            "example": "The requested resource was not found",
+            "type": "string"
+          },
+          "request_id": {
+            "description": "Value of the `x-request-id` response header, for support and log correlation.",
+            "example": "GHx3kP0vZ8sAAAAB",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "details",
+          "request_id"
+        ],
+        "title": "Error",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "additionalProperties": false,
+        "description": "Envelope returned with every 4xx and 5xx response. Stack traces and internal details\nare never included.\n",
+        "example": {
+          "error": {
+            "code": "not_found",
+            "details": {},
+            "message": "The requested resource was not found",
+            "request_id": "GHx3kP0vZ8sAAAAB"
+          }
+        },
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/Error"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "description": "Liveness status of the API process.",
+        "example": {
+          "service": "simplefit-api",
+          "status": "ok"
+        },
+        "properties": {
+          "service": {
+            "description": "Service identifier.",
+            "enum": [
+              "simplefit-api"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Always `ok` when the process can serve requests.",
+            "enum": [
+              "ok"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "service"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "description": "Bearer access token. Reserved for the authentication ticket: no endpoint requires it yet.\n",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Backend API for SimpleFit Boxing: the operating system and professional network for boxing.\n\n## Conventions\n\n* JSON request and response bodies (`application/json`) only.\n* Errors use a single envelope (`ErrorResponse`) with a stable machine-readable `code`.\n* Every response carries an `x-request-id` header; error bodies echo it as `request_id`.\n* Product resources will be served under `/api/v1`. Operational endpoints live under `/api`.\n",
+    "title": "SimpleFit API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/api/health": {
+      "get": {
+        "callbacks": {},
+        "description": "Returns `200 ok` while the API process is able to serve requests.",
+        "operationId": "getHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Service is alive"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Liveness check",
+        "tags": [
+          "System"
+        ]
+      }
+    }
+  },
+  "security": [],
+  "servers": [
+    {
+      "description": "The host serving this document",
+      "url": "/",
+      "variables": {}
+    }
+  ],
+  "tags": [
+    {
+      "description": "Operational endpoints.",
+      "name": "System"
+    }
+  ]
+}
