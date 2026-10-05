@@ -4,8 +4,9 @@ Rules for every Claude Code session in this repository. They are
 non-negotiable unless the Jira ticket you are working on explicitly says
 otherwise. If a ticket seems to require breaking one, stop and ask.
 
-Read `docs/architecture/README.md` and the ADRs in `docs/architecture/adr/`
-before making structural changes.
+Read `docs/engineering-standards.md` (shared SimpleFit workflow, commits,
+ownership, quality gates, Definition of Done) and `docs/architecture/README.md`
+with the ADRs in `docs/architecture/adr/` before making structural changes.
 
 ## What this is
 
@@ -106,8 +107,18 @@ npx --yes @redocly/cli@2.57.0 lint   # OpenAPI structural lint
 artifact is regenerated if the API changed, docs/ADRs are updated if a
 convention or dependency changed.
 
-## Git
+## Git and pull requests
 
-* Branch per ticket (`SF-<n>-short-description`). Never rewrite published
-  history. Never push or merge without passing checks.
-* Commit messages: imperative, reference the ticket (`SF-12: Add fighter profile API`).
+See `docs/engineering-standards.md` §2–3 (identical in all SimpleFit repos).
+
+* Branch per ticket from `main`: `SF-<ticket>-<kebab-description>`
+  (e.g. `SF-16-identity-authentication`). Never commit or push to `main`,
+  never force-push `main`, never rewrite pushed history.
+* Commits: `<type>: SF-<ticket> - <description>` with type `feat`, `fix`,
+  `refactor`, `test`, `docs`, `chore`, `build`, `ci` or `perf`
+  (e.g. `feat: SF-16 - add identity domain`). CI rejects other PR commits.
+* Run `mix quality`, `mix test` and the Redocly lint before pushing; open a PR
+  titled `SF-<ticket> — <Title>`. **Never merge a PR** unless the user
+  explicitly asks. Keep changes to the ticket's scope.
+* Finish with the final report described in the standards (§12): commands
+  actually run and their results, what was not validated, branch/PR/CI status.
