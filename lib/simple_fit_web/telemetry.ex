@@ -72,12 +72,35 @@ defmodule SimpleFitWeb.Telemetry do
           "The time the connection spent waiting before being checked out for the query"
       ),
 
+      # Provider boundaries (SimpleFit.Email, SimpleFit.Storage). `result` is
+      # :ok or a SimpleFit.Provider error reason.
+      summary("simple_fit.email.deliver.stop.duration",
+        tags: [:adapter, :result],
+        unit: {:native, :millisecond}
+      ),
+      counter("simple_fit.storage.presign.stop.duration", tags: [:adapter, :method, :result]),
+
+      # Background jobs (Oban)
+      summary("oban.job.stop.duration",
+        tags: [:queue, :worker, :state],
+        tag_values: &oban_job_tags/1,
+        unit: {:native, :millisecond}
+      ),
+      counter("oban.job.exception.duration",
+        tags: [:queue, :worker],
+        tag_values: &oban_job_tags/1
+      ),
+
       # VM Metrics
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),
       summary("vm.total_run_queue_lengths.cpu"),
       summary("vm.total_run_queue_lengths.io")
     ]
+  end
+
+  defp oban_job_tags(%{job: job} = metadata) do
+    %{queue: job.queue, worker: job.worker, state: Map.get(metadata, :state)}
   end
 
   defp periodic_measurements do

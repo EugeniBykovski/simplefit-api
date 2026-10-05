@@ -26,6 +26,22 @@ config :simple_fit, SimpleFit.Repo,
 # through API_DOCS_ENABLED (see config/runtime.exs).
 config :simple_fit, :api_docs, enabled: true
 
+# Background jobs (Oban, PostgreSQL-backed). See docs/architecture/adr/0006.
+# Queues stay minimal: add one only when a workload needs its own
+# concurrency limit. Completed/cancelled/discarded jobs are pruned after a day,
+# which also bounds how long job arguments (e.g. email contents) are kept.
+config :simple_fit, Oban,
+  engine: Oban.Engines.Basic,
+  repo: SimpleFit.Repo,
+  queues: [default: 10, mailers: 5],
+  plugins: [
+    {Oban.Plugins.Pruner, max_age: 86_400},
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
+  ]
+
+# Oban's structured job logger (start/stop/exception per job).
+config :simple_fit, :attach_oban_logger, true
+
 # Configure the endpoint
 config :simple_fit, SimpleFitWeb.Endpoint,
   url: [host: "localhost"],
@@ -40,7 +56,7 @@ config :simple_fit, SimpleFitWeb.Endpoint,
 # `request_id` returned in API error responses.
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+  metadata: [:request_id, :provider, :status, :reason, :missing]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
