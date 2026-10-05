@@ -96,6 +96,62 @@ end
 config :simple_fit, SimpleFitWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Observability (docs/architecture/adr/0008-observability.md). One service
+# identity for logs, Sentry and OpenTelemetry:
+#   SENTRY_ENVIRONMENT  deployment environment (default: the Mix env)
+#   SENTRY_RELEASE      release identifier, e.g. the git SHA
+#                       (default: simplefit-api@<mix.exs version>)
+observability_environment = get_env.("SENTRY_ENVIRONMENT") || Atom.to_string(config_env())
+
+observability_release =
+  get_env.("SENTRY_RELEASE") ||
+    "simplefit-api@#{Application.spec(:simple_fit, :vsn) || Mix.Project.config()[:version]}"
+
+config :simple_fit, :observability,
+  environment: observability_environment,
+  release: observability_release
+
+# Sentry: disabled unless SENTRY_DSN is set (test uses Sentry.Test).
+if config_env() != :test do
+  config :sentry, dsn: get_env.("SENTRY_DSN")
+end
+
+config :sentry,
+  environment_name: observability_environment,
+  release: observability_release,
+  before_send: {SimpleFit.Observability.SentryFilter, :before_send},
+  integrations: [
+    oban: [
+      capture_errors: true,
+      should_report_error_callback: &SimpleFit.Observability.SentryFilter.report_job_error?/2
+    ]
+  ]
+
+# OpenTelemetry: spans are always created (trace ids in logs) but exported
+# only when an OTLP endpoint is configured with the standard variables
+# (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS, OTEL_TRACES_SAMPLER,
+# OTEL_RESOURCE_ATTRIBUTES, ...), which the SDK reads itself.
+if config_env() != :test and get_env.("OTEL_EXPORTER_OTLP_ENDPOINT") do
+  config :opentelemetry, traces_exporter: :otlp
+  config :opentelemetry_exporter, otlp_protocol: :http_protobuf
+end
+
+if config_env() != :test do
+  # SpanSanitizer strips sensitive attributes before the batch processor,
+  # which exports asynchronously and drops spans if the backend is down.
+  config :opentelemetry,
+    processors: [
+      {SimpleFit.Observability.SpanSanitizer, %{}},
+      {:otel_batch_processor, %{}}
+    ]
+end
+
+config :opentelemetry,
+  resource: [
+    service: [name: "simplefit-api", version: observability_release],
+    deployment: [environment: [name: observability_environment]]
+  ]
+
 case config_env() do
   :dev ->
     if database_url = System.get_env("DATABASE_URL") do

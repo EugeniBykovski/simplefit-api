@@ -53,10 +53,22 @@ defmodule SimpleFit.MixProject do
       # PostgreSQL-backed background jobs (first queue: transactional email).
       {:oban, "~> 2.24"},
 
-      # Observability
+      # Observability (see docs/architecture/adr/0008-observability.md)
       {:telemetry_metrics, "~> 1.2"},
       {:telemetry_poller, "~> 1.3"},
       {:logger_json, "~> 7.0"},
+      # Error tracking: unexpected failures only, sent off the request path.
+      {:sentry, "~> 13.5"},
+      # Tracing: OpenTelemetry SDK + OTLP exporter and the maintained
+      # instrumentation libraries (opentelemetry-erlang-contrib).
+      {:opentelemetry, "~> 1.7"},
+      {:opentelemetry_api, "~> 1.5"},
+      {:opentelemetry_exporter, "~> 1.11"},
+      {:opentelemetry_phoenix, "~> 2.0"},
+      {:opentelemetry_bandit, "~> 0.3"},
+      {:opentelemetry_ecto, "~> 1.2"},
+      {:opentelemetry_oban, "~> 1.2"},
+      {:opentelemetry_req, "~> 1.0"},
 
       # Quality tooling
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

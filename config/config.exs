@@ -44,8 +44,9 @@ config :simple_fit, Oban,
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
   ]
 
-# Oban's structured job logger (start/stop/exception per job).
-config :simple_fit, :attach_oban_logger, true
+# Privacy-safe job outcome logs (SimpleFit.Observability.JobLogger), instead
+# of Oban's default logger, which writes job args.
+config :simple_fit, :attach_job_logger, true
 
 # Configure the endpoint
 config :simple_fit, SimpleFitWeb.Endpoint,
@@ -56,12 +57,54 @@ config :simple_fit, SimpleFitWeb.Endpoint,
     layout: false
   ]
 
-# Configure Elixir's Logger. `request_id` is attached to every log line
-# emitted while serving a request so logs can be correlated with the
-# `request_id` returned in API error responses.
+# Logger metadata allow-list (see docs/architecture/adr/0008-observability.md).
+# `request_id` correlates with the `request_id` in API error responses;
+# `otel_trace_id`/`otel_span_id` with traces. Service, environment and release
+# are global metadata set by SimpleFit.Observability.
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :provider, :status, :reason, :missing]
+  metadata: [
+    :request_id,
+    :otel_trace_id,
+    :otel_span_id,
+    :method,
+    :route,
+    :status,
+    :duration_ms,
+    :provider,
+    :reason,
+    :missing,
+    :worker,
+    :queue,
+    :job_id,
+    :attempt,
+    :max_attempts,
+    :state,
+    :error_kind,
+    :error_type
+  ]
+
+# One structured "request completed" event per request comes from
+# SimpleFit.Observability.RequestLogger; Phoenix's text request logs are off.
+config :phoenix, :logger, false
+
+# Error tracking (Sentry). Disabled without SENTRY_DSN (config/runtime.exs).
+# Never send PII, request data or source context; SimpleFit.Observability.
+# SentryFilter strips every event.
+config :sentry,
+  dsn: nil,
+  send_default_pii: false,
+  enable_source_code_context: false,
+  in_app_otp_apps: [:simple_fit],
+  integrations: [oban: [capture_errors: true]]
+
+# Tracing (OpenTelemetry). No exporter unless OTEL_EXPORTER_OTLP_ENDPOINT is
+# set. The processor chain (SpanSanitizer first) is set per environment in
+# config/runtime.exs and config/test.exs: Config would merge, not replace,
+# a processors list declared here.
+config :opentelemetry,
+  resource: [service: [name: "simplefit-api"]],
+  traces_exporter: :none
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

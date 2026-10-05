@@ -30,7 +30,21 @@ config :simple_fit, Oban, testing: :manual
 
 # The local web client origin, so CORS behaviour is tested deterministically.
 config :simple_fit, SimpleFitWeb.CORS, allowed_origins: ["http://localhost:3000"]
-config :simple_fit, :attach_oban_logger, false
+config :simple_fit, :attach_job_logger, false
+
+# Sentry collects events in memory (Sentry.Test); nothing leaves the process.
+# The DSN is a local placeholder, not an account.
+config :sentry, dsn: "http://public:secret@localhost:9/1", test_mode: true
+config :simple_fit, :sentry_rate_limiting, nil
+
+# Spans are collected synchronously by tests (otel_simple_processor with a pid
+# exporter set in the test); nothing is exported.
+config :opentelemetry,
+  traces_exporter: :none,
+  processors: [
+    {SimpleFit.Observability.SpanSanitizer, %{}},
+    {:otel_simple_processor, %{name: :global}}
+  ]
 
 # Providers never reach the network in tests. Adapter tests stub HTTP with
 # Req.Test; everything else uses these deterministic adapters.

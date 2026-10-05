@@ -22,6 +22,9 @@ defmodule SimpleFit.HTTP do
 
   Tests stub providers without network access through the adapter's
   `:req_options` configuration, e.g. `plug: {Req.Test, SimpleFit.Email.Resend}`.
+
+  Every client is traced with `OpentelemetryReq` (see ADR 0008); provider
+  failures keep logging only the provider name, status and normalized reason.
   """
 
   require Logger
@@ -43,7 +46,13 @@ defmodule SimpleFit.HTTP do
   """
   @spec new(keyword()) :: Req.Request.t()
   def new(options) do
-    Req.new(Keyword.merge(@default_options, options))
+    @default_options
+    |> Keyword.merge(options)
+    |> Req.new()
+    # Client spans (method, host, status, duration). No headers, and no
+    # trace headers are injected into vendor requests. The URL query is
+    # removed by SimpleFit.Observability.SpanSanitizer.
+    |> OpentelemetryReq.attach(propagate_trace_headers: false)
   end
 
   @doc """
