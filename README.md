@@ -182,7 +182,9 @@ Errors always use this shape (see [ADR 0003](docs/architecture/adr/0003-api-vers
 * New dependencies need a written justification (see
   [ADR 0004](docs/architecture/adr/0004-deferred-infrastructure.md) for
   what was deliberately deferred).
-* Branch per Jira ticket (e.g. `SF-12-fighter-profiles`); PRs must pass CI.
+* Branch per Jira ticket (`SF-16-identity-authentication`), commits as
+  `feat: SF-16 - add identity domain`, PRs must pass CI and are merged by a
+  human. Shared rules: [docs/engineering-standards.md](docs/engineering-standards.md).
 
 ## CI
 
@@ -193,3 +195,5 @@ request and on pushes to `main`:
   errors, `mix test` against PostgreSQL 17
 * **Quality**: format, compile, Credo, `openapi.check`, Dialyzer (cached PLT)
 * **OpenAPI lint**: Redocly `recommended-strict`
+* **Commit messages** (pull requests): every commit in the PR follows
+  `<type>: SF-<ticket> - <description>`

@@ -139,3 +139,18 @@ jobs:
 
       - name: Lint OpenAPI artifact (Redocly, recommended-strict)
         run: npx --yes @redocly/cli@2.57.0 lint
+
+  commit-messages:
+    name: Commit messages
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: "Commit headers follow <type>: SF-<ticket> - <description>"
+        run: >-
+          .github/scripts/check-commit-messages.sh
+          ${{ github.event.pull_request.base.sha }}
+          ${{ github.event.pull_request.head.sha }}
