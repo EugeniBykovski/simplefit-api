@@ -17,6 +17,72 @@ parse_boolean = fn name, default ->
   end
 end
 
+# Optional variable: unset and empty both mean "not configured".
+get_env = fn name ->
+  case System.get_env(name) do
+    nil -> nil
+    value -> if String.trim(value) == "", do: nil, else: value
+  end
+end
+
+# Validates a variable only when it is set: a present-but-malformed value is
+# a deployment mistake and fails boot. Absent values are handled by the
+# adapters, which fail closed at call time (see docs/architecture/adr/0005).
+validate_env = fn name, pattern, hint ->
+  case get_env.(name) do
+    nil ->
+      nil
+
+    value ->
+      if Regex.match?(pattern, value), do: value, else: raise("#{name} is invalid: #{hint}")
+  end
+end
+
+storage_env = fn ->
+  [
+    bucket:
+      validate_env.(
+        "AWS_S3_BUCKET",
+        ~r/\A[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]\z/,
+        "expected an S3 bucket name"
+      ),
+    region:
+      validate_env.(
+        "AWS_REGION",
+        ~r/\A[a-z]{2}(-[a-z]+)+-\d\z/,
+        "expected an AWS region such as eu-central-1"
+      ),
+    access_key_id: get_env.("AWS_ACCESS_KEY_ID"),
+    secret_access_key: get_env.("AWS_SECRET_ACCESS_KEY"),
+    session_token: get_env.("AWS_SESSION_TOKEN"),
+    endpoint:
+      validate_env.(
+        "AWS_S3_ENDPOINT",
+        ~r{\Ahttps?://[^/\s]+/?\z},
+        "expected a base URL such as http://localhost:9000"
+      ),
+    key_prefix:
+      validate_env.(
+        "AWS_S3_KEY_PREFIX",
+        ~r{\A([A-Za-z0-9][A-Za-z0-9._-]*/)+\z},
+        "expected segments ending with a slash, e.g. staging/"
+      )
+  ]
+end
+
+email_env = fn ->
+  [
+    api_key: get_env.("RESEND_API_KEY"),
+    # "addr@domain.tld" or "Name <addr@domain.tld>", without line breaks.
+    from:
+      validate_env.(
+        "EMAIL_FROM",
+        ~r/\A(?:[^<>\r\n]*<[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>|[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)\z/,
+        "expected an address such as SimpleFit <no-reply@example.com>"
+      )
+  ]
+end
+
 # ## Using releases
 #
 # If you use `mix release`, you need to explicitly enable the server
@@ -35,6 +101,22 @@ case config_env() do
     if database_url = System.get_env("DATABASE_URL") do
       config :simple_fit, SimpleFit.Repo, url: database_url
     end
+
+    # Development works without provider accounts: real adapters are used
+    # only when their credentials are exported.
+    storage = storage_env.()
+
+    config :simple_fit, SimpleFit.Storage, [
+      {:adapter, if(storage[:bucket], do: SimpleFit.Storage.S3, else: SimpleFit.Storage.Fake)}
+      | storage
+    ]
+
+    email = email_env.()
+
+    config :simple_fit, SimpleFit.Email, [
+      {:adapter, if(email[:api_key], do: SimpleFit.Email.Resend, else: SimpleFit.Email.Log)}
+      | Keyword.update!(email, :from, &(&1 || "SimpleFit Dev <dev@simplefit.invalid>"))
+    ]
 
   :test ->
     # Never fall back to DATABASE_URL here: tests must not touch the
@@ -90,4 +172,16 @@ case config_env() do
 
     # API docs are off in production unless explicitly enabled.
     config :simple_fit, :api_docs, enabled: parse_boolean.("API_DOCS_ENABLED", false)
+
+    # Providers always use the real adapters in production, never fakes.
+    # Missing credentials do not block boot; operations then fail closed
+    # with :configuration_error (and an error log naming the missing keys).
+    storage = storage_env.()
+
+    if storage[:endpoint] && not String.starts_with?(storage[:endpoint], "https://") do
+      raise "AWS_S3_ENDPOINT must use https:// in production"
+    end
+
+    config :simple_fit, SimpleFit.Storage, [{:adapter, SimpleFit.Storage.S3} | storage]
+    config :simple_fit, SimpleFit.Email, [{:adapter, SimpleFit.Email.Resend} | email_env.()]
 end

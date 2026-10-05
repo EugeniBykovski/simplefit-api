@@ -22,7 +22,8 @@ config :logger, level: :info
 # request id. Log aggregation (CloudWatch, Datadog, Loki, ...) can index the
 # fields without regex parsing.
 config :logger, :default_handler,
-  formatter: {LoggerJSON.Formatters.Basic, metadata: [:request_id]}
+  formatter:
+    {LoggerJSON.Formatters.Basic, metadata: [:request_id, :provider, :status, :reason, :missing]}
 
 # Runtime production configuration, including reading
 # of environment variables, is done on config/runtime.exs.

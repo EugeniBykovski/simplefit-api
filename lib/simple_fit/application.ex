@@ -7,9 +7,14 @@ defmodule SimpleFit.Application do
 
   @impl true
   def start(_type, _args) do
+    if Application.get_env(:simple_fit, :attach_oban_logger, false) do
+      :ok = Oban.Telemetry.attach_default_logger(level: :info)
+    end
+
     children = [
       SimpleFitWeb.Telemetry,
       SimpleFit.Repo,
+      {Oban, Application.fetch_env!(:simple_fit, Oban)},
       # Start to serve requests, typically the last entry
       SimpleFitWeb.Endpoint
     ]

@@ -46,6 +46,13 @@ defmodule SimpleFit.MixProject do
       # API contract (OpenAPI 3, code-first). See docs/architecture/adr/0002.
       {:open_api_spex, "~> 3.22"},
 
+      # Infrastructure (see docs/architecture/adr/0005 and 0006).
+      # Canonical outbound HTTP client for provider adapters (Resend) and AWS
+      # SigV4 presigning for S3; Req.Test stubs HTTP in tests.
+      {:req, "~> 0.7.4"},
+      # PostgreSQL-backed background jobs (first queue: transactional email).
+      {:oban, "~> 2.24"},
+
       # Observability
       {:telemetry_metrics, "~> 1.2"},
       {:telemetry_poller, "~> 1.3"},
