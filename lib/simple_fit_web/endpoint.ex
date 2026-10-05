@@ -30,6 +30,10 @@ defmodule SimpleFitWeb.Endpoint do
   plug :put_security_headers
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # Cross-origin policy (explicit allow-list, answers preflights). After the
+  # request id and security headers so preflight responses carry them too.
+  plug SimpleFitWeb.CORS
+
   # Only JSON bodies are accepted. Any other content type is rejected with
   # 415 unsupported_media_type before reaching the router.
   @parsers Plug.Parsers.init(

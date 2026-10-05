@@ -26,6 +26,11 @@ config :simple_fit, SimpleFit.Repo,
 # through API_DOCS_ENABLED (see config/runtime.exs).
 config :simple_fit, :api_docs, enabled: true
 
+# Cross-origin allow-list (SimpleFitWeb.CORS). Empty = no browser origin is
+# allowed (fail closed). Set per environment in config/runtime.exs from
+# CORS_ALLOWED_ORIGINS; see docs/architecture/adr/0007-cors-policy.md.
+config :simple_fit, SimpleFitWeb.CORS, allowed_origins: []
+
 # Background jobs (Oban, PostgreSQL-backed). See docs/architecture/adr/0006.
 # Queues stay minimal: add one only when a workload needs its own
 # concurrency limit. Completed/cancelled/discarded jobs are pruned after a day,

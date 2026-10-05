@@ -19,19 +19,25 @@ defmodule SimpleFitWeb.APIError do
     * `message` - human-readable English summary. Safe to log, not meant
       for end users, may change without notice.
     * `details` - object with code-specific structured data. Always present,
-      empty when there is nothing to add. For `validation_error` it will hold
-      `fields`: a map of field name to a list of messages.
+      empty when there is nothing to add. For `validation_error` it holds
+      `fields` (field name to a list of human-readable messages, SF-2) and
+      `field_codes` (the same entries, in the same order, as stable reason
+      codes such as `required` or `already_exists`, SF-6). See
+      `SimpleFitWeb.ChangesetErrors`.
     * `request_id` - the `x-request-id` of the request, for support and log
       correlation. `null` only if no request id was assigned.
 
   Messages are fixed per code. Exception messages, stack traces and other
-  internals never reach the response body.
+  internals never reach the response body: the public error is built only
+  from the catalog below, while the internal diagnosis (exception, reason,
+  stack) goes to the server log with the same `request_id`.
 
   This module is the single source of truth for codes. The OpenAPI error
   schemas (`SimpleFitWeb.Schemas.Error*`) and `SimpleFitWeb.ErrorJSON` are
   built from it. See docs/architecture/adr/0003-api-versioning-and-errors.md.
   """
 
+  alias Plug.Conn
   alias Plug.Conn.Status
 
   @typedoc "A machine-readable error code."
@@ -124,4 +130,48 @@ defmodule SimpleFitWeb.APIError do
 
   defp message_for(code, _status) when code in @codes, do: message(code)
   defp message_for(_code, status), do: Status.reason_phrase(status)
+
+  @doc """
+  Sends the error envelope for a catalogued `code` and halts the conn.
+
+  Used by plugs and `SimpleFitWeb.FallbackController`. The request id is
+  read from the `x-request-id` response header set by `Plug.RequestId`.
+
+  ## Options
+
+    * `:details` - code-specific details map (default `%{}`)
+    * `:retry_after` - seconds, sets the `retry-after` header (for
+      `rate_limited` and `service_unavailable`)
+  """
+  @spec send_error(Conn.t(), code(), keyword()) :: Conn.t()
+  def send_error(%Conn{} = conn, code, opts \\ []) when code in @codes do
+    status = status(code)
+
+    body =
+      status
+      |> envelope(
+        code: code,
+        details: Keyword.get(opts, :details, %{}),
+        request_id: request_id(conn)
+      )
+      |> Jason.encode_to_iodata!()
+
+    conn
+    |> put_retry_after(opts[:retry_after])
+    |> Conn.put_resp_content_type("application/json")
+    |> Conn.send_resp(status, body)
+    |> Conn.halt()
+  end
+
+  defp request_id(conn) do
+    case Conn.get_resp_header(conn, "x-request-id") do
+      [request_id | _] -> request_id
+      [] -> nil
+    end
+  end
+
+  defp put_retry_after(conn, seconds) when is_integer(seconds) and seconds >= 0,
+    do: Conn.put_resp_header(conn, "retry-after", Integer.to_string(seconds))
+
+  defp put_retry_after(conn, _seconds), do: conn
 end

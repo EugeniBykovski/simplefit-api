@@ -27,6 +27,9 @@ config :simple_fit, SimpleFitWeb.Endpoint,
 # Jobs are never executed automatically in tests: assert on enqueued jobs
 # (Oban.Testing) and run them explicitly with perform_job/2.
 config :simple_fit, Oban, testing: :manual
+
+# The local web client origin, so CORS behaviour is tested deterministically.
+config :simple_fit, SimpleFitWeb.CORS, allowed_origins: ["http://localhost:3000"]
 config :simple_fit, :attach_oban_logger, false
 
 # Providers never reach the network in tests. Adapter tests stub HTTP with
