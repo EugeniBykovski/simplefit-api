@@ -9,9 +9,10 @@ as ADRs in [`adr/`](adr/).
 | [0001](adr/0001-architecture-baseline.md) | Phoenix modular monolith, API-only, PostgreSQL, UUID keys |
 | [0002](adr/0002-openapi-strategy.md) | OpenAPI: code-first with `open_api_spex`, committed artifact, Scalar docs |
 | [0003](adr/0003-api-versioning-and-errors.md) | URL layout / versioning and the JSON error contract |
-| [0004](adr/0004-deferred-infrastructure.md) | Infrastructure intentionally deferred (Sentry, CORS, auth, PostGIS, ...) |
+| [0004](adr/0004-deferred-infrastructure.md) | Infrastructure intentionally deferred (Sentry, auth, PostGIS, ...) |
 | [0005](adr/0005-provider-boundaries-and-http-client.md) | Provider boundaries, Req as the HTTP client, S3 storage, Resend email |
 | [0006](adr/0006-background-jobs-oban.md) | Background jobs with Oban (queues, pruning, testing, worker conventions) |
+| [0007](adr/0007-cors-policy.md) | Cross-origin (CORS) policy: explicit allow-list, preflight, no credentials |
 
 ---
 
@@ -166,12 +167,19 @@ All non-2xx responses use the envelope defined in `SimpleFitWeb.APIError`
 { "error": { "code": "not_found", "message": "...", "details": {}, "request_id": "..." } }
 ```
 
-* Exceptions are rendered by `SimpleFitWeb.ErrorJSON`.
-* When the first context returns `{:error, ...}`, add a
-  `SimpleFitWeb.FallbackController` that maps `:not_found`, `:forbidden`,
-  `%Ecto.Changeset{}` (→ `validation_error` with `details.fields`), ... onto
-  `APIError.envelope/2`. It does not exist yet because nothing produces those
-  tuples.
+* Exceptions are rendered by `SimpleFitWeb.ErrorJSON` (generic per status;
+  the exception is never rendered).
+* Context `{:error, reason}` results go through
+  `SimpleFitWeb.FallbackController`; plugs call `APIError.send_error/3`.
+* `validation_error` details: `fields` (messages, SF-2) plus `field_codes`
+  (aligned machine-readable reasons, SF-6) from `SimpleFitWeb.ChangesetErrors`.
+* Public versus internal errors: the response carries only the catalogued
+  code, its fixed message and structured details. The diagnosis (exception,
+  reason, stack) is logged server-side under the same `request_id`. Error
+  tracking (Sentry/OpenTelemetry) belongs to SF-8.
+* Clients branch on `code` and `field_codes`, never on human-readable
+  messages. See [ADR 0003](adr/0003-api-versioning-and-errors.md) for the
+  catalog, HTTP mapping, reason codes and the rules for future domain errors.
 
 ### Migrations
 
@@ -190,7 +198,7 @@ All non-2xx responses use the envelope defined in `SimpleFitWeb.APIError`
 | Object storage | Private bucket, uploads/downloads direct to S3 with short-lived presigned URLs (content type and exact size signed; max 1 h). Keys from validated segments only. AWS credentials stay server-side; signed URLs are redacted from `inspect`/logs. | Media domains add per-purpose content-type and size limits |
 | Outbound HTTP / providers | Only adapters call out, via `SimpleFit.HTTP`: verified TLS, 5 s/15 s timeouts, no redirects (no SSRF steering), no automatic retries (Oban owns bounded retries with idempotency keys). Provider errors normalized; bodies, headers, API keys never logged. Missing provider config fails closed (`:configuration_error`), never falls back to fakes in prod. | — |
 | Error handling | Fixed messages per error code; exception messages, stack traces and request bodies never reach responses. `debug_errors` only in dev. | — |
-| CORS | **Deny by default**: no CORS headers are sent, so browsers block cross-origin calls. No browser client exists yet. | Web-client ticket: add `Corsica` in the endpoint with an explicit `CORS_ALLOWED_ORIGINS` allow-list (never `*` in prod), exposing `x-request-id` |
+| CORS | `SimpleFitWeb.CORS` ([ADR 0007](adr/0007-cors-policy.md)). Explicit allow-list from `CORS_ALLOWED_ORIGINS`: dev default `http://localhost:3000`; prod https only, fail closed when unset; malformed values stop the boot. Never `*`, no credentials. Preflights answered (204, or `403 forbidden` envelope); `x-request-id` exposed. | Revisit before any cookie/credentialed authentication |
 | HTTPS / proxies | `force_ssl` + HSTS in prod, trusting `x-forwarded-proto` from the load balancer (`/api/health` excluded so plain-HTTP health checks work). The app must only be reachable through that proxy. | Deployment ticket. When client IPs matter (rate limiting, audit), add `remote_ip` configured with the proxy's CIDRs only |
 | Logging | Phoenix `filter_parameters` redacts keys containing `password`, `secret`, `token`, `api_key`, `private_key`, `authorization`, `credential`. JSON logs in prod. Never log full request bodies or tokens. | — |
 | Authentication | Not implemented. `bearerAuth` security scheme is reserved in OpenAPI. | Auth ticket: a `:authenticated` router pipeline with a plug that resolves the bearer token to an actor |

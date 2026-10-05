@@ -56,7 +56,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
 10. **All errors use the envelope** from `SimpleFitWeb.APIError`
    (`{"error": {code, message, details, request_id}}`). Add new codes to the
    catalog there (OpenAPI follows automatically). Never put exception
-   messages, stack traces or internal details into responses.
+   messages, stack traces or internal details into responses. Context errors
+   go through `SimpleFitWeb.FallbackController`; validation details carry
+   `fields` plus aligned `field_codes` derived from Ecto metadata (ADR 0003).
+   Clients branch on codes, never on messages.
 11. Product endpoints live under `/api/v1`. Every operation has a camelCase
     `operation_id`, a summary, a declared tag and all its responses
     (reference shared errors with `ApiSpec.error_response/1`).
@@ -72,8 +75,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
     files. Read configuration only in `config/runtime.exs` from env vars and
     document every new variable in `.env.example`.
 15. Do not weaken the security baseline (security headers, JSON-only parsing,
-    deny-by-default CORS, docs disabled in prod, log filtering) without an
-    explicit ticket. Never enable `*` CORS in production.
+    explicit-allow-list CORS (ADR 0007), docs disabled in prod, log filtering)
+    without an explicit ticket. Never enable `*` CORS, never allow origins by
+    pattern, never send CORS credentials without an authentication ticket that
+    requires them.
 16. Never log secrets, tokens, full request bodies or personal data, nor
     API keys, authorization headers, provider response bodies or presigned
     URLs. Storage stays private: clients upload/download directly with
