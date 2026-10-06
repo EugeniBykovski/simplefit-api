@@ -95,6 +95,13 @@ defmodule SimpleFitWeb.Telemetry do
       counter("simple_fit.auth.google.keys_unavailable.count", tags: [:reason]),
       counter("simple_fit.auth.google.rate_limited.count"),
 
+      # Sign in with Apple (ADR 0014): outcome and bounded reason only.
+      counter("simple_fit.auth.apple.verified.count", tags: [:account]),
+      counter("simple_fit.auth.apple.rejected.count", tags: [:reason]),
+      counter("simple_fit.auth.apple.unavailable.count", tags: [:reason]),
+      counter("simple_fit.auth.apple.keys_unavailable.count", tags: [:reason]),
+      counter("simple_fit.auth.apple.rate_limited.count"),
+
       # Background jobs (Oban)
       summary("oban.job.stop.duration",
         tags: [:queue, :worker, :state],

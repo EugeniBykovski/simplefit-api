@@ -292,6 +292,108 @@
       }
     },
     "schemas": {
+      "AppleAuthRequest": {
+        "additionalProperties": false,
+        "description": "`id_token` is the Apple identity token (a JWT) from Sign in with Apple (Apple JS on the web, iOS). Its\nrequest must have carried the lowercase hex SHA-256 of `nonce`; the raw `nonce` is sent here. Both are\nverified by the API and never stored. Nothing else about the person (name, email) is sent or trusted.\n",
+        "example": {
+          "id_token": "<apple-identity-token>",
+          "nonce": "example-raw-nonce-base64url-of-32-random-bytes",
+          "refresh_token_transport": "cookie"
+        },
+        "properties": {
+          "id_token": {
+            "description": "Apple identity token. Sensitive: never log or persist it.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "nonce": {
+            "description": "The raw nonce whose SHA-256 (lowercase hex) was sent to Apple. Sensitive: never log or persist it.",
+            "maxLength": 128,
+            "minLength": 32,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "refresh_token_transport": {
+            "default": "body",
+            "description": "How to deliver the refresh token (ADR 0010). `body` (mobile) returns it in JSON. `cookie` (web) sets\nthe `HttpOnly` refresh cookie and requires an allow-listed `Origin` and `x-simplefit-csrf: 1`.\n",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_token",
+          "nonce"
+        ],
+        "title": "AppleAuthRequest",
+        "type": "object"
+      },
+      "AppleAuthResponse": {
+        "additionalProperties": false,
+        "description": "The SimpleFit session (same fields as `SessionTokens`) plus `account`: `created` on the first sign-in of\nthis Apple account, `existing` afterwards. A temporary routing signal for first-time onboarding until\nprofile/onboarding state is exposed by the API.\n",
+        "example": {
+          "access_token": "sfa_SFMyNTY.g2gDbQAAACQ.LZ3e0J2s5A",
+          "access_token_expires_at": "2026-10-06T12:15:00Z",
+          "account": "created",
+          "refresh_token": "sfr_3q2-7wQYz1bYH0Cq5Zf8d9E0aB1cD2eF3gH4iJ5kL6m",
+          "refresh_token_expires_at": "2026-11-05T12:00:00Z",
+          "refresh_token_transport": "body",
+          "token_type": "Bearer"
+        },
+        "properties": {
+          "access_token": {
+            "description": "Short-lived SimpleFit access token (opaque to clients).",
+            "pattern": "^sfa_",
+            "type": "string"
+          },
+          "access_token_expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "account": {
+            "enum": [
+              "created",
+              "existing"
+            ],
+            "type": "string"
+          },
+          "refresh_token": {
+            "description": "Body transport only. Keep it in platform secure storage.",
+            "pattern": "^sfr_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          },
+          "refresh_token_expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refresh_token_transport": {
+            "description": "Where the refresh token was delivered.",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          },
+          "token_type": {
+            "enum": [
+              "Bearer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_type",
+          "access_token",
+          "access_token_expires_at",
+          "refresh_token_expires_at",
+          "refresh_token_transport",
+          "account"
+        ],
+        "title": "AppleAuthResponse",
+        "type": "object"
+      },
       "CurrentUserResponse": {
         "additionalProperties": false,
         "description": "The authenticated viewer. `user` is the one global SimpleFit user; capabilities such as profiles\nand workspace memberships will be added as sibling fields when they exist.\n",
@@ -915,6 +1017,97 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/auth/apple": {
+      "post": {
+        "callbacks": {},
+        "description": "Verifies the Apple identity token (RS256 signature with Apple's keys, issuer, audience, expiry, subject, and\nthe nonce: the token's `nonce` must be the lowercase hex SHA-256 of the raw `nonce` sent here) and starts a\nSimpleFit session. Apple credentials are never SimpleFit credentials and are not stored.\n\nThe Apple account is identified only by its subject (`sub`): an unknown one creates a new account\n(`account: created`), a known one signs in (`account: existing`). Email (including private relay\naddresses) and name are never read; accounts are never linked by email.\n\n* `unauthorized` - the token is not a valid Apple identity token for SimpleFit (no detail is given).\n* `service_unavailable` - Apple's signing keys cannot be obtained or Sign in with Apple is not configured.\n",
+        "operationId": "authenticateWithApple",
+        "parameters": [
+          {
+            "description": "Required (value `1`) with `refresh_token_transport: cookie`, together with an allow-listed `Origin`.",
+            "in": "header",
+            "name": "x-simplefit-csrf",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppleAuthRequest"
+              }
+            }
+          },
+          "description": "Apple identity token and raw nonce",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppleAuthResponse"
+                }
+              }
+            },
+            "description": "Session credentials",
+            "headers": {
+              "set-cookie": {
+                "description": "Cookie transport only: the refresh token (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`).",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "summary": "Sign in (or sign up) with an Apple identity token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/auth/email/registrations": {
       "post": {
         "callbacks": {},

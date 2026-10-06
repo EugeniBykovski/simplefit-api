@@ -153,8 +153,11 @@ config :phoenix, :filter_parameters, [
   # registration tokens.
   "code",
   "email",
-  # Google ID tokens (ADR 0013); also covered by "token".
-  "id_token"
+  # Google and Apple identity tokens (ADR 0013, ADR 0014); also covered by
+  # "token".
+  "id_token",
+  # The raw Sign in with Apple nonce (ADR 0014).
+  "nonce"
 ]
 
 # Import environment specific config. This must remain at the bottom
