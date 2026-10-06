@@ -46,6 +46,23 @@ defmodule SimpleFitWeb.Endpoint do
   plug Plug.Head
   plug SimpleFitWeb.Router
 
+  @doc """
+  The development listen address from `PHX_BIND_ALL` (config/runtime.exs,
+  `:dev` only): loopback (`127.0.0.1`) unless it is exactly `true`, which
+  binds every IPv4 interface (`0.0.0.0`) so a physical device on the same LAN
+  can reach the API. Unset, empty or `false` keeps loopback; anything else
+  raises, so a typo never silently exposes the server. Production binding is
+  configured separately and never reads this variable.
+  """
+  @spec parse_dev_bind_all!(String.t() | nil) :: :inet.ip4_address()
+  def parse_dev_bind_all!(value) do
+    case value |> to_string() |> String.trim() |> String.downcase() do
+      "true" -> {0, 0, 0, 0}
+      empty_or_false when empty_or_false in ["", "false"] -> {127, 0, 0, 1}
+      _invalid -> raise ArgumentError, "PHX_BIND_ALL must be true or false"
+    end
+  end
+
   defp put_security_headers(conn, _opts) do
     Plug.Conn.merge_resp_headers(conn, @security_headers)
   end

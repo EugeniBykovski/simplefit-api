@@ -14,8 +14,8 @@ config :simple_fit, SimpleFit.Repo,
 # For development, we disable any cache and enable
 # debugging and code reloading.
 config :simple_fit, SimpleFitWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
-  # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
+  # Loopback only: other machines cannot connect. For physical-device testing
+  # export PHX_BIND_ALL=true, which config/runtime.exs turns into 0.0.0.0.
   http: [ip: {127, 0, 0, 1}],
   check_origin: false,
   code_reloader: true,

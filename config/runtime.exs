@@ -154,6 +154,11 @@ config :opentelemetry,
 
 case config_env() do
   :dev ->
+    # Loopback by default; PHX_BIND_ALL=true listens on every IPv4 interface
+    # so a physical device on the LAN can reach the API (development only).
+    config :simple_fit, SimpleFitWeb.Endpoint,
+      http: [ip: SimpleFitWeb.Endpoint.parse_dev_bind_all!(System.get_env("PHX_BIND_ALL"))]
+
     if database_url = System.get_env("DATABASE_URL") do
       config :simple_fit, SimpleFit.Repo, url: database_url
     end

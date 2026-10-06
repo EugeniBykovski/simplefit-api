@@ -52,6 +52,18 @@ curl -s localhost:4000/api/health
 # {"status":"ok","service":"simplefit-api"}
 ```
 
+It binds to `127.0.0.1` only. To test from a physical phone on the same LAN
+(development builds with `EXPO_PUBLIC_API_URL=http://<mac-lan-ip>:4000`),
+opt in to every IPv4 interface for that run:
+
+```bash
+PHX_BIND_ALL=true mix phx.server
+curl -s http://<mac-lan-ip>:4000/api/health
+```
+
+Use it on trusted networks only. Native app requests carry no `Origin`
+header, so CORS needs no change.
+
 ## Environment
 
 Configuration comes from environment variables, read only in
