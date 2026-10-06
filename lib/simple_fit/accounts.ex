@@ -28,7 +28,7 @@ defmodule SimpleFit.Accounts do
   import Ecto.Changeset, only: [apply_changes: 1, put_change: 3]
   import Ecto.Query, only: [from: 2]
 
-  alias SimpleFit.Accounts.{EmailAddress, EmailAuth, Identity, Sessions, User}
+  alias SimpleFit.Accounts.{EmailAddress, EmailAuth, GoogleAuth, Identity, Sessions, User}
   alias SimpleFit.Repo
 
   @typedoc "A supported identity provider: `:email`, `:google` or `:apple`."
@@ -189,6 +189,17 @@ defmodule SimpleFit.Accounts do
   defdelegate verify_email_sign_in_code(email, code, client_ip),
     to: EmailAuth,
     as: :verify_sign_in_code
+
+  ## Google sign-in (ADR 0013)
+
+  @doc """
+  Signs in with a Google ID token verified by `SimpleFit.Identity`, creating
+  the user and its Google identity on first use (never linked by email).
+  See `SimpleFit.Accounts.GoogleAuth`.
+  """
+  @spec authenticate_with_google(term(), String.t()) ::
+          {:ok, GoogleAuth.result()} | GoogleAuth.error()
+  defdelegate authenticate_with_google(id_token, client_ip), to: GoogleAuth, as: :authenticate
 
   # The user and its first identity commit together or not at all: a failed
   # identity insert (for example the unique index, under a race) rolls the
