@@ -41,7 +41,10 @@ config :simple_fit, Oban,
   queues: [default: 10, mailers: 5],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 86_400},
-    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)}
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+    # Removes finished email auth challenges and stale rate-limit windows
+    # (ADR 0012).
+    {Oban.Plugins.Cron, crontab: [{"@hourly", SimpleFit.Accounts.EmailAuth.CleanupWorker}]}
   ]
 
 # Privacy-safe job outcome logs (SimpleFit.Observability.JobLogger), instead
@@ -114,6 +117,20 @@ config :simple_fit, SimpleFit.Accounts.Sessions,
   refresh_token_ttl: 30 * 24 * 60 * 60,
   session_lifetime: 90 * 24 * 60 * 60
 
+# Passwordless email authentication (ADR 0012): production policy, in
+# seconds. Tests run with the same values. The key material and the web app
+# URL used in E01 links are set per environment (config/runtime.exs in
+# production).
+config :simple_fit, SimpleFit.Accounts.EmailAuth,
+  challenge_ttl: 10 * 60,
+  max_failed_attempts: 5,
+  resend_cooldown: 60
+
+# Client IP for abuse limits (ADR 0012): by default the direct peer address;
+# X-Forwarded-For is trusted only for an explicitly configured number of
+# proxy hops (TRUSTED_PROXY_HOPS, config/runtime.exs).
+config :simple_fit, SimpleFitWeb.ClientIP, trusted_proxy_hops: 0
+
 # The web refresh cookie is Secure everywhere except where an environment
 # explicitly opts out (development over plain http://localhost).
 config :simple_fit, SimpleFitWeb.SessionTransport, secure_cookie: true
@@ -130,7 +147,12 @@ config :phoenix, :filter_parameters, [
   "api_key",
   "private_key",
   "authorization",
-  "credential"
+  "credential",
+  # Email authentication (ADR 0012): verification and sign-in codes, and the
+  # address itself (personal data). "token" already covers the link and
+  # registration tokens.
+  "code",
+  "email"
 ]
 
 # Import environment specific config. This must remain at the bottom

@@ -28,6 +28,12 @@ config :simple_fit, SimpleFitWeb.Endpoint,
 config :simple_fit, SimpleFit.Accounts.Sessions,
   secret_key_base: "tHkFROi6SIgZOTA5TukSa/GlLa4jqiwVQPxW+b6BhHteZDroFqYQxgekjxeAEoMS"
 
+# Test-only email authentication key material (the policy is the production
+# one, ADR 0012) and a reserved .example web app for E01 links.
+config :simple_fit, SimpleFit.Accounts.EmailAuth,
+  secret_key_base: "tHkFROi6SIgZOTA5TukSa/GlLa4jqiwVQPxW+b6BhHteZDroFqYQxgekjxeAEoMS",
+  web_app_url: "https://app.simplefit.example"
+
 # Jobs are never executed automatically in tests: assert on enqueued jobs
 # (Oban.Testing) and run them explicitly with perform_job/2.
 config :simple_fit, Oban, testing: :manual

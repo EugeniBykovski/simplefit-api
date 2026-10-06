@@ -45,7 +45,7 @@ defmodule SimpleFitWeb.EmailPreviewControllerTest do
       assert body =~ Plug.HTML.html_escape(entry.status)
     end
 
-    assert body =~ "Version 63 · 1791284501-e3ff"
+    assert body =~ "Version 66 · 1791292422-dc85"
   end
 
   test "renders every implemented template with fixtures, as HTML and text" do
@@ -64,16 +64,16 @@ defmodule SimpleFitWeb.EmailPreviewControllerTest do
     end
   end
 
-  test "all 16 designed emails are previewable, E04 and E10 included" do
+  test "all 17 designed emails are previewable, E04, E10 and E17 included" do
     previews(true)
-    assert length(Inventory.implemented()) == 16
+    assert length(Inventory.implemented()) == 17
 
-    for id <- ["E04", "E10"] do
+    for id <- ["E04", "E10", "E17"] do
       assert html_response(get(build_conn(), "/dev/emails/#{id}"), 200) =~ "<!DOCTYPE html>"
     end
 
     assert json_response(get(build_conn(), "/dev/emails/nope"), 404)
-    assert json_response(get(build_conn(), "/dev/emails/E17"), 404)
+    assert json_response(get(build_conn(), "/dev/emails/E18"), 404)
   end
 
   test "renders every named optional-state variant and rejects unknown ones" do

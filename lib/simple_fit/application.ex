@@ -5,7 +5,7 @@ defmodule SimpleFit.Application do
 
   use Application
 
-  alias SimpleFit.Accounts.Sessions
+  alias SimpleFit.Accounts.{EmailAuth, Sessions}
 
   @impl true
   def start(_type, _args) do
@@ -14,6 +14,8 @@ defmodule SimpleFit.Application do
 
     # Fail at boot on a missing or inconsistent session policy (ADR 0010).
     _policy = Sessions.config!()
+    # Same for email authentication and its key material (ADR 0012).
+    _email_auth = EmailAuth.config!()
 
     children = [
       SimpleFitWeb.Telemetry,

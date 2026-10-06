@@ -1,7 +1,7 @@
 defmodule SimpleFit.Accounts do
   @moduledoc """
-  Users, the identities that sign them in (ADR 0009) and their SimpleFit
-  sessions (ADR 0010).
+  Users, the identities that sign them in (ADR 0009), their SimpleFit
+  sessions (ADR 0010) and passwordless email authentication (ADR 0012).
 
   One person is one global `User`; a user owns any number of `Identity`
   records (email, Google, Apple). This context only stores and resolves them:
@@ -28,7 +28,7 @@ defmodule SimpleFit.Accounts do
   import Ecto.Changeset, only: [apply_changes: 1, put_change: 3]
   import Ecto.Query, only: [from: 2]
 
-  alias SimpleFit.Accounts.{EmailAddress, Identity, Sessions, User}
+  alias SimpleFit.Accounts.{EmailAddress, EmailAuth, Identity, Sessions, User}
   alias SimpleFit.Repo
 
   @typedoc "A supported identity provider: `:email`, `:google` or `:apple`."
@@ -143,6 +143,52 @@ defmodule SimpleFit.Accounts do
   @doc "Logs out the session behind an access or refresh token. Always `:ok`."
   @spec revoke_session({:access, String.t()} | {:refresh, String.t()}) :: :ok
   defdelegate revoke_session(credential), to: Sessions, as: :revoke_by_credential
+
+  ## Passwordless email authentication (ADR 0012)
+
+  @doc """
+  Starts the email verification of a registration (E01). Answers the same
+  for every well-formed address; see `SimpleFit.Accounts.EmailAuth`.
+  """
+  @spec request_email_registration(term(), String.t()) ::
+          {:ok, EmailAuth.requested()} | EmailAuth.error()
+  defdelegate request_email_registration(email, client_ip),
+    to: EmailAuth,
+    as: :request_registration
+
+  @doc """
+  Verifies a registration with the code entered on the client that started
+  it, and returns the registration's one session.
+  """
+  @spec verify_email_registration_code(term(), term(), String.t()) ::
+          {:ok, Sessions.credentials()} | EmailAuth.error()
+  defdelegate verify_email_registration_code(registration_token, code, client_ip),
+    to: EmailAuth,
+    as: :verify_registration_code
+
+  @doc "Verifies a registration through its E01 link. Never starts a session."
+  @spec verify_email_link(term(), String.t()) ::
+          {:ok, :verified | :already_verified} | EmailAuth.error()
+  defdelegate verify_email_link(link_token, client_ip), to: EmailAuth, as: :verify_link
+
+  @doc "The state of a registration, for the client holding its registration token."
+  @spec email_registration_status(term(), String.t()) ::
+          {:ok, :pending | :completed | :verified_elsewhere | :expired} | EmailAuth.error()
+  defdelegate email_registration_status(registration_token, client_ip),
+    to: EmailAuth,
+    as: :registration_status
+
+  @doc "Sends an email sign-in code (E17) if the address has an email identity."
+  @spec request_email_sign_in(term(), String.t()) ::
+          {:ok, EmailAuth.requested()} | EmailAuth.error()
+  defdelegate request_email_sign_in(email, client_ip), to: EmailAuth, as: :request_sign_in
+
+  @doc "Verifies an email sign-in code and starts a session."
+  @spec verify_email_sign_in_code(term(), term(), String.t()) ::
+          {:ok, Sessions.credentials()} | EmailAuth.error()
+  defdelegate verify_email_sign_in_code(email, code, client_ip),
+    to: EmailAuth,
+    as: :verify_sign_in_code
 
   # The user and its first identity commit together or not at all: a failed
   # identity insert (for example the unique index, under a race) rolls the

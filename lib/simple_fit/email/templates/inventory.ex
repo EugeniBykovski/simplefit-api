@@ -1,7 +1,7 @@
 defmodule SimpleFit.Email.Templates.Inventory do
   @moduledoc """
   Every email designed in Claude Design, page Public Website, section
-  "14 · Email templates · after registration" (ADR 0011), Version 63.
+  "14 · Email templates · after registration" (ADR 0011), Version 66.
 
   This is the traceability record between production templates and their
   artboards: subject, preheader (or its variants), the renderer's required
@@ -19,15 +19,16 @@ defmodule SimpleFit.Email.Templates.Inventory do
   """
 
   @artifact "https://claude.ai/artifact/JEsBg51MjX8KiHWEro8omY"
-  @version "1791284501-e3ff"
-  @version_number 63
+  @version "1791292422-dc85"
+  @version_number 66
   @section "Public Website · 14 · Email templates · after registration"
   @delivery "simplefit-api · SimpleFit.Email (Oban mailers queue)"
 
+  @implemented_available "IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE"
   @implemented_deferred "IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED"
 
   @statuses [
-    "IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE",
+    @implemented_available,
     @implemented_deferred,
     "DESIGN_ONLY / DOMAIN_NOT_AVAILABLE",
     "AMBIGUOUS / NEEDS_PRODUCT_DECISION"
@@ -40,22 +41,23 @@ defmodule SimpleFit.Email.Templates.Inventory do
              %{
                id: "E01",
                name: "Verify your email",
-               trigger: "Email sign-up: confirm the address with a code",
-               subject: "Your SimpleFit code: {code}",
-               preheader: "Enter it in the app to confirm your email.",
+               trigger:
+                 "Email registration: email ownership verification challenge (SF-21, ADR 0012)",
+               subject: "Your SimpleFit verification code: {code}",
+               preheader: "Enter it where you’re signing up to verify your email.",
                required_variables: ["code", "verify_url", "expires_in_minutes"],
                optional_variables: [],
                conditional_blocks: [],
-               primary_cta: "Verify email → verify_url",
+               primary_cta:
+                 "Verify email → verify_url (<web app>/verify-email#token=…; verifies only, never signs in)",
                fallback_url:
-                 "The 6-digit code is the alternative to the link; the plain-text part carries the full URL",
+                 "The 6-digit code answers the same challenge as the link; the plain-text part carries the full URL",
                artboard: "project/EmailVerify.dc.html",
                template: :verify_email,
                module: SimpleFit.Email.Templates.VerifyEmail,
                trigger_owner: "SF-21",
-               deferred: [
-                 "SF-21 owns verification and decides whether both the link and the code are supported; it reconciles the template if not."
-               ]
+               trigger_status: :available,
+               deferred: []
              },
              %{
                id: "E02",
@@ -471,11 +473,37 @@ defmodule SimpleFit.Email.Templates.Inventory do
                  "The export domain owns generation, storage, download authorization and the real expiry; the displayed dates are presentation data.",
                  @security_destination
                ]
+             },
+             %{
+               id: "E17",
+               name: "Sign-in code",
+               trigger:
+                 "Email sign-in: sign-in challenge for an existing email identity (SF-21, ADR 0012)",
+               subject: "Your SimpleFit sign-in code: {code}",
+               preheader: "It expires in {expires_in_minutes} minutes. Never share it.",
+               required_variables: ["code", "expires_in_minutes"],
+               optional_variables: [],
+               conditional_blocks: [],
+               primary_cta: "NOT_SPECIFIED (code only: no sign-in link by design)",
+               fallback_url: "No URL: the code is the only credential",
+               artboard: "project/EmailSignInCode.dc.html",
+               template: :sign_in_code,
+               module: SimpleFit.Email.Templates.SignInCode,
+               trigger_owner: "SF-21",
+               trigger_status: :available,
+               deferred: []
              }
            ]
-           |> Enum.map(
-             &Map.merge(&1, %{delivery_owner: @delivery, status: @implemented_deferred})
-           )
+           |> Enum.map(fn entry ->
+             {trigger_status, entry} = Map.pop(entry, :trigger_status)
+
+             status =
+               if trigger_status == :available,
+                 do: @implemented_available,
+                 else: @implemented_deferred
+
+             Map.merge(entry, %{delivery_owner: @delivery, status: status})
+           end)
 
   @doc "Design source of the inventory."
   @spec source() :: %{
@@ -492,7 +520,7 @@ defmodule SimpleFit.Email.Templates.Inventory do
       section: @section
     }
 
-  @doc "All designed emails, E01..E16, in design order."
+  @doc "All designed emails, E01..E17, in design order."
   @spec entries() :: [map()]
   def entries, do: @entries
 

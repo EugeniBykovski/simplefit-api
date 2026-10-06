@@ -80,6 +80,14 @@ defmodule SimpleFitWeb.Telemetry do
       ),
       counter("simple_fit.storage.presign.stop.duration", tags: [:adapter, :method, :result]),
 
+      # Email authentication (ADR 0012): purpose and outcome only, never an
+      # address, code or token.
+      counter("simple_fit.auth.email.requested.count", tags: [:purpose]),
+      counter("simple_fit.auth.email.sent.count", tags: [:purpose]),
+      counter("simple_fit.auth.email.verified.count", tags: [:purpose, :channel]),
+      counter("simple_fit.auth.email.rejected.count", tags: [:purpose, :reason]),
+      counter("simple_fit.auth.email.rate_limited.count"),
+
       # Background jobs (Oban)
       summary("oban.job.stop.duration",
         tags: [:queue, :worker, :state],

@@ -174,6 +174,15 @@ case config_env() do
       | Keyword.update!(email, :from, &(&1 || "SimpleFit Dev <dev@simplefit.invalid>"))
     ]
 
+    # E01 verification links point at the local web app unless overridden.
+    if web_app_url = System.get_env("WEB_APP_URL") do
+      config :simple_fit, SimpleFit.Accounts.EmailAuth,
+        web_app_url: SimpleFit.Accounts.EmailAuth.parse_web_app_url!(web_app_url)
+    end
+
+    config :simple_fit, SimpleFitWeb.ClientIP,
+      trusted_proxy_hops: SimpleFitWeb.ClientIP.parse_hops!(System.get_env("TRUSTED_PROXY_HOPS"))
+
     # The local web client (simplefit-platform `pnpm dev`) by default;
     # CORS_ALLOWED_ORIGINS replaces the list (e.g. to add 127.0.0.1:3000).
     config :simple_fit, SimpleFitWeb.CORS,
@@ -224,6 +233,27 @@ case config_env() do
 
     # Signs session access tokens (ADR 0010).
     config :simple_fit, SimpleFit.Accounts.Sessions, secret_key_base: secret_key_base
+
+    # Email authentication (ADR 0012): code verifiers, target digests and
+    # rate-limit keys are derived from the same secret with dedicated salts.
+    # E01 links point at the web app, which must be https.
+    config :simple_fit, SimpleFit.Accounts.EmailAuth,
+      secret_key_base: secret_key_base,
+      web_app_url:
+        SimpleFit.Accounts.EmailAuth.parse_web_app_url!(
+          System.get_env("WEB_APP_URL") ||
+            raise("""
+            environment variable WEB_APP_URL is missing.
+            Set it to the https origin of the SimpleFit web app, for example: https://app.simplefit.com
+            """),
+          require_https: true
+        )
+
+    # Client IP for auth rate limits (ADR 0012). Default 0: the direct peer
+    # address; set it only to the number of trusted proxies in front of the
+    # app after the deployment topology is verified.
+    config :simple_fit, SimpleFitWeb.ClientIP,
+      trusted_proxy_hops: SimpleFitWeb.ClientIP.parse_hops!(System.get_env("TRUSTED_PROXY_HOPS"))
 
     host =
       System.get_env("PHX_HOST") ||

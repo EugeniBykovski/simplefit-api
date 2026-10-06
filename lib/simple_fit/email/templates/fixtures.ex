@@ -15,9 +15,10 @@ defmodule SimpleFit.Email.Templates.Fixtures do
   @fixtures %{
     verify_email: %{
       code: "407193",
-      verify_url: "#{@app}/signup/verify?token=FIXTURE-ONE-TIME-TOKEN",
+      verify_url: "#{@app}/verify-email#token=FIXTURE-ONE-TIME-TOKEN",
       expires_in_minutes: 10
     },
+    sign_in_code: %{code: "528461", expires_in_minutes: 10},
     recover_account: %{
       recovery_url: "#{@app}/recover?token=FIXTURE-ONE-TIME-TOKEN",
       expires_in_minutes: 15

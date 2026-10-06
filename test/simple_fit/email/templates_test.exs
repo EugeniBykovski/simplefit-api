@@ -51,7 +51,8 @@ defmodule SimpleFit.Email.TemplatesTest do
     account_suspended: :security,
     deletion_scheduled: :security,
     account_deleted: :security,
-    data_export_ready: :security
+    data_export_ready: :security,
+    sign_in_code: :security
   }
 
   # Fields whose format is stricter than a display line (codes, enums).
@@ -99,16 +100,16 @@ defmodule SimpleFit.Email.TemplatesTest do
   end
 
   describe "inventory and design traceability" do
-    test "covers every designed email E01..E16 exactly once, in design order" do
+    test "covers every designed email E01..E17 exactly once, in design order" do
       ids = Enum.map(Inventory.entries(), & &1.id)
-      assert ids == Enum.map(1..16, &("E" <> String.pad_leading(Integer.to_string(&1), 2, "0")))
+      assert ids == Enum.map(1..17, &("E" <> String.pad_leading(Integer.to_string(&1), 2, "0")))
     end
 
     test "records the design source and version" do
       assert %{
                artifact: "https://claude.ai/artifact/JEsBg51MjX8KiHWEro8omY",
-               version: "1791284501-e3ff",
-               version_number: 63,
+               version: "1791292422-dc85",
+               version_number: 66,
                section: "Public Website · 14 · Email templates · after registration"
              } = Inventory.source()
     end
@@ -132,13 +133,19 @@ defmodule SimpleFit.Email.TemplatesTest do
       implemented = Inventory.implemented()
 
       assert Enum.map(implemented, & &1.id) == Enum.map(Inventory.entries(), & &1.id)
-      assert length(implemented) == 16
+      assert length(implemented) == 17
 
       assert Map.keys(@footer_of) |> Enum.sort() ==
                implemented |> Enum.map(& &1.template) |> Enum.sort()
 
+      # SF-21 wires the triggers of E01 and E17; every other trigger is deferred.
       for entry <- implemented do
-        assert entry.status == "IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED"
+        expected =
+          if entry.id in ["E01", "E17"],
+            do: "IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE",
+            else: "IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED"
+
+        assert entry.status == expected
         assert Code.ensure_loaded?(entry.module)
         assert function_exported?(Templates, entry.template, 1)
         assert is_list(entry.required_variables)
@@ -179,31 +186,68 @@ defmodule SimpleFit.Email.TemplatesTest do
     test "is documented in ADR 0011" do
       adr = File.read!("docs/architecture/adr/0011-transactional-email-templates.md")
       for entry <- Inventory.entries(), do: assert(adr =~ entry.id)
-      assert adr =~ "1791284501-e3ff"
+      assert adr =~ "1791292422-dc85"
       refute adr =~ "AMBIGUOUS / NEEDS_PRODUCT_DECISION |"
       refute adr =~ "coach_possessive"
     end
   end
 
   describe "rendering" do
-    test "E01 verify email" do
+    test "E01 verify email (Version 66)" do
       r = rendered!(:verify_email)
 
-      assert r.subject == "Your SimpleFit code: 407193"
-      assert r.preheader == "Enter it in the app to confirm your email."
-      assert r.html =~ "Confirm your email</h1>"
+      assert r.subject == "Your SimpleFit verification code: 407193"
+      assert r.preheader == "Enter it where you’re signing up to verify your email."
+      assert r.html =~ "Verify your email</h1>"
+      assert r.text =~ "Enter this code where you’re signing up to finish creating your account."
       assert r.html =~ "407 193"
       assert r.html =~ "Expires in 10 minutes"
+      assert r.text =~ "Or verify with this link:"
 
       assert r.html =~
-               ~s(href="https://app.simplefit.example/signup/verify?token=FIXTURE-ONE-TIME-TOKEN")
+               ~s(href="https://app.simplefit.example/verify-email#token=FIXTURE-ONE-TIME-TOKEN")
 
       assert r.html =~ ">Verify email</a>"
 
       assert r.text =~
-               "Verify email:\nhttps://app.simplefit.example/signup/verify?token=FIXTURE-ONE-TIME-TOKEN"
+               "Verify email:\nhttps://app.simplefit.example/verify-email#token=FIXTURE-ONE-TIME-TOKEN"
 
-      assert r.text =~ "no account is created without the code"
+      assert r.text =~
+               "The link and the code do the same thing: they verify this email address. Opening the link doesn’t sign you in."
+
+      assert r.text =~ "Didn’t try to sign up? You can ignore this email."
+
+      for stale <- ["Confirm your email", "one tap", "in the app", "no account is created"] do
+        refute r.html <> r.text =~ stale
+      end
+    end
+
+    test "E17 sign-in code (Version 66)" do
+      r = rendered!(:sign_in_code)
+
+      assert r.subject == "Your SimpleFit sign-in code: 528461"
+      assert r.preheader == "It expires in 10 minutes. Never share it."
+      assert r.html =~ ">SIGN IN</td>"
+      assert r.html =~ "Your sign-in code</h1>"
+      assert r.text =~ "Enter this code where you asked to sign in to SimpleFit."
+      assert r.html =~ "528 461"
+      assert r.html =~ "Expires in 10 minutes"
+      assert r.text =~ "Never share this code. SimpleFit staff will never ask you for it."
+
+      assert r.text =~
+               "Didn’t try to sign in? You can ignore this email — someone may have typed your address by mistake."
+
+      # Code only: no link of any kind besides the footer's static text.
+      refute r.html =~ "<a href"
+      refute r.text =~ "http"
+
+      {:ok, one} = render(:sign_in_code, %{expires_in_minutes: 1})
+      assert one.preheader == "It expires in 1 minute. Never share it."
+
+      for bad <- ["12345", "1234567", "12a456", " 123456"] do
+        assert {:error, {:invalid_template_data, [code: :invalid_format]}} =
+                 render(:sign_in_code, %{code: bad})
+      end
     end
 
     test "E04 finish gym setup: a navigation link, never a sign-in link" do

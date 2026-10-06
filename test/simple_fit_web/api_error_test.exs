@@ -10,9 +10,12 @@ defmodule SimpleFitWeb.APIErrorTest do
     "not_found" => 404,
     "not_acceptable" => 406,
     "conflict" => 409,
+    "verified_elsewhere" => 409,
     "payload_too_large" => 413,
     "unsupported_media_type" => 415,
     "validation_error" => 422,
+    "code_invalid" => 422,
+    "code_expired" => 422,
     "rate_limited" => 429,
     "internal_error" => 500,
     "service_unavailable" => 503
@@ -21,9 +24,14 @@ defmodule SimpleFitWeb.APIErrorTest do
   test "the catalog maps every code to its HTTP status, both ways" do
     assert Map.new(APIError.codes(), &{&1, APIError.status(&1)}) == @expected
 
-    for {code, status} <- @expected do
+    # Explicit-only codes share a status with its default code.
+    for {code, status} <- @expected,
+        code not in ["verified_elsewhere", "code_invalid", "code_expired"] do
       assert APIError.code_for_status(status) == code
     end
+
+    assert APIError.code_for_status(409) == "conflict"
+    assert APIError.code_for_status(422) == "validation_error"
   end
 
   test "codes are unique snake_case strings" do

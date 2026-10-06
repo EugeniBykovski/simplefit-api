@@ -12,9 +12,11 @@ defmodule SimpleFitWeb.CORS do
       and with the `forbidden` error envelope (no CORS headers) otherwise.
     * **Credentials only for the refresh cookie.** Clients authenticate with
       bearer tokens. `access-control-allow-credentials: true` is sent only for
-      allowed origins on the two endpoints that read the web refresh cookie
-      (`POST /api/auth/session/refresh`, `POST /api/auth/logout`, ADR 0010);
-      every other path stays credential-free.
+      allowed origins on the endpoints that read or set the web refresh
+      cookie (`POST /api/auth/session/refresh`, `POST /api/auth/logout`,
+      ADR 0010; `POST /api/auth/email/registrations/verify`,
+      `POST /api/auth/email/sign-in/verify`, ADR 0012); every other path
+      stays credential-free.
     * `x-request-id` is exposed so browser clients can read it for support.
 
   Requests without an `Origin` header (mobile apps, server-to-server, curl)
@@ -31,7 +33,14 @@ defmodule SimpleFitWeb.CORS do
   @exposed_headers ~w(x-request-id)
   @max_age 600
   # The only paths that read a cookie (the web refresh token, ADR 0010).
-  @credentialed_paths ["/api/auth/session/refresh", "/api/auth/logout"]
+  @credentialed_paths [
+    "/api/auth/session/refresh",
+    "/api/auth/logout",
+    # Email authentication can start a session with the cookie transport
+    # (ADR 0012).
+    "/api/auth/email/registrations/verify",
+    "/api/auth/email/sign-in/verify"
+  ]
 
   @origin_format ~r"\Ahttps?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\z"
 

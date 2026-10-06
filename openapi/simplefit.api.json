@@ -19,6 +19,42 @@
         },
         "description": "400 The request could not be processed"
       },
+      "CodeExpired": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "code_expired",
+                "details": {},
+                "message": "The code or link is no longer valid; request a new code",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "422 The code or link is no longer valid; request a new code"
+      },
+      "CodeInvalid": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "code_invalid",
+                "details": {},
+                "message": "The code is not correct",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "422 The code is not correct"
+      },
       "Conflict": {
         "content": {
           "application/json": {
@@ -235,6 +271,24 @@
           }
         },
         "description": "422 Request validation failed"
+      },
+      "VerifiedElsewhere": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "verified_elsewhere",
+                "details": {},
+                "message": "This email was verified on another device; sign in with a code to continue",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "409 This email was verified on another device; sign in with a code to continue"
       }
     },
     "schemas": {
@@ -274,6 +328,243 @@
         "title": "CurrentUserResponse",
         "type": "object"
       },
+      "EmailCodeRequest": {
+        "additionalProperties": false,
+        "example": {
+          "email": "fighter@example.com"
+        },
+        "properties": {
+          "email": {
+            "description": "Email address; matched in canonical form (ADR 0009).",
+            "example": "fighter@example.com",
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "EmailCodeRequest",
+        "type": "object"
+      },
+      "EmailRegistrationAccepted": {
+        "additionalProperties": false,
+        "description": "Always returned for a well-formed address, whether or not it already has an account. Keep\n`registration_token` for this registration only (memory or secure storage); a new request replaces it.\n",
+        "example": {
+          "expires_in_seconds": 600,
+          "registration_token": "sfg_EXAMPLExREGISTRATIONxTOKENxNOTxAxREALxVALUE",
+          "resend_after_seconds": 60
+        },
+        "properties": {
+          "expires_in_seconds": {
+            "description": "Lifetime of the code (and link).",
+            "example": 600,
+            "type": "integer"
+          },
+          "registration_token": {
+            "description": "Opaque token of this registration, held only by the client that started it. Never sent by email.",
+            "example": "sfg_EXAMPLExREGISTRATIONxTOKENxNOTxAxREALxVALUE",
+            "pattern": "^sfg_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          },
+          "resend_after_seconds": {
+            "description": "Wait at least this long before requesting another code.",
+            "example": 60,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "registration_token",
+          "expires_in_seconds",
+          "resend_after_seconds"
+        ],
+        "title": "EmailRegistrationAccepted",
+        "type": "object"
+      },
+      "EmailRegistrationCodeRequest": {
+        "additionalProperties": false,
+        "example": {
+          "code": "123456",
+          "refresh_token_transport": "body",
+          "registration_token": "sfg_EXAMPLExREGISTRATIONxTOKENxNOTxAxREALxVALUE"
+        },
+        "properties": {
+          "code": {
+            "description": "The 6-digit code from the email.",
+            "example": "123456",
+            "pattern": "^[0-9]{6}$",
+            "type": "string"
+          },
+          "refresh_token_transport": {
+            "default": "body",
+            "description": "How to deliver the refresh token (ADR 0010). `body` (mobile) returns it in JSON. `cookie` (web) sets\nthe `HttpOnly` refresh cookie and requires an allow-listed `Origin` and `x-simplefit-csrf: 1`.\n",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          },
+          "registration_token": {
+            "description": "Opaque token of this registration, held only by the client that started it. Never sent by email.",
+            "example": "sfg_EXAMPLExREGISTRATIONxTOKENxNOTxAxREALxVALUE",
+            "pattern": "^sfg_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registration_token",
+          "code"
+        ],
+        "title": "EmailRegistrationCodeRequest",
+        "type": "object"
+      },
+      "EmailRegistrationStatus": {
+        "additionalProperties": false,
+        "description": "* `pending` - waiting for the code.\n* `completed` - verified with this client's code; its session was issued.\n* `verified_elsewhere` - verified through the E01 link on another device. This client is not signed in:\n  request an email sign-in code (`POST /api/auth/email/sign-in`) to continue.\n* `expired` - expired, replaced by a newer request, too many wrong codes, or unknown.\n",
+        "example": {
+          "status": "pending"
+        },
+        "properties": {
+          "status": {
+            "enum": [
+              "pending",
+              "completed",
+              "verified_elsewhere",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "EmailRegistrationStatus",
+        "type": "object"
+      },
+      "EmailRegistrationStatusRequest": {
+        "additionalProperties": false,
+        "example": {
+          "registration_token": "sfg_EXAMPLExREGISTRATIONxTOKENxNOTxAxREALxVALUE"
+        },
+        "properties": {
+          "registration_token": {
+            "description": "Opaque token of this registration, held only by the client that started it. Never sent by email.",
+            "example": "sfg_EXAMPLExREGISTRATIONxTOKENxNOTxAxREALxVALUE",
+            "pattern": "^sfg_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "registration_token"
+        ],
+        "title": "EmailRegistrationStatusRequest",
+        "type": "object"
+      },
+      "EmailSignInAccepted": {
+        "additionalProperties": false,
+        "description": "Always returned for a well-formed address. If there is an account for it, a 6-digit sign-in code (E17) is on its way.",
+        "example": {
+          "expires_in_seconds": 600,
+          "resend_after_seconds": 60
+        },
+        "properties": {
+          "expires_in_seconds": {
+            "description": "Lifetime of the code (and link).",
+            "example": 600,
+            "type": "integer"
+          },
+          "resend_after_seconds": {
+            "description": "Wait at least this long before requesting another code.",
+            "example": 60,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expires_in_seconds",
+          "resend_after_seconds"
+        ],
+        "title": "EmailSignInAccepted",
+        "type": "object"
+      },
+      "EmailSignInCodeRequest": {
+        "additionalProperties": false,
+        "example": {
+          "code": "123456",
+          "email": "fighter@example.com",
+          "refresh_token_transport": "body"
+        },
+        "properties": {
+          "code": {
+            "description": "The 6-digit code from the email.",
+            "example": "123456",
+            "pattern": "^[0-9]{6}$",
+            "type": "string"
+          },
+          "email": {
+            "description": "Email address; matched in canonical form (ADR 0009).",
+            "example": "fighter@example.com",
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "refresh_token_transport": {
+            "default": "body",
+            "description": "How to deliver the refresh token (ADR 0010). `body` (mobile) returns it in JSON. `cookie` (web) sets\nthe `HttpOnly` refresh cookie and requires an allow-listed `Origin` and `x-simplefit-csrf: 1`.\n",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "code"
+        ],
+        "title": "EmailSignInCodeRequest",
+        "type": "object"
+      },
+      "EmailVerificationLinkRequest": {
+        "additionalProperties": false,
+        "description": "The token from the fragment of the E01 link (`/verify-email#token=...`), sent in the body. The fragment never reaches a server by itself.",
+        "example": {
+          "token": "sfv_EXAMPLExLINKxTOKENxNOTxAxREALxVALUExxxxxxxx"
+        },
+        "properties": {
+          "token": {
+            "example": "sfv_EXAMPLExLINKxTOKENxNOTxAxREALxVALUExxxxxxxx",
+            "pattern": "^sfv_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "EmailVerificationLinkRequest",
+        "type": "object"
+      },
+      "EmailVerificationLinkResult": {
+        "additionalProperties": false,
+        "description": "`verified`: the email is now verified. `already_verified`: nothing more to do. No one is signed in either way.",
+        "example": {
+          "status": "verified"
+        },
+        "properties": {
+          "status": {
+            "enum": [
+              "verified",
+              "already_verified"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "EmailVerificationLinkResult",
+        "type": "object"
+      },
       "Error": {
         "additionalProperties": false,
         "description": "Machine-readable error. See the ErrorResponse schema for the contract.",
@@ -285,7 +576,7 @@
         },
         "properties": {
           "code": {
-            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `not_found`, `not_acceptable`, `conflict`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
+            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `not_found`, `not_acceptable`, `conflict`, `verified_elsewhere`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `code_expired`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
             "example": "not_found",
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
@@ -531,6 +822,419 @@
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/auth/email/registrations": {
+      "post": {
+        "callbacks": {},
+        "description": "Starts the email ownership verification of a new account and sends E01 (a 6-digit code and a verification\nlink). Requesting again for the same address replaces the previous code, link and registration token.\n\nThe response is the same for every well-formed address, including addresses that already have an account\n(no email is sent then, and nothing is created): it never reveals whether an account exists. Sign-up never\nturns into sign-in.\n",
+        "operationId": "requestEmailRegistration",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCodeRequest"
+              }
+            }
+          },
+          "description": "Email address",
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailRegistrationAccepted"
+                }
+              }
+            },
+            "description": "Verification requested"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Start registration: send an email verification code (E01)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/email/registrations/status": {
+      "post": {
+        "callbacks": {},
+        "description": "For the client that started a registration (it sends its `registration_token`). `verified_elsewhere` means\nthe E01 link verified the email: this client is not signed in and must request an email sign-in code.\n",
+        "operationId": "getEmailRegistrationStatus",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailRegistrationStatusRequest"
+              }
+            }
+          },
+          "description": "Registration token",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailRegistrationStatus"
+                }
+              }
+            },
+            "description": "Registration state"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "The state of a registration",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/email/registrations/verify": {
+      "post": {
+        "callbacks": {},
+        "description": "Verifies the email of a registration with the 6-digit code from E01. Only the client that started the\nregistration can do this: it sends its `registration_token`. On success the account exists and this client\nreceives the registration's one SF-20 session.\n\n* `code_invalid` - wrong code. After 5 wrong codes the code stops working.\n* `code_expired` - the code expired, was replaced, was already used or stopped working: request a new one.\n* `verified_elsewhere` - the email was verified through the E01 link (possibly on another device). The link\n  never signs anyone in: this client must sign in with an email sign-in code.\n* `conflict` - the address already has an account.\n",
+        "operationId": "verifyEmailRegistrationCode",
+        "parameters": [
+          {
+            "description": "Required (value `1`) with `refresh_token_transport: cookie`, together with an allow-listed `Origin`.",
+            "in": "header",
+            "name": "x-simplefit-csrf",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailRegistrationCodeRequest"
+              }
+            }
+          },
+          "description": "Registration token and code",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTokens"
+                }
+              }
+            },
+            "description": "Session credentials",
+            "headers": {
+              "set-cookie": {
+                "description": "Cookie transport only: the refresh token (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`).",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/CodeInvalid"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Verify a registration with its code and start its session",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/email/sign-in": {
+      "post": {
+        "callbacks": {},
+        "description": "If the address has an account, sends E17 with a 6-digit sign-in code. The response is the same for every\nwell-formed address and never reveals whether an account exists. Requesting again replaces the previous\ncode.\n",
+        "operationId": "requestEmailSignIn",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCodeRequest"
+              }
+            }
+          },
+          "description": "Email address",
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailSignInAccepted"
+                }
+              }
+            },
+            "description": "Sign-in code requested"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Send an email sign-in code (E17)",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/email/sign-in/verify": {
+      "post": {
+        "callbacks": {},
+        "description": "Verifies the 6-digit code from E17 and starts an SF-20 session.\n\n* `code_invalid` - wrong code. After 5 wrong codes the code stops working.\n* `code_expired` - the code expired, was replaced, was already used or stopped working: request a new one.\n",
+        "operationId": "verifyEmailSignInCode",
+        "parameters": [
+          {
+            "description": "Required (value `1`) with `refresh_token_transport: cookie`, together with an allow-listed `Origin`.",
+            "in": "header",
+            "name": "x-simplefit-csrf",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailSignInCodeRequest"
+              }
+            }
+          },
+          "description": "Email address and code",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTokens"
+                }
+              }
+            },
+            "description": "Session credentials",
+            "headers": {
+              "set-cookie": {
+                "description": "Cookie transport only: the refresh token (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`).",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/CodeInvalid"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Sign in with an email sign-in code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/email/verification-links/verify": {
+      "post": {
+        "callbacks": {},
+        "description": "Verifies the email of a registration with the token from the E01 link fragment\n(`/verify-email#token=...`), from any device. It never signs anyone in: no session is created, neither for\nthis browser nor for the device that started the registration.\n\n`code_expired` - the link expired, was replaced by a newer request or stopped working.\n",
+        "operationId": "verifyEmailLink",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationLinkRequest"
+              }
+            }
+          },
+          "description": "Link token",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailVerificationLinkResult"
+                }
+              }
+            },
+            "description": "Email verified"
+          },
+          "422": {
+            "$ref": "#/components/responses/CodeExpired"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Verify an email with the E01 link",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/auth/logout": {
       "post": {
         "callbacks": {},
