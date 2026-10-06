@@ -1,21 +1,27 @@
 defmodule SimpleFit.Email.Templates.JoinApproved do
   @moduledoc """
-  E09 · Join request approved (`EmailJoinApproved.dc.html`, ADR 0011).
+  E09 · Join request approved (`project/EmailJoinApproved.dc.html`, ADR 0011).
 
   Sent when a gym's front desk confirms a membership. The trigger is
   deferred: no gym membership, billing or booking domain exists yet. The
   renderer only accepts presentation data.
 
-  Variables (all required):
+  Required variables:
 
     * `:gym_name` - 1..80
     * `:staff_name` - who confirmed ("Natalia"), 1..80
     * `:plan` - plan display ("Monthly · unlimited classes"), 1..80
-    * `:next_billing` - billing display ("Nov 1 · €79 · Visa •• 4242"), 1..80;
-      never a full card number
-    * `:booked` - booking display ("Tue 19:30 Pads · Ring 1"), 1..80
     * `:notice_days` - cancellation notice agreed with the gym, 0..365
     * `:checkin_url` - absolute https URL of the check-in QR
+
+  Optional variables (each omits its row):
+
+    * `:next_billing` - recurring plans only ("Nov 1 · €79 · Visa •• 4242"),
+      1..80; never a full card number
+    * `:booked` - the next booking ("Tue 19:30 Pads · Ring 1"), 1..80
+
+  The copy describes a front-desk confirmation; online join flows may need
+  their own variant (future membership domain).
   """
 
   import Ecto.Changeset
@@ -34,7 +40,7 @@ defmodule SimpleFit.Email.Templates.JoinApproved do
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
+    with {:ok, data} <- Input.validate(attrs, @types, &checks/1, [:next_billing, :booked]) do
       frame = %{
         subject: "You’re in at #{data.gym_name}",
         preheader: "Your membership is confirmed — check in with your phone.",
@@ -52,7 +58,11 @@ defmodule SimpleFit.Email.Templates.JoinApproved do
         {:panel,
          [
            {:rows,
-            [{"Plan", data.plan}, {"Next billing", data.next_billing}, {"Booked", data.booked}]}
+            [
+              {"Plan", data.plan},
+              data[:next_billing] && {"Next billing", data.next_billing},
+              data[:booked] && {"Booked", data.booked}
+            ]}
          ]},
         {:button, "Show my check-in QR", data.checkin_url, :dark},
         {:paragraph,

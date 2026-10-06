@@ -1,18 +1,25 @@
 defmodule SimpleFit.Email.Templates.DeletionScheduled do
   @moduledoc """
-  E14 · Deletion scheduled (`EmailDeleteScheduled.dc.html`, ADR 0011).
+  E14 · Deletion scheduled (`project/EmailDeleteScheduled.dc.html`, ADR 0011).
 
   Sent by the account-deletion lifecycle (expected SF-28) when a user asks
   to delete their account.
 
-  Variables:
+  Required variables:
 
-    * `:requested_on` - `Date` the request was received (required)
-    * `:deletion_on` - `Date` the account will be deleted (required)
-    * `:restore_url` - absolute https URL to restore the account (required)
-    * `:data_download_url` - absolute https URL to download the data (required)
+    * `:requested_on` - `Date` the request was received
+    * `:deletion_on` - `Date` the account will be deleted, after the request
+    * `:restore_url` - absolute https URL to restore the account; the
+      restore workflow belongs to the deletion lifecycle
+    * `:data_download_url` - absolute https URL to download the data
 
-  The lists of deleted and kept data are the design's fixed policy copy.
+  Optional variables:
+
+    * `:retained_gym_payments` - boolean, default `false`: the person has
+      gym payment records kept anonymised by law, shown as the "We keep ·
+      anonymised" section; omitted otherwise
+
+  The deleted and kept lists are the design's fixed policy copy.
   """
 
   import Ecto.Changeset
@@ -23,17 +30,19 @@ defmodule SimpleFit.Email.Templates.DeletionScheduled do
     requested_on: :date,
     deletion_on: :date,
     restore_url: :string,
-    data_download_url: :string
+    data_download_url: :string,
+    retained_gym_payments: :boolean
   }
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
+    with {:ok, data} <- Input.validate(attrs, @types, &checks/1, [:retained_gym_payments]) do
+      retained? = Map.get(data, :retained_gym_payments, false)
       deletion_on = short_date(data.deletion_on)
 
       frame = %{
         subject: "Your account will be deleted on #{deletion_on}",
-        preheader: "Changed your mind? Restore it with one tap before then.",
+        preheader: "Changed your mind? You can restore it before then.",
         tag: "ACCOUNT",
         footer: :security
       }
@@ -42,7 +51,7 @@ defmodule SimpleFit.Email.Templates.DeletionScheduled do
         {:heading, "Your account will be deleted on #{deletion_on}."},
         {:paragraph,
          [
-           "We received your request on #{short_date(data.requested_on)}. Your profile is hidden now and you’ve been signed out on other devices."
+           "We received your request on #{short_date(data.requested_on)} and scheduled your account for deletion. You can restore it any time before then."
          ]},
         {:button, "Restore my account", data.restore_url, :olive},
         {:panel,
@@ -53,9 +62,13 @@ defmodule SimpleFit.Email.Templates.DeletionScheduled do
               "Profile, trainings, Board, achievements",
               "Friends, comments, videos and notes about you"
             ], :olive},
-           {:label, "WE KEEP · ANONYMISED"},
-           {:bullets,
-            ["Gym payments and attendance — 5 years, required by Polish accounting law"], :muted}
+           if(retained?, do: {:label, "WE KEEP · ANONYMISED"}),
+           if(retained?,
+             do:
+               {:bullets,
+                ["Gym payments and attendance — 5 years, required by Polish accounting law"],
+                :muted}
+           )
          ]},
         {:paragraph,
          [

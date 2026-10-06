@@ -21,7 +21,8 @@ defmodule SimpleFit.Email.Templates do
   alias SimpleFit.Email.Message
   alias SimpleFit.Email.Templates.{AccountDeleted, AccountSuspended, CoachInvite}
   alias SimpleFit.Email.Templates.{DataExportReady, DeletionScheduled, FirstWeekRecap, GymLive}
-  alias SimpleFit.Email.Templates.{Input, JoinApproved, MemberInvite, RecoverAccount, Rendered}
+  alias SimpleFit.Email.Templates.{GymSetup, Input, JoinApproved, MemberInvite, NewSignIn}
+  alias SimpleFit.Email.Templates.{RecoverAccount, Rendered}
   alias SimpleFit.Email.Templates.{StaffInvite, VerifyEmail, WelcomeCoach, WelcomeFighter}
 
   @type result :: {:ok, Rendered.t()} | {:error, Input.error()}
@@ -37,6 +38,10 @@ defmodule SimpleFit.Email.Templates do
   @doc "E03 · Welcome, coach. See `SimpleFit.Email.Templates.WelcomeCoach`."
   @spec welcome_coach(map() | keyword()) :: result()
   defdelegate welcome_coach(attrs), to: WelcomeCoach, as: :render
+
+  @doc "E04 · Finish gym setup. See `SimpleFit.Email.Templates.GymSetup`."
+  @spec gym_setup(map() | keyword()) :: result()
+  defdelegate gym_setup(attrs), to: GymSetup, as: :render
 
   @doc "E05 · Your gym is live. See `SimpleFit.Email.Templates.GymLive`."
   @spec gym_live(map() | keyword()) :: result()
@@ -57,6 +62,10 @@ defmodule SimpleFit.Email.Templates do
   @doc "E09 · Join request approved. See `SimpleFit.Email.Templates.JoinApproved`."
   @spec join_approved(map() | keyword()) :: result()
   defdelegate join_approved(attrs), to: JoinApproved, as: :render
+
+  @doc "E10 · New sign-in alert. See `SimpleFit.Email.Templates.NewSignIn`."
+  @spec new_sign_in(map() | keyword()) :: result()
+  defdelegate new_sign_in(attrs), to: NewSignIn, as: :render
 
   @doc "E11 · Recover your account. See `SimpleFit.Email.Templates.RecoverAccount`."
   @spec recover_account(map() | keyword()) :: result()

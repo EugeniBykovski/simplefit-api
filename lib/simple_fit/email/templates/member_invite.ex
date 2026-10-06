@@ -1,23 +1,26 @@
 defmodule SimpleFit.Email.Templates.MemberInvite do
   @moduledoc """
-  E07 · Member invite from gym (`EmailMemberInvite.dc.html`, ADR 0011).
+  E07 · Member invite from gym (`project/EmailMemberInvite.dc.html`, ADR 0011).
 
   Sent when a gym moves its existing members to SimpleFit. The trigger is
   deferred: no gym membership or member-import domain exists yet. The
   renderer only accepts presentation data; it creates no invitation, token
   or opt-out flow.
 
-  Variables (all required):
+  Required variables:
 
     * `:member_name` - 1..80
     * `:gym_name` - 1..80
     * `:plan` - membership plan ("Unlimited"), 1..60
-    * `:active_until` - `Date` the membership is active until
-    * `:home_location` - 1..60
     * `:claim_url` - absolute https URL to claim the membership
     * `:opt_out_url` - absolute https URL of the opt-out, supplied by the
       sender (the design says opting out deletes the invite; that flow is
       the sender's)
+
+  Optional variables (each omits its row):
+
+    * `:active_until` - `Date` the membership ends
+    * `:home_location` - 1..60
 
   The benefits list and privacy note are the design's fixed copy.
   """
@@ -36,7 +39,8 @@ defmodule SimpleFit.Email.Templates.MemberInvite do
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
+    with {:ok, data} <-
+           Input.validate(attrs, @types, &checks/1, [:active_until, :home_location]) do
       frame = %{
         subject: "#{data.gym_name} is now on SimpleFit",
         preheader: "Claim your #{data.plan} membership — book and check in from your phone.",
@@ -55,8 +59,8 @@ defmodule SimpleFit.Email.Templates.MemberInvite do
            {:rows,
             [
               {"Membership", data.plan},
-              {"Active until", Format.long_date(data.active_until)},
-              {"Home location", data.home_location}
+              data[:active_until] && {"Active until", Format.long_date(data.active_until)},
+              data[:home_location] && {"Home location", data.home_location}
             ]}
          ]},
         {:bullets,

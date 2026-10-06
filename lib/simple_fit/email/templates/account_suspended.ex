@@ -1,12 +1,12 @@
 defmodule SimpleFit.Email.Templates.AccountSuspended do
   @moduledoc """
-  E13 · Account suspended (`EmailSuspended.dc.html`, ADR 0011).
+  E13 · Account suspended (`project/EmailSuspended.dc.html`, ADR 0011).
 
   Sent when moderation suspends an account. The trigger is deferred: no
   moderation, report or appeal domain exists yet. The renderer only accepts
   presentation data; it suspends nothing.
 
-  Variables (all required):
+  Required variables:
 
     * `:name` - 1..80
     * `:case_id` - moderation case reference ("RPT-20938"): uppercase
@@ -15,10 +15,13 @@ defmodule SimpleFit.Email.Templates.AccountSuspended do
     * `:content_kind` - what was reported ("comments"), 1..40
     * `:posted_on` - `Date` the content was posted
     * `:rule` - the broken rule ("§3.2 · No insults or threats"), 1..80
-    * `:content_removed` - display ("4 comments"), 1..60
     * `:suspension` - display ("14 days · ends Oct 18, 12:41"), 1..60
-    * `:previous_notices` - display ("1 warning · Aug 14"), 1..60
     * `:appeal_url` - absolute https URL of the appeal
+
+  Optional variables (each omits its row):
+
+    * `:content_removed` - display ("4 comments"), 1..60
+    * `:previous_notices` - display ("1 warning · Aug 14"), 1..60
 
   What still works, what is paused, the appeal window and the 90-day
   warning are the design's fixed policy copy.
@@ -43,7 +46,8 @@ defmodule SimpleFit.Email.Templates.AccountSuspended do
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
+    with {:ok, data} <-
+           Input.validate(attrs, @types, &checks/1, [:content_removed, :previous_notices]) do
       until = Format.short_date(data.suspended_until)
 
       frame = %{
@@ -65,9 +69,9 @@ defmodule SimpleFit.Email.Templates.AccountSuspended do
            {:rows,
             [
               {"Rule", data.rule},
-              {"Content removed", data.content_removed},
+              data[:content_removed] && {"Content removed", data.content_removed},
               {"Suspension", data.suspension},
-              {"Previous notices", data.previous_notices}
+              data[:previous_notices] && {"Previous notices", data.previous_notices}
             ]}
          ]},
         {:panel,

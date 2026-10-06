@@ -1,6 +1,6 @@
 defmodule SimpleFit.Email.Templates.StaffInvite do
   @moduledoc """
-  E06 · Staff invitation (`EmailStaffInvite.dc.html`, ADR 0011).
+  E06 · Staff invitation (`project/EmailStaffInvite.dc.html`, ADR 0011).
 
   Sent when a gym owner invites someone to the gym team. The trigger is
   deferred: no gym workspace, staff role, location or invitation domain

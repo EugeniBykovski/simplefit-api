@@ -1,6 +1,6 @@
 defmodule SimpleFit.Email.Templates.VerifyEmail do
   @moduledoc """
-  E01 · Verify your email (`EmailVerify.dc.html`, ADR 0011).
+  E01 · Verify your email (`project/EmailVerify.dc.html`, ADR 0011).
 
   Sent by email sign-up (SF-21) with the one-time code and the one-tap
   verification link that SF-21 issues. This module only renders them.

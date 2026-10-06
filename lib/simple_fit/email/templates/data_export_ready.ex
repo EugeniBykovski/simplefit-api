@@ -1,25 +1,27 @@
 defmodule SimpleFit.Email.Templates.DataExportReady do
   @moduledoc """
-  E16 · Data export ready (`EmailExportReady.dc.html`, ADR 0011).
+  E16 · Data export ready (`project/EmailExportReady.dc.html`, ADR 0011).
 
   Sent when a requested data export is ready. The trigger is deferred: no
   export generation or storage exists. The renderer only accepts
   presentation data; it generates, stores and signs nothing.
 
-  Variables (all required):
+  Variables (all required; the export domain owns generation, storage,
+  authorization and the real expiry policy):
 
     * `:requested_on` - `Date` the export was requested
     * `:file_name` - 1..120
     * `:size` - display ("842 MB"), 1..20
     * `:includes` - display ("Trainings, Board, messages, videos"), 1..120
     * `:formats` - display ("JSON + CSV + MP4"), 1..60
-    * `:expires_on` - `Date` the download expires, after `:requested_on`
-    * `:download_url` - absolute https URL; per the design, downloading
-      asks the person to sign in with their passkey
-    * `:security_url` - absolute https URL of the account security settings
-
-  The preheader's "Available for 7 days" is the design's fixed copy; the
-  sender must give the download that lifetime.
+    * `:expires_on` - displayed `Date` the download expires, after
+      `:requested_on`
+    * `:available_days` - displayed availability in the preheader
+      ("Available for 7 days."), 1..90
+    * `:download_url` - absolute https URL; the email does not decide how
+      the download authenticates or authorizes
+    * `:security_url` - absolute https URL of the account security
+      settings; presentation only
   """
 
   import Ecto.Changeset
@@ -33,6 +35,7 @@ defmodule SimpleFit.Email.Templates.DataExportReady do
     includes: :string,
     formats: :string,
     expires_on: :date,
+    available_days: :integer,
     download_url: :string,
     security_url: :string
   }
@@ -42,7 +45,7 @@ defmodule SimpleFit.Email.Templates.DataExportReady do
     with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
       frame = %{
         subject: "Your SimpleFit data is ready to download",
-        preheader: "Available for 7 days. You’ll need to sign in to download.",
+        preheader: "Available for #{Format.count(data.available_days, "day", "days")}.",
         tag: "YOUR DATA",
         footer: :security
       }
@@ -67,7 +70,7 @@ defmodule SimpleFit.Email.Templates.DataExportReady do
         {:button, "Download my data", data.download_url, :dark},
         {:paragraph,
          [
-           "For your security, downloading asks you to sign in with your passkey. Didn’t request this? ",
+           "Your export contains personal data — keep the file somewhere safe. Didn’t request this? ",
            {:link, "Secure your account", data.security_url, :danger},
            "."
          ], :note}
@@ -83,6 +86,7 @@ defmodule SimpleFit.Email.Templates.DataExportReady do
     |> Input.validate_line(:size, 20)
     |> Input.validate_line(:includes, 120)
     |> Input.validate_line(:formats, 60)
+    |> validate_number(:available_days, greater_than_or_equal_to: 1, less_than_or_equal_to: 90)
     |> Input.validate_url(:download_url)
     |> Input.validate_url(:security_url)
     |> validate_change(:expires_on, fn :expires_on, expires_on ->

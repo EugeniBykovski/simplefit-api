@@ -3,8 +3,9 @@ defmodule SimpleFitWeb.EmailPreviewController do
   Development-only preview of the transactional email templates (ADR 0011).
 
   `GET /dev/emails` lists every designed email with its status and artboard;
-  `GET /dev/emails/:id` renders an implemented template (E01, E11, ...) with
-  the deterministic fixtures, as HTML or, with `?format=text`, plain text.
+  `GET /dev/emails/:id` renders a template (E01..E16) with the deterministic
+  fixtures, as HTML or, with `?format=text`, plain text; `?variant=<name>`
+  renders a named optional state (`Fixtures.variants/1`).
 
   Routed only when `config :simple_fit, :email_previews, enabled: true`,
   which only `config/dev.exs` sets; otherwise the routes answer exactly like
@@ -26,7 +27,10 @@ defmodule SimpleFitWeb.EmailPreviewController do
           if entry[:template],
             do: [
               ~s(<a href="/dev/emails/#{entry.id}">HTML</a> · ),
-              ~s(<a href="/dev/emails/#{entry.id}?format=text">text</a>)
+              ~s(<a href="/dev/emails/#{entry.id}?format=text">text</a>),
+              Enum.map(Fixtures.variants(entry.template), fn variant ->
+                [~s( · <a href="/dev/emails/#{entry.id}?variant=#{variant}">), variant, "</a>"]
+              end)
             ],
             else: "—"
 
@@ -51,7 +55,7 @@ defmodule SimpleFitWeb.EmailPreviewController do
       "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Email templates</title></head>",
       ~s(<body style="font-family: system-ui, sans-serif; margin: 24px;">),
       "<h1>Transactional email templates</h1>",
-      "<p>Claude Design version ",
+      "<p>Claude Design Version #{source.version_number} · ",
       escape(source.version),
       " · ",
       escape(source.section),
@@ -65,7 +69,8 @@ defmodule SimpleFitWeb.EmailPreviewController do
 
   def show(conn, %{"id" => id} = params) do
     with %{template: template} <- Enum.find(Inventory.entries(), &(&1.id == id)),
-         {:ok, rendered} <- apply(Templates, template, [Fixtures.for_template(template)]) do
+         {:ok, attrs} <- fixture(template, params["variant"]),
+         {:ok, rendered} <- apply(Templates, template, [attrs]) do
       if params["format"] == "text",
         do: conn |> put_resp_content_type("text/plain") |> send_resp(200, rendered.text),
         else: send_html(conn, rendered.html)
@@ -73,6 +78,9 @@ defmodule SimpleFitWeb.EmailPreviewController do
       _unknown -> raise Phoenix.Router.NoRouteError, conn: conn, router: SimpleFitWeb.Router
     end
   end
+
+  defp fixture(template, nil), do: {:ok, Fixtures.for_template(template)}
+  defp fixture(template, variant), do: Fixtures.for_variant(template, variant)
 
   defp send_html(conn, body) do
     conn

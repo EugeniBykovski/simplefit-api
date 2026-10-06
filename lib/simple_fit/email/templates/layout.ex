@@ -18,7 +18,7 @@ defmodule SimpleFit.Email.Templates.Layout do
     * `{:eyebrow, text}` / `{:eyebrow, text, :danger}`
     * `{:heading, text}` / `{:heading, text, size}` (`size` in px, default 26)
     * `{:paragraph, segments}` / `{:paragraph, segments, :small | :note | :lead}`
-    * `{:button, label, url, :dark | :olive | :outline}`
+    * `{:button, label, url, :dark | :olive | :outline | :danger}`
     * `{:panel, blocks}` / `{:panel, blocks, :stone | :highlight | :quiet}`:
       rounded panel (stone, olive highlight, or light with a border)
     * `{:label, text}`: mono caption inside a panel
@@ -29,10 +29,17 @@ defmodule SimpleFit.Email.Templates.Layout do
     * `{:mono, text}`: a monospaced value (an invite link)
     * `{:bullets, items, :olive | :muted | :check | :dash}`
     * `{:rows, [{label, value}]}`: label/value table
-    * `{:steps, [{title, detail}]}`: numbered next steps
+    * `{:steps, [{title, detail | nil}]}`: next steps, numbered in visible
+      order
+    * `{:progress, completed, total}`: a segmented progress bar (HTML only;
+      the text part states progress in words elsewhere)
     * `{:stats, [{value, label}]}`: stat tiles
     * `{:identity, initials | nil, eyebrow, name, detail | nil}`: who sent
       the email (an initials avatar, a mono eyebrow, a name and a line)
+
+  `nil` blocks, panel blocks and rows are dropped, so a template composes
+  optional content without leaving empty spacing, labels or dividers: rows
+  are separated by dividers between visible rows only.
 
   A segment is a string, `{:strong, text}`, `{:link, label, url}` or
   `{:link, label, url, :danger}`.
@@ -58,7 +65,7 @@ defmodule SimpleFit.Email.Templates.Layout do
           | {:heading, String.t(), pos_integer()}
           | {:paragraph, [segment()]}
           | {:paragraph, [segment()], :small | :note | :lead}
-          | {:button, String.t(), String.t(), :dark | :olive | :outline}
+          | {:button, String.t(), String.t(), :dark | :olive | :outline | :danger}
           | {:panel, [block()]}
           | {:panel, [block()], :stone | :highlight | :quiet}
           | {:label, String.t()}
@@ -68,7 +75,8 @@ defmodule SimpleFit.Email.Templates.Layout do
           | {:mono, String.t()}
           | {:bullets, [String.t()], :olive | :muted | :check | :dash}
           | {:rows, [{String.t(), String.t()}]}
-          | {:steps, [{String.t(), String.t()}]}
+          | {:steps, [{String.t(), String.t() | nil}]}
+          | {:progress, non_neg_integer(), pos_integer()}
           | {:stats, [{String.t(), String.t()}]}
           | {:identity, String.t() | nil, String.t(), String.t(), String.t() | nil}
 
@@ -104,6 +112,10 @@ defmodule SimpleFit.Email.Templates.Layout do
   @quiet_panel "#F0F1EA"
   @avatar "#C9D17E"
   @avatar_text "#1C2010"
+  @danger_button "#FBE9E4"
+  @danger_border "#E07A5F"
+  @progress_done "#5B6524"
+  @progress_todo "#D6D8CB"
 
   # Web fonts are not reliable in email clients: each stack names the design
   # font first (used where installed) and falls back to system fonts.
@@ -157,7 +169,7 @@ defmodule SimpleFit.Email.Templates.Layout do
       ~s(<table role="presentation" class="sf-card" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#{@card}" style="width: 600px; max-width: 600px; background-color: #{@card}; border-radius: 18px;">),
       header(frame.tag),
       ~s(<tr><td class="sf-pad" style="padding: 36px 40px 14px; font-family: #{@text}; color: #{@body};">),
-      Enum.map(blocks, &html_block/1),
+      blocks |> visible() |> Enum.map(&html_block/1),
       "</td></tr>",
       footer(frame.footer),
       "</table></td></tr></table>\n</body>\n</html>\n"
@@ -219,7 +231,7 @@ defmodule SimpleFit.Email.Templates.Layout do
     spaced([
       ~s(<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>),
       ~s(<td bgcolor="#{background}" style="background-color: #{background}; #{border}border-radius: 16px; padding: 18px 20px 8px;">),
-      Enum.map(blocks, &panel_spaced(content(&1))),
+      blocks |> visible() |> Enum.map(&panel_spaced(content(&1))),
       "</td></tr></table>"
     ])
   end
@@ -308,6 +320,7 @@ defmodule SimpleFit.Email.Templates.Layout do
   end
 
   defp content({:rows, rows}) do
+    rows = visible(rows)
     last = length(rows) - 1
 
     [
@@ -335,18 +348,46 @@ defmodule SimpleFit.Email.Templates.Layout do
       steps
       |> Enum.with_index(1)
       |> Enum.map(fn {{title, detail}, number} ->
+        detail_line =
+          if detail,
+            do: [
+              ~s(<p style="margin: 2px 0 0; font-family: #{@text}; font-size: 13px; line-height: 1.5; color: #{@muted};">),
+              escape(detail),
+              "</p>"
+            ],
+            else: []
+
         [
           ~s(<tr><td valign="top" width="42" style="width: 42px; padding: 0 0 14px;">),
           ~s(<div style="width: 24px; height: 24px; border: 2px solid #{@outline}; border-radius: 14px; font-family: #{@text}; font-size: 13px; font-weight: 800; line-height: 24px; text-align: center; color: #{@olive};">#{number}</div></td>),
           ~s(<td valign="top" style="padding: 0 0 14px;">),
           ~s(<p style="margin: 0; font-family: #{@text}; font-size: 15px; font-weight: 700; line-height: 1.4; color: #{@ink};">),
           escape(title),
-          ~s(</p><p style="margin: 2px 0 0; font-family: #{@text}; font-size: 13px; line-height: 1.5; color: #{@muted};">),
-          escape(detail),
-          "</p></td></tr>"
+          "</p>",
+          detail_line,
+          "</td></tr>"
         ]
       end),
       "</table>"
+    ]
+  end
+
+  defp content({:progress, completed, total}) do
+    segments =
+      1..total
+      |> Enum.map(fn segment ->
+        color = if segment <= completed, do: @progress_done, else: @progress_todo
+
+        ~s(<td height="6" bgcolor="#{color}" style="height: 6px; background-color: #{color}; border-radius: 3px; font-size: 0; line-height: 0;">&nbsp;</td>)
+      end)
+      |> Enum.intersperse(
+        ~s(<td width="4" style="width: 4px; font-size: 0; line-height: 0;">&nbsp;</td>)
+      )
+
+    [
+      ~s(<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" aria-label="#{completed} of #{total} done"><tr>),
+      segments,
+      "</tr></table>"
     ]
   end
 
@@ -435,6 +476,9 @@ defmodule SimpleFit.Email.Templates.Layout do
   defp button_style(:olive), do: {@olive_button, @bar, ""}
   defp button_style(:outline), do: {@card, @ink, "border: 1.5px solid #{@outline};"}
 
+  defp button_style(:danger),
+    do: {@danger_button, @danger, "border: 1.5px solid #{@danger_border};"}
+
   defp panel_style(:stone), do: {@panel, ""}
   defp panel_style(:highlight), do: {@highlight, ""}
   defp panel_style(:quiet), do: {@quiet_panel, "border: 1px solid #{@rule}; "}
@@ -461,12 +505,20 @@ defmodule SimpleFit.Email.Templates.Layout do
 
   defp escape(text) when is_binary(text), do: Plug.HTML.html_escape(text)
 
+  defp visible(items), do: Enum.reject(items, &is_nil/1)
+
   ## Plain text
 
   @doc "The plain-text part: the same message, readable without HTML."
   @spec text(frame(), [block()]) :: String.t()
   def text(frame, blocks) do
-    body = Enum.map_join(blocks, "\n\n", &text_block/1)
+    body =
+      blocks
+      |> visible()
+      |> Enum.map(&text_block/1)
+      |> visible()
+      |> Enum.join("\n\n")
+
     footer = Enum.map_join(footer_lines(frame.footer), "\n", &text_segments/1)
 
     "SimpleFit · #{frame.tag}\n\n" <> body <> "\n\n--\n" <> footer <> "\n"
@@ -482,7 +534,10 @@ defmodule SimpleFit.Email.Templates.Layout do
   defp text_block({:paragraph, segments}), do: text_segments(segments)
   defp text_block({:paragraph, segments, _size}), do: text_segments(segments)
   defp text_block({:button, label, url, _variant}), do: "#{label}:\n#{url}"
-  defp text_block({:panel, blocks}), do: Enum.map_join(blocks, "\n", &text_block/1)
+
+  defp text_block({:panel, blocks}),
+    do: blocks |> visible() |> Enum.map(&text_block/1) |> visible() |> Enum.join("\n")
+
   defp text_block({:panel, blocks, _style}), do: text_block({:panel, blocks})
   defp text_block({:label, text}), do: text
   defp text_block({:code, code, _size, _align}), do: "    " <> code
@@ -501,12 +556,19 @@ defmodule SimpleFit.Email.Templates.Layout do
     Enum.map_join(items, "\n", &(prefix <> &1))
   end
 
-  defp text_block({:rows, rows}), do: Enum.map_join(rows, "\n", fn {l, v} -> "#{l}: #{v}" end)
+  defp text_block({:rows, rows}),
+    do: rows |> visible() |> Enum.map_join("\n", fn {l, v} -> "#{l}: #{v}" end)
+
+  # The eyebrow carries the progress in words.
+  defp text_block({:progress, _completed, _total}), do: nil
 
   defp text_block({:steps, steps}) do
     steps
     |> Enum.with_index(1)
-    |> Enum.map_join("\n", fn {{title, detail}, number} -> "#{number}. #{title}\n   #{detail}" end)
+    |> Enum.map_join("\n", fn
+      {{title, nil}, number} -> "#{number}. #{title}"
+      {{title, detail}, number} -> "#{number}. #{title}\n   #{detail}"
+    end)
   end
 
   defp text_block({:stats, stats}),

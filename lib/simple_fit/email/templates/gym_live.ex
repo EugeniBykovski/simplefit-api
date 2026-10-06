@@ -1,12 +1,12 @@
 defmodule SimpleFit.Email.Templates.GymLive do
   @moduledoc """
-  E05 · Your gym is live (`EmailGymLive.dc.html`, ADR 0011).
+  E05 · Your gym is live (`project/EmailGymLive.dc.html`, ADR 0011).
 
   Sent to the gym owner when the gym is published. The trigger is deferred:
   no gym, location, member-import, verification or payout domain exists
   yet. The renderer only accepts presentation data.
 
-  Variables (all required):
+  Required variables:
 
     * `:gym_name` - 1..80
     * `:published_on` - `Date` the gym was published
@@ -14,11 +14,16 @@ defmodule SimpleFit.Email.Templates.GymLive do
     * `:payout_day` - weekday of bank payouts, `"Monday"`..`"Sunday"`
     * `:public_page_url` - absolute https URL, shown without its scheme
     * `:locations` - 1..20 location names, each 1..40
-    * `:member_invites` - display summary ("175 · tomorrow 10:00"), 1..60
-    * `:verification_status` - display status ("Proof of address in review"), 1..80
     * `:dashboard_url` - absolute https URL of the gym dashboard
 
-  The three next steps are the design's fixed copy.
+  Optional variables (each omits its row):
+
+    * `:member_invites` - scheduled member invites ("175 · tomorrow 10:00"), 1..60
+    * `:verification_status` - pending verification ("Proof of address in
+      review"), 1..80
+
+  The three next steps are the design's fixed copy; "codes rotate so they
+  can’t be shared" needs confirmation by the future check-in domain.
   """
 
   import Ecto.Changeset
@@ -41,7 +46,8 @@ defmodule SimpleFit.Email.Templates.GymLive do
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
+    with {:ok, data} <-
+           Input.validate(attrs, @types, &checks/1, [:member_invites, :verification_status]) do
       frame = %{
         subject: "#{data.gym_name} is live",
         preheader: "Members can find you, book and pay from today.",
@@ -62,8 +68,8 @@ defmodule SimpleFit.Email.Templates.GymLive do
             [
               {"Public page", Format.bare_url(data.public_page_url)},
               {"Locations", Enum.join(data.locations, " · ")},
-              {"Member invites", data.member_invites},
-              {"Verification", data.verification_status}
+              row("Member invites", data[:member_invites]),
+              row("Verification", data[:verification_status])
             ]}
          ]},
         {:steps,
@@ -80,6 +86,9 @@ defmodule SimpleFit.Email.Templates.GymLive do
       Layout.render(:gym_live, frame, blocks)
     end
   end
+
+  defp row(_label, nil), do: nil
+  defp row(label, value), do: {label, value}
 
   defp checks(changeset) do
     changeset

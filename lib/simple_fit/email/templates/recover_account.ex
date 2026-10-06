@@ -1,28 +1,27 @@
 defmodule SimpleFit.Email.Templates.RecoverAccount do
   @moduledoc """
-  E11 · Recover your account (`EmailRecover.dc.html`, ADR 0011).
+  E11 · Recover your account (`project/EmailRecover.dc.html`, ADR 0011).
 
-  Sent by account recovery (expected SF-28) with the one-time recovery link
-  and code it issues. This module only renders them.
+  Sent by account recovery (expected SF-28) with the short-lived recovery
+  link it issues. This module only renders it: no code, no passkey step.
 
-  Variables:
+  Variables (all required):
 
-    * `:recovery_url` - absolute https URL carrying the credential (required)
-    * `:code` - uppercase letters and digits in dash-separated groups,
-      4..16 characters, e.g. `K7Q-2MX` (required)
-    * `:expires_in_minutes` - 1..1440 (required)
+    * `:recovery_url` - absolute https URL carrying the credential
+    * `:expires_in_minutes` - the link lifetime to display, 1..1440;
+      presentation data, the credential lifetime itself belongs to SF-28
   """
 
   import Ecto.Changeset
 
-  alias SimpleFit.Email.Templates.{Input, Layout, Rendered}
+  alias SimpleFit.Email.Templates.{Format, Input, Layout, Rendered}
 
-  @types %{recovery_url: :string, code: :string, expires_in_minutes: :integer}
+  @types %{recovery_url: :string, expires_in_minutes: :integer}
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
     with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
-      minutes = minutes(data.expires_in_minutes)
+      minutes = Format.count(data.expires_in_minutes, "minute", "minutes")
 
       frame = %{
         subject: "Recover your SimpleFit account",
@@ -34,17 +33,13 @@ defmodule SimpleFit.Email.Templates.RecoverAccount do
       blocks = [
         {:heading, "Recover your account"},
         {:paragraph,
-         ["You asked to sign in without your passkey — for example after getting a new phone."]},
-        {:button, "Sign in and add a new passkey", data.recovery_url, :dark},
-        {:panel,
          [
-           {:label, "OR ENTER THIS CODE"},
-           {:code, data.code, 30, :left},
-           {:caption, "Valid for #{minutes} · works once", :left}
+           "We received a request to recover access to your SimpleFit account. This link expires in #{minutes}."
          ]},
+        {:button, "Recover my account", data.recovery_url, :dark},
         {:paragraph,
          [
-           "Didn’t ask for this? Someone may know your email. Ignore this message — your account stays locked without the code."
+           "Didn’t ask for this? Someone may have entered your email by mistake. You can ignore this message."
          ], :note}
       ]
 
@@ -55,11 +50,6 @@ defmodule SimpleFit.Email.Templates.RecoverAccount do
   defp checks(changeset) do
     changeset
     |> Input.validate_url(:recovery_url)
-    |> validate_format(:code, ~r/\A[A-Z0-9]+(-[A-Z0-9]+)*\z/)
-    |> validate_length(:code, min: 4, max: 16)
     |> validate_number(:expires_in_minutes, greater_than: 0, less_than_or_equal_to: 1440)
   end
-
-  defp minutes(1), do: "1 minute"
-  defp minutes(count), do: "#{count} minutes"
 end

@@ -1,26 +1,31 @@
 defmodule SimpleFit.Email.Templates.AccountDeleted do
   @moduledoc """
-  E15 · Account deleted (`EmailDeleted.dc.html`, ADR 0011).
+  E15 · Account deleted (`project/EmailDeleted.dc.html`, ADR 0011).
 
   The last email to a deleted account, sent by the account-deletion
   lifecycle (expected SF-28) on the day of deletion.
 
-  Variables:
+  Required variables:
 
-    * `:name` - the person's first name, one line, 1..80 characters (required)
-    * `:requested_on` - `Date` the deletion was requested (required)
-    * `:site_url` - absolute https URL of the public SimpleFit site (required)
+    * `:name` - the person's first name, one line, 1..80 characters
+    * `:requested_on` - `Date` the deletion was requested
+    * `:site_url` - absolute https URL of the public SimpleFit site
 
-  The deleted/kept rows are the design's fixed policy copy.
+  Optional variables:
+
+    * `:retained_gym_payments` - boolean, default `false`: shows the
+      "Kept · anonymised" row; omitted otherwise
+
+  The row values are the design's fixed policy copy.
   """
 
   alias SimpleFit.Email.Templates.{Input, Layout, Rendered}
 
-  @types %{name: :string, requested_on: :date, site_url: :string}
+  @types %{name: :string, requested_on: :date, site_url: :string, retained_gym_payments: :boolean}
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
+    with {:ok, data} <- Input.validate(attrs, @types, &checks/1, [:retained_gym_payments]) do
       frame = %{
         subject: "Your SimpleFit account has been deleted",
         preheader: "This is the last email we’ll send you.",
@@ -39,7 +44,9 @@ defmodule SimpleFit.Email.Templates.AccountDeleted do
            {:rows,
             [
               {"Deleted", "Profile, trainings, Board, messages"},
-              {"Kept · anonymised", "Gym payments, 5 years (law)"},
+              if(data[:retained_gym_payments],
+                do: {"Kept · anonymised", "Gym payments, 5 years (law)"}
+              ),
               {"Email address", "Removed after this message"}
             ]}
          ]},
