@@ -44,6 +44,12 @@ config :simple_fit, SimpleFit.Identity.Google,
   ],
   req_options: [plug: {Req.Test, SimpleFit.Identity.Google.Keys}]
 
+# Sign in with Apple (ADR 0014): test audiences (bundle id and Services ID)
+# and signing keys served by a Req.Test stub instead of appleid.apple.com.
+config :simple_fit, SimpleFit.Identity.Apple,
+  client_ids: ["com.simplefit.test", "com.simplefit.test.web"],
+  req_options: [plug: {Req.Test, SimpleFit.Identity.Apple.Keys}]
+
 # Jobs are never executed automatically in tests: assert on enqueued jobs
 # (Oban.Testing) and run them explicitly with perform_job/2.
 config :simple_fit, Oban, testing: :manual

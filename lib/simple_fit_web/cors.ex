@@ -42,7 +42,9 @@ defmodule SimpleFitWeb.CORS do
     "/api/auth/email/registrations/verify",
     "/api/auth/email/sign-in/verify",
     # Google sign-in can start a session with the cookie transport (ADR 0013).
-    "/api/auth/google"
+    "/api/auth/google",
+    # So can Sign in with Apple (ADR 0014).
+    "/api/auth/apple"
   ]
 
   @origin_format ~r"\Ahttps?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\z"

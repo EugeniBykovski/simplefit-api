@@ -28,7 +28,16 @@ defmodule SimpleFit.Accounts do
   import Ecto.Changeset, only: [apply_changes: 1, put_change: 3]
   import Ecto.Query, only: [from: 2]
 
-  alias SimpleFit.Accounts.{EmailAddress, EmailAuth, GoogleAuth, Identity, Sessions, User}
+  alias SimpleFit.Accounts.{
+    AppleAuth,
+    EmailAddress,
+    EmailAuth,
+    GoogleAuth,
+    Identity,
+    Sessions,
+    User
+  }
+
   alias SimpleFit.Repo
 
   @typedoc "A supported identity provider: `:email`, `:google` or `:apple`."
@@ -36,6 +45,11 @@ defmodule SimpleFit.Accounts do
 
   @typedoc "An identity reference as received: provider and subject, not yet validated."
   @type provider_input :: provider() | String.t()
+
+  # Identity queries carry provider subjects (Google/Apple account ids, email
+  # addresses) as parameters; Ecto's query log (debug level) would print
+  # them, so these queries are not logged (ADR 0008, ADR 0014).
+  @unlogged [log: false]
 
   @type validation_error :: {:error, Ecto.Changeset.t()}
 
@@ -54,7 +68,7 @@ defmodule SimpleFit.Accounts do
           {:ok, Identity.t()} | {:error, :not_found} | validation_error()
   def get_identity(provider, subject) do
     with {:ok, key} <- identity_key(provider, subject) do
-      case Repo.get_by(Identity, key) do
+      case Repo.get_by(Identity, key, @unlogged) do
         nil -> {:error, :not_found}
         identity -> {:ok, identity}
       end
@@ -71,7 +85,7 @@ defmodule SimpleFit.Accounts do
           join: i in assoc(u, :identities),
           where: i.provider == ^key.provider and i.provider_subject == ^key.provider_subject
 
-      case Repo.one(query) do
+      case Repo.one(query, @unlogged) do
         nil -> {:error, :not_found}
         user -> {:ok, user}
       end
@@ -110,7 +124,7 @@ defmodule SimpleFit.Accounts do
     with {:ok, changeset} <- validated_changeset(provider, subject) do
       key = changeset |> apply_changes() |> Map.take([:provider, :provider_subject])
 
-      case Repo.get_by(Identity, key) do
+      case Repo.get_by(Identity, key, @unlogged) do
         nil -> insert_link(changeset, user_id, key)
         %Identity{user_id: ^user_id} = identity -> {:ok, identity}
         %Identity{} -> {:error, :conflict}
@@ -201,6 +215,19 @@ defmodule SimpleFit.Accounts do
           {:ok, GoogleAuth.result()} | GoogleAuth.error()
   defdelegate authenticate_with_google(id_token, client_ip), to: GoogleAuth, as: :authenticate
 
+  ## Sign in with Apple (ADR 0014)
+
+  @doc """
+  Signs in with an Apple identity token and the raw nonce of its request,
+  verified by `SimpleFit.Identity`, creating the user and its Apple identity
+  on first use (never linked by email). See `SimpleFit.Accounts.AppleAuth`.
+  """
+  @spec authenticate_with_apple(term(), term(), String.t()) ::
+          {:ok, AppleAuth.result()} | AppleAuth.error()
+  defdelegate authenticate_with_apple(id_token, nonce, client_ip),
+    to: AppleAuth,
+    as: :authenticate
+
   # The user and its first identity commit together or not at all: a failed
   # identity insert (for example the unique index, under a race) rolls the
   # new user back.
@@ -208,7 +235,7 @@ defmodule SimpleFit.Accounts do
     Repo.transaction(fn ->
       user = Repo.insert!(%User{})
 
-      case changeset |> put_change(:user_id, user.id) |> Repo.insert() do
+      case changeset |> put_change(:user_id, user.id) |> Repo.insert(@unlogged) do
         {:ok, identity} -> %{user | identities: [identity]}
         {:error, failed} -> Repo.rollback(failed)
       end
@@ -224,7 +251,7 @@ defmodule SimpleFit.Accounts do
   # The unique index decides a race between the lookup and the insert: the
   # loser re-reads the winner and gets the same answer as a later caller.
   defp insert_link(changeset, user_id, key) do
-    case changeset |> put_change(:user_id, user_id) |> Repo.insert() do
+    case changeset |> put_change(:user_id, user_id) |> Repo.insert(@unlogged) do
       {:ok, identity} ->
         {:ok, identity}
 
@@ -238,7 +265,7 @@ defmodule SimpleFit.Accounts do
   end
 
   defp owner_of(key, user_id) do
-    case Repo.get_by(Identity, key) do
+    case Repo.get_by(Identity, key, @unlogged) do
       %Identity{user_id: ^user_id} = identity -> {:ok, identity}
       # Owned by someone else, or removed again in the meantime.
       _other -> {:error, :conflict}

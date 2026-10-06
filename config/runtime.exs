@@ -193,6 +193,11 @@ case config_env() do
       client_ids:
         SimpleFit.Identity.Google.parse_client_ids!(System.get_env("GOOGLE_OAUTH_CLIENT_IDS"))
 
+    # Sign in with Apple (ADR 0014): unset means Apple sign-in answers 503.
+    config :simple_fit, SimpleFit.Identity.Apple,
+      client_ids:
+        SimpleFit.Identity.Apple.parse_client_ids!(System.get_env("APPLE_SIGN_IN_CLIENT_IDS"))
+
     # The local web client (simplefit-platform `pnpm dev`) by default;
     # CORS_ALLOWED_ORIGINS replaces the list (e.g. to add 127.0.0.1:3000).
     config :simple_fit, SimpleFitWeb.CORS,
@@ -271,6 +276,13 @@ case config_env() do
     config :simple_fit, SimpleFit.Identity.Google,
       client_ids:
         SimpleFit.Identity.Google.parse_client_ids!(System.get_env("GOOGLE_OAUTH_CLIENT_IDS"))
+
+    # Sign in with Apple audiences (ADR 0014): the iOS bundle id and the web
+    # Services ID. Unset does not block boot; Apple sign-in then answers 503.
+    # A malformed value fails the boot.
+    config :simple_fit, SimpleFit.Identity.Apple,
+      client_ids:
+        SimpleFit.Identity.Apple.parse_client_ids!(System.get_env("APPLE_SIGN_IN_CLIENT_IDS"))
 
     host =
       System.get_env("PHX_HOST") ||

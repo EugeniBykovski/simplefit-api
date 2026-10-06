@@ -19,6 +19,7 @@ as ADRs in [`adr/`](adr/).
 | [0011](adr/0011-transactional-email-templates.md) | Transactional email templates: app-owned rendering, HTML + text, encrypted job payloads, dev preview |
 | [0012](adr/0012-passwordless-email-authentication.md) | Passwordless email authentication: verification vs sign-in challenges, keyed code verifiers, Version 66 device rule, PostgreSQL rate limits, client IP |
 | [0013](adr/0013-google-authentication.md) | Google authentication: ID-token verification (jose, cached Google keys), aud/azp allowlist, `sub` identity, no email linking, SF-20 sessions |
+| [0014](adr/0014-sign-in-with-apple.md) | Sign in with Apple: identity token plus SHA-256 nonce (iOS and Apple JS popup, no callback or code exchange), audience allowlist, shared key cache, `sub` identity, no scopes |
 
 ---
 
@@ -44,7 +45,7 @@ lib/
     repo.ex                   # Ecto repo (the only DB entry point)
     accounts.ex, accounts/    # Users, sign-in identities (ADR 0009), sessions (ADR 0010) and
                               # passwordless email authentication (ADR 0012)
-    identity.ex, identity/    # Provider identity verification: Google ID tokens + signing-key cache (ADR 0013)
+    identity.ex, identity/    # Provider identity verification: Google (ADR 0013) and Apple (ADR 0014) tokens + shared signing-key cache
     rate_limit.ex             # PostgreSQL fixed-window limits for abuse-sensitive endpoints (ADR 0012)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters

@@ -44,6 +44,8 @@ defmodule SimpleFitWeb.Router do
 
     # Google sign-in (ADR 0013).
     post "/auth/google", GoogleAuthController, :authenticate
+    # Sign in with Apple (ADR 0014).
+    post "/auth/apple", AppleAuthController, :authenticate
   end
 
   scope "/api", SimpleFitWeb do
