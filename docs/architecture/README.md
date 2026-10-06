@@ -14,6 +14,7 @@ as ADRs in [`adr/`](adr/).
 | [0006](adr/0006-background-jobs-oban.md) | Background jobs with Oban (queues, pruning, testing, worker conventions) |
 | [0007](adr/0007-cors-policy.md) | Cross-origin (CORS) policy: explicit allow-list, preflight, no credentials |
 | [0008](adr/0008-observability.md) | Observability: structured logs, Sentry, OpenTelemetry, privacy rules |
+| [0009](adr/0009-identity-domain.md) | Identity domain: one global user, many identities, no silent account merging |
 
 ---
 
@@ -37,6 +38,7 @@ lib/
   simple_fit/                 # Domain: contexts, schemas, business rules
     application.ex            # OTP supervision tree (Repo, Oban, Endpoint)
     repo.ex                   # Ecto repo (the only DB entry point)
+    accounts.ex, accounts/    # Users and their sign-in identities (ADR 0009)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
     storage.ex, storage/      # Object storage boundary + S3 / Fake adapters
@@ -61,8 +63,8 @@ folders or placeholder modules to "reserve" architecture.
 
 ### Contexts (`lib/simple_fit/<context>.ex`, `lib/simple_fit/<context>/`)
 
-* A context is the public API of one domain boundary (e.g. future
-  `SimpleFit.Accounts`, `SimpleFit.Training`, `SimpleFit.Gyms`).
+* A context is the public API of one domain boundary (e.g.
+  `SimpleFit.Accounts`, future `SimpleFit.Training`, `SimpleFit.Gyms`).
 * Contexts own their schemas, queries, changesets, authorization rules and
   transactions. Only a context calls `Repo` for its own schemas.
 * Other contexts and the web layer call the context's public functions, never
@@ -202,7 +204,7 @@ All non-2xx responses use the envelope defined in `SimpleFitWeb.APIError`
 | CORS | `SimpleFitWeb.CORS` ([ADR 0007](adr/0007-cors-policy.md)). Explicit allow-list from `CORS_ALLOWED_ORIGINS`: dev default `http://localhost:3000`; prod https only, fail closed when unset; malformed values stop the boot. Never `*`, no credentials. Preflights answered (204, or `403 forbidden` envelope); `x-request-id` exposed. | Revisit before any cookie/credentialed authentication |
 | HTTPS / proxies | `force_ssl` + HSTS in prod, trusting `x-forwarded-proto` from the load balancer (`/api/health` excluded so plain-HTTP health checks work). The app must only be reachable through that proxy. | Deployment ticket. When client IPs matter (rate limiting, audit), add `remote_ip` configured with the proxy's CIDRs only |
 | Logging | Phoenix `filter_parameters` redacts keys containing `password`, `secret`, `token`, `api_key`, `private_key`, `authorization`, `credential`. JSON logs in prod. Never log full request bodies or tokens. | — |
-| Authentication | Not implemented. `bearerAuth` security scheme is reserved in OpenAPI. | Auth ticket: a `:authenticated` router pipeline with a plug that resolves the bearer token to an actor |
+| Authentication | Not implemented. `bearerAuth` security scheme is reserved in OpenAPI. The identity domain exists (`SimpleFit.Accounts`, [ADR 0009](adr/0009-identity-domain.md)): one global user, identities keyed by `{provider, provider_subject}`, no credentials stored, no email-based account merging. | Auth ticket: a `:authenticated` router pipeline with a plug that resolves the bearer token to an actor |
 | Rate limiting | Not implemented. | Auth/abuse ticket: per-IP and per-account limits on auth endpoints, returning `429 rate_limited` |
 | API docs exposure | `/api/docs` and `/api/openapi` are on in dev/test and **off in prod** unless `API_DOCS_ENABLED=true`. When off they respond exactly like unknown routes. | — |
 

@@ -1,0 +1,182 @@
+defmodule SimpleFit.Accounts do
+  @moduledoc """
+  Users and the identities that sign them in (ADR 0009).
+
+  One person is one global `User`; a user owns any number of `Identity`
+  records (email, Google, Apple). This context only stores and resolves them:
+  proving that a caller controls an identity (email codes, Google and Apple
+  token verification) belongs to the authentication flows built on top of it.
+
+  Rules:
+
+    * `{provider, provider_subject}` identifies one identity of one user. The
+      database unique index is the authority, also under concurrency.
+    * Identities are never moved between users and users are never merged.
+      An identity that belongs to someone else is a `:conflict`, never a
+      silent transfer.
+    * An email reported by Google or Apple is not a key. Nothing here links
+      identities because their emails match; linking is always an explicit
+      `link_identity/3` on a user the caller has authenticated.
+
+  Results: `{:ok, value}`, `{:error, :not_found}`, `{:error, :conflict}`, or
+  `{:error, %Ecto.Changeset{}}` for an unsupported provider or an invalid
+  subject (rendered as `validation_error`). Conflicts carry no detail about
+  who owns an identity.
+  """
+
+  import Ecto.Changeset, only: [apply_changes: 1, put_change: 3]
+  import Ecto.Query, only: [from: 2]
+
+  alias SimpleFit.Accounts.{EmailAddress, Identity, User}
+  alias SimpleFit.Repo
+
+  @typedoc "A supported identity provider: `:email`, `:google` or `:apple`."
+  @type provider :: Identity.provider()
+
+  @typedoc "An identity reference as received: provider and subject, not yet validated."
+  @type provider_input :: provider() | String.t()
+
+  @type validation_error :: {:error, Ecto.Changeset.t()}
+
+  @doc """
+  Canonical form of an email address (see `SimpleFit.Accounts.EmailAddress`),
+  or `:error` when it is not usable as an email identity.
+  """
+  @spec normalize_email(term()) :: {:ok, String.t()} | :error
+  defdelegate normalize_email(address), to: EmailAddress, as: :normalize
+
+  @doc """
+  Finds the identity `{provider, subject}`. Email subjects are matched in
+  canonical form, so `" User@Example.com "` finds `user@example.com`.
+  """
+  @spec get_identity(provider_input(), term()) ::
+          {:ok, Identity.t()} | {:error, :not_found} | validation_error()
+  def get_identity(provider, subject) do
+    with {:ok, key} <- identity_key(provider, subject) do
+      case Repo.get_by(Identity, key) do
+        nil -> {:error, :not_found}
+        identity -> {:ok, identity}
+      end
+    end
+  end
+
+  @doc "The user that owns the identity `{provider, subject}`."
+  @spec resolve_user(provider_input(), term()) ::
+          {:ok, User.t()} | {:error, :not_found} | validation_error()
+  def resolve_user(provider, subject) do
+    with {:ok, key} <- identity_key(provider, subject) do
+      query =
+        from u in User,
+          join: i in assoc(u, :identities),
+          where: i.provider == ^key.provider and i.provider_subject == ^key.provider_subject
+
+      case Repo.one(query) do
+        nil -> {:error, :not_found}
+        user -> {:ok, user}
+      end
+    end
+  end
+
+  @doc """
+  Creates a new user together with its first identity, atomically.
+
+  Returns the user with `identities` loaded. If the identity already exists
+  (including when a concurrent registration wins the race) nothing is created
+  and the result is `{:error, :conflict}`; callers that want sign-in semantics
+  resolve the existing identity with `resolve_user/2`.
+  """
+  @spec register_user(provider_input(), term()) ::
+          {:ok, User.t()} | {:error, :conflict} | validation_error()
+  def register_user(provider, subject) do
+    with {:ok, changeset} <- validated_changeset(provider, subject) do
+      changeset
+      |> insert_user_with_identity()
+      |> registration_result()
+    end
+  end
+
+  @doc """
+  Attaches the identity `{provider, subject}` to `user`, for an explicit
+  linking request by that (already authenticated) user.
+
+    * Already linked to the same user: `{:ok, identity}` (idempotent).
+    * Owned by another user: `{:error, :conflict}`. Nothing is transferred.
+    * `user` no longer exists: `{:error, :not_found}`.
+  """
+  @spec link_identity(User.t(), provider_input(), term()) ::
+          {:ok, Identity.t()} | {:error, :conflict | :not_found} | validation_error()
+  def link_identity(%User{id: user_id}, provider, subject) when is_binary(user_id) do
+    with {:ok, changeset} <- validated_changeset(provider, subject) do
+      key = changeset |> apply_changes() |> Map.take([:provider, :provider_subject])
+
+      case Repo.get_by(Identity, key) do
+        nil -> insert_link(changeset, user_id, key)
+        %Identity{user_id: ^user_id} = identity -> {:ok, identity}
+        %Identity{} -> {:error, :conflict}
+      end
+    end
+  end
+
+  # The user and its first identity commit together or not at all: a failed
+  # identity insert (for example the unique index, under a race) rolls the
+  # new user back.
+  defp insert_user_with_identity(changeset) do
+    Repo.transaction(fn ->
+      user = Repo.insert!(%User{})
+
+      case changeset |> put_change(:user_id, user.id) |> Repo.insert() do
+        {:ok, identity} -> %{user | identities: [identity]}
+        {:error, failed} -> Repo.rollback(failed)
+      end
+    end)
+  end
+
+  defp registration_result({:ok, user}), do: {:ok, user}
+
+  defp registration_result({:error, failed}) do
+    if identity_taken?(failed), do: {:error, :conflict}, else: {:error, failed}
+  end
+
+  # The unique index decides a race between the lookup and the insert: the
+  # loser re-reads the winner and gets the same answer as a later caller.
+  defp insert_link(changeset, user_id, key) do
+    case changeset |> put_change(:user_id, user_id) |> Repo.insert() do
+      {:ok, identity} ->
+        {:ok, identity}
+
+      {:error, failed} ->
+        cond do
+          identity_taken?(failed) -> owner_of(key, user_id)
+          error_on?(failed, :user_id) -> {:error, :not_found}
+          true -> {:error, failed}
+        end
+    end
+  end
+
+  defp owner_of(key, user_id) do
+    case Repo.get_by(Identity, key) do
+      %Identity{user_id: ^user_id} = identity -> {:ok, identity}
+      # Owned by someone else, or removed again in the meantime.
+      _other -> {:error, :conflict}
+    end
+  end
+
+  defp identity_key(provider, subject) do
+    with {:ok, changeset} <- validated_changeset(provider, subject) do
+      {:ok, changeset |> apply_changes() |> Map.take([:provider, :provider_subject])}
+    end
+  end
+
+  defp validated_changeset(provider, subject) do
+    changeset = Identity.changeset(%Identity{}, %{provider: provider, provider_subject: subject})
+    if changeset.valid?, do: {:ok, changeset}, else: {:error, changeset}
+  end
+
+  defp identity_taken?(changeset) do
+    Enum.any?(changeset.errors, fn {field, {_message, opts}} ->
+      field == :provider_subject and opts[:constraint] == :unique
+    end)
+  end
+
+  defp error_on?(changeset, field), do: Keyword.has_key?(changeset.errors, field)
+end
