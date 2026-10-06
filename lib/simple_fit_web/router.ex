@@ -33,6 +33,14 @@ defmodule SimpleFitWeb.Router do
 
     post "/auth/session/refresh", SessionController, :refresh
     post "/auth/logout", SessionController, :logout
+
+    # Passwordless email authentication (ADR 0012).
+    post "/auth/email/registrations", EmailAuthController, :request_registration
+    post "/auth/email/registrations/verify", EmailAuthController, :verify_registration
+    post "/auth/email/registrations/status", EmailAuthController, :registration_status
+    post "/auth/email/verification-links/verify", EmailAuthController, :verify_link
+    post "/auth/email/sign-in", EmailAuthController, :request_sign_in
+    post "/auth/email/sign-in/verify", EmailAuthController, :verify_sign_in
   end
 
   scope "/api", SimpleFitWeb do

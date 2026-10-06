@@ -61,15 +61,23 @@ defmodule SimpleFitWeb.APIError do
     {"not_found", 404, "The requested resource was not found"},
     {"not_acceptable", 406, "The requested response format is not supported"},
     {"conflict", 409, "The request conflicts with the current state of the resource"},
+    {"verified_elsewhere", 409,
+     "This email was verified on another device; sign in with a code to continue"},
     {"payload_too_large", 413, "The request body is too large"},
     {"unsupported_media_type", 415, "The request content type is not supported"},
     {"validation_error", 422, "Request validation failed"},
+    {"code_invalid", 422, "The code is not correct"},
+    {"code_expired", 422, "The code or link is no longer valid; request a new code"},
     {"rate_limited", 429, "Too many requests, retry later"},
     {"internal_error", 500, "An unexpected error occurred"},
     {"service_unavailable", 503, "The service is temporarily unavailable"}
   ]
 
   @codes Enum.map(@catalog, &elem(&1, 0))
+
+  # Codes that share a status with that status's default code and are only
+  # ever sent explicitly (email authentication outcomes, ADR 0012).
+  @explicit_codes ["verified_elsewhere", "code_invalid", "code_expired"]
 
   @doc "All catalogued error codes, in catalog order."
   @spec codes() :: [code()]
@@ -95,7 +103,7 @@ defmodule SimpleFitWeb.APIError do
   deterministic code.
   """
   @spec code_for_status(100..599) :: code()
-  for {code, status, _message} <- @catalog do
+  for {code, status, _message} <- @catalog, code not in @explicit_codes do
     def code_for_status(unquote(status)), do: unquote(code)
   end
 
