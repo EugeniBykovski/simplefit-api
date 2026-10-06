@@ -25,9 +25,8 @@ defmodule SimpleFit.Accounts.GoogleAuth do
 
   require Logger
 
-  alias SimpleFit.Accounts
   alias SimpleFit.Accounts.EmailAuth.Secrets
-  alias SimpleFit.Accounts.{Sessions, User}
+  alias SimpleFit.Accounts.{ProviderAccounts, Sessions}
   alias SimpleFit.{Identity, RateLimit}
 
   @ip_rule {"google_auth:ip", 30, 600}
@@ -49,7 +48,7 @@ defmodule SimpleFit.Accounts.GoogleAuth do
          :ok <- limit(@ip_rule, client_ip),
          {:ok, %{subject: subject}} <- verify(token),
          :ok <- limit(@subject_rule, "google:" <> subject),
-         {:ok, user, account} <- resolve_or_register(subject),
+         {:ok, user, account} <- ProviderAccounts.resolve_or_register(:google, subject),
          {:ok, credentials} <- Sessions.create(user) do
       emit(:verified, %{account: account})
       {:ok, %{credentials: credentials, account: account}}
@@ -80,32 +79,6 @@ defmodule SimpleFit.Accounts.GoogleAuth do
         Logger.warning("google sign-in unavailable", reason: reason)
         emit(:unavailable, %{reason: reason})
         {:error, :unavailable}
-    end
-  end
-
-  # SF-19: resolve first; register on a miss; a concurrent registration that
-  # wins the unique index is resolved instead (no orphan user is left).
-  defp resolve_or_register(subject) do
-    case Accounts.resolve_user(:google, subject) do
-      {:ok, %User{} = user} ->
-        {:ok, user, :existing}
-
-      {:error, :not_found} ->
-        case Accounts.register_user(:google, subject) do
-          {:ok, user} -> {:ok, user, :created}
-          {:error, :conflict} -> resolve_winner(subject)
-          {:error, _changeset} -> {:error, :unauthorized}
-        end
-
-      {:error, _changeset} ->
-        {:error, :unauthorized}
-    end
-  end
-
-  defp resolve_winner(subject) do
-    case Accounts.resolve_user(:google, subject) do
-      {:ok, user} -> {:ok, user, :existing}
-      _gone -> {:error, :unavailable}
     end
   end
 
