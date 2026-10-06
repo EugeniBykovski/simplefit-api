@@ -8,8 +8,8 @@
 
 Claude Design defines 16 emails (E01–E16) on the Public Website page,
 section "14 · Email templates · after registration" (artifact
-https://claude.ai/artifact/JEsBg51MjX8KiHWEro8omY, version
-`1791276973-ad1d`). Verification, recovery and account-lifecycle flows will
+https://claude.ai/artifact/JEsBg51MjX8KiHWEro8omY, Version 63,
+`1791284501-e3ff`; artboards `project/Email*.dc.html`). Verification, recovery and account-lifecycle flows will
 send some of them soon (SF-21, SF-28); most belong to domains that do not
 exist yet (gyms, coaching, moderation, data export). SF-15 built delivery
 only: `SimpleFit.Email`, Resend, Oban.
@@ -55,10 +55,35 @@ unsubscribe/preferences workflow.
 * Opt-out (E07), Email preferences and Unsubscribe (E02, E12) links are
   validated URLs supplied by the sender. No preference, unsubscribe or
   opt-out system exists, and no `List-Unsubscribe` header is sent.
-* User-written text (E08's coach message) is plain text: one paragraph,
-  at most 500 characters, escaped like every other value.
-* E08's preheader ("Join his team…") takes `coach_possessive` (`his`, `her`
-  or `their`) from the sender; it is never inferred from a name.
+* User-written text (E08's coach note) is plain text: one paragraph, at
+  most 500 characters, escaped like every other value.
+* Displayed lifetimes (E11's link expiry, E16's availability and expiry)
+  are presentation data; the owning domains set the real policies.
+
+### Optional blocks and variants
+
+Version 63 marks optional blocks and preheader variants. They are
+presentation intent; the renderers translate them into their own input
+contracts rather than copying the design's condition names.
+
+* Variables are required unless listed as optional. An optional variable
+  is absent when missing or `nil`; when present it is validated like any
+  other (a blank value is rejected, never shown as an empty label).
+* Values that only make sense together are one group, all or none (E02's
+  camp and first class, E04's progress, E12's challenge and rival).
+* A value supplied where the email would not show it is `:unexpected`
+  (E03's payouts URL without a pending identity check, E12's rival without
+  a challenge), so callers never invent data.
+* An absent block disappears entirely: no spacing, label, panel or
+  divider is left. Label/value tables draw a divider between visible rows
+  only; the markup is generated that way, never repaired by CSS selectors
+  or scripts.
+* Preheaders follow the present data: E02 (class/camp, four variants),
+  E03 (identity check/licence review, four), E12 (rival, two).
+* E03 numbers only the pending actions; with none there is no lead-in, no
+  list and no primary button.
+* Booleans state facts the email shows as fixed copy: E03's pending
+  actions, E14/E15's `retained_gym_payments` (default `false`).
 
 ### Variables and URLs
 
@@ -120,9 +145,11 @@ transient failures and cancellation of permanent ones.
 
 ### Development preview
 
-`GET /dev/emails` lists every designed email; `GET /dev/emails/:id` renders
-an implemented one with deterministic fixtures (reserved `.example`
-domain, fake one-time token), as HTML or `?format=text`.
+`GET /dev/emails` lists all 16 designed emails; `GET /dev/emails/:id`
+renders one with deterministic fixtures (reserved `.example` domain, fake
+one-time token), as HTML or `?format=text`. Default fixtures show every
+optional block; `?variant=<name>` renders a named optional state
+(`Fixtures.variants/1`, e.g. E04 `no-progress`, E03 `nothing-pending`).
 
 * Enabled only by `config/dev.exs`; elsewhere the routes answer like unknown
   routes, so they can never be switched on in production.
@@ -132,43 +159,73 @@ domain, fake one-time token), as HTML or `?format=text`.
 ### Inventory and status
 
 `SimpleFit.Email.Templates.Inventory` is the traceability record: every
-designed email with its trigger, subject, preheader, variables, CTA,
-fallback, artboard, delivery owner and status. Undefined values are
-`NOT_SPECIFIED`.
+designed email with its trigger, subject, preheader or preheader variants,
+required and optional variables, conditional blocks, CTA, fallback,
+Version 63 artboard, delivery owner, status and deferred product
+questions. Undefined values are `NOT_SPECIFIED`.
+
+All 16 are implemented; no trigger is wired.
 
 | Id | Email | Status | Trigger owner |
 | --- | --- | --- | --- |
 | E01 | Verify your email | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-21 |
-| E02 | Welcome, fighter | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E03 | Welcome, coach | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E04 | Finish gym setup | AMBIGUOUS / NEEDS_PRODUCT_DECISION | — |
-| E05 | Your gym is live | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E06 | Staff invitation | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E07 | Member invite from gym | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E08 | Coach invited you | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E09 | Join request approved | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E10 | New sign-in alert | AMBIGUOUS / NEEDS_PRODUCT_DECISION | — |
+| E02 | Welcome, fighter | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future fighter onboarding |
+| E03 | Welcome, coach | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future coach onboarding |
+| E04 | Finish gym setup | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future gym onboarding |
+| E05 | Your gym is live | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future gym publishing |
+| E06 | Staff invitation | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future gym staff |
+| E07 | Member invite from gym | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future membership import |
+| E08 | Coach invited you | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future coaching |
+| E09 | Join request approved | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future membership |
+| E10 | New sign-in alert | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-28 / security (expected) |
 | E11 | Recover account | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-28 (expected) |
-| E12 | First week recap | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
-| E13 | Account suspended | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
+| E12 | First week recap | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future training recap |
+| E13 | Account suspended | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future moderation |
 | E14 | Deletion scheduled | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-28 (expected) |
 | E15 | Account deleted | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-28 (expected) |
-| E16 | Data export ready | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | no ticket yet (domain missing) |
+| E16 | Data export ready | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future data export |
 
-No trigger is wired in SF-35: no backend flow sends any of these emails
-yet.
+No backend flow sends any of these emails yet: the owning tickets build
+the events, credentials, links and workflows.
 
-E04 and E10 are not implemented because their approved copy promises
-behaviour that does not exist, and SF-35 does not rewrite approved copy:
+Version 63 changes reconciled in SF-35:
 
-* **E04:** "This link signs you in and is valid for 24 hours" is a
-  sign-in-by-email-link credential outside the session model (ADR 0010);
-  "Book a free 15-minute setup call with Gym Success" has no destination.
-* **E10:** sessions store no device or location and nothing detects a new
-  device; "Password + authenticator" is not a SimpleFit sign-in method;
-  "posting and messaging from this device are paused for 24 hours" and "we’ll
-  sign out every other device and ask you to confirm with your passkey"
-  describe features that do not exist.
+* **E04** is navigation only: "Continue setup" opens the setup and the
+  person signs in as usual if needed. No sign-in link, token or resume
+  state; setup progress is optional.
+* **E08** has no pronoun input; the preheader names the coach. Tagline
+  and personal note are optional.
+* **E10** states only the sign-in time. It claims no device, browser,
+  location or method, and promises no sign-out or restriction.
+* **E11** is a recovery link only: no code, no passkey wording.
+* **E14** no longer claims a hidden profile, signed-out devices or a
+  one-tap restore; the retained-payments section is optional (E15's row
+  too).
+* **E16** does not say how the download authenticates.
+
+### Deferred product questions
+
+These do not block rendering; their owners decide them.
+
+* **Security destination (E10, E11, E16):** the account security settings
+  screen still shows future security concepts (passkeys, authenticator,
+  global sign-out). SF-35 does not change it; SF-28 / security
+  reconciliation owns it. Nothing detects a new sign-in yet (E10).
+* **E05:** "codes rotate so they can’t be shared" needs confirmation by
+  the future gym/check-in domain; SF-35 implements no QR rotation.
+* **E09:** the copy describes a front-desk confirmation; online join flows
+  may need their own copy or variant.
+* **E02:** "weight and RPE never leave your phone" may conflict with the
+  coach-visible metrics a fighter shares with consent (E08); the
+  fighter/coach domain reconciles it.
+* **E07:** the privacy note says the gym shared name, email and plan; the
+  membership/import domain confirms what an import really shares.
+* **E01:** SF-21 decides whether both the link and the code are supported
+  and reconciles the template if not.
+* **E11/E16 lifetimes:** displayed values are presentation data; SF-28
+  and the export domain own the real credential and storage expiry.
+* **E02/E12:** Email preferences and Unsubscribe destinations do not exist
+  yet.
 
 ### Deliberate deviations from the artboards
 
@@ -184,6 +241,8 @@ behaviour that does not exist, and SF-35 does not rewrite approved copy:
 * **Fonts:** fallback stacks instead of loaded web fonts.
 * **Client rendering:** rounded corners and shadows degrade in clients that
   ignore them (Outlook desktop), and the card has no drop shadow.
+* **E04 progress bar:** table cells with background colours; their rounded
+  ends degrade to square in clients that ignore `border-radius`.
 * **Language:** English only. The design marks "EN · also PL · UK · CS",
   but only English copy is designed; other languages are future work.
 
@@ -202,6 +261,7 @@ behaviour that does not exist, and SF-35 does not rewrite approved copy:
   plain text and delivery are shared.
 * Rotating `SECRET_KEY_BASE` cancels emails still queued at that moment
   (minutes in practice).
-* Fourteen templates are ready for their domains; their triggers, tokens
-  and links belong to the tickets that build those domains.
-* E04 and E10 wait for revised copy or the features their copy promises.
+* All 16 templates are ready for their domains; their triggers, tokens,
+  links and workflows belong to the tickets that build those domains.
+* A design change re-reads the artboards, updates the renderer, inventory
+  and fixtures, and records the new version.
