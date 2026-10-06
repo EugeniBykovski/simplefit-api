@@ -93,6 +93,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
     keep `SentryFilter`/`SpanSanitizer` allow-lists tight and use `:error`
     only for failures someone must act on (they go to Sentry). Storage stays private: clients upload/download directly with
     short-lived presigned URLs; Phoenix never proxies file bytes.
+    Transactional emails are rendered by `SimpleFit.Email.Templates`
+    (ADR 0011): explicit per-template functions, validated variables, escaped
+    HTML plus plain text, never provider-hosted templates; queued email
+    payloads stay encrypted.
 
 ### Quality
 17. **Tests accompany behaviour.** New or changed behaviour ships with ExUnit

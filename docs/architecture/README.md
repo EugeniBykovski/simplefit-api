@@ -16,6 +16,7 @@ as ADRs in [`adr/`](adr/).
 | [0008](adr/0008-observability.md) | Observability: structured logs, Sentry, OpenTelemetry, privacy rules |
 | [0009](adr/0009-identity-domain.md) | Identity domain: one global user, many identities, no silent account merging |
 | [0010](adr/0010-sessions.md) | SimpleFit sessions: access/refresh tokens, rotation, reuse detection, web cookie vs mobile body, `/api/me` |
+| [0011](adr/0011-transactional-email-templates.md) | Transactional email templates: app-owned rendering, HTML + text, encrypted job payloads, dev preview |
 
 ---
 
@@ -43,7 +44,8 @@ lib/
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
     storage.ex, storage/      # Object storage boundary + S3 / Fake adapters
-    email.ex, email/          # Transactional email boundary + Resend / Log adapters, delivery worker
+    email.ex, email/          # Transactional email boundary + Resend / Log adapters, delivery worker,
+                              # templates (ADR 0011) and encrypted job payloads
   simple_fit_web/             # HTTP interface: no business rules
     endpoint.ex               # Plug pipeline: request id, security headers, JSON parsing
     router.ex                 # Routes and pipelines
