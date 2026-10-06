@@ -23,6 +23,8 @@ defmodule SimpleFit.Accounts.GoogleAuth do
   after it (keyed by an HMAC of the subject, never by an unverified claim).
   """
 
+  require Logger
+
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.EmailAuth.Secrets
   alias SimpleFit.Accounts.{Sessions, User}
@@ -73,6 +75,9 @@ defmodule SimpleFit.Accounts.GoogleAuth do
         {:error, :unauthorized}
 
       {:error, reason} when reason in [:unavailable, :not_configured] ->
+        # The client only sees service_unavailable; the bounded reason makes
+        # the cause (e.g. GOOGLE_OAUTH_CLIENT_IDS unset) visible in the logs.
+        Logger.warning("google sign-in unavailable", reason: reason)
         emit(:unavailable, %{reason: reason})
         {:error, :unavailable}
     end

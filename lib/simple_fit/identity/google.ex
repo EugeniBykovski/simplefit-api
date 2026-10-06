@@ -24,6 +24,8 @@ defmodule SimpleFit.Identity.Google do
   contents never appear in errors, logs or telemetry.
   """
 
+  require Logger
+
   alias SimpleFit.Identity.Google.Keys
 
   @issuers ["accounts.google.com", "https://accounts.google.com"]
@@ -83,6 +85,23 @@ defmodule SimpleFit.Identity.Google do
         raise ArgumentError,
               "GOOGLE_OAUTH_CLIENT_IDS must be comma-separated Google OAuth client ids (<number>-<id>.apps.googleusercontent.com)"
     end
+  end
+
+  @doc """
+  Boot-time check (called by `SimpleFit.Application`): Google configuration is
+  optional, so an empty allow-list never blocks boot, but it is logged once at
+  `:warning` because every Google sign-in will answer `service_unavailable`.
+  Only the reason is logged, never client ids.
+  """
+  @spec warn_if_not_configured() :: :ok
+  def warn_if_not_configured do
+    if client_ids() == [] do
+      Logger.warning("google sign-in not configured: GOOGLE_OAUTH_CLIENT_IDS is empty",
+        reason: :not_configured
+      )
+    end
+
+    :ok
   end
 
   @doc "The configured accepted client ids (audiences and authorized parties)."
