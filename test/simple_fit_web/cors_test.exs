@@ -71,7 +71,7 @@ defmodule SimpleFitWeb.CORSTest do
              ]
 
       assert get_resp_header(conn, "access-control-allow-headers") == [
-               "accept, accept-language, authorization, content-type"
+               "accept, accept-language, authorization, content-type, x-simplefit-csrf"
              ]
 
       assert get_resp_header(conn, "access-control-max-age") == ["600"]

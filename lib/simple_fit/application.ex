@@ -5,10 +5,15 @@ defmodule SimpleFit.Application do
 
   use Application
 
+  alias SimpleFit.Accounts.Sessions
+
   @impl true
   def start(_type, _args) do
     # Logs, error tracking and tracing (handlers only; no backend is required).
     :ok = SimpleFit.Observability.setup()
+
+    # Fail at boot on a missing or inconsistent session policy (ADR 0010).
+    _policy = Sessions.config!()
 
     children = [
       SimpleFitWeb.Telemetry,

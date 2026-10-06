@@ -4,11 +4,17 @@ defmodule SimpleFitWeb.Router do
   # Routing layout (see docs/architecture/adr/0003-api-versioning-and-errors.md):
   #
   #   /api/health, /api/openapi, /api/docs   operational, unversioned
+  #   /api/me, /api/auth/...                 session and viewer, unversioned (ADR 0010)
   #   /api/v1/...                            product resources (none yet)
 
   pipeline :api do
     plug :accepts, ["json"]
     plug OpenApiSpex.Plug.PutApiSpec, module: SimpleFitWeb.ApiSpec
+  end
+
+  # Requires a valid SimpleFit access token (Authorization: Bearer sfa_...).
+  pipeline :authenticated do
+    plug SimpleFitWeb.Plugs.Authenticate
   end
 
   pipeline :api_docs do
@@ -23,6 +29,15 @@ defmodule SimpleFitWeb.Router do
     pipe_through :api
 
     get "/health", HealthController, :show
+
+    post "/auth/session/refresh", SessionController, :refresh
+    post "/auth/logout", SessionController, :logout
+  end
+
+  scope "/api", SimpleFitWeb do
+    pipe_through [:api, :authenticated]
+
+    get "/me", MeController, :show
   end
 
   scope "/api" do

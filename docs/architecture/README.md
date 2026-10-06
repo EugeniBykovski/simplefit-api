@@ -15,6 +15,7 @@ as ADRs in [`adr/`](adr/).
 | [0007](adr/0007-cors-policy.md) | Cross-origin (CORS) policy: explicit allow-list, preflight, no credentials |
 | [0008](adr/0008-observability.md) | Observability: structured logs, Sentry, OpenTelemetry, privacy rules |
 | [0009](adr/0009-identity-domain.md) | Identity domain: one global user, many identities, no silent account merging |
+| [0010](adr/0010-sessions.md) | SimpleFit sessions: access/refresh tokens, rotation, reuse detection, web cookie vs mobile body, `/api/me` |
 
 ---
 
@@ -38,7 +39,7 @@ lib/
   simple_fit/                 # Domain: contexts, schemas, business rules
     application.ex            # OTP supervision tree (Repo, Oban, Endpoint)
     repo.ex                   # Ecto repo (the only DB entry point)
-    accounts.ex, accounts/    # Users and their sign-in identities (ADR 0009)
+    accounts.ex, accounts/    # Users, sign-in identities (ADR 0009) and sessions (ADR 0010)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
     storage.ex, storage/      # Object storage boundary + S3 / Fake adapters
@@ -51,6 +52,8 @@ lib/
     api_spec/validation.ex    # Contract checks used by mix openapi.check + tests
     schemas/                  # OpenAPI schemas (request/response shapes)
     controllers/              # Controllers + *JSON view modules
+    plugs/authenticate.ex     # Bearer access token -> current user/session (ADR 0010)
+    session_transport.ex      # Refresh token transport: JSON body (mobile) or cookie (web)
     telemetry.ex              # Telemetry metric definitions
   mix/tasks/                  # openapi.gen, openapi.check
 openapi/simplefit.api.json    # Generated, committed OpenAPI contract
@@ -201,11 +204,11 @@ All non-2xx responses use the envelope defined in `SimpleFitWeb.APIError`
 | Object storage | Private bucket, uploads/downloads direct to S3 with short-lived presigned URLs (content type and exact size signed; max 1 h). Keys from validated segments only. AWS credentials stay server-side; signed URLs are redacted from `inspect`/logs. | Media domains add per-purpose content-type and size limits |
 | Outbound HTTP / providers | Only adapters call out, via `SimpleFit.HTTP`: verified TLS, 5 s/15 s timeouts, no redirects (no SSRF steering), no automatic retries (Oban owns bounded retries with idempotency keys). Provider errors normalized; bodies, headers, API keys never logged. Missing provider config fails closed (`:configuration_error`), never falls back to fakes in prod. | — |
 | Error handling | Fixed messages per error code; exception messages, stack traces and request bodies never reach responses. `debug_errors` only in dev. | — |
-| CORS | `SimpleFitWeb.CORS` ([ADR 0007](adr/0007-cors-policy.md)). Explicit allow-list from `CORS_ALLOWED_ORIGINS`: dev default `http://localhost:3000`; prod https only, fail closed when unset; malformed values stop the boot. Never `*`, no credentials. Preflights answered (204, or `403 forbidden` envelope); `x-request-id` exposed. | Revisit before any cookie/credentialed authentication |
+| CORS | `SimpleFitWeb.CORS` ([ADR 0007](adr/0007-cors-policy.md)). Explicit allow-list from `CORS_ALLOWED_ORIGINS`: dev default `http://localhost:3000`; prod https only, fail closed when unset; malformed values stop the boot. Never `*`; credentials only on the two refresh-cookie endpoints ([ADR 0010](adr/0010-sessions.md)). Preflights answered (204, or `403 forbidden` envelope); `x-request-id` exposed. | Credentials allowed on the refresh-cookie endpoints only (ADR 0010) |
 | HTTPS / proxies | `force_ssl` + HSTS in prod, trusting `x-forwarded-proto` from the load balancer (`/api/health` excluded so plain-HTTP health checks work). The app must only be reachable through that proxy. | Deployment ticket. When client IPs matter (rate limiting, audit), add `remote_ip` configured with the proxy's CIDRs only |
 | Logging | Phoenix `filter_parameters` redacts keys containing `password`, `secret`, `token`, `api_key`, `private_key`, `authorization`, `credential`. JSON logs in prod. Never log full request bodies or tokens. | — |
-| Authentication | Not implemented. `bearerAuth` security scheme is reserved in OpenAPI. The identity domain exists (`SimpleFit.Accounts`, [ADR 0009](adr/0009-identity-domain.md)): one global user, identities keyed by `{provider, provider_subject}`, no credentials stored, no email-based account merging. | Auth ticket: a `:authenticated` router pipeline with a plug that resolves the bearer token to an actor |
-| Rate limiting | Not implemented. | Auth/abuse ticket: per-IP and per-account limits on auth endpoints, returning `429 rate_limited` |
+| Authentication | SimpleFit sessions ([ADR 0010](adr/0010-sessions.md)) on the identity domain ([ADR 0009](adr/0009-identity-domain.md)). `Authorization: Bearer sfa_...` access tokens (15 min, HMAC-signed, session re-checked on every request); opaque `sfr_` refresh tokens (30 days, stored as SHA-256, rotated on use, reuse revokes the session); 90-day absolute sessions. Web keeps the refresh token in an `HttpOnly; Secure; SameSite=Strict` cookie with an Origin + `x-simplefit-csrf` check; mobile uses the JSON body. Routes behind the `:authenticated` pipeline. | Sign-in flows (SF-21/22/23) call `Accounts.create_session/1`; sign out everywhere and device management later |
+| Rate limiting | Not implemented. Refresh and logout are unlimited for now: refresh tokens have 256 bits of entropy and a per-IP limit first needs trusted-proxy `remote_ip` (ADR 0010). | Auth/abuse ticket: per-IP and per-account limits on auth endpoints, returning `429 rate_limited` |
 | API docs exposure | `/api/docs` and `/api/openapi` are on in dev/test and **off in prod** unless `API_DOCS_ENABLED=true`. When off they respond exactly like unknown routes. | — |
 
 ## 5. Observability

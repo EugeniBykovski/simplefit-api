@@ -106,6 +106,18 @@ config :opentelemetry,
   resource: [service: [name: "simplefit-api"]],
   traces_exporter: :none
 
+# SimpleFit sessions (ADR 0010): production policy, in seconds. Tests run
+# with the same values. The signing secret is set per environment
+# (SECRET_KEY_BASE in production, see config/runtime.exs).
+config :simple_fit, SimpleFit.Accounts.Sessions,
+  access_token_ttl: 15 * 60,
+  refresh_token_ttl: 30 * 24 * 60 * 60,
+  session_lifetime: 90 * 24 * 60 * 60
+
+# The web refresh cookie is Secure everywhere except where an environment
+# explicitly opts out (development over plain http://localhost).
+config :simple_fit, SimpleFitWeb.SessionTransport, secure_cookie: true
+
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 

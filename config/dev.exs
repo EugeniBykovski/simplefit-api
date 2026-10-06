@@ -28,6 +28,13 @@ config :simple_fit, SimpleFitWeb.Endpoint,
   secret_key_base: "8YBMJlfoU9bSnKqnNYznwMHi94VUVsNfWHLLiIFiB7Fhy1hpnhfVR+5rXnu+5LHW",
   watchers: []
 
+# Development-only session signing secret and a non-Secure refresh cookie,
+# because the API is served over plain http://localhost:4000 here.
+config :simple_fit, SimpleFit.Accounts.Sessions,
+  secret_key_base: "8YBMJlfoU9bSnKqnNYznwMHi94VUVsNfWHLLiIFiB7Fhy1hpnhfVR+5rXnu+5LHW"
+
+config :simple_fit, SimpleFitWeb.SessionTransport, secure_cookie: false
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message $metadata\n"
 
