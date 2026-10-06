@@ -52,6 +52,9 @@ defmodule SimpleFit.MixProject do
       {:req, "~> 0.7.4"},
       # PostgreSQL-backed background jobs (first queue: transactional email).
       {:oban, "~> 2.24"},
+      # JWS/JWK verification of provider ID tokens (Google, ADR 0013): RS256
+      # signatures against the provider's published keys. No hand-rolled crypto.
+      {:jose, "~> 1.11"},
 
       # Observability (see docs/architecture/adr/0008-observability.md)
       {:telemetry_metrics, "~> 1.2"},

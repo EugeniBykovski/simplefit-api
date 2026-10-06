@@ -152,7 +152,9 @@ config :phoenix, :filter_parameters, [
   # address itself (personal data). "token" already covers the link and
   # registration tokens.
   "code",
-  "email"
+  "email",
+  # Google ID tokens (ADR 0013); also covered by "token".
+  "id_token"
 ]
 
 # Import environment specific config. This must remain at the bottom

@@ -15,8 +15,9 @@ defmodule SimpleFitWeb.CORS do
       allowed origins on the endpoints that read or set the web refresh
       cookie (`POST /api/auth/session/refresh`, `POST /api/auth/logout`,
       ADR 0010; `POST /api/auth/email/registrations/verify`,
-      `POST /api/auth/email/sign-in/verify`, ADR 0012); every other path
-      stays credential-free.
+      `POST /api/auth/email/sign-in/verify`, ADR 0012;
+      `POST /api/auth/google`, ADR 0013); every other path stays
+      credential-free.
     * `x-request-id` is exposed so browser clients can read it for support.
 
   Requests without an `Origin` header (mobile apps, server-to-server, curl)
@@ -39,7 +40,9 @@ defmodule SimpleFitWeb.CORS do
     # Email authentication can start a session with the cookie transport
     # (ADR 0012).
     "/api/auth/email/registrations/verify",
-    "/api/auth/email/sign-in/verify"
+    "/api/auth/email/sign-in/verify",
+    # Google sign-in can start a session with the cookie transport (ADR 0013).
+    "/api/auth/google"
   ]
 
   @origin_format ~r"\Ahttps?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\z"

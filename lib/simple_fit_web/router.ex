@@ -41,6 +41,9 @@ defmodule SimpleFitWeb.Router do
     post "/auth/email/verification-links/verify", EmailAuthController, :verify_link
     post "/auth/email/sign-in", EmailAuthController, :request_sign_in
     post "/auth/email/sign-in/verify", EmailAuthController, :verify_sign_in
+
+    # Google sign-in (ADR 0013).
+    post "/auth/google", GoogleAuthController, :authenticate
   end
 
   scope "/api", SimpleFitWeb do

@@ -88,6 +88,13 @@ defmodule SimpleFitWeb.Telemetry do
       counter("simple_fit.auth.email.rejected.count", tags: [:purpose, :reason]),
       counter("simple_fit.auth.email.rate_limited.count"),
 
+      # Google sign-in (ADR 0013): outcome and bounded reason only.
+      counter("simple_fit.auth.google.verified.count", tags: [:account]),
+      counter("simple_fit.auth.google.rejected.count", tags: [:reason]),
+      counter("simple_fit.auth.google.unavailable.count", tags: [:reason]),
+      counter("simple_fit.auth.google.keys_unavailable.count", tags: [:reason]),
+      counter("simple_fit.auth.google.rate_limited.count"),
+
       # Background jobs (Oban)
       summary("oban.job.stop.duration",
         tags: [:queue, :worker, :state],

@@ -630,6 +630,99 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "GoogleAuthRequest": {
+        "additionalProperties": false,
+        "description": "`id_token` is the Google ID token (a JWT) from Google Identity Services (web) or Google Sign-In (iOS,\nAndroid). It is verified by the API and never stored. Nothing else about the person is sent or trusted.\n",
+        "example": {
+          "id_token": "<google-id-token>",
+          "refresh_token_transport": "cookie"
+        },
+        "properties": {
+          "id_token": {
+            "description": "Google ID token. Sensitive: never log or persist it.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "refresh_token_transport": {
+            "default": "body",
+            "description": "How to deliver the refresh token (ADR 0010). `body` (mobile) returns it in JSON. `cookie` (web) sets\nthe `HttpOnly` refresh cookie and requires an allow-listed `Origin` and `x-simplefit-csrf: 1`.\n",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id_token"
+        ],
+        "title": "GoogleAuthRequest",
+        "type": "object"
+      },
+      "GoogleAuthResponse": {
+        "additionalProperties": false,
+        "description": "The SimpleFit session (same fields as `SessionTokens`) plus `account`: `created` on the first Google\nsign-in of this Google account, `existing` afterwards. A temporary routing signal for first-time\nonboarding until profile/onboarding state is exposed by the API.\n",
+        "example": {
+          "access_token": "sfa_SFMyNTY.g2gDbQAAACQ.LZ3e0J2s5A",
+          "access_token_expires_at": "2026-10-06T12:15:00Z",
+          "account": "created",
+          "refresh_token": "sfr_3q2-7wQYz1bYH0Cq5Zf8d9E0aB1cD2eF3gH4iJ5kL6m",
+          "refresh_token_expires_at": "2026-11-05T12:00:00Z",
+          "refresh_token_transport": "body",
+          "token_type": "Bearer"
+        },
+        "properties": {
+          "access_token": {
+            "description": "Short-lived SimpleFit access token (opaque to clients).",
+            "pattern": "^sfa_",
+            "type": "string"
+          },
+          "access_token_expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "account": {
+            "enum": [
+              "created",
+              "existing"
+            ],
+            "type": "string"
+          },
+          "refresh_token": {
+            "description": "Body transport only. Keep it in platform secure storage.",
+            "pattern": "^sfr_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          },
+          "refresh_token_expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refresh_token_transport": {
+            "description": "Where the refresh token was delivered.",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          },
+          "token_type": {
+            "enum": [
+              "Bearer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_type",
+          "access_token",
+          "access_token_expires_at",
+          "refresh_token_expires_at",
+          "refresh_token_transport",
+          "account"
+        ],
+        "title": "GoogleAuthResponse",
+        "type": "object"
+      },
       "HealthResponse": {
         "additionalProperties": false,
         "description": "Liveness status of the API process.",
@@ -1230,6 +1323,97 @@
           }
         },
         "summary": "Verify an email with the E01 link",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/google": {
+      "post": {
+        "callbacks": {},
+        "description": "Verifies the Google ID token (RS256 signature with Google's keys, issuer, audience, authorized party, expiry,\nsubject) and starts a SimpleFit session. The Google token is never a SimpleFit credential and is not stored.\n\nThe Google account is identified only by its subject (`sub`): an unknown one creates a new account\n(`account: created`), a known one signs in (`account: existing`). Accounts are never linked by email.\n\n* `unauthorized` - the token is not a valid Google ID token for SimpleFit (no detail is given).\n* `service_unavailable` - Google's signing keys cannot be obtained or Google sign-in is not configured.\n",
+        "operationId": "authenticateWithGoogle",
+        "parameters": [
+          {
+            "description": "Required (value `1`) with `refresh_token_transport: cookie`, together with an allow-listed `Origin`.",
+            "in": "header",
+            "name": "x-simplefit-csrf",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleAuthRequest"
+              }
+            }
+          },
+          "description": "Google ID token",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleAuthResponse"
+                }
+              }
+            },
+            "description": "Session credentials",
+            "headers": {
+              "set-cookie": {
+                "description": "Cookie transport only: the refresh token (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`).",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "summary": "Sign in (or sign up) with a Google ID token",
         "tags": [
           "Auth"
         ]

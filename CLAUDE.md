@@ -82,8 +82,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
     explicit-allow-list CORS (ADR 0007), docs disabled in prod, log filtering)
     without an explicit ticket. Never enable `*` CORS, never allow origins by
     pattern, never send CORS credentials beyond the refresh-cookie
-    endpoints (ADR 0010, ADR 0012). Sessions are SimpleFit-owned (ADR 0010): provider
-    tokens are never session or bearer credentials, refresh tokens are stored
+    endpoints (ADR 0010, ADR 0012, ADR 0013). Sessions are SimpleFit-owned (ADR 0010): provider
+    tokens are never session or bearer credentials (Google ID tokens are
+    verified by `SimpleFit.Identity`, ADR 0013, keyed only by `sub`, never
+    linked by email), refresh tokens are stored
     only as hashes and rotated on every use, and authenticated routes use the
     `:authenticated` pipeline.
 16. Never log secrets, tokens, full request bodies or personal data, nor
