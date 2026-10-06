@@ -3,6 +3,9 @@
 * Status: Accepted
 * Date: 2026-10-05
 * Ticket: SF-6 (supersedes the CORS row of ADR 0004)
+* Amended by [ADR 0010](0010-sessions.md): `access-control-allow-credentials`
+  is sent on the two refresh-cookie endpoints, and `x-simplefit-csrf` is an
+  allowed request header.
 
 ## Context
 

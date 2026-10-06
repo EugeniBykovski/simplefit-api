@@ -81,8 +81,11 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
 15. Do not weaken the security baseline (security headers, JSON-only parsing,
     explicit-allow-list CORS (ADR 0007), docs disabled in prod, log filtering)
     without an explicit ticket. Never enable `*` CORS, never allow origins by
-    pattern, never send CORS credentials without an authentication ticket that
-    requires them.
+    pattern, never send CORS credentials beyond the two refresh-cookie
+    endpoints (ADR 0010). Sessions are SimpleFit-owned (ADR 0010): provider
+    tokens are never session or bearer credentials, refresh tokens are stored
+    only as hashes and rotated on every use, and authenticated routes use the
+    `:authenticated` pipeline.
 16. Never log secrets, tokens, full request bodies or personal data, nor
     API keys, authorization headers, provider response bodies or presigned
     URLs. **Observe system behaviour, not user content** (ADR 0008): job args,
