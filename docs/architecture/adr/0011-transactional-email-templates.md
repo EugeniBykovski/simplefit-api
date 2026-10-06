@@ -6,10 +6,12 @@
 
 ## Context
 
-Claude Design defines 16 emails (E01–E16) on the Public Website page,
+Claude Design defines 17 emails (E01–E17) on the Public Website page,
 section "14 · Email templates · after registration" (artifact
-https://claude.ai/artifact/JEsBg51MjX8KiHWEro8omY, Version 63,
-`1791284501-e3ff`; artboards `project/Email*.dc.html`). Verification, recovery and account-lifecycle flows will
+https://claude.ai/artifact/JEsBg51MjX8KiHWEro8omY, Version 66,
+`1791292422-dc85`; artboards `project/Email*.dc.html`). E01–E16 were
+reconciled to Version 63 in SF-35; SF-21 updated E01 and added E17 from
+Version 66 (ADR 0012). Verification, recovery and account-lifecycle flows will
 send some of them soon (SF-21, SF-28); most belong to domains that do not
 exist yet (gyms, coaching, moderation, data export). SF-15 built delivery
 only: `SimpleFit.Email`, Resend, Oban.
@@ -161,14 +163,16 @@ optional block; `?variant=<name>` renders a named optional state
 `SimpleFit.Email.Templates.Inventory` is the traceability record: every
 designed email with its trigger, subject, preheader or preheader variants,
 required and optional variables, conditional blocks, CTA, fallback,
-Version 63 artboard, delivery owner, status and deferred product
-questions. Undefined values are `NOT_SPECIFIED`.
+design artboard, delivery owner, status and deferred product questions.
+Undefined values are `NOT_SPECIFIED`.
 
-All 16 are implemented; no trigger is wired.
+All 17 are implemented. SF-21 wires the triggers of E01 and E17
+(passwordless email authentication, ADR 0012); every other trigger is
+deferred.
 
 | Id | Email | Status | Trigger owner |
 | --- | --- | --- | --- |
-| E01 | Verify your email | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-21 |
+| E01 | Verify your email | IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE | SF-21 |
 | E02 | Welcome, fighter | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future fighter onboarding |
 | E03 | Welcome, coach | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future coach onboarding |
 | E04 | Finish gym setup | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future gym onboarding |
@@ -184,9 +188,21 @@ All 16 are implemented; no trigger is wired.
 | E14 | Deletion scheduled | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-28 (expected) |
 | E15 | Account deleted | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-28 (expected) |
 | E16 | Data export ready | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future data export |
+| E17 | Sign-in code | IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE | SF-21 |
 
-No backend flow sends any of these emails yet: the owning tickets build
-the events, credentials, links and workflows.
+Apart from E01 and E17, no backend flow sends these emails yet: the owning
+tickets build the events, credentials, links and workflows.
+
+Version 66 changes reconciled in SF-21 (ADR 0012):
+
+* **E01** is email ownership verification only: "Verify your email", the
+  code and a "Verify email" link that answer the same challenge, and the
+  explicit "Opening the link doesn't sign you in". `verify_url` is
+  `<WEB_APP_URL>/verify-email#token=...` (token in the fragment, never the
+  code). The contract (`code`, `verify_url`, `expires_in_minutes`) is
+  unchanged; the expiry comes from the challenge policy.
+* **E17** (new) is the sign-in code: code, expiry, "Never share this code",
+  no link.
 
 Version 63 changes reconciled in SF-35:
 
@@ -220,8 +236,8 @@ These do not block rendering; their owners decide them.
   fighter/coach domain reconciles it.
 * **E07:** the privacy note says the gym shared name, email and plan; the
   membership/import domain confirms what an import really shares.
-* **E01:** SF-21 decides whether both the link and the code are supported
-  and reconciles the template if not.
+* **E01:** resolved by SF-21: the code and the link both answer the same
+  verification challenge (ADR 0012).
 * **E11/E16 lifetimes:** displayed values are presentation data; SF-28
   and the export domain own the real credential and storage expiry.
 * **E02/E12:** Email preferences and Unsubscribe destinations do not exist
@@ -261,7 +277,7 @@ These do not block rendering; their owners decide them.
   plain text and delivery are shared.
 * Rotating `SECRET_KEY_BASE` cancels emails still queued at that moment
   (minutes in practice).
-* All 16 templates are ready for their domains; their triggers, tokens,
+* All 17 templates are ready for their domains; their triggers, tokens,
   links and workflows belong to the tickets that build those domains.
 * A design change re-reads the artboards, updates the renderer, inventory
   and fixtures, and records the new version.

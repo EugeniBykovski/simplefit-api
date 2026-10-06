@@ -81,8 +81,8 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
 15. Do not weaken the security baseline (security headers, JSON-only parsing,
     explicit-allow-list CORS (ADR 0007), docs disabled in prod, log filtering)
     without an explicit ticket. Never enable `*` CORS, never allow origins by
-    pattern, never send CORS credentials beyond the two refresh-cookie
-    endpoints (ADR 0010). Sessions are SimpleFit-owned (ADR 0010): provider
+    pattern, never send CORS credentials beyond the refresh-cookie
+    endpoints (ADR 0010, ADR 0012). Sessions are SimpleFit-owned (ADR 0010): provider
     tokens are never session or bearer credentials, refresh tokens are stored
     only as hashes and rotated on every use, and authenticated routes use the
     `:authenticated` pipeline.
@@ -96,7 +96,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
     Transactional emails are rendered by `SimpleFit.Email.Templates`
     (ADR 0011): explicit per-template functions, validated variables, escaped
     HTML plus plain text, never provider-hosted templates; queued email
-    payloads stay encrypted.
+    payloads stay encrypted. Email authentication is passwordless (ADR 0012):
+    codes are stored only as keyed verifiers, tokens only as hashes, emails
+    and IPs only as digests in rate-limit rows; a session is issued only for a
+    code entered by the requesting client, never for an E01 link.
 
 ### Quality
 17. **Tests accompany behaviour.** New or changed behaviour ships with ExUnit
