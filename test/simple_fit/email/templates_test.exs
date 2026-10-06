@@ -18,11 +18,13 @@ defmodule SimpleFit.Email.TemplatesTest do
     :preheader,
     :required_variables,
     :optional_variables,
+    :conditional_blocks,
     :primary_cta,
     :fallback_url,
     :artboard,
     :delivery_owner,
-    :status
+    :status,
+    :trigger_owner
   ]
 
   @footers %{
@@ -37,11 +39,13 @@ defmodule SimpleFit.Email.TemplatesTest do
     verify_email: :security,
     welcome_fighter: :member,
     welcome_coach: :activity,
+    gym_setup: :activity,
     gym_live: :activity,
     staff_invite: :invitation,
     member_invite: :invitation,
     coach_invite: :invitation,
     join_approved: :activity,
+    new_sign_in: :security,
     recover_account: :security,
     first_week_recap: :member,
     account_suspended: :security,
@@ -51,7 +55,7 @@ defmodule SimpleFit.Email.TemplatesTest do
   }
 
   # Fields whose format is stricter than a display line (codes, enums).
-  @strict_fields [:code, :case_id, :coach_initials, :coach_possessive, :payout_day]
+  @strict_fields [:code, :case_id, :coach_initials, :payout_day]
 
   defp render(template, overrides \\ %{}) do
     apply(Templates, template, [Map.merge(Fixtures.for_template(template), overrides)])
@@ -61,6 +65,27 @@ defmodule SimpleFit.Email.TemplatesTest do
     {:ok, %Rendered{} = rendered} = render(template)
     rendered
   end
+
+  defp variant!(template, name) do
+    {:ok, attrs} = Fixtures.for_variant(template, name)
+    {:ok, %Rendered{} = rendered} = apply(Templates, template, [attrs])
+    rendered
+  end
+
+  defp without(template, keys) do
+    apply(Templates, template, [Map.drop(Fixtures.for_template(template), keys)])
+  end
+
+  # Every default fixture and every named optional state.
+  defp all_states do
+    for %{template: template} <- Inventory.implemented(),
+        state <- [nil | Fixtures.variants(template)] do
+      {template, state, if(state, do: variant!(template, state), else: rendered!(template))}
+    end
+  end
+
+  # Label/value tables draw a divider under every row but the last.
+  defp dividers(html), do: length(String.split(html, "border-bottom: 1px solid #DCDDD3;")) - 1
 
   defp with_template_config(config) do
     original = Application.get_env(:simple_fit, Templates)
@@ -82,7 +107,8 @@ defmodule SimpleFit.Email.TemplatesTest do
     test "records the design source and version" do
       assert %{
                artifact: "https://claude.ai/artifact/JEsBg51MjX8KiHWEro8omY",
-               version: "1791276973-ad1d",
+               version: "1791284501-e3ff",
+               version_number: 63,
                section: "Public Website · 14 · Email templates · after registration"
              } = Inventory.source()
     end
@@ -95,15 +121,18 @@ defmodule SimpleFit.Email.TemplatesTest do
 
       for entry <- Inventory.entries() do
         assert entry.status in Inventory.statuses()
-        assert entry.artboard =~ ~r/\AEmail[A-Za-z0-9]+\.dc\.html\z/
+        assert entry.artboard =~ ~r/\Aproject\/Email[A-Za-z0-9]+\.dc\.html\z/
+        assert is_list(entry.optional_variables)
+        assert is_list(entry.conditional_blocks)
+        assert is_list(entry.deferred)
       end
     end
 
     test "every implemented template maps to its artboard, module and trigger owner" do
       implemented = Inventory.implemented()
 
-      assert Enum.map(implemented, & &1.id) ==
-               ~w(E01 E02 E03 E05 E06 E07 E08 E09 E11 E12 E13 E14 E15 E16)
+      assert Enum.map(implemented, & &1.id) == Enum.map(Inventory.entries(), & &1.id)
+      assert length(implemented) == 16
 
       assert Map.keys(@footer_of) |> Enum.sort() ==
                implemented |> Enum.map(& &1.template) |> Enum.sort()
@@ -115,8 +144,8 @@ defmodule SimpleFit.Email.TemplatesTest do
         assert is_list(entry.required_variables)
         assert is_binary(entry.trigger_owner)
 
-        # The declared variables are exactly what the fixture needs.
-        assert entry.required_variables |> Enum.sort() ==
+        # The declared variables are exactly what the full fixture supplies.
+        assert (entry.required_variables ++ entry.optional_variables) |> Enum.sort() ==
                  Fixtures.for_template(entry.template)
                  |> Map.keys()
                  |> Enum.map(&Atom.to_string/1)
@@ -124,29 +153,20 @@ defmodule SimpleFit.Email.TemplatesTest do
       end
     end
 
-    test "templates not implemented carry a reason and no production module" do
-      for entry <- Inventory.entries(), not Map.has_key?(entry, :template) do
-        assert entry.status in [
-                 "DESIGN_ONLY / DOMAIN_NOT_AVAILABLE",
-                 "AMBIGUOUS / NEEDS_PRODUCT_DECISION"
-               ]
+    test "optional variables are really optional: the template renders without all of them" do
+      for %{template: template, optional_variables: optional} <- Inventory.implemented(),
+          optional != [] do
+        keys = Enum.map(optional, &String.to_existing_atom/1)
+        attrs = Map.drop(Fixtures.for_template(template), keys)
 
-        assert is_binary(entry.note)
+        # E03: without the identity check pending there is no payouts URL.
+        attrs =
+          if template == :welcome_coach,
+            do: Map.put(attrs, :identity_check_pending, false),
+            else: attrs
+
+        assert {:ok, %Rendered{}} = apply(Templates, template, [attrs]), "#{template}"
       end
-    end
-
-    test "E04 and E10 stay ambiguous: their approved copy promises behaviour that does not exist" do
-      e04 = Enum.find(Inventory.entries(), &(&1.id == "E04"))
-      e10 = Enum.find(Inventory.entries(), &(&1.id == "E10"))
-
-      for entry <- [e04, e10] do
-        assert entry.status == "AMBIGUOUS / NEEDS_PRODUCT_DECISION"
-        refute Map.has_key?(entry, :template)
-      end
-
-      assert e04.note =~ "This link signs you in and is valid for 24 hours"
-      assert e10.note =~ "Password + authenticator"
-      assert e10.note =~ "24-hour posting/messaging pause"
     end
 
     test "renderers take presentation data only: no Repo, schema or query" do
@@ -159,7 +179,9 @@ defmodule SimpleFit.Email.TemplatesTest do
     test "is documented in ADR 0011" do
       adr = File.read!("docs/architecture/adr/0011-transactional-email-templates.md")
       for entry <- Inventory.entries(), do: assert(adr =~ entry.id)
-      assert adr =~ "1791276973-ad1d"
+      assert adr =~ "1791284501-e3ff"
+      refute adr =~ "AMBIGUOUS / NEEDS_PRODUCT_DECISION |"
+      refute adr =~ "coach_possessive"
     end
   end
 
@@ -184,26 +206,132 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert r.text =~ "no account is created without the code"
     end
 
-    test "E11 recover account" do
+    test "E04 finish gym setup: a navigation link, never a sign-in link" do
+      r = rendered!(:gym_setup)
+
+      assert r.subject == "Finish setting up Simple Boxing Gym"
+      assert r.preheader == "Pick up where you left off — about 20 minutes on a computer."
+      assert r.html =~ ">GYM SETUP · 3 OF 14 DONE</p>"
+      assert r.html =~ "Let’s get Simple Boxing Gym live.</h1>"
+      assert r.html =~ ~s(aria-label="3 of 14 done")
+      assert length(String.split(r.html, "bgcolor=\"#5B6524\"")) - 1 == 3
+      assert length(String.split(r.html, "bgcolor=\"#D6D8CB\"")) - 1 == 11
+
+      assert r.text =~
+               "If you’re not signed in, you’ll sign in as usual and go straight back to your setup."
+
+      assert r.text =~ "Continue setup:\nhttps://app.simplefit.example/gym/setup"
+      assert r.text =~ "- A CSV export of current members (optional)"
+
+      for claim <- [
+            "signs you in",
+            "valid for 24 hours",
+            "setup call",
+            "Gym Success",
+            "secure setup link"
+          ] do
+        refute r.html <> r.text =~ claim
+      end
+    end
+
+    test "E04 progress is optional and must be coherent" do
+      r = variant!(:gym_setup, "no-progress")
+      assert r.html =~ ">GYM SETUP</p>"
+      refute r.html =~ "DONE"
+      refute r.html =~ "aria-label="
+      refute r.text =~ "DONE"
+
+      for {overrides, field, reason} <- [
+            {%{progress_total: 0}, :progress_total, :out_of_range},
+            {%{progress_total: 31}, :progress_total, :out_of_range},
+            {%{progress_completed: -1}, :progress_completed, :out_of_range},
+            {%{progress_completed: 14}, :progress_completed, :out_of_range},
+            {%{progress_completed: 15}, :progress_completed, :out_of_range}
+          ] do
+        assert {:error, {:invalid_template_data, errors}} = render(:gym_setup, overrides)
+        assert {field, reason} in errors, inspect(overrides)
+      end
+
+      assert {:error, {:invalid_template_data, [progress_total: :required]}} =
+               without(:gym_setup, [:progress_total])
+
+      assert {:ok, zero} = render(:gym_setup, %{progress_completed: 0, progress_total: 1})
+      assert zero.html =~ "GYM SETUP · 0 OF 1 DONE"
+    end
+
+    test "E10 new sign-in alert states only the time" do
+      r = rendered!(:new_sign_in)
+
+      assert r.subject == "New sign-in to your SimpleFit account"
+      assert r.preheader == "If this was you, no action is needed."
+      assert r.html =~ ~s(color: #A23F27;">NEW SIGN-IN</p>)
+      assert r.text =~ "Time: Oct 1, 21:14 CEST"
+      assert r.text =~ "If this was you, no action is needed."
+      assert r.text =~ "If you don’t recognize this activity, secure your account."
+      assert r.html =~ ~s(bgcolor="#FBE9E4")
+      assert r.html =~ "border: 1.5px solid #E07A5F;"
+      assert r.text =~ "Secure my account:\nhttps://app.simplefit.example/settings/security"
+
+      for claim <- [
+            "Device",
+            "Firefox",
+            "location",
+            "Berlin",
+            "Password",
+            "authenticator",
+            "passkey",
+            "sign out every other device",
+            "paused for 24 hours",
+            "Method"
+          ] do
+        refute r.html <> r.text =~ claim, claim
+      end
+    end
+
+    test "E11 recover account: a recovery link only" do
       r = rendered!(:recover_account)
 
       assert r.subject == "Recover your SimpleFit account"
       assert r.preheader == "Use this link within 15 minutes."
       assert r.html =~ "Recover your account</h1>"
-      assert r.html =~ ">Sign in and add a new passkey</a>"
-      assert r.html =~ "K7Q-2MX"
-      assert r.html =~ "Valid for 15 minutes · works once"
-      assert r.text =~ "https://app.simplefit.example/recover?token=FIXTURE-ONE-TIME-TOKEN"
-      assert r.text =~ "your account stays locked without the code"
+
+      assert r.text =~
+               "We received a request to recover access to your SimpleFit account. This link expires in 15 minutes."
+
+      assert r.html =~ ">Recover my account</a>"
+
+      assert r.text =~
+               "Recover my account:\nhttps://app.simplefit.example/recover?token=FIXTURE-ONE-TIME-TOKEN"
+
+      assert r.text =~
+               "Someone may have entered your email by mistake. You can ignore this message."
+
+      for claim <- ["passkey", "code", "OR ENTER", "works once", "K7Q-2MX"] do
+        refute r.html <> r.text =~ claim, claim
+      end
+
+      {:ok, one} = render(:recover_account, %{expires_in_minutes: 1})
+      assert one.preheader == "Use this link within 1 minute."
+
+      # The old code input is gone from the contract.
+      assert {:ok, _} = render(:recover_account, %{})
+      refute "code" in Enum.find(Inventory.entries(), &(&1.id == "E11")).required_variables
     end
 
     test "E14 deletion scheduled" do
       r = rendered!(:deletion_scheduled)
 
       assert r.subject == "Your account will be deleted on Nov 3"
-      assert r.preheader == "Changed your mind? Restore it with one tap before then."
+      assert r.preheader == "Changed your mind? You can restore it before then."
       assert r.html =~ "Your account will be deleted on Nov 3.</h1>"
-      assert r.html =~ "We received your request on Oct 4."
+
+      assert r.text =~
+               "We received your request on Oct 4 and scheduled your account for deletion. You can restore it any time before then."
+
+      for claim <- ["signed out", "other devices", "profile is hidden", "one tap"] do
+        refute r.html <> r.text =~ claim, claim
+      end
+
       assert r.html =~ "ON NOV 3 WE DELETE"
       assert r.html =~ ~s(href="https://app.simplefit.example/settings")
       assert r.html =~ ~s(href="https://app.simplefit.example/settings/data")
@@ -218,6 +346,8 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert r.preheader == "This is the last email we’ll send you."
       assert r.html =~ "Hi Karol. As you asked on Oct 2"
       assert r.html =~ "Removed after this message"
+      assert r.text =~ "Kept · anonymised: Gym payments, 5 years (law)"
+      assert dividers(r.html) == 2 * 2
       assert r.html =~ ~s(href="https://simplefit.example")
       assert r.text =~ "Visit SimpleFit:\nhttps://simplefit.example"
     end
@@ -240,6 +370,7 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert r.html =~ "Tue 19:30 pads has 4 spots left."
       assert r.html =~ ">Open SimpleFit</a>"
       assert r.text =~ "1. Book your next class\n   Tue 19:30 pads has 4 spots left."
+      assert r.text =~ "FIRST CLASS\n18:00 today"
     end
 
     test "E03 welcome coach" do
@@ -249,7 +380,10 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert r.html =~ "YAUHENI COACHING"
       assert r.html =~ ">sfit.example/c/yauheni</p>"
       assert r.html =~ ~s(href="https://app.simplefit.example/coach/payouts")
+      assert r.text =~ "Fighters can now book you and join your team. Here’s what’s left:"
+      assert r.text =~ "1. Finish the identity check"
       assert r.text =~ "2. Wait for licence review"
+      refute r.html <> r.text =~ "Two things left"
     end
 
     test "E05 gym live" do
@@ -296,7 +430,7 @@ defmodule SimpleFit.Email.TemplatesTest do
       r = rendered!(:coach_invite)
 
       assert r.subject == "Yauheni invited you to train with Yauheni Coaching"
-      assert r.preheader == "Join his team on SimpleFit — your log stays yours."
+      assert r.preheader == "Join Yauheni’s team on SimpleFit — your log stays yours."
       assert r.html =~ ">YB</div>"
       assert r.html =~ "Technique &amp; fight camps · Warsaw BC"
       assert r.text =~ "“Saw you at Saturday sparring"
@@ -317,9 +451,11 @@ defmodule SimpleFit.Email.TemplatesTest do
                  render(:coach_invite, %{message: message})
       end
 
-      for possessive <- ["him", "His", ""] do
-        assert {:error, {:invalid_template_data, [coach_possessive: _]}} =
-                 render(:coach_invite, %{coach_possessive: possessive})
+      # The pronoun input is gone; no gendered copy remains.
+      refute "coach_possessive" in Enum.find(Inventory.entries(), &(&1.id == "E08")).optional_variables
+
+      for word <- [" his ", " her ", " their team"] do
+        refute r.html <> r.text <> r.preheader =~ word
       end
     end
 
@@ -373,6 +509,16 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert r.text =~ "as you requested on Oct 3."
       assert r.text =~ "File: simplefit-yauheni-2026-10-03.zip"
       assert r.text =~ "Expires: Oct 10"
+      assert r.preheader == "Available for 7 days."
+
+      assert r.text =~
+               "Your export contains personal data — keep the file somewhere safe. Didn’t request this?"
+
+      refute r.html <> r.text =~ "passkey"
+      refute r.html <> r.text =~ "sign in"
+
+      {:ok, one} = render(:data_export_ready, %{available_days: 1})
+      assert one.preheader == "Available for 1 day."
 
       assert r.html =~
                ~s(href="https://app.simplefit.example/settings/security" target="_blank" style="color: #A23F27;)
@@ -417,11 +563,151 @@ defmodule SimpleFit.Email.TemplatesTest do
     end
   end
 
+  describe "optional blocks (Version 63)" do
+    test "E02 preheader and blocks follow the class and camp that are present" do
+      full = rendered!(:welcome_fighter)
+      no_camp = variant!(:welcome_fighter, "no-camp")
+      no_class = variant!(:welcome_fighter, "no-class")
+      minimal = variant!(:welcome_fighter, "minimal")
+
+      assert no_camp.preheader == "Your class and the round timer are set."
+      assert no_class.preheader == "Your camp and the round timer are set."
+      assert minimal.preheader == "The round timer is set."
+
+      refute no_camp.text =~ "fight camp"
+
+      assert no_camp.text =~
+               "You’re in, Yauheni.\n" <>
+                 String.duplicate("=", 19) <> "\n\nHere’s where to start."
+
+      refute no_class.text =~ "FIRST CLASS"
+      refute no_class.html =~ "background-color: #E4EAB8;"
+      assert no_class.text =~ "Your 10-week fight camp ends Tue, Nov 3. Here’s where to start."
+      assert minimal.text =~ "1. Book your next class\n2. Try the round timer"
+      assert full.text =~ "1. Book your next class\n   Tue"
+
+      assert {:error, {:invalid_template_data, [camp_ends_on: :required]}} =
+               without(:welcome_fighter, [:camp_ends_on])
+
+      assert {:error, {:invalid_template_data, [first_class_room: :required]}} =
+               without(:welcome_fighter, [:first_class_room])
+    end
+
+    test "E03 numbers only the pending actions and shows payouts only with the identity check" do
+      identity = variant!(:welcome_coach, "identity-only")
+      licence = variant!(:welcome_coach, "licence-only")
+      none = variant!(:welcome_coach, "nothing-pending")
+
+      assert identity.preheader == "Invite fighters and finish payouts."
+      assert identity.text =~ "1. Finish the identity check"
+      refute identity.text =~ "licence review"
+      assert identity.html =~ ">Finish payouts</a>"
+
+      assert licence.preheader == "Invite fighters and get your verified badge."
+      assert licence.text =~ "1. Wait for licence review"
+      refute licence.html <> licence.text =~ "Finish payouts"
+
+      assert none.preheader == "Invite fighters with your link."
+      refute none.text =~ "what’s left"
+      refute none.text =~ "1. "
+      refute none.html =~ "<a href"
+      assert none.text =~ "Fighters can now book you and join your team.\n\nYOUR INVITE LINK"
+
+      assert {:error, {:invalid_template_data, [payouts_url: :required]}} =
+               without(:welcome_coach, [:payouts_url])
+
+      assert {:error, {:invalid_template_data, [payouts_url: :unexpected]}} =
+               render(:welcome_coach, %{identity_check_pending: false})
+
+      assert {:error, {:invalid_template_data, errors}} =
+               without(:welcome_coach, [:identity_check_pending])
+
+      assert {:identity_check_pending, :required} in errors
+    end
+
+    test "E08 omits the tagline and the personal note when absent" do
+      r = variant!(:coach_invite, "no-note-no-tagline")
+      refute r.text =~ "Technique"
+      refute r.text =~ "“"
+      assert r.text =~ "COACH\nYauheni Coaching\n\nHi Oleg"
+
+      assert r.text =~
+               "Hi Oleg, train with me on SimpleFit.\n" <>
+                 String.duplicate("=", 36) <> "\n\nWHAT YOUR COACH"
+    end
+
+    test "E12 omits the challenge and the rival line, in the body and the preheader" do
+      no_rival = variant!(:first_week_recap, "no-rival")
+      none = variant!(:first_week_recap, "no-challenge")
+
+      assert no_rival.preheader == "Your Board has its first nodes."
+      assert no_rival.text =~ "Gym challenge: you’re #2 of 48 in “100 rounds in October”.\n"
+      refute no_rival.text =~ "Mike"
+
+      assert none.preheader == "Your Board has its first nodes."
+      refute none.text =~ "Gym challenge"
+
+      assert {:error, {:invalid_template_data, errors}} =
+               without(:first_week_recap, [
+                 :challenge_name,
+                 :challenge_rank,
+                 :challenge_participants
+               ])
+
+      assert {:rival_name, :unexpected} in errors
+    end
+
+    test "dividers separate visible rows only, with none under the last row" do
+      for {template, state, rows, absent} <- [
+            {:gym_live, nil, 4, nil},
+            {:gym_live, "no-verification", 3, "Verification"},
+            {:gym_live, "minimal", 2, "Member invites"},
+            {:member_invite, "no-home-location", 2, "Home location"},
+            {:member_invite, "minimal", 1, "Active until"},
+            {:join_approved, "no-booking", 2, "Booked"},
+            {:join_approved, "minimal", 1, "Next billing"},
+            {:account_suspended, "no-previous-notices", 3, "Previous notices"},
+            {:account_suspended, "minimal", 2, "Content removed"},
+            {:account_deleted, "no-retained-payments", 2, "Kept"},
+            {:new_sign_in, nil, 1, nil},
+            {:data_export_ready, nil, 5, nil}
+          ] do
+        r = if state, do: variant!(template, state), else: rendered!(template)
+        assert dividers(r.html) == 2 * (rows - 1), "#{template} #{state}"
+        if absent, do: refute(r.html <> r.text =~ absent, "#{template} #{state}")
+      end
+    end
+
+    test "E14 omits the whole retained-records section without retained payments" do
+      r = variant!(:deletion_scheduled, "no-retained-payments")
+      refute r.html <> r.text =~ "WE KEEP"
+      refute r.text =~ "accounting law"
+
+      assert r.text =~
+               "ON NOV 3 WE DELETE\n- Profile, trainings, Board, achievements\n- Friends, comments, videos and notes about you\n\nWant a copy first?"
+
+      {:ok, explicit} = render(:deletion_scheduled, %{retained_gym_payments: false})
+      assert explicit == r
+    end
+
+    test "no state leaves placeholders, nil, empty labels or empty panels" do
+      for {template, state, r} <- all_states() do
+        where = "#{template} #{state}"
+        # (The HTML's media query legitimately ends in "}}".)
+        refute r.html =~ ~r/\{\{|\bnil\b|\bundefined\b/, where
+        refute r.text =~ ~r/\{\{|\}\}|\bnil\b|\bundefined\b/, where
+        refute r.text =~ ~r/: \n|:\z|\n\n\n/, where
+        refute r.html =~ ~r/<td[^>]*border-radius: 16px; padding: 18px 20px 8px;"><\/td>/, where
+        refute r.html =~ ~r/<p[^>]*><\/p>/, where
+        refute r.html =~ ~r/<div style="margin: 0 0 1[08]px;"><\/div>/, where
+        assert r.html =~ Plug.HTML.html_escape(r.preheader), where
+      end
+    end
+  end
+
   describe "HTML safety" do
     test "no scripts, event handlers, runtime CSS, placeholders or development hosts" do
-      for %{template: template} <- Inventory.implemented() do
-        %{html: html, text: text} = rendered!(template)
-
+      for {_template, _state, %{html: html, text: text}} <- all_states() do
         refute html =~
                  ~r/<script|javascript:|\son[a-z]+=|tailwind|<link|@import|\{\{|\bundefined\b|\bnil\b/i
 
@@ -469,8 +755,8 @@ defmodule SimpleFit.Email.TemplatesTest do
     end
 
     test "the plain text has no HTML artifacts" do
-      for %{template: template} <- Inventory.implemented() do
-        refute rendered!(template).text =~ ~r/<[a-z\/!]|&(amp|lt|gt|quot|#\d+);/
+      for {_template, _state, %{text: text}} <- all_states() do
+        refute text =~ ~r/<[a-z\/!]|&(amp|lt|gt|quot|#\d+);/
       end
     end
   end
@@ -498,9 +784,6 @@ defmodule SimpleFit.Email.TemplatesTest do
     test "malformed variables are rejected" do
       assert {:error, {:invalid_template_data, [code: :invalid_format]}} =
                render(:verify_email, %{code: "40719"})
-
-      assert {:error, {:invalid_template_data, [code: :invalid_format]}} =
-               render(:recover_account, %{code: "k7q-2mx"})
 
       assert {:error, {:invalid_template_data, [expires_in_minutes: :out_of_range]}} =
                render(:verify_email, %{expires_in_minutes: 0})

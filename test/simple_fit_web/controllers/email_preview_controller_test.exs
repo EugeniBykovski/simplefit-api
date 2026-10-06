@@ -2,7 +2,7 @@ defmodule SimpleFitWeb.EmailPreviewControllerTest do
   # Not async: toggles the preview switch in the app env.
   use SimpleFitWeb.ConnCase, async: false
 
-  alias SimpleFit.Email.Templates.Inventory
+  alias SimpleFit.Email.Templates.{Fixtures, Inventory}
 
   defp previews(enabled) do
     original = Application.get_env(:simple_fit, :email_previews)
@@ -18,7 +18,12 @@ defmodule SimpleFitWeb.EmailPreviewControllerTest do
   test "is unreachable unless explicitly enabled (production and test default)" do
     assert Application.get_env(:simple_fit, :email_previews) == nil
 
-    for path <- ["/dev/emails", "/dev/emails/E01", "/dev/emails/E01?format=text"] do
+    for path <- [
+          "/dev/emails",
+          "/dev/emails/E01",
+          "/dev/emails/E01?format=text",
+          "/dev/emails/E04?variant=no-progress"
+        ] do
       conn = get(build_conn(), path)
       assert %{"error" => %{"code" => "not_found"}} = json_response(conn, 404)
     end
@@ -40,7 +45,7 @@ defmodule SimpleFitWeb.EmailPreviewControllerTest do
       assert body =~ Plug.HTML.html_escape(entry.status)
     end
 
-    assert body =~ "1791276973-ad1d"
+    assert body =~ "Version 63 · 1791284501-e3ff"
   end
 
   test "renders every implemented template with fixtures, as HTML and text" do
@@ -59,11 +64,30 @@ defmodule SimpleFitWeb.EmailPreviewControllerTest do
     end
   end
 
-  test "templates not implemented have no preview" do
+  test "all 16 designed emails are previewable, E04 and E10 included" do
     previews(true)
-    assert json_response(get(build_conn(), "/dev/emails/E04"), 404)
-    assert json_response(get(build_conn(), "/dev/emails/E10"), 404)
+    assert length(Inventory.implemented()) == 16
+
+    for id <- ["E04", "E10"] do
+      assert html_response(get(build_conn(), "/dev/emails/#{id}"), 200) =~ "<!DOCTYPE html>"
+    end
+
     assert json_response(get(build_conn(), "/dev/emails/nope"), 404)
+    assert json_response(get(build_conn(), "/dev/emails/E17"), 404)
+  end
+
+  test "renders every named optional-state variant and rejects unknown ones" do
+    previews(true)
+    index = html_response(get(build_conn(), "/dev/emails"), 200)
+
+    for %{id: id, template: template} <- Inventory.implemented(),
+        variant <- Fixtures.variants(template) do
+      assert index =~ "/dev/emails/#{id}?variant=#{variant}"
+      assert html_response(get(build_conn(), "/dev/emails/#{id}?variant=#{variant}"), 200)
+    end
+
+    assert json_response(get(build_conn(), "/dev/emails/E04?variant=nope"), 404)
+    assert json_response(get(build_conn(), "/dev/emails/E06?variant=minimal"), 404)
   end
 
   test "is not part of the OpenAPI contract" do
