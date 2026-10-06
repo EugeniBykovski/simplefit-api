@@ -21,6 +21,8 @@ defmodule SimpleFit.Application do
       SimpleFitWeb.Telemetry,
       SimpleFit.Repo,
       {Oban, Application.fetch_env!(:simple_fit, Oban)},
+      # Google ID-token signing keys (ADR 0013).
+      SimpleFit.Identity.Google.Keys,
       # Start to serve requests, typically the last entry
       SimpleFitWeb.Endpoint
     ]

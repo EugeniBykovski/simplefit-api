@@ -183,6 +183,11 @@ case config_env() do
     config :simple_fit, SimpleFitWeb.ClientIP,
       trusted_proxy_hops: SimpleFitWeb.ClientIP.parse_hops!(System.get_env("TRUSTED_PROXY_HOPS"))
 
+    # Google sign-in (ADR 0013): unset means Google sign-in answers 503.
+    config :simple_fit, SimpleFit.Identity.Google,
+      client_ids:
+        SimpleFit.Identity.Google.parse_client_ids!(System.get_env("GOOGLE_OAUTH_CLIENT_IDS"))
+
     # The local web client (simplefit-platform `pnpm dev`) by default;
     # CORS_ALLOWED_ORIGINS replaces the list (e.g. to add 127.0.0.1:3000).
     config :simple_fit, SimpleFitWeb.CORS,
@@ -254,6 +259,13 @@ case config_env() do
     # app after the deployment topology is verified.
     config :simple_fit, SimpleFitWeb.ClientIP,
       trusted_proxy_hops: SimpleFitWeb.ClientIP.parse_hops!(System.get_env("TRUSTED_PROXY_HOPS"))
+
+    # Google sign-in audiences (ADR 0013): the web, iOS and Android OAuth
+    # client ids. Unset does not block boot; Google sign-in then answers 503.
+    # A malformed value fails the boot.
+    config :simple_fit, SimpleFit.Identity.Google,
+      client_ids:
+        SimpleFit.Identity.Google.parse_client_ids!(System.get_env("GOOGLE_OAUTH_CLIENT_IDS"))
 
     host =
       System.get_env("PHX_HOST") ||

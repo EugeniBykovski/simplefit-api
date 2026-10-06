@@ -34,6 +34,16 @@ config :simple_fit, SimpleFit.Accounts.EmailAuth,
   secret_key_base: "tHkFROi6SIgZOTA5TukSa/GlLa4jqiwVQPxW+b6BhHteZDroFqYQxgekjxeAEoMS",
   web_app_url: "https://app.simplefit.example"
 
+# Google sign-in (ADR 0013): test audiences, and signing keys served by a
+# Req.Test stub instead of googleapis.com.
+config :simple_fit, SimpleFit.Identity.Google,
+  client_ids: [
+    "111111111111-webclienttest.apps.googleusercontent.com",
+    "111111111111-iosclienttest.apps.googleusercontent.com",
+    "111111111111-androidclienttest.apps.googleusercontent.com"
+  ],
+  req_options: [plug: {Req.Test, SimpleFit.Identity.Google.Keys}]
+
 # Jobs are never executed automatically in tests: assert on enqueued jobs
 # (Oban.Testing) and run them explicitly with perform_job/2.
 config :simple_fit, Oban, testing: :manual
