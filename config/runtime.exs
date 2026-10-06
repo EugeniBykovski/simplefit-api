@@ -263,5 +263,9 @@ case config_env() do
           require_https: true
         )
 
-    config :simple_fit, SimpleFit.Email, [{:adapter, SimpleFit.Email.Resend} | email_env.()]
+    # Encrypted email job payloads use the same secret (ADR 0011).
+    config :simple_fit, SimpleFit.Email, [
+      {:adapter, SimpleFit.Email.Resend},
+      {:payload_key_base, secret_key_base} | email_env.()
+    ]
 end

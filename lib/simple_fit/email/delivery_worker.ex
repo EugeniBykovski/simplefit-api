@@ -9,18 +9,20 @@ defmodule SimpleFit.Email.DeliveryWorker do
   * Retryable failures (`:timeout`, `:unavailable`, `:rate_limited`) are
     retried with Oban's exponential backoff, at most 5 attempts in total.
   * Permanent failures (`:invalid_request`, `:unauthorized`,
-    `:configuration_error`) cancel the job immediately.
+    `:configuration_error`) cancel the job immediately. So does a payload
+    that cannot be decrypted (`SimpleFit.Email.JobPayload`).
+  * The job arguments hold only the encrypted message.
   """
 
   use Oban.Worker, queue: :mailers, max_attempts: 5
 
   alias SimpleFit.Email
-  alias SimpleFit.Email.Message
+  alias SimpleFit.Email.JobPayload
   alias SimpleFit.Provider
 
   @impl Oban.Worker
-  def perform(%Oban.Job{id: id, args: %{"message" => serialized}}) do
-    with {:ok, message} <- Message.from_map(serialized),
+  def perform(%Oban.Job{id: id, args: args}) do
+    with {:ok, message} <- JobPayload.open(args["payload"]),
          {:ok, _receipt} <- Email.deliver(message, idempotency_key: "email-job-#{id}") do
       :ok
     else
