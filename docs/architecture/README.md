@@ -18,6 +18,7 @@ as ADRs in [`adr/`](adr/).
 | [0010](adr/0010-sessions.md) | SimpleFit sessions: access/refresh tokens, rotation, reuse detection, web cookie vs mobile body, `/api/me` |
 | [0011](adr/0011-transactional-email-templates.md) | Transactional email templates: app-owned rendering, HTML + text, encrypted job payloads, dev preview |
 | [0012](adr/0012-passwordless-email-authentication.md) | Passwordless email authentication: verification vs sign-in challenges, keyed code verifiers, Version 66 device rule, PostgreSQL rate limits, client IP |
+| [0013](adr/0013-google-authentication.md) | Google authentication: ID-token verification (jose, cached Google keys), aud/azp allowlist, `sub` identity, no email linking, SF-20 sessions |
 
 ---
 
@@ -43,6 +44,7 @@ lib/
     repo.ex                   # Ecto repo (the only DB entry point)
     accounts.ex, accounts/    # Users, sign-in identities (ADR 0009), sessions (ADR 0010) and
                               # passwordless email authentication (ADR 0012)
+    identity.ex, identity/    # Provider identity verification: Google ID tokens + signing-key cache (ADR 0013)
     rate_limit.ex             # PostgreSQL fixed-window limits for abuse-sensitive endpoints (ADR 0012)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
