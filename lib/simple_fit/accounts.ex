@@ -1,6 +1,7 @@
 defmodule SimpleFit.Accounts do
   @moduledoc """
-  Users and the identities that sign them in (ADR 0009).
+  Users, the identities that sign them in (ADR 0009) and their SimpleFit
+  sessions (ADR 0010).
 
   One person is one global `User`; a user owns any number of `Identity`
   records (email, Google, Apple). This context only stores and resolves them:
@@ -27,7 +28,7 @@ defmodule SimpleFit.Accounts do
   import Ecto.Changeset, only: [apply_changes: 1, put_change: 3]
   import Ecto.Query, only: [from: 2]
 
-  alias SimpleFit.Accounts.{EmailAddress, Identity, User}
+  alias SimpleFit.Accounts.{EmailAddress, Identity, Sessions, User}
   alias SimpleFit.Repo
 
   @typedoc "A supported identity provider: `:email`, `:google` or `:apple`."
@@ -116,6 +117,32 @@ defmodule SimpleFit.Accounts do
       end
     end
   end
+
+  ## Sessions (ADR 0010)
+
+  @doc """
+  Starts a SimpleFit session for a user that an authentication flow has
+  already established (email, Google, Apple, ...), and returns its first
+  credentials. The session does not know which provider it was.
+  """
+  @spec create_session(User.t()) :: {:ok, Sessions.credentials()} | {:error, :not_found}
+  defdelegate create_session(user), to: Sessions, as: :create
+
+  @doc "Resolves the viewer (user and session) of an access token, or `:unauthorized`."
+  @spec authenticate_access_token(String.t()) ::
+          {:ok, Sessions.viewer()} | {:error, :unauthorized}
+  defdelegate authenticate_access_token(token), to: Sessions, as: :authenticate
+
+  @doc """
+  Rotates a refresh token. Every failure, including a reused token (which
+  also revokes its session), is `{:error, :unauthorized}`.
+  """
+  @spec refresh_session(String.t()) :: {:ok, Sessions.credentials()} | {:error, :unauthorized}
+  defdelegate refresh_session(token), to: Sessions, as: :refresh
+
+  @doc "Logs out the session behind an access or refresh token. Always `:ok`."
+  @spec revoke_session({:access, String.t()} | {:refresh, String.t()}) :: :ok
+  defdelegate revoke_session(credential), to: Sessions, as: :revoke_by_credential
 
   # The user and its first identity commit together or not at all: a failed
   # identity insert (for example the unique index, under a race) rolls the

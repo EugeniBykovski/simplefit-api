@@ -218,6 +218,13 @@ case config_env() do
         You can generate one by calling: mix phx.gen.secret
         """
 
+    if byte_size(secret_key_base) < 64 do
+      raise "environment variable SECRET_KEY_BASE must be at least 64 bytes (mix phx.gen.secret)"
+    end
+
+    # Signs session access tokens (ADR 0010).
+    config :simple_fit, SimpleFit.Accounts.Sessions, secret_key_base: secret_key_base
+
     host =
       System.get_env("PHX_HOST") ||
         raise """

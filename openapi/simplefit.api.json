@@ -238,6 +238,42 @@
       }
     },
     "schemas": {
+      "CurrentUserResponse": {
+        "additionalProperties": false,
+        "description": "The authenticated viewer. `user` is the one global SimpleFit user; capabilities such as profiles\nand workspace memberships will be added as sibling fields when they exist.\n",
+        "example": {
+          "user": {
+            "created_at": "2026-10-06T12:00:00Z",
+            "id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5"
+          }
+        },
+        "properties": {
+          "user": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "id": {
+                "description": "Stable user id.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "created_at"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "CurrentUserResponse",
+        "type": "object"
+      },
       "Error": {
         "additionalProperties": false,
         "description": "Machine-readable error. See the ErrorResponse schema for the contract.",
@@ -333,6 +369,80 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "RefreshSessionRequest": {
+        "additionalProperties": false,
+        "description": "Body transport (mobile and other non-browser clients). Web clients send the refresh cookie instead and no body token.",
+        "example": {
+          "refresh_token": "sfr_3q2-7wQYz1bYH0Cq5Zf8d9E0aB1cD2eF3gH4iJ5kL6m"
+        },
+        "properties": {
+          "refresh_token": {
+            "description": "The refresh token from the last session response. Single use.",
+            "pattern": "^sfr_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "title": "RefreshSessionRequest",
+        "type": "object"
+      },
+      "SessionTokens": {
+        "additionalProperties": false,
+        "description": "Credentials of a SimpleFit session. Send `access_token` as `Authorization: Bearer <token>` until\n`access_token_expires_at`, then refresh. `refresh_token` is present only for the body transport;\nwith the cookie transport it is in the `Set-Cookie` header and never readable by scripts.\n",
+        "example": {
+          "access_token": "sfa_SFMyNTY.g2gDbQAAACQ.LZ3e0J2s5A",
+          "access_token_expires_at": "2026-10-06T12:15:00Z",
+          "refresh_token": "sfr_3q2-7wQYz1bYH0Cq5Zf8d9E0aB1cD2eF3gH4iJ5kL6m",
+          "refresh_token_expires_at": "2026-11-05T12:00:00Z",
+          "refresh_token_transport": "body",
+          "token_type": "Bearer"
+        },
+        "properties": {
+          "access_token": {
+            "description": "Short-lived SimpleFit access token (opaque to clients).",
+            "pattern": "^sfa_",
+            "type": "string"
+          },
+          "access_token_expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refresh_token": {
+            "description": "Body transport only. Keep it in platform secure storage.",
+            "pattern": "^sfr_[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          },
+          "refresh_token_expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "refresh_token_transport": {
+            "description": "Where the refresh token was delivered.",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          },
+          "token_type": {
+            "enum": [
+              "Bearer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "token_type",
+          "access_token",
+          "access_token_expires_at",
+          "refresh_token_expires_at",
+          "refresh_token_transport"
+        ],
+        "title": "SessionTokens",
+        "type": "object"
+      },
       "ValidationErrorDetails": {
         "description": "`details` of a `validation_error`. Both maps have the same keys (field names; nested\nfields use dotted paths such as `address.city`) and, per field, the same number of entries\nin the same order: `field_codes[field][i]` is the reason for `fields[field][i]`.\nClients branch on `field_codes`, never on the messages in `fields`. New reason codes may\nbe added; treat unknown ones as `invalid`.\n",
         "example": {
@@ -402,19 +512,165 @@
     },
     "securitySchemes": {
       "bearerAuth": {
-        "description": "Bearer access token. Reserved for the authentication ticket: no endpoint requires it yet.\n",
+        "description": "SimpleFit access token (`sfa_...`) from `SessionTokens`, valid for 15 minutes and only while\nits session is active. Refresh tokens and provider tokens are never accepted here.\n",
         "scheme": "bearer",
         "type": "http"
+      },
+      "refreshCookie": {
+        "description": "Web refresh token: `HttpOnly; Secure; SameSite=Strict; Path=/api/auth` cookie, sent only to\n`/api/auth/*`. Requests using it must carry an allow-listed `Origin` and `x-simplefit-csrf: 1`.\n",
+        "in": "cookie",
+        "name": "__Secure-sf_refresh",
+        "type": "apiKey"
       }
     }
   },
   "info": {
-    "description": "Backend API for SimpleFit Boxing: the operating system and professional network for boxing.\n\n## Conventions\n\n* JSON request and response bodies (`application/json`) only.\n* Errors use a single envelope (`ErrorResponse`) with a stable machine-readable `code`;\n  validation errors add per-field reason codes (`ValidationErrorDetails`). Clients branch\n  on codes, never on human-readable messages.\n* Browser clients must be on the API's CORS allow-list (explicit origins, no wildcard).\n* Every response carries an `x-request-id` header; error bodies echo it as `request_id`.\n* Product resources will be served under `/api/v1`. Operational endpoints live under `/api`.\n",
+    "description": "Backend API for SimpleFit Boxing: the operating system and professional network for boxing.\n\n## Conventions\n\n* JSON request and response bodies (`application/json`) only.\n* Errors use a single envelope (`ErrorResponse`) with a stable machine-readable `code`;\n  validation errors add per-field reason codes (`ValidationErrorDetails`). Clients branch\n  on codes, never on human-readable messages.\n* Browser clients must be on the API's CORS allow-list (explicit origins, no wildcard).\n* Every response carries an `x-request-id` header; error bodies echo it as `request_id`.\n* Product resources will be served under `/api/v1`. Operational, session (`/api/auth`) and viewer\n  (`/api/me`) endpoints live under `/api`.\n* Authenticated endpoints take `Authorization: Bearer <access_token>`; see `SessionTokens`.\n",
     "title": "SimpleFit API",
     "version": "0.1.0"
   },
   "openapi": "3.0.3",
   "paths": {
+    "/api/auth/logout": {
+      "post": {
+        "callbacks": {},
+        "description": "Revokes the session identified by the request's credential: the bearer access token, the refresh\ntoken in the body, or the web refresh cookie (cookie requests need an allow-listed `Origin` and\n`x-simplefit-csrf: 1`). The refresh cookie is always cleared.\n\nIdempotent: the response is `204` whether the session was active, already revoked or not\nidentifiable, so it reveals nothing about any session. A revoked session can no longer refresh or\naccess authenticated endpoints.\n",
+        "operationId": "logout",
+        "parameters": [
+          {
+            "description": "Required (value `1`) when the refresh token is sent as the web cookie, together with an allow-listed `Origin`.",
+            "in": "header",
+            "name": "x-simplefit-csrf",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshSessionRequest"
+              }
+            }
+          },
+          "description": "Refresh token (optional, body transport)",
+          "required": false
+        },
+        "responses": {
+          "204": {
+            "description": "Logged out (or nothing to log out)",
+            "headers": {
+              "set-cookie": {
+                "description": "Cookie transport only: the rotated refresh token (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`) or its deletion.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "bearerAuth": []
+          },
+          {
+            "refreshCookie": []
+          }
+        ],
+        "summary": "Log out of the current session",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/session/refresh": {
+      "post": {
+        "callbacks": {},
+        "description": "Consumes the refresh token and issues a new access token and a new refresh token for the same\nsession. A refresh token works once: presenting a consumed token again revokes its session.\n\n**Transport** (exactly one):\n\n* Mobile/body: send `{\"refresh_token\": \"sfr_...\"}`; the new refresh token is returned in the body.\n* Web/cookie: send the `__Secure-sf_refresh` cookie (no body token), an allow-listed `Origin` and\n  `x-simplefit-csrf: 1`; the new refresh token is set as the cookie and omitted from the body.\n\nEvery invalid, expired, revoked or reused token yields the same `401 unauthorized` (and, for the\ncookie transport, clears the cookie).\n",
+        "operationId": "refreshSession",
+        "parameters": [
+          {
+            "description": "Required (value `1`) when the refresh token is sent as the web cookie, together with an allow-listed `Origin`.",
+            "in": "header",
+            "name": "x-simplefit-csrf",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshSessionRequest"
+              }
+            }
+          },
+          "description": "Refresh token (body transport only)",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTokens"
+                }
+              }
+            },
+            "description": "New session credentials",
+            "headers": {
+              "set-cookie": {
+                "description": "Cookie transport only: the rotated refresh token (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`) or its deletion.",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {},
+          {
+            "refreshCookie": []
+          }
+        ],
+        "summary": "Rotate the refresh token and get a new access token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/health": {
       "get": {
         "callbacks": {},
@@ -441,6 +697,41 @@
           "System"
         ]
       }
+    },
+    "/api/me": {
+      "get": {
+        "callbacks": {},
+        "description": "Returns the user of the session behind the bearer access token. Sign-in identities, provider data and session secrets are never included.",
+        "operationId": "getCurrentUser",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                }
+              }
+            },
+            "description": "The current user"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The authenticated user",
+        "tags": [
+          "Auth"
+        ]
+      }
     }
   },
   "security": [],
@@ -452,6 +743,10 @@
     }
   ],
   "tags": [
+    {
+      "description": "SimpleFit sessions and the authenticated viewer.",
+      "name": "Auth"
+    },
     {
       "description": "Operational endpoints.",
       "name": "System"

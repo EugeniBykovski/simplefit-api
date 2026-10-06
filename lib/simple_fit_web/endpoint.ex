@@ -5,8 +5,8 @@ defmodule SimpleFitWeb.Endpoint do
 
   # SimpleFit is a JSON API consumed by web and mobile clients. It serves no
   # static files, keeps no cookie session and accepts only JSON request
-  # bodies. Authentication will use bearer tokens (see
-  # docs/architecture/README.md, "Security baseline").
+  # bodies. Requests authenticate with bearer access tokens; the only cookie
+  # is the web refresh token, read on /api/auth/* (ADR 0010).
 
   # Hardened response headers for an API that is never meant to be rendered
   # or framed by a browser. The one HTML page (the API docs, see

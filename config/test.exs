@@ -24,6 +24,10 @@ config :simple_fit, SimpleFitWeb.Endpoint,
   secret_key_base: "tHkFROi6SIgZOTA5TukSa/GlLa4jqiwVQPxW+b6BhHteZDroFqYQxgekjxeAEoMS",
   server: false
 
+# Test-only session signing secret (the policy itself is the production one).
+config :simple_fit, SimpleFit.Accounts.Sessions,
+  secret_key_base: "tHkFROi6SIgZOTA5TukSa/GlLa4jqiwVQPxW+b6BhHteZDroFqYQxgekjxeAEoMS"
+
 # Jobs are never executed automatically in tests: assert on enqueued jobs
 # (Oban.Testing) and run them explicitly with perform_job/2.
 config :simple_fit, Oban, testing: :manual

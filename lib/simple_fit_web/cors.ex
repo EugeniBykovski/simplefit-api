@@ -10,9 +10,11 @@ defmodule SimpleFitWeb.CORS do
     * **Preflight.** `OPTIONS` with `access-control-request-method` is answered
       here with 204 when the origin, method and requested headers are allowed,
       and with the `forbidden` error envelope (no CORS headers) otherwise.
-    * **No credentials.** Clients authenticate with bearer tokens, not cookies,
-      so `access-control-allow-credentials` is never sent. Revisit this policy
-      before any cookie-based authentication.
+    * **Credentials only for the refresh cookie.** Clients authenticate with
+      bearer tokens. `access-control-allow-credentials: true` is sent only for
+      allowed origins on the two endpoints that read the web refresh cookie
+      (`POST /api/auth/session/refresh`, `POST /api/auth/logout`, ADR 0010);
+      every other path stays credential-free.
     * `x-request-id` is exposed so browser clients can read it for support.
 
   Requests without an `Origin` header (mobile apps, server-to-server, curl)
@@ -25,9 +27,11 @@ defmodule SimpleFitWeb.CORS do
   alias SimpleFitWeb.APIError
 
   @allowed_methods ~w(GET POST PUT PATCH DELETE)
-  @allowed_headers ~w(accept accept-language authorization content-type)
+  @allowed_headers ~w(accept accept-language authorization content-type x-simplefit-csrf)
   @exposed_headers ~w(x-request-id)
   @max_age 600
+  # The only paths that read a cookie (the web refresh token, ADR 0010).
+  @credentialed_paths ["/api/auth/session/refresh", "/api/auth/logout"]
 
   @origin_format ~r"\Ahttps?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\z"
 
@@ -93,7 +97,13 @@ defmodule SimpleFitWeb.CORS do
     conn
     |> vary_origin()
     |> Conn.put_resp_header("access-control-allow-origin", origin)
+    |> allow_credentials()
   end
+
+  defp allow_credentials(%Conn{request_path: path} = conn) when path in @credentialed_paths,
+    do: Conn.put_resp_header(conn, "access-control-allow-credentials", "true")
+
+  defp allow_credentials(conn), do: conn
 
   # The response depends on Origin, so shared caches must key on it.
   defp vary_origin(conn), do: Conn.put_resp_header(conn, "vary", "origin")

@@ -44,11 +44,16 @@ defmodule SimpleFitWeb.ApiSpec do
           on codes, never on human-readable messages.
         * Browser clients must be on the API's CORS allow-list (explicit origins, no wildcard).
         * Every response carries an `x-request-id` header; error bodies echo it as `request_id`.
-        * Product resources will be served under `/api/v1`. Operational endpoints live under `/api`.
+        * Product resources will be served under `/api/v1`. Operational, session (`/api/auth`) and viewer
+          (`/api/me`) endpoints live under `/api`.
+        * Authenticated endpoints take `Authorization: Bearer <access_token>`; see `SessionTokens`.
         """
       },
       servers: [%Server{url: "/", description: "The host serving this document"}],
-      tags: [%Tag{name: "System", description: "Operational endpoints."}],
+      tags: [
+        %Tag{name: "Auth", description: "SimpleFit sessions and the authenticated viewer."},
+        %Tag{name: "System", description: "Operational endpoints."}
+      ],
       paths: Paths.from_router(SimpleFitWeb.Router),
       components: %Components{
         schemas: %{},
@@ -58,7 +63,17 @@ defmodule SimpleFitWeb.ApiSpec do
             type: "http",
             scheme: "bearer",
             description: """
-            Bearer access token. Reserved for the authentication ticket: no endpoint requires it yet.
+            SimpleFit access token (`sfa_...`) from `SessionTokens`, valid for 15 minutes and only while
+            its session is active. Refresh tokens and provider tokens are never accepted here.
+            """
+          },
+          "refreshCookie" => %SecurityScheme{
+            type: "apiKey",
+            in: "cookie",
+            name: "__Secure-sf_refresh",
+            description: """
+            Web refresh token: `HttpOnly; Secure; SameSite=Strict; Path=/api/auth` cookie, sent only to
+            `/api/auth/*`. Requests using it must carry an allow-listed `Origin` and `x-simplefit-csrf: 1`.
             """
           }
         }
@@ -67,7 +82,10 @@ defmodule SimpleFitWeb.ApiSpec do
     |> OpenApiSpex.add_schemas([
       Schemas.Error,
       Schemas.ErrorResponse,
-      Schemas.ValidationErrorDetails
+      Schemas.ValidationErrorDetails,
+      Schemas.SessionTokens,
+      Schemas.RefreshSessionRequest,
+      Schemas.CurrentUserResponse
     ])
     |> OpenApiSpex.resolve_schema_modules()
   end
