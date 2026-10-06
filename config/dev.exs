@@ -35,6 +35,12 @@ config :simple_fit, SimpleFit.Accounts.Sessions,
 
 config :simple_fit, SimpleFitWeb.SessionTransport, secure_cookie: false
 
+# Development-only email authentication key material (ADR 0012); E01 links
+# point at the local web app unless WEB_APP_URL is exported.
+config :simple_fit, SimpleFit.Accounts.EmailAuth,
+  secret_key_base: "8YBMJlfoU9bSnKqnNYznwMHi94VUVsNfWHLLiIFiB7Fhy1hpnhfVR+5rXnu+5LHW",
+  web_app_url: "http://localhost:3000"
+
 # Transactional email (ADR 0011): development-only payload key, http CTA
 # URLs for the local web app, and the template preview at /dev/emails.
 config :simple_fit, SimpleFit.Email,
