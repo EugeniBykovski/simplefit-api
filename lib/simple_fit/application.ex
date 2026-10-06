@@ -6,7 +6,7 @@ defmodule SimpleFit.Application do
   use Application
 
   alias SimpleFit.Accounts.{EmailAuth, Sessions}
-  alias SimpleFit.Identity.Google
+  alias SimpleFit.Identity.{Apple, Google}
 
   @impl true
   def start(_type, _args) do
@@ -19,6 +19,8 @@ defmodule SimpleFit.Application do
     _email_auth = EmailAuth.config!()
     # Google sign-in is optional (ADR 0013): warn, never fail, when unset.
     :ok = Google.warn_if_not_configured()
+    # So is Sign in with Apple (ADR 0014).
+    :ok = Apple.warn_if_not_configured()
 
     children = [
       SimpleFitWeb.Telemetry,
@@ -26,6 +28,8 @@ defmodule SimpleFit.Application do
       {Oban, Application.fetch_env!(:simple_fit, Oban)},
       # Google ID-token signing keys (ADR 0013).
       Google.Keys,
+      # Sign in with Apple identity-token signing keys (ADR 0014).
+      Apple.Keys,
       # Start to serve requests, typically the last entry
       SimpleFitWeb.Endpoint
     ]
