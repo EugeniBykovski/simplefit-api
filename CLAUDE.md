@@ -69,6 +69,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
     migration. Migrations must be reversible.
 13. UUID primary keys (already the default). Never expose Ecto schemas
     directly in JSON; views pick fields explicitly.
+    **One global user** (`SimpleFit.Accounts`, ADR 0009): never add a role,
+    type, profile, credential or provider column to `users`; identities are
+    keyed by `{provider, provider_subject}` and never linked or merged because
+    an email matches.
 
 ### Security
 14. **Secrets never enter Git.** No keys, tokens, passwords or real `.env`
