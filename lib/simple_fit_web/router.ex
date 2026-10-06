@@ -5,6 +5,7 @@ defmodule SimpleFitWeb.Router do
   #
   #   /api/health, /api/openapi, /api/docs   operational, unversioned
   #   /api/me, /api/auth/...                 session and viewer, unversioned (ADR 0010)
+  #   /dev/emails                            email template preview, development only (ADR 0011)
   #   /api/v1/...                            product resources (none yet)
 
   pipeline :api do
@@ -52,10 +53,32 @@ defmodule SimpleFitWeb.Router do
     get "/docs", ApiDocsController, :show
   end
 
+  # Development-only transactional email preview (ADR 0011).
+  pipeline :email_previews do
+    plug :require_email_previews_enabled
+  end
+
+  scope "/dev/emails", SimpleFitWeb do
+    pipe_through :email_previews
+
+    get "/", EmailPreviewController, :index
+    get "/:id", EmailPreviewController, :show
+  end
+
   # Docs routes answer exactly like an unknown route when disabled, so a
   # production deployment does not reveal that they exist.
   defp require_api_docs_enabled(conn, _opts) do
     if Application.get_env(:simple_fit, :api_docs, [])[:enabled] do
+      conn
+    else
+      raise Phoenix.Router.NoRouteError, conn: conn, router: __MODULE__
+    end
+  end
+
+  # Enabled only by config/dev.exs (never from the environment), so the
+  # previews cannot be switched on in production.
+  defp require_email_previews_enabled(conn, _opts) do
+    if Application.get_env(:simple_fit, :email_previews, [])[:enabled] do
       conn
     else
       raise Phoenix.Router.NoRouteError, conn: conn, router: __MODULE__

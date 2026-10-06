@@ -8,6 +8,8 @@ defmodule SimpleFit.Email.Message do
   email; this struct only carries the result.
   """
 
+  # Subjects and bodies can carry one-time codes and personal data.
+  @derive {Inspect, except: [:subject, :text, :html]}
   @enforce_keys [:to, :subject]
   defstruct [:to, :subject, :text, :html, :reply_to, from: nil]
 

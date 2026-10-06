@@ -35,6 +35,14 @@ config :simple_fit, SimpleFit.Accounts.Sessions,
 
 config :simple_fit, SimpleFitWeb.SessionTransport, secure_cookie: false
 
+# Transactional email (ADR 0011): development-only payload key, http CTA
+# URLs for the local web app, and the template preview at /dev/emails.
+config :simple_fit, SimpleFit.Email,
+  payload_key_base: "8YBMJlfoU9bSnKqnNYznwMHi94VUVsNfWHLLiIFiB7Fhy1hpnhfVR+5rXnu+5LHW"
+
+config :simple_fit, SimpleFit.Email.Templates, allow_http_urls: true
+config :simple_fit, :email_previews, enabled: true
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message $metadata\n"
 

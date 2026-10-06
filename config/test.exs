@@ -58,6 +58,8 @@ config :simple_fit, SimpleFit.Storage,
 
 config :simple_fit, SimpleFit.Email,
   adapter: SimpleFit.EmailTestAdapter,
+  # Test-only key for encrypted email job payloads (ADR 0011).
+  payload_key_base: "tHkFROi6SIgZOTA5TukSa/GlLa4jqiwVQPxW+b6BhHteZDroFqYQxgekjxeAEoMS",
   from: "SimpleFit <no-reply@simplefit.test>"
 
 # Print only warnings and errors during test
