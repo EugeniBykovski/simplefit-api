@@ -7,7 +7,7 @@ defmodule SimpleFit.Email.Templates do
   returns a `SimpleFit.Email.Templates.Rendered` (subject, preheader, HTML,
   plain text). There is no generic or user-supplied template execution.
 
-      {:ok, rendered} = Templates.verify_email(code: "407193", verify_url: url, expires_in_minutes: 10)
+      {:ok, rendered} = Templates.sign_in_code(code: "528461", expires_in_minutes: 10)
       {:ok, message} = Templates.to_message(rendered, to: address)
       {:ok, _job} = SimpleFit.Email.deliver_later(message)
 
@@ -22,10 +22,14 @@ defmodule SimpleFit.Email.Templates do
   alias SimpleFit.Email.Templates.{AccountDeleted, AccountSuspended, CoachInvite}
   alias SimpleFit.Email.Templates.{DataExportReady, DeletionScheduled, FirstWeekRecap, GymLive}
   alias SimpleFit.Email.Templates.{GymSetup, Input, JoinApproved, MemberInvite, NewSignIn}
-  alias SimpleFit.Email.Templates.{RecoverAccount, Rendered}
+  alias SimpleFit.Email.Templates.{RecoverAccount, Rendered, SignInCode}
   alias SimpleFit.Email.Templates.{StaffInvite, VerifyEmail, WelcomeCoach, WelcomeFighter}
 
   @type result :: {:ok, Rendered.t()} | {:error, Input.error()}
+
+  @doc "E17 · Sign-in code. See `SimpleFit.Email.Templates.SignInCode`."
+  @spec sign_in_code(map() | keyword()) :: result()
+  defdelegate sign_in_code(attrs), to: SignInCode, as: :render
 
   @doc "E01 · Verify your email. See `SimpleFit.Email.Templates.VerifyEmail`."
   @spec verify_email(map() | keyword()) :: result()
