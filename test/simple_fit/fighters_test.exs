@@ -102,7 +102,7 @@ defmodule SimpleFit.FightersTest do
           "username" => " Fighter_One ",
           "country_code" => "pl",
           "city" => "",
-          "current_weight_kg" => 73.84
+          "current_weight_kg" => 73.8
         })
 
       assert profile.display_name == "Alex K."
@@ -251,17 +251,36 @@ defmodule SimpleFit.FightersTest do
                field_codes(Fighters.update_profile(user, %{"amateur_bout_count" => -1}))
     end
 
-    test "an event name for the next fight needs its date", %{user: user} do
-      assert %{"next_fight_on" => ["required"]} =
-               field_codes(Fighters.update_profile(user, %{"next_fight_name" => "Warsaw Cup"}))
+    test "weight accepts at most one decimal place and is never rounded", %{user: user} do
+      for {input, stored} <- [{81, "81"}, {81.2, "81.2"}, {"81.2", "81.2"}] do
+        assert {:ok, profile} = Fighters.update_profile(user, %{"current_weight_kg" => input})
+        assert Decimal.equal?(profile.current_weight_kg, Decimal.new(stored))
+      end
+
+      for input <- [81.27, "81.27", 81.205] do
+        assert %{"current_weight_kg" => ["invalid_format"]} =
+                 field_codes(Fighters.update_profile(user, %{"current_weight_kg" => input}))
+      end
+
+      assert Decimal.equal?(Fighters.get_profile(user).current_weight_kg, Decimal.new("81.2"))
+    end
+
+    test "next fight date and event name are saved independently", %{user: user} do
+      {:ok, profile} = Fighters.update_profile(user, %{"next_fight_name" => "Warsaw Cup"})
+      assert profile.next_fight_name == "Warsaw Cup" and profile.next_fight_on == nil
 
       {:ok, profile} =
-        Fighters.update_profile(user, %{
-          "next_fight_on" => "2026-11-03",
-          "next_fight_name" => "Warsaw Cup"
-        })
+        Fighters.update_profile(user, %{"next_fight_name" => nil, "next_fight_on" => "2026-11-03"})
 
-      assert profile.next_fight_on == ~D[2026-11-03]
+      assert profile.next_fight_on == ~D[2026-11-03] and profile.next_fight_name == nil
+
+      {:ok, profile} = Fighters.update_profile(user, %{"next_fight_name" => "Warsaw Cup"})
+      assert profile.next_fight_on == ~D[2026-11-03] and profile.next_fight_name == "Warsaw Cup"
+
+      {:ok, profile} =
+        Fighters.update_profile(user, %{"next_fight_on" => nil, "next_fight_name" => nil})
+
+      assert profile.next_fight_on == nil and profile.next_fight_name == nil
     end
 
     test "never accepts the completion marker from a client", %{user: user} do

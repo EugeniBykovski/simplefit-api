@@ -157,6 +157,14 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
       assert Fighters.get_profile(user) == nil
     end
 
+    test "weight with more than one decimal place is invalid_format", %{token: token} do
+      assert token |> patch_profile(%{"current_weight_kg" => 81.27}) |> validation_error() ==
+               %{"current_weight_kg" => ["invalid_format"]}
+
+      profile = token |> patch_profile(%{"current_weight_kg" => 81.2}) |> profile_body(200)
+      assert profile["current_weight_kg"] == 81.2
+    end
+
     test "an unassigned country code is invalid_choice", %{token: token} do
       assert token |> patch_profile(%{"country_code" => "ZZ"}) |> validation_error() ==
                %{"country_code" => ["invalid_choice"]}

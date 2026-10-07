@@ -37,7 +37,9 @@ separate record, and having one is what makes a user a fighter.
   uploads).
 * **Weight data is persisted and private:** weight class, current weight
   and height. It is returned only to its owner.
-  * Units follow OF4: kilograms with one decimal, whole centimetres.
+  * Units follow OF4: kilograms with at most one decimal place (more
+    precision is rejected with `invalid_format`, never rounded), whole
+    centimetres.
   * The only bounds are technical validity, not boxing or eligibility policy:
     measurements are positive and below 1000 (the weight column's
     precision); counts are non-negative and fit a 32-bit integer. The
@@ -78,7 +80,9 @@ separate record, and having one is what makes a user a fighter.
 
   Not required:
   * goals: OF3 has Skip;
-  * next fight: labelled "optional" on OF3 and WF1;
+  * next fight: labelled "optional" on OF3 and WF1. Date and event name are
+    independent: either, both or neither can be saved (the design states no
+    dependency);
   * weight class: OF4 has Skip;
   * current weight and height: labelled "optional" on OF4;
   * amateur bout count: a detail of one experience option;

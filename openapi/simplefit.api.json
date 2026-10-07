@@ -792,7 +792,7 @@
                 "type": "string"
               },
               "current_weight_kg": {
-                "description": "Current weight in kilograms, rounded to one decimal (OF4, optional). Private. The bounds are technical\nvalidity only, not eligibility rules.\n",
+                "description": "Current weight in kilograms with at most one decimal place (OF4, optional); more precision is rejected\nwith `invalid_format`, never rounded. Private. The bounds are technical\nvalidity only, not eligibility rules.\n",
                 "example": 73.8,
                 "exclusiveMaximum": true,
                 "exclusiveMinimum": true,
@@ -852,7 +852,7 @@
                 "type": "integer"
               },
               "next_fight_name": {
-                "description": "Event of the next fight (OF3, optional). Requires `next_fight_on`.",
+                "description": "Event of the next fight (OF3, optional). Independent of `next_fight_on`.",
                 "example": "Warsaw Cup",
                 "maxLength": 120,
                 "minLength": 1,
@@ -1000,7 +1000,7 @@
             "type": "string"
           },
           "current_weight_kg": {
-            "description": "Current weight in kilograms, rounded to one decimal (OF4, optional). Private. The bounds are technical\nvalidity only, not eligibility rules.\n",
+            "description": "Current weight in kilograms with at most one decimal place (OF4, optional); more precision is rejected\nwith `invalid_format`, never rounded. Private. The bounds are technical\nvalidity only, not eligibility rules.\n",
             "example": 73.8,
             "exclusiveMaximum": true,
             "exclusiveMinimum": true,
@@ -1060,7 +1060,7 @@
             "type": "integer"
           },
           "next_fight_name": {
-            "description": "Event of the next fight (OF3, optional). Requires `next_fight_on`.",
+            "description": "Event of the next fight (OF3, optional). Independent of `next_fight_on`.",
             "example": "Warsaw Cup",
             "maxLength": 120,
             "minLength": 1,

@@ -94,7 +94,7 @@ defmodule SimpleFitWeb.Schemas.FighterProfileFields do
         nullable: true,
         minLength: 1,
         maxLength: 120,
-        description: "Event of the next fight (OF3, optional). Requires `next_fight_on`.",
+        description: "Event of the next fight (OF3, optional). Independent of `next_fight_on`.",
         example: "Warsaw Cup"
       },
       weight_class: %Schema{
@@ -115,7 +115,8 @@ defmodule SimpleFitWeb.Schemas.FighterProfileFields do
         exclusiveMaximum: true,
         maximum: 1000,
         description: """
-        Current weight in kilograms, rounded to one decimal (OF4, optional). Private. The bounds are technical
+        Current weight in kilograms with at most one decimal place (OF4, optional); more precision is rejected
+        with `invalid_format`, never rounded. Private. The bounds are technical
         validity only, not eligibility rules.
         """,
         example: 73.8

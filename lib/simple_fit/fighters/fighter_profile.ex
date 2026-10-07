@@ -178,9 +178,8 @@ defmodule SimpleFit.Fighters.FighterProfile do
     )
     |> validate_number(:current_weight_kg, greater_than: 0, less_than: 1000)
     |> validate_number(:height_cm, greater_than: 0, less_than: 1000)
-    |> update_change(:current_weight_kg, &round_weight/1)
+    |> validate_weight_precision()
     |> validate_goals()
-    |> validate_next_fight()
     |> validate_completed_requirements()
     |> unique_constraint(:username, name: :fighter_profiles_username_index)
     |> check_constraint(:username, name: :username_format, message: "has invalid format")
@@ -248,8 +247,14 @@ defmodule SimpleFit.Fighters.FighterProfile do
 
   defp canonical_country_code(value), do: value
 
-  defp round_weight(%Decimal{} = kg), do: Decimal.round(kg, 1)
-  defp round_weight(value), do: value
+  # Stored with one decimal (OF4 shows 73.8): more precision is rejected, never rounded.
+  defp validate_weight_precision(changeset) do
+    validate_change(changeset, :current_weight_kg, fn :current_weight_kg, kg ->
+      if Decimal.equal?(Decimal.round(kg, 1), kg),
+        do: [],
+        else: [current_weight_kg: {"must have at most one decimal place", [validation: :format]}]
+    end)
+  end
 
   defp validate_text(changeset, field, max),
     do: validate_length(changeset, field, min: 1, max: max)
@@ -269,13 +274,6 @@ defmodule SimpleFit.Fighters.FighterProfile do
         do: [],
         else: [country_code: {"is not an ISO 3166-1 alpha-2 country", [validation: :inclusion]}]
     end)
-  end
-
-  # The next fight is a date with an optional event name.
-  defp validate_next_fight(changeset) do
-    if get_field(changeset, :next_fight_name) && is_nil(get_field(changeset, :next_fight_on)),
-      do: add_error(changeset, :next_fight_on, "can't be blank", validation: :required),
-      else: changeset
   end
 
   defp validate_completed_requirements(%Ecto.Changeset{data: profile} = changeset) do
