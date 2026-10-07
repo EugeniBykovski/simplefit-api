@@ -54,6 +54,16 @@ defmodule SimpleFitWeb.Router do
     get "/me", MeController, :show
   end
 
+  # Product resources (ADR 0003). SF-25: the viewer's fighter profile and
+  # resumable Fighter onboarding (ADR 0015).
+  scope "/api/v1", SimpleFitWeb do
+    pipe_through [:api, :authenticated]
+
+    get "/me/fighter-profile", FighterProfileController, :show
+    patch "/me/fighter-profile", FighterProfileController, :update
+    post "/me/fighter-profile/complete-onboarding", FighterProfileController, :complete_onboarding
+  end
+
   scope "/api" do
     pipe_through [:api_docs, :api]
 

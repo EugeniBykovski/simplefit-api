@@ -732,6 +732,378 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "FighterProfileResponse": {
+        "additionalProperties": false,
+        "description": "Always returned, also before onboarding has started (`status: not_started`, every field empty), so a\nclient can render onboarding from this response alone. Body data is included only because the viewer\nis the profile's owner.\n",
+        "example": {
+          "fighter_profile": {
+            "bout_count": 14,
+            "city": null,
+            "country_code": null,
+            "current_weight_kg": 73.8,
+            "display_name": "Yauheni B.",
+            "experience_level": "competitive_amateur",
+            "goals": [
+              "improve_technique",
+              "competition",
+              "fight_preparation"
+            ],
+            "height_cm": 178,
+            "next_fight_name": "Warsaw Cup",
+            "next_fight_on": "2026-11-03",
+            "onboarding": {
+              "completed_at": null,
+              "missing_requirements": [
+                "country_code",
+                "city"
+              ],
+              "status": "in_progress"
+            },
+            "stance": "orthodox",
+            "username": "yauheni",
+            "weight_class": "minus_75"
+          }
+        },
+        "properties": {
+          "fighter_profile": {
+            "additionalProperties": false,
+            "properties": {
+              "bout_count": {
+                "description": "Amateur bouts (OF2). Only with `experience_level: competitive_amateur`; cleared when the level changes.",
+                "example": 14,
+                "maximum": 500,
+                "minimum": 0,
+                "nullable": true,
+                "type": "integer"
+              },
+              "city": {
+                "description": "City (OF1). Trimmed.",
+                "example": "Warsaw",
+                "maxLength": 100,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "country_code": {
+                "description": "ISO 3166-1 alpha-2 country (OF1). Returned in uppercase.",
+                "example": "PL",
+                "nullable": true,
+                "pattern": "^[A-Za-z]{2}$",
+                "type": "string"
+              },
+              "current_weight_kg": {
+                "description": "Current weight in kg, one decimal (OF4, optional). Private.",
+                "example": 73.8,
+                "maximum": 200,
+                "minimum": 30,
+                "nullable": true,
+                "type": "number"
+              },
+              "display_name": {
+                "description": "Name shown to teammates and coaches (OF1). Trimmed.",
+                "example": "Yauheni B.",
+                "maxLength": 80,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "experience_level": {
+                "description": "Boxing experience (OF2).",
+                "enum": [
+                  "new_to_boxing",
+                  "recreational",
+                  "amateur",
+                  "competitive_amateur",
+                  "professional"
+                ],
+                "example": "competitive_amateur",
+                "nullable": true,
+                "type": "string"
+              },
+              "goals": {
+                "description": "Training goals, any number, no repeats (OF3).",
+                "example": [
+                  "improve_technique",
+                  "competition"
+                ],
+                "items": {
+                  "enum": [
+                    "fitness",
+                    "learn_boxing",
+                    "improve_technique",
+                    "competition",
+                    "fight_preparation"
+                  ],
+                  "type": "string"
+                },
+                "type": "array",
+                "uniqueItems": true
+              },
+              "height_cm": {
+                "description": "Height in cm (OF4, optional). Private.",
+                "example": 178,
+                "maximum": 230,
+                "minimum": 120,
+                "nullable": true,
+                "type": "integer"
+              },
+              "next_fight_name": {
+                "description": "Event of the next fight (OF3, optional). Requires `next_fight_on`.",
+                "example": "Warsaw Cup",
+                "maxLength": 120,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "next_fight_on": {
+                "description": "Date of the next fight (OF3, optional).",
+                "example": "2026-11-03",
+                "format": "date",
+                "nullable": true,
+                "type": "string"
+              },
+              "onboarding": {
+                "additionalProperties": false,
+                "properties": {
+                  "completed_at": {
+                    "description": "When onboarding was completed; `null` until then.",
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "missing_requirements": {
+                    "description": "Required fields still empty, in step order. Completion succeeds only when this is empty.",
+                    "items": {
+                      "enum": [
+                        "display_name",
+                        "username",
+                        "country_code",
+                        "city",
+                        "experience_level",
+                        "stance"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "status": {
+                    "description": "`not_started`: no fighter profile yet. `in_progress`: progress saved, not completed.\n`completed`: completion recorded by `completeFighterOnboarding`.\n",
+                    "enum": [
+                      "not_started",
+                      "in_progress",
+                      "completed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "completed_at",
+                  "missing_requirements"
+                ],
+                "type": "object"
+              },
+              "stance": {
+                "description": "Stance (OF2).",
+                "enum": [
+                  "orthodox",
+                  "southpaw",
+                  "switch"
+                ],
+                "example": "orthodox",
+                "nullable": true,
+                "type": "string"
+              },
+              "username": {
+                "description": "Unique handle without the `@` (OF1). Stored and returned in lowercase: a letter, then 2-29 letters,\ndigits or underscores. A handle another fighter holds is rejected with `already_exists`.\n",
+                "example": "yauheni",
+                "nullable": true,
+                "pattern": "^[A-Za-z][A-Za-z0-9_]{2,29}$",
+                "type": "string"
+              },
+              "weight_class": {
+                "description": "Approximate weight class in kg (OF4): `minus_63_5` is −63.5, `plus_86` is +86. Private: never shown\nto other users.\n",
+                "enum": [
+                  "minus_63_5",
+                  "minus_67",
+                  "minus_71",
+                  "minus_75",
+                  "minus_80",
+                  "minus_86",
+                  "plus_86",
+                  "not_sure"
+                ],
+                "example": "minus_75",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "bout_count",
+              "city",
+              "country_code",
+              "current_weight_kg",
+              "display_name",
+              "experience_level",
+              "goals",
+              "height_cm",
+              "next_fight_name",
+              "next_fight_on",
+              "onboarding",
+              "stance",
+              "username",
+              "weight_class"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "fighter_profile"
+        ],
+        "title": "FighterProfileResponse",
+        "type": "object"
+      },
+      "FighterProfileUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Any subset of the fighter profile. Omitted fields are unchanged; `null` clears a field. Nothing is\nrequired while onboarding is in progress. After completion the required fields can be changed but not\ncleared.\n",
+        "example": {
+          "bout_count": 14,
+          "experience_level": "competitive_amateur",
+          "stance": "orthodox"
+        },
+        "properties": {
+          "bout_count": {
+            "description": "Amateur bouts (OF2). Only with `experience_level: competitive_amateur`; cleared when the level changes.",
+            "example": 14,
+            "maximum": 500,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "city": {
+            "description": "City (OF1). Trimmed.",
+            "example": "Warsaw",
+            "maxLength": 100,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "country_code": {
+            "description": "ISO 3166-1 alpha-2 country (OF1). Returned in uppercase.",
+            "example": "PL",
+            "nullable": true,
+            "pattern": "^[A-Za-z]{2}$",
+            "type": "string"
+          },
+          "current_weight_kg": {
+            "description": "Current weight in kg, one decimal (OF4, optional). Private.",
+            "example": 73.8,
+            "maximum": 200,
+            "minimum": 30,
+            "nullable": true,
+            "type": "number"
+          },
+          "display_name": {
+            "description": "Name shown to teammates and coaches (OF1). Trimmed.",
+            "example": "Yauheni B.",
+            "maxLength": 80,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "experience_level": {
+            "description": "Boxing experience (OF2).",
+            "enum": [
+              "new_to_boxing",
+              "recreational",
+              "amateur",
+              "competitive_amateur",
+              "professional"
+            ],
+            "example": "competitive_amateur",
+            "nullable": true,
+            "type": "string"
+          },
+          "goals": {
+            "description": "Training goals, any number, no repeats (OF3).",
+            "example": [
+              "improve_technique",
+              "competition"
+            ],
+            "items": {
+              "enum": [
+                "fitness",
+                "learn_boxing",
+                "improve_technique",
+                "competition",
+                "fight_preparation"
+              ],
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "height_cm": {
+            "description": "Height in cm (OF4, optional). Private.",
+            "example": 178,
+            "maximum": 230,
+            "minimum": 120,
+            "nullable": true,
+            "type": "integer"
+          },
+          "next_fight_name": {
+            "description": "Event of the next fight (OF3, optional). Requires `next_fight_on`.",
+            "example": "Warsaw Cup",
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "next_fight_on": {
+            "description": "Date of the next fight (OF3, optional).",
+            "example": "2026-11-03",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "stance": {
+            "description": "Stance (OF2).",
+            "enum": [
+              "orthodox",
+              "southpaw",
+              "switch"
+            ],
+            "example": "orthodox",
+            "nullable": true,
+            "type": "string"
+          },
+          "username": {
+            "description": "Unique handle without the `@` (OF1). Stored and returned in lowercase: a letter, then 2-29 letters,\ndigits or underscores. A handle another fighter holds is rejected with `already_exists`.\n",
+            "example": "yauheni",
+            "nullable": true,
+            "pattern": "^[A-Za-z][A-Za-z0-9_]{2,29}$",
+            "type": "string"
+          },
+          "weight_class": {
+            "description": "Approximate weight class in kg (OF4): `minus_63_5` is −63.5, `plus_86` is +86. Private: never shown\nto other users.\n",
+            "enum": [
+              "minus_63_5",
+              "minus_67",
+              "minus_71",
+              "minus_75",
+              "minus_80",
+              "minus_86",
+              "plus_86",
+              "not_sure"
+            ],
+            "example": "minus_75",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "title": "FighterProfileUpdateRequest",
+        "type": "object"
+      },
       "GoogleAuthRequest": {
         "additionalProperties": false,
         "description": "`id_token` is the Google ID token (a JWT) from Google Identity Services (web) or Google Sign-In (iOS,\nAndroid). It is verified by the API and never stored. Nothing else about the person is sent or trusted.\n",
@@ -1813,6 +2185,126 @@
           "Auth"
         ]
       }
+    },
+    "/api/v1/me/fighter-profile": {
+      "get": {
+        "callbacks": {},
+        "description": "Returns the current Fighter onboarding state and every saved field. Before onboarding has started the\nresponse is still `200`, with `onboarding.status: not_started`, empty fields and every requirement listed\nas missing; no profile is created by reading.\n",
+        "operationId": "getMyFighterProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FighterProfileResponse"
+                }
+              }
+            },
+            "description": "The fighter profile and onboarding state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My fighter profile and onboarding state",
+        "tags": [
+          "Fighter profile"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Saves any subset of the fighter profile; the first save creates the profile (`in_progress`). Values are\nvalidated but nothing is required until completion. An invalid request changes nothing.\n",
+        "operationId": "updateMyFighterProfile",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FighterProfileUpdateRequest"
+              }
+            }
+          },
+          "description": "Fields to save",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FighterProfileResponse"
+                }
+              }
+            },
+            "description": "The fighter profile and onboarding state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save Fighter onboarding progress",
+        "tags": [
+          "Fighter profile"
+        ]
+      }
+    },
+    "/api/v1/me/fighter-profile/complete-onboarding": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that Fighter onboarding is complete, after checking every requirement on the server. While any\nrequired field is missing the response is `422 validation_error` with a `required` field code per missing\nfield, and nothing changes. Completing again returns the profile with its original `completed_at`.\n",
+        "operationId": "completeFighterOnboarding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FighterProfileResponse"
+                }
+              }
+            },
+            "description": "The fighter profile and onboarding state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Complete Fighter onboarding",
+        "tags": [
+          "Fighter profile"
+        ]
+      }
     }
   },
   "security": [],
@@ -1827,6 +2319,10 @@
     {
       "description": "SimpleFit sessions and the authenticated viewer.",
       "name": "Auth"
+    },
+    {
+      "description": "The viewer's fighter profile and resumable Fighter onboarding.",
+      "name": "Fighter profile"
     },
     {
       "description": "Operational endpoints.",

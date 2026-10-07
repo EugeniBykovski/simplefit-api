@@ -52,6 +52,10 @@ defmodule SimpleFitWeb.ApiSpec do
       servers: [%Server{url: "/", description: "The host serving this document"}],
       tags: [
         %Tag{name: "Auth", description: "SimpleFit sessions and the authenticated viewer."},
+        %Tag{
+          name: "Fighter profile",
+          description: "The viewer's fighter profile and resumable Fighter onboarding."
+        },
         %Tag{name: "System", description: "Operational endpoints."}
       ],
       paths: Paths.from_router(SimpleFitWeb.Router),
