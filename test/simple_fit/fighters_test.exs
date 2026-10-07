@@ -3,13 +3,13 @@ defmodule SimpleFit.FightersTest do
 
   alias SimpleFit.Accounts
   alias SimpleFit.Fighters
-  alias SimpleFit.Fighters.FighterProfile
+  alias SimpleFit.Fighters.{CountryCodes, FighterProfile}
   alias SimpleFit.Repo
   alias SimpleFitWeb.ChangesetErrors
 
   @required %{
-    "display_name" => "Yauheni B.",
-    "username" => "yauheni",
+    "display_name" => "Alex K.",
+    "username" => "fighter_one",
     "country_code" => "PL",
     "city" => "Warsaw",
     "experience_level" => "competitive_amateur",
@@ -41,24 +41,47 @@ defmodule SimpleFit.FightersTest do
 
   describe "update_profile/2 (saving progress)" do
     test "the first save creates an in-progress profile with only the given fields", %{user: user} do
-      assert {:ok, profile} = Fighters.update_profile(user, %{"display_name" => "Yauheni B."})
+      assert {:ok, profile} = Fighters.update_profile(user, %{"display_name" => "Alex K."})
 
       assert profile.user_id == user.id
-      assert profile.display_name == "Yauheni B."
+      assert profile.display_name == "Alex K."
       assert profile.username == nil
       assert profile.goals == []
       assert Fighters.onboarding_status(profile) == :in_progress
       assert Fighters.get_profile(user).id == profile.id
     end
 
+    test "a save with nothing to persist creates no profile", %{user: user} do
+      for attrs <- [
+            %{},
+            %{"goals" => []},
+            %{"city" => nil},
+            %{"unknown" => "x"},
+            %{"city" => "  "}
+          ] do
+        assert {:ok, nil} = Fighters.update_profile(user, attrs)
+        assert Fighters.get_profile(user) == nil
+        assert Fighters.onboarding_status(Fighters.get_profile(user)) == :not_started
+      end
+
+      assert Repo.aggregate(FighterProfile, :count) == 0
+    end
+
+    test "a save with nothing to persist returns an existing profile unchanged", %{user: user} do
+      {:ok, created} = Fighters.update_profile(user, %{"city" => "Warsaw"})
+      assert {:ok, same} = Fighters.update_profile(user, %{})
+
+      assert same.id == created.id and same.city == "Warsaw"
+    end
+
     test "later saves add to the same profile and keep earlier fields", %{user: user} do
-      {:ok, first} = Fighters.update_profile(user, %{"display_name" => "Yauheni B."})
+      {:ok, first} = Fighters.update_profile(user, %{"display_name" => "Alex K."})
 
       {:ok, second} =
         Fighters.update_profile(user, %{"stance" => "southpaw", "goals" => ["fitness"]})
 
       assert second.id == first.id
-      assert second.display_name == "Yauheni B."
+      assert second.display_name == "Alex K."
       assert second.stance == :southpaw
       assert second.goals == [:fitness]
       assert Repo.aggregate(FighterProfile, :count) == 1
@@ -75,15 +98,15 @@ defmodule SimpleFit.FightersTest do
     test "canonicalises text: trimmed, lowercase username, uppercase country", %{user: user} do
       {:ok, profile} =
         Fighters.update_profile(user, %{
-          "display_name" => "  Yauheni B.  ",
-          "username" => " Yauheni_B ",
+          "display_name" => "  Alex K.  ",
+          "username" => " Fighter_One ",
           "country_code" => "pl",
           "city" => "",
           "current_weight_kg" => 73.84
         })
 
-      assert profile.display_name == "Yauheni B."
-      assert profile.username == "yauheni_b"
+      assert profile.display_name == "Alex K."
+      assert profile.username == "fighter_one"
       assert profile.country_code == "PL"
       assert profile.city == nil
       assert Decimal.equal?(profile.current_weight_kg, Decimal.new("73.8"))
@@ -100,7 +123,7 @@ defmodule SimpleFit.FightersTest do
       {:ok, _} = Fighters.update_profile(user, %{"city" => "Warsaw"})
 
       assert {:error, _} =
-               Fighters.update_profile(user, %{"city" => "Kraków", "height_cm" => 20})
+               Fighters.update_profile(user, %{"city" => "Kraków", "height_cm" => 0})
 
       assert Fighters.get_profile(user).city == "Warsaw"
     end
@@ -112,11 +135,11 @@ defmodule SimpleFit.FightersTest do
           "stance" => "wrong-footed",
           "goals" => ["fitness", "world_title"],
           "weight_class" => "minus_100",
-          "username" => "9lives",
+          "username" => "_lead",
           "country_code" => "POL",
           "display_name" => String.duplicate("x", 81),
-          "current_weight_kg" => 12,
-          "height_cm" => 300
+          "current_weight_kg" => 0,
+          "height_cm" => 1000
         })
 
       assert field_codes(result) == %{
@@ -132,6 +155,70 @@ defmodule SimpleFit.FightersTest do
              }
     end
 
+    test "measurement bounds are technical, not boxing policy", %{user: user} do
+      {:ok, profile} =
+        Fighters.update_profile(user, %{"current_weight_kg" => 150.0, "height_cm" => 205})
+
+      assert profile.height_cm == 205
+      assert Decimal.equal?(profile.current_weight_kg, Decimal.new("150.0"))
+
+      assert %{"current_weight_kg" => ["out_of_range"], "height_cm" => ["out_of_range"]} =
+               field_codes(
+                 Fighters.update_profile(user, %{"current_weight_kg" => -1, "height_cm" => 0})
+               )
+    end
+
+    test "username policy: 3-30 characters, letters, digits and underscores, alphanumeric ends",
+         %{user: user} do
+      for valid <- ["abc", "9lives", "a_b", String.duplicate("a", 30)] do
+        assert {:ok, %FighterProfile{username: ^valid}} =
+                 Fighters.update_profile(user, %{"username" => valid})
+      end
+
+      for invalid <- [
+            "ab",
+            String.duplicate("a", 31),
+            "_lead",
+            "trail_",
+            "has-dash",
+            "dot.ted",
+            "ünï"
+          ] do
+        assert %{"username" => ["invalid_format"]} =
+                 field_codes(Fighters.update_profile(user, %{"username" => invalid}))
+      end
+    end
+
+    test "country is an assigned ISO 3166-1 alpha-2 code, trimmed and uppercased", %{user: user} do
+      for {input, stored} <- [
+            {"pl", "PL"},
+            {" de ", "DE"},
+            {"JP", "JP"},
+            {"br", "BR"},
+            {"NG", "NG"}
+          ] do
+        assert {:ok, %FighterProfile{country_code: ^stored}} =
+                 Fighters.update_profile(user, %{"country_code" => input})
+      end
+
+      for unassigned <- ["ZZ", "XK", "UK", "EU"] do
+        assert %{"country_code" => ["invalid_choice"]} =
+                 field_codes(Fighters.update_profile(user, %{"country_code" => unassigned}))
+      end
+
+      for malformed <- ["P", "POL", "P1"] do
+        assert %{"country_code" => ["invalid_format"]} =
+                 field_codes(Fighters.update_profile(user, %{"country_code" => malformed}))
+      end
+
+      {:ok, profile} = Fighters.update_profile(user, %{"country_code" => nil})
+      assert profile.country_code == nil
+    end
+
+    test "the country allowlist holds the 249 assigned codes" do
+      assert CountryCodes.count() == 249
+    end
+
     test "rejects a repeated goal", %{user: user} do
       assert %{"goals" => [_]} =
                field_codes(Fighters.update_profile(user, %{"goals" => ["fitness", "fitness"]}))
@@ -139,31 +226,29 @@ defmodule SimpleFit.FightersTest do
 
     test "a username another fighter holds is already_exists, case-insensitively", %{user: user} do
       {:ok, other} = Accounts.register_user(:email, "other@example.com")
-      {:ok, _} = Fighters.update_profile(other, %{"username" => "yauheni"})
+      {:ok, _} = Fighters.update_profile(other, %{"username" => "fighter_one"})
 
-      assert field_codes(Fighters.update_profile(user, %{"username" => "Yauheni"})) ==
+      assert field_codes(Fighters.update_profile(user, %{"username" => "Fighter_One"})) ==
                %{"username" => ["already_exists"]}
     end
 
-    test "records a bout count only for competitive amateurs", %{user: user} do
-      assert %{"bout_count" => ["invalid_choice"]} =
-               field_codes(
-                 Fighters.update_profile(user, %{
-                   "experience_level" => "amateur",
-                   "bout_count" => 3
-                 })
-               )
-
+    test "the amateur bout count is kept when the experience level changes", %{user: user} do
       {:ok, profile} =
         Fighters.update_profile(user, %{
           "experience_level" => "competitive_amateur",
-          "bout_count" => 14
+          "amateur_bout_count" => 14
         })
 
-      assert profile.bout_count == 14
+      assert profile.amateur_bout_count == 14
 
       {:ok, profile} = Fighters.update_profile(user, %{"experience_level" => "professional"})
-      assert profile.bout_count == nil
+      assert profile.amateur_bout_count == 14
+
+      {:ok, profile} = Fighters.update_profile(user, %{"amateur_bout_count" => 1200})
+      assert profile.amateur_bout_count == 1200
+
+      assert %{"amateur_bout_count" => ["out_of_range"]} =
+               field_codes(Fighters.update_profile(user, %{"amateur_bout_count" => -1}))
     end
 
     test "an event name for the next fight needs its date", %{user: user} do
@@ -180,9 +265,12 @@ defmodule SimpleFit.FightersTest do
     end
 
     test "never accepts the completion marker from a client", %{user: user} do
-      {:ok, profile} =
-        Fighters.update_profile(user, %{"onboarding_completed_at" => "2026-10-08T10:00:00Z"})
+      marker = %{"onboarding_completed_at" => "2026-10-08T10:00:00Z"}
 
+      assert {:ok, nil} = Fighters.update_profile(user, marker)
+      assert Fighters.get_profile(user) == nil
+
+      {:ok, profile} = Fighters.update_profile(user, Map.put(marker, "city", "Warsaw"))
       assert profile.onboarding_completed_at == nil
       assert Fighters.onboarding_status(profile) == :in_progress
     end
@@ -262,6 +350,24 @@ defmodule SimpleFit.FightersTest do
       assert Fighters.get_profile(user).city == "Kraków"
     end
 
+    test "completion is blocked without a country", %{user: user} do
+      {:ok, _} = Fighters.update_profile(user, Map.delete(@required, "country_code"))
+      assert field_codes(Fighters.complete_onboarding(user)) == %{"country_code" => ["required"]}
+    end
+
+    test "the database keeps the completion time immutable", %{user: user} do
+      {:ok, _} = Fighters.update_profile(user, @required)
+      {:ok, completed} = Fighters.complete_onboarding(user)
+
+      for change <- [nil, DateTime.add(completed.onboarding_completed_at, 60)] do
+        assert_raise Ecto.ConstraintError, ~r/onboarding_completed_at_immutable/, fn ->
+          completed
+          |> Ecto.Changeset.change(onboarding_completed_at: change)
+          |> Repo.update()
+        end
+      end
+    end
+
     test "the database rejects a completed profile without its requirements", %{user: user} do
       {:ok, profile} = Fighters.update_profile(user, %{"city" => "Warsaw"})
 
@@ -296,13 +402,13 @@ defmodule SimpleFit.FightersTest do
   test "personal data is redacted from inspect output", %{user: user} do
     {:ok, profile} =
       Fighters.update_profile(user, %{
-        "display_name" => "Yauheni B.",
+        "display_name" => "Alex K.",
         "city" => "Warsaw",
         "current_weight_kg" => 73.8
       })
 
     output = inspect(profile)
 
-    for value <- ["Yauheni", "Warsaw", "73.8"], do: refute(output =~ value)
+    for value <- ["Fighter_One", "Warsaw", "73.8"], do: refute(output =~ value)
   end
 end

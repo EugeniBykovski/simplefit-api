@@ -32,7 +32,7 @@ defmodule SimpleFitWeb.FighterProfileJSON do
       country_code: profile.country_code,
       city: profile.city,
       experience_level: profile.experience_level,
-      bout_count: profile.bout_count,
+      amateur_bout_count: profile.amateur_bout_count,
       stance: profile.stance,
       goals: profile.goals,
       next_fight_on: profile.next_fight_on && Date.to_iso8601(profile.next_fight_on),

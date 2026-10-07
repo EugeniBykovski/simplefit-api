@@ -19,23 +19,27 @@ defmodule SimpleFitWeb.Schemas.FighterProfileFields do
         minLength: 1,
         maxLength: 80,
         description: "Name shown to teammates and coaches (OF1). Trimmed.",
-        example: "Yauheni B."
+        example: "Alex K."
       },
       username: %Schema{
         type: :string,
         nullable: true,
-        pattern: "^[A-Za-z][A-Za-z0-9_]{2,29}$",
+        pattern: "^\\s*[A-Za-z0-9][A-Za-z0-9_]{1,28}[A-Za-z0-9]\\s*$",
         description: """
-        Unique handle without the `@` (OF1). Stored and returned in lowercase: a letter, then 2-29 letters,
-        digits or underscores. A handle another fighter holds is rejected with `already_exists`.
+        Unique handle without the `@` (OF1). Trimmed and stored in lowercase: 3-30 ASCII letters, digits or
+        underscores, starting and ending with a letter or digit. Uniqueness ignores case; a handle another
+        fighter holds is rejected with `already_exists`.
         """,
-        example: "yauheni"
+        example: "fighter_one"
       },
       country_code: %Schema{
         type: :string,
         nullable: true,
-        pattern: "^[A-Za-z]{2}$",
-        description: "ISO 3166-1 alpha-2 country (OF1). Returned in uppercase.",
+        pattern: "^\\s*[A-Za-z]{2}\\s*$",
+        description: """
+        Country as an officially assigned ISO 3166-1 alpha-2 code (OF1 country selector). Trimmed and returned
+        in uppercase; codes that are not assigned are rejected with `invalid_choice`.
+        """,
         example: "PL"
       },
       city: %Schema{
@@ -53,13 +57,15 @@ defmodule SimpleFitWeb.Schemas.FighterProfileFields do
         description: "Boxing experience (OF2).",
         example: "competitive_amateur"
       },
-      bout_count: %Schema{
+      amateur_bout_count: %Schema{
         type: :integer,
         nullable: true,
         minimum: 0,
-        maximum: 500,
-        description:
-          "Amateur bouts (OF2). Only with `experience_level: competitive_amateur`; cleared when the level changes.",
+        maximum: 2_147_483_647,
+        description: """
+        Amateur bouts fought (OF2, drawn on the Competitive Amateur option). Optional and independent of
+        `experience_level`: changing the level keeps it.
+        """,
         example: 14
       },
       stance: %Schema{
@@ -104,17 +110,25 @@ defmodule SimpleFitWeb.Schemas.FighterProfileFields do
       current_weight_kg: %Schema{
         type: :number,
         nullable: true,
-        minimum: 30,
-        maximum: 200,
-        description: "Current weight in kg, one decimal (OF4, optional). Private.",
+        exclusiveMinimum: true,
+        minimum: 0,
+        exclusiveMaximum: true,
+        maximum: 1000,
+        description: """
+        Current weight in kilograms, rounded to one decimal (OF4, optional). Private. The bounds are technical
+        validity only, not eligibility rules.
+        """,
         example: 73.8
       },
       height_cm: %Schema{
         type: :integer,
         nullable: true,
-        minimum: 120,
-        maximum: 230,
-        description: "Height in cm (OF4, optional). Private.",
+        exclusiveMinimum: true,
+        minimum: 0,
+        exclusiveMaximum: true,
+        maximum: 1000,
+        description:
+          "Height in whole centimetres (OF4, optional). Private. Technical bounds only.",
         example: 178
       }
     }
@@ -144,7 +158,7 @@ defmodule SimpleFitWeb.Schemas.FighterProfileUpdateRequest do
       properties: FighterProfileFields.properties(),
       example: %{
         experience_level: "competitive_amateur",
-        bout_count: 14,
+        amateur_bout_count: 14,
         stance: "orthodox"
       }
     },
@@ -215,12 +229,12 @@ defmodule SimpleFitWeb.Schemas.FighterProfileResponse do
             completed_at: nil,
             missing_requirements: ["country_code", "city"]
           },
-          display_name: "Yauheni B.",
-          username: "yauheni",
+          display_name: "Alex K.",
+          username: "fighter_one",
           country_code: nil,
           city: nil,
           experience_level: "competitive_amateur",
-          bout_count: 14,
+          amateur_bout_count: 14,
           stance: "orthodox",
           goals: ["improve_technique", "competition", "fight_preparation"],
           next_fight_on: "2026-11-03",

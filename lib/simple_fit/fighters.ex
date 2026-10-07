@@ -42,26 +42,34 @@ defmodule SimpleFit.Fighters do
 
   @doc """
   Saves onboarding progress: any subset of `FighterProfile.editable_fields/0`
-  (string or atom keys; `null` clears an optional field). The first save
-  creates the profile. An invalid save changes nothing, and does not create a
-  profile either.
+  (string or atom keys; `null` clears an optional field).
+
+  A profile starts existing only when a save persists at least one value: the
+  first such save creates it. A save that changes nothing (no fields, or only
+  values equal to the current ones) returns the current profile, and `nil`
+  while onboarding has not started; it never moves `not_started` to
+  `in_progress`. An invalid save changes and creates nothing.
   """
   @spec update_profile(User.t(), map()) ::
-          {:ok, FighterProfile.t()} | {:error, Ecto.Changeset.t()}
+          {:ok, FighterProfile.t() | nil} | {:error, Ecto.Changeset.t()}
   def update_profile(%User{id: user_id}, attrs) when is_binary(user_id) and is_map(attrs) do
     Repo.transaction(
       fn ->
-        user_id
-        |> lock_or_create_profile()
-        |> FighterProfile.update_changeset(attrs)
-        |> Repo.update(@unlogged)
-        |> case do
-          {:ok, profile} -> profile
-          {:error, changeset} -> Repo.rollback(changeset)
+        {created?, profile} = lock_or_create_profile(user_id)
+        changeset = FighterProfile.update_changeset(profile, attrs)
+
+        cond do
+          not changeset.valid? -> Repo.rollback(changeset)
+          created? and changeset.changes == %{} -> Repo.rollback(:nothing_to_save)
+          true -> update!(changeset)
         end
       end,
       @unlogged
     )
+    |> case do
+      {:error, :nothing_to_save} -> {:ok, nil}
+      result -> result
+    end
   end
 
   @doc """
@@ -104,6 +112,13 @@ defmodule SimpleFit.Fighters do
 
   defp persist_completion(%Ecto.Changeset{} = changeset), do: Repo.update(changeset, @unlogged)
 
+  defp update!(changeset) do
+    case Repo.update(changeset, @unlogged) do
+      {:ok, profile} -> profile
+      {:error, changeset} -> Repo.rollback(changeset)
+    end
+  end
+
   defp lock_profile(user_id) do
     Repo.one(
       from(p in FighterProfile, where: p.user_id == ^user_id, lock: "FOR UPDATE"),
@@ -113,17 +128,18 @@ defmodule SimpleFit.Fighters do
 
   # Concurrent first saves converge on one row: the insert is a no-op when the
   # profile already exists (unique user_id), then the row is locked for the
-  # rest of the transaction.
+  # rest of the transaction. Returns whether this call inserted it, so a save
+  # with nothing to persist can roll the new row back.
   defp lock_or_create_profile(user_id) do
     now = DateTime.utc_now(:second)
 
-    {_inserted, nil} =
+    {inserted, nil} =
       Repo.insert_all(
         FighterProfile,
         [%{id: Ecto.UUID.generate(), user_id: user_id, inserted_at: now, updated_at: now}],
         Keyword.merge(@unlogged, on_conflict: :nothing, conflict_target: :user_id)
       )
 
-    lock_profile(user_id)
+    {inserted == 1, lock_profile(user_id)}
   end
 end

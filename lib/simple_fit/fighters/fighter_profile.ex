@@ -19,6 +19,7 @@ defmodule SimpleFit.Fighters.FighterProfile do
   import Ecto.Changeset
 
   alias SimpleFit.Accounts.User
+  alias SimpleFit.Fighters.CountryCodes
 
   @experience_levels [
     :new_to_boxing,
@@ -40,6 +41,8 @@ defmodule SimpleFit.Fighters.FighterProfile do
     :not_sure
   ]
 
+  @max_int 2_147_483_647
+
   # OF1 (no skip; only the avatar is optional) and OF2 (no skip).
   @required_fields [:display_name, :username, :country_code, :city, :experience_level, :stance]
 
@@ -49,7 +52,7 @@ defmodule SimpleFit.Fighters.FighterProfile do
     :country_code,
     :city,
     :experience_level,
-    :bout_count,
+    :amateur_bout_count,
     :stance,
     :goals,
     :next_fight_on,
@@ -82,7 +85,7 @@ defmodule SimpleFit.Fighters.FighterProfile do
           country_code: String.t() | nil,
           city: String.t() | nil,
           experience_level: experience_level() | nil,
-          bout_count: non_neg_integer() | nil,
+          amateur_bout_count: non_neg_integer() | nil,
           stance: stance() | nil,
           goals: [goal()],
           next_fight_on: Date.t() | nil,
@@ -108,7 +111,7 @@ defmodule SimpleFit.Fighters.FighterProfile do
     field :country_code, :string, redact: true
     field :city, :string, redact: true
     field :experience_level, Ecto.Enum, values: @experience_levels
-    field :bout_count, :integer
+    field :amateur_bout_count, :integer
     field :stance, Ecto.Enum, values: @stances
     field :goals, {:array, Ecto.Enum}, values: @goals, default: []
     field :next_fight_on, :date
@@ -165,22 +168,27 @@ defmodule SimpleFit.Fighters.FighterProfile do
     |> validate_text(:display_name, 80)
     |> validate_text(:city, 100)
     |> validate_text(:next_fight_name, 120)
-    |> validate_format(:username, ~r/^[a-z][a-z0-9_]{2,29}$/)
-    |> validate_format(:country_code, ~r/^[A-Z]{2}$/)
-    |> validate_number(:bout_count, greater_than_or_equal_to: 0, less_than_or_equal_to: 500)
-    |> validate_number(:current_weight_kg,
-      greater_than_or_equal_to: 30,
-      less_than_or_equal_to: 200
+    |> validate_format(:username, ~r/^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$/)
+    |> validate_country_code()
+    # Technical validity only, not boxing or eligibility policy: counts are
+    # not negative; measurements are positive and fit their columns.
+    |> validate_number(:amateur_bout_count,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: @max_int
     )
-    |> validate_number(:height_cm, greater_than_or_equal_to: 120, less_than_or_equal_to: 230)
+    |> validate_number(:current_weight_kg, greater_than: 0, less_than: 1000)
+    |> validate_number(:height_cm, greater_than: 0, less_than: 1000)
     |> update_change(:current_weight_kg, &round_weight/1)
     |> validate_goals()
-    |> validate_bout_count()
     |> validate_next_fight()
     |> validate_completed_requirements()
     |> unique_constraint(:username, name: :fighter_profiles_username_index)
     |> check_constraint(:username, name: :username_format, message: "has invalid format")
     |> check_constraint(:country_code, name: :country_code_format, message: "has invalid format")
+    |> check_constraint(:onboarding_completed_at,
+      name: :onboarding_completed_at_immutable,
+      message: "can't be changed once onboarding is completed"
+    )
   end
 
   @doc """
@@ -252,23 +260,15 @@ defmodule SimpleFit.Fighters.FighterProfile do
     end)
   end
 
-  # OF2 records a bout count only for Competitive Amateur. Moving to another
-  # level clears it; sending one with another level is invalid.
-  defp validate_bout_count(changeset) do
-    level = get_field(changeset, :experience_level)
-
-    cond do
-      level == :competitive_amateur ->
-        changeset
-
-      get_change(changeset, :bout_count) != nil ->
-        add_error(changeset, :bout_count, "is only recorded for competitive amateurs",
-          validation: :inclusion
-        )
-
-      true ->
-        put_change(changeset, :bout_count, nil)
-    end
+  # A selected ISO 3166-1 alpha-2 country (OF1 selector), not any two letters.
+  defp validate_country_code(changeset) do
+    changeset
+    |> validate_format(:country_code, ~r/^[A-Z]{2}$/)
+    |> validate_change(:country_code, fn :country_code, code ->
+      if CountryCodes.valid?(code) or not Regex.match?(~r/^[A-Z]{2}$/, code),
+        do: [],
+        else: [country_code: {"is not an ISO 3166-1 alpha-2 country", [validation: :inclusion]}]
+    end)
   end
 
   # The next fight is a date with an optional event name.

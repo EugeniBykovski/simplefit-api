@@ -11,8 +11,8 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
   @complete_path "/api/v1/me/fighter-profile/complete-onboarding"
 
   @required %{
-    "display_name" => "Yauheni B.",
-    "username" => "yauheni",
+    "display_name" => "Alex K.",
+    "username" => "fighter_one",
     "country_code" => "PL",
     "city" => "Warsaw",
     "experience_level" => "competitive_amateur",
@@ -78,9 +78,9 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
     } do
       {:ok, _} =
         Fighters.update_profile(user, %{
-          "display_name" => "Yauheni B.",
+          "display_name" => "Alex K.",
           "experience_level" => "competitive_amateur",
-          "bout_count" => 14,
+          "amateur_bout_count" => 14,
           "current_weight_kg" => 73.8,
           "goals" => ["competition"]
         })
@@ -92,8 +92,8 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
       assert profile["onboarding"]["missing_requirements"] ==
                ~w(username country_code city stance)
 
-      assert profile["display_name"] == "Yauheni B."
-      assert profile["bout_count"] == 14
+      assert profile["display_name"] == "Alex K."
+      assert profile["amateur_bout_count"] == 14
       assert profile["current_weight_kg"] == 73.8
       assert profile["goals"] == ["competition"]
     end
@@ -137,17 +137,33 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
     test "saves partial progress and returns the new state", %{user: user, token: token} do
       profile =
         token
-        |> patch_profile(%{"display_name" => "Yauheni B.", "stance" => "southpaw"})
+        |> patch_profile(%{"display_name" => "Alex K.", "stance" => "southpaw"})
         |> profile_body(200)
 
       assert profile["onboarding"]["status"] == "in_progress"
-      assert profile["display_name"] == "Yauheni B."
+      assert profile["display_name"] == "Alex K."
       assert profile["stance"] == "southpaw"
       assert Fighters.get_profile(user).stance == :southpaw
     end
 
+    test "an empty PATCH keeps not_started and creates no profile", %{user: user, token: token} do
+      for body <- [%{}, %{"goals" => []}, %{"city" => nil}] do
+        profile = token |> patch_profile(body) |> profile_body(200)
+
+        assert profile["onboarding"]["status"] == "not_started"
+        assert profile["onboarding"]["missing_requirements"] == @all_requirements
+      end
+
+      assert Fighters.get_profile(user) == nil
+    end
+
+    test "an unassigned country code is invalid_choice", %{token: token} do
+      assert token |> patch_profile(%{"country_code" => "ZZ"}) |> validation_error() ==
+               %{"country_code" => ["invalid_choice"]}
+    end
+
     test "incremental saves keep earlier steps", %{token: token} do
-      token |> patch_profile(%{"display_name" => "Yauheni B."}) |> profile_body(200)
+      token |> patch_profile(%{"display_name" => "Alex K."}) |> profile_body(200)
 
       profile =
         token
@@ -157,7 +173,7 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
         })
         |> profile_body(200)
 
-      assert profile["display_name"] == "Yauheni B."
+      assert profile["display_name"] == "Alex K."
       assert profile["goals"] == ["improve_technique", "competition"]
       assert profile["weight_class"] == "minus_75"
     end
@@ -168,7 +184,7 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
     } do
       codes =
         token
-        |> patch_profile(%{"stance" => "wrong-footed", "height_cm" => 300, "city" => "Warsaw"})
+        |> patch_profile(%{"stance" => "wrong-footed", "height_cm" => 0, "city" => "Warsaw"})
         |> validation_error()
 
       assert codes == %{"stance" => ["invalid_choice"], "height_cm" => ["out_of_range"]}
@@ -177,9 +193,9 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
 
     test "a taken username is already_exists", %{token: token} do
       {:ok, other} = Accounts.register_user(:email, "other@example.com")
-      {:ok, _} = Fighters.update_profile(other, %{"username" => "yauheni"})
+      {:ok, _} = Fighters.update_profile(other, %{"username" => "fighter_one"})
 
-      assert token |> patch_profile(%{"username" => "YAUHENI"}) |> validation_error() ==
+      assert token |> patch_profile(%{"username" => "FIGHTER_ONE"}) |> validation_error() ==
                %{"username" => ["already_exists"]}
     end
 
@@ -249,5 +265,13 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
     test "requires authentication", %{conn: conn} do
       assert json_response(post(conn, @complete_path), 401)["error"]["code"] == "unauthorized"
     end
+  end
+
+  test "the routes are the versioned product resources (ADR 0003)" do
+    paths = Map.keys(ApiSpec.spec().paths)
+
+    assert @path in paths and @complete_path in paths
+    refute "/api/me/fighter-profile" in paths
+    assert @path =~ ~r{^/api/v1/}
   end
 end

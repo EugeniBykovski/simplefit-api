@@ -737,11 +737,11 @@
         "description": "Always returned, also before onboarding has started (`status: not_started`, every field empty), so a\nclient can render onboarding from this response alone. Body data is included only because the viewer\nis the profile's owner.\n",
         "example": {
           "fighter_profile": {
-            "bout_count": 14,
+            "amateur_bout_count": 14,
             "city": null,
             "country_code": null,
             "current_weight_kg": 73.8,
-            "display_name": "Yauheni B.",
+            "display_name": "Alex K.",
             "experience_level": "competitive_amateur",
             "goals": [
               "improve_technique",
@@ -760,7 +760,7 @@
               "status": "in_progress"
             },
             "stance": "orthodox",
-            "username": "yauheni",
+            "username": "fighter_one",
             "weight_class": "minus_75"
           }
         },
@@ -768,10 +768,10 @@
           "fighter_profile": {
             "additionalProperties": false,
             "properties": {
-              "bout_count": {
-                "description": "Amateur bouts (OF2). Only with `experience_level: competitive_amateur`; cleared when the level changes.",
+              "amateur_bout_count": {
+                "description": "Amateur bouts fought (OF2, drawn on the Competitive Amateur option). Optional and independent of\n`experience_level`: changing the level keeps it.\n",
                 "example": 14,
-                "maximum": 500,
+                "maximum": 2147483647,
                 "minimum": 0,
                 "nullable": true,
                 "type": "integer"
@@ -785,23 +785,25 @@
                 "type": "string"
               },
               "country_code": {
-                "description": "ISO 3166-1 alpha-2 country (OF1). Returned in uppercase.",
+                "description": "Country as an officially assigned ISO 3166-1 alpha-2 code (OF1 country selector). Trimmed and returned\nin uppercase; codes that are not assigned are rejected with `invalid_choice`.\n",
                 "example": "PL",
                 "nullable": true,
-                "pattern": "^[A-Za-z]{2}$",
+                "pattern": "^\\s*[A-Za-z]{2}\\s*$",
                 "type": "string"
               },
               "current_weight_kg": {
-                "description": "Current weight in kg, one decimal (OF4, optional). Private.",
+                "description": "Current weight in kilograms, rounded to one decimal (OF4, optional). Private. The bounds are technical\nvalidity only, not eligibility rules.\n",
                 "example": 73.8,
-                "maximum": 200,
-                "minimum": 30,
+                "exclusiveMaximum": true,
+                "exclusiveMinimum": true,
+                "maximum": 1000,
+                "minimum": 0,
                 "nullable": true,
                 "type": "number"
               },
               "display_name": {
                 "description": "Name shown to teammates and coaches (OF1). Trimmed.",
-                "example": "Yauheni B.",
+                "example": "Alex K.",
                 "maxLength": 80,
                 "minLength": 1,
                 "nullable": true,
@@ -840,10 +842,12 @@
                 "uniqueItems": true
               },
               "height_cm": {
-                "description": "Height in cm (OF4, optional). Private.",
+                "description": "Height in whole centimetres (OF4, optional). Private. Technical bounds only.",
                 "example": 178,
-                "maximum": 230,
-                "minimum": 120,
+                "exclusiveMaximum": true,
+                "exclusiveMinimum": true,
+                "maximum": 1000,
+                "minimum": 0,
                 "nullable": true,
                 "type": "integer"
               },
@@ -915,10 +919,10 @@
                 "type": "string"
               },
               "username": {
-                "description": "Unique handle without the `@` (OF1). Stored and returned in lowercase: a letter, then 2-29 letters,\ndigits or underscores. A handle another fighter holds is rejected with `already_exists`.\n",
-                "example": "yauheni",
+                "description": "Unique handle without the `@` (OF1). Trimmed and stored in lowercase: 3-30 ASCII letters, digits or\nunderscores, starting and ending with a letter or digit. Uniqueness ignores case; a handle another\nfighter holds is rejected with `already_exists`.\n",
+                "example": "fighter_one",
                 "nullable": true,
-                "pattern": "^[A-Za-z][A-Za-z0-9_]{2,29}$",
+                "pattern": "^\\s*[A-Za-z0-9][A-Za-z0-9_]{1,28}[A-Za-z0-9]\\s*$",
                 "type": "string"
               },
               "weight_class": {
@@ -939,7 +943,7 @@
               }
             },
             "required": [
-              "bout_count",
+              "amateur_bout_count",
               "city",
               "country_code",
               "current_weight_kg",
@@ -967,15 +971,15 @@
         "additionalProperties": false,
         "description": "Any subset of the fighter profile. Omitted fields are unchanged; `null` clears a field. Nothing is\nrequired while onboarding is in progress. After completion the required fields can be changed but not\ncleared.\n",
         "example": {
-          "bout_count": 14,
+          "amateur_bout_count": 14,
           "experience_level": "competitive_amateur",
           "stance": "orthodox"
         },
         "properties": {
-          "bout_count": {
-            "description": "Amateur bouts (OF2). Only with `experience_level: competitive_amateur`; cleared when the level changes.",
+          "amateur_bout_count": {
+            "description": "Amateur bouts fought (OF2, drawn on the Competitive Amateur option). Optional and independent of\n`experience_level`: changing the level keeps it.\n",
             "example": 14,
-            "maximum": 500,
+            "maximum": 2147483647,
             "minimum": 0,
             "nullable": true,
             "type": "integer"
@@ -989,23 +993,25 @@
             "type": "string"
           },
           "country_code": {
-            "description": "ISO 3166-1 alpha-2 country (OF1). Returned in uppercase.",
+            "description": "Country as an officially assigned ISO 3166-1 alpha-2 code (OF1 country selector). Trimmed and returned\nin uppercase; codes that are not assigned are rejected with `invalid_choice`.\n",
             "example": "PL",
             "nullable": true,
-            "pattern": "^[A-Za-z]{2}$",
+            "pattern": "^\\s*[A-Za-z]{2}\\s*$",
             "type": "string"
           },
           "current_weight_kg": {
-            "description": "Current weight in kg, one decimal (OF4, optional). Private.",
+            "description": "Current weight in kilograms, rounded to one decimal (OF4, optional). Private. The bounds are technical\nvalidity only, not eligibility rules.\n",
             "example": 73.8,
-            "maximum": 200,
-            "minimum": 30,
+            "exclusiveMaximum": true,
+            "exclusiveMinimum": true,
+            "maximum": 1000,
+            "minimum": 0,
             "nullable": true,
             "type": "number"
           },
           "display_name": {
             "description": "Name shown to teammates and coaches (OF1). Trimmed.",
-            "example": "Yauheni B.",
+            "example": "Alex K.",
             "maxLength": 80,
             "minLength": 1,
             "nullable": true,
@@ -1044,10 +1050,12 @@
             "uniqueItems": true
           },
           "height_cm": {
-            "description": "Height in cm (OF4, optional). Private.",
+            "description": "Height in whole centimetres (OF4, optional). Private. Technical bounds only.",
             "example": 178,
-            "maximum": 230,
-            "minimum": 120,
+            "exclusiveMaximum": true,
+            "exclusiveMinimum": true,
+            "maximum": 1000,
+            "minimum": 0,
             "nullable": true,
             "type": "integer"
           },
@@ -1078,10 +1086,10 @@
             "type": "string"
           },
           "username": {
-            "description": "Unique handle without the `@` (OF1). Stored and returned in lowercase: a letter, then 2-29 letters,\ndigits or underscores. A handle another fighter holds is rejected with `already_exists`.\n",
-            "example": "yauheni",
+            "description": "Unique handle without the `@` (OF1). Trimmed and stored in lowercase: 3-30 ASCII letters, digits or\nunderscores, starting and ending with a letter or digit. Uniqueness ignores case; a handle another\nfighter holds is rejected with `already_exists`.\n",
+            "example": "fighter_one",
             "nullable": true,
-            "pattern": "^[A-Za-z][A-Za-z0-9_]{2,29}$",
+            "pattern": "^\\s*[A-Za-z0-9][A-Za-z0-9_]{1,28}[A-Za-z0-9]\\s*$",
             "type": "string"
           },
           "weight_class": {

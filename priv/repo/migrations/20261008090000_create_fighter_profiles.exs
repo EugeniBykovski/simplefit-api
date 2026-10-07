@@ -19,7 +19,8 @@ defmodule SimpleFit.Repo.Migrations.CreateFighterProfiles do
       # vocabularies are enforced by the domain, so a new value needs no
       # migration (as for identities.provider).
       add :experience_level, :text
-      add :bout_count, :integer
+      # OF2 records bouts on the Competitive Amateur option: an amateur record.
+      add :amateur_bout_count, :integer
       add :stance, :text
       add :goals, {:array, :text}, null: false, default: []
       add :next_fight_on, :date
@@ -37,28 +38,35 @@ defmodule SimpleFit.Repo.Migrations.CreateFighterProfiles do
     end
 
     create unique_index(:fighter_profiles, [:user_id])
-    # Usernames are stored in canonical lowercase form, so this index is
-    # case-insensitive in effect.
-    create unique_index(:fighter_profiles, [:username], where: "username IS NOT NULL")
-
-    create constraint(:fighter_profiles, :username_format,
-             check: "username IS NULL OR username ~ '^[a-z][a-z0-9_]{2,29}$'"
+    # Case-insensitive uniqueness, independent of how the domain canonicalises.
+    create unique_index(:fighter_profiles, ["lower(username)"],
+             name: :fighter_profiles_username_index,
+             where: "username IS NOT NULL"
            )
 
+    # Canonical username: 3-30 lowercase ASCII letters, digits or underscores,
+    # starting and ending with a letter or digit.
+    create constraint(:fighter_profiles, :username_format,
+             check: "username IS NULL OR username ~ '^[a-z0-9][a-z0-9_]{1,28}[a-z0-9]$'"
+           )
+
+    # Shape only; the domain checks the ISO 3166-1 alpha-2 allowlist.
     create constraint(:fighter_profiles, :country_code_format,
              check: "country_code IS NULL OR country_code ~ '^[A-Z]{2}$'"
            )
 
-    create constraint(:fighter_profiles, :bout_count_range,
-             check: "bout_count IS NULL OR bout_count BETWEEN 0 AND 500"
+    # Technical validity only (no boxing or eligibility policy): counts are
+    # not negative, body measurements are positive.
+    create constraint(:fighter_profiles, :amateur_bout_count_non_negative,
+             check: "amateur_bout_count IS NULL OR amateur_bout_count >= 0"
            )
 
-    create constraint(:fighter_profiles, :current_weight_kg_range,
-             check: "current_weight_kg IS NULL OR current_weight_kg BETWEEN 30 AND 200"
+    create constraint(:fighter_profiles, :current_weight_kg_positive,
+             check: "current_weight_kg IS NULL OR current_weight_kg > 0"
            )
 
-    create constraint(:fighter_profiles, :height_cm_range,
-             check: "height_cm IS NULL OR height_cm BETWEEN 120 AND 230"
+    create constraint(:fighter_profiles, :height_cm_positive,
+             check: "height_cm IS NULL OR height_cm > 0"
            )
 
     # The completion invariant, also enforced by the database: a completed
@@ -72,5 +80,33 @@ defmodule SimpleFit.Repo.Migrations.CreateFighterProfiles do
              )
              """
            )
+
+    # Completion is recorded once: the time can neither change nor be
+    # removed afterwards.
+    execute(
+      """
+      CREATE FUNCTION fighter_profiles_completion_immutable() RETURNS trigger AS $$
+      BEGIN
+        IF OLD.onboarding_completed_at IS NOT NULL AND
+           NEW.onboarding_completed_at IS DISTINCT FROM OLD.onboarding_completed_at THEN
+          RAISE EXCEPTION 'onboarding completion is immutable'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'onboarding_completed_at_immutable';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+      """,
+      "DROP FUNCTION fighter_profiles_completion_immutable()"
+    )
+
+    execute(
+      """
+      CREATE TRIGGER fighter_profiles_completion_immutable
+      BEFORE UPDATE OF onboarding_completed_at ON fighter_profiles
+      FOR EACH ROW EXECUTE FUNCTION fighter_profiles_completion_immutable()
+      """,
+      "DROP TRIGGER fighter_profiles_completion_immutable ON fighter_profiles"
+    )
   end
 end
