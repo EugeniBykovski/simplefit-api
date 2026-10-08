@@ -59,6 +59,14 @@ defmodule SimpleFitWeb.Router do
   scope "/api/v1", SimpleFitWeb do
     pipe_through [:api, :authenticated]
 
+    # SF-44: shared account registration, basics and consents (ADR 0016).
+    get "/me/account-profile", AccountProfileController, :show
+    patch "/me/account-profile", AccountProfileController, :update
+
+    post "/me/account-profile/complete-registration",
+         AccountProfileController,
+         :complete_registration
+
     get "/me/fighter-profile", FighterProfileController, :show
     patch "/me/fighter-profile", FighterProfileController, :update
     post "/me/fighter-profile/complete-onboarding", FighterProfileController, :complete_onboarding
