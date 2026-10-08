@@ -915,6 +915,113 @@
         "title": "EmailVerificationLinkResult",
         "type": "object"
       },
+      "EntryResponse": {
+        "additionalProperties": false,
+        "description": "Where the authenticated user goes next. `destination` is semantic: each client maps it to its own route.\n",
+        "example": {
+          "entry": {
+            "account_registration": "complete",
+            "capabilities": [],
+            "destination": "fighter_onboarding",
+            "fighter_profile": "in_progress",
+            "intent": "fighter",
+            "mandatory": true,
+            "reason": "fighter_onboarding_in_progress"
+          }
+        },
+        "properties": {
+          "entry": {
+            "additionalProperties": false,
+            "properties": {
+              "account_registration": {
+                "description": "Shared account registration status (see `getMyAccountProfile`).",
+                "enum": [
+                  "not_started",
+                  "in_progress",
+                  "complete"
+                ],
+                "type": "string"
+              },
+              "capabilities": {
+                "description": "Capabilities derived from real backend state, in the client route registry's vocabulary\n(`FIGHTER` once Fighter onboarding is complete). A routing projection, not an authorization grant.\n",
+                "items": {
+                  "enum": [
+                    "FIGHTER"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "destination": {
+                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\nwhere to start. `fighter_onboarding` / `fighter_home`: Fighter onboarding, or the Fighter home once\ncomplete. `coach_onboarding`, `gym_onboarding`, `sponsor_application`: those journeys' entry points;\nnothing is created for them.\n",
+                "enum": [
+                  "account_registration",
+                  "role_selection",
+                  "fighter_onboarding",
+                  "fighter_home",
+                  "coach_onboarding",
+                  "gym_onboarding",
+                  "sponsor_application"
+                ],
+                "type": "string"
+              },
+              "fighter_profile": {
+                "description": "Fighter onboarding status (see `getMyFighterProfile`).",
+                "enum": [
+                  "not_started",
+                  "in_progress",
+                  "completed"
+                ],
+                "type": "string"
+              },
+              "intent": {
+                "description": "The validated intent of this request, echoed; never stored.",
+                "enum": [
+                  "fighter",
+                  "coach",
+                  "gym",
+                  "sponsor"
+                ],
+                "nullable": true,
+                "type": "string"
+              },
+              "mandatory": {
+                "description": "`true` when the client must go to `destination` even with a safe `returnTo` in hand (account\nregistration, unfinished Fighter onboarding); the `returnTo` is kept and resolved again afterwards.\n",
+                "type": "boolean"
+              },
+              "reason": {
+                "description": "Why this destination was chosen. For diagnostics and copy, not branching.",
+                "enum": [
+                  "account_registration_incomplete",
+                  "fighter_onboarding_not_started",
+                  "fighter_onboarding_in_progress",
+                  "fighter_onboarding_completed",
+                  "no_role_started",
+                  "coach_intent",
+                  "gym_intent",
+                  "sponsor_intent"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "destination",
+              "reason",
+              "mandatory",
+              "intent",
+              "account_registration",
+              "fighter_profile",
+              "capabilities"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "entry"
+        ],
+        "title": "EntryResponse",
+        "type": "object"
+      },
       "Error": {
         "additionalProperties": false,
         "description": "Machine-readable error. See the ErrorResponse schema for the contract.",
@@ -2564,6 +2671,60 @@
         ]
       }
     },
+    "/api/v1/me/entry": {
+      "get": {
+        "callbacks": {},
+        "description": "Resolves where the authenticated user should go next, as a semantic destination that each client maps to its\nown route (never a path). The answer is derived from current state on every call: nothing is stored, so\nrepeated and concurrent calls are safe and advance on their own as registration and onboarding complete.\n\nMandatory account registration wins over everything. `intent` is the journey the user explicitly tried to\nenter (for example a Fighter call to action before signing in); it is navigation only and grants nothing.\nWithout an intent no role is assumed: an in-progress Fighter onboarding resumes, a completed one goes home,\notherwise the user chooses (`role_selection`). `capabilities` projects real backend state for routing and is\nnot an authorization grant.\n\n* `validation_error` - `intent` is not one of the allowed values (`invalid_choice`).\n",
+        "operationId": "resolveMyEntry",
+        "parameters": [
+          {
+            "description": "The journey the user explicitly tried to enter. Omit when there is none.",
+            "in": "query",
+            "name": "intent",
+            "required": false,
+            "schema": {
+              "enum": [
+                "fighter",
+                "coach",
+                "gym",
+                "sponsor"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntryResponse"
+                }
+              }
+            },
+            "description": "The entry destination"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Where to go next",
+        "tags": [
+          "Entry"
+        ]
+      }
+    },
     "/api/v1/me/fighter-profile": {
       "get": {
         "callbacks": {},
@@ -2705,6 +2866,10 @@
     {
       "description": "The viewer's fighter profile and resumable Fighter onboarding.",
       "name": "Fighter profile"
+    },
+    {
+      "description": "Where an authenticated user goes next, as a semantic destination.",
+      "name": "Entry"
     },
     {
       "description": "Operational endpoints.",
