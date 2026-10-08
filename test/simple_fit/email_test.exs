@@ -32,6 +32,27 @@ defmodule SimpleFit.EmailTest do
     end
   end
 
+  # Leakage checks look for full, long sensitive values only (32+ characters):
+  # a fixed string of that length occurs in random ciphertext with probability
+  # below 2^-190, so the checks cannot fail by chance. Short words ("to",
+  # "Hello") occur in random base64 output by chance and are never asserted.
+  @secret_to "fighter.payload-confidentiality@example.com"
+  @secret_token "sfp-7f3c9a2e5b8d4c1f6a0e9b3d7c2f5a8e"
+  @secret_subject "Your SimpleFit sign-in code for the payload confidentiality check"
+
+  defp secret_message do
+    {:ok, message} =
+      Message.new(
+        to: @secret_to,
+        subject: @secret_subject,
+        text: "Use the one-time token #{@secret_token} to continue."
+      )
+
+    message
+  end
+
+  defp secret_values, do: [@secret_to, @secret_token, @secret_subject]
+
   defp sealed(message) do
     {:ok, payload} = JobPayload.seal(message)
     %{"payload" => payload}
@@ -46,14 +67,16 @@ defmodule SimpleFit.EmailTest do
       refute_received {:email_delivered, _, _}
     end
 
-    test "stores only ciphertext in the job arguments", %{message: message} do
+    test "stores only ciphertext in the job arguments" do
+      message = secret_message()
       {:ok, job} = Email.deliver_later(message)
       stored = Repo.get!(Oban.Job, job.id)
 
       assert Map.keys(stored.args) == ["payload"]
+      assert JobPayload.open(stored.args["payload"]) == {:ok, message}
 
-      for readable <- ["fighter@example.com", "Welcome", "Hello"] do
-        refute inspect(stored, limit: :infinity) =~ readable
+      for secret <- secret_values() do
+        refute inspect(stored, limit: :infinity) =~ secret
       end
     end
 
@@ -187,14 +210,24 @@ defmodule SimpleFit.EmailTest do
       assert {:ok, ^message} = JobPayload.open(recent)
     end
 
-    test "the ciphertext reveals no part of the message", %{message: message} do
+    test "sealing hides the plaintext and opening restores it exactly" do
+      message = secret_message()
+      map = Message.to_map(message)
       {:ok, sealed} = JobPayload.seal(message)
       raw = sealed |> String.trim_leading("XCP.") |> Base.url_decode64!(padding: false)
 
-      for plain <- ["fighter@example.com", "Welcome", "Hello", "subject", "to"] do
-        refute sealed =~ plain
-        refute :binary.match(raw, plain) != :nomatch
+      # Never the plaintext representation itself.
+      refute sealed == Jason.encode!(map)
+      refute raw == :erlang.term_to_binary(map)
+      refute sealed =~ "{"
+
+      # The full sensitive values never appear, encoded or raw.
+      for secret <- secret_values() do
+        refute String.contains?(sealed, secret)
+        assert :binary.match(raw, secret) == :nomatch
       end
+
+      assert JobPayload.open(sealed) == {:ok, message}
     end
 
     test "rejects a key base shorter than 64 bytes", %{message: message} do
