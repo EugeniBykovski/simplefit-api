@@ -84,7 +84,11 @@ config :logger, :default_formatter,
     :max_attempts,
     :state,
     :error_kind,
-    :error_type
+    :error_type,
+    :intent,
+    :destination,
+    :account_registration,
+    :fighter_profile
   ]
 
 # One structured "request completed" event per request comes from

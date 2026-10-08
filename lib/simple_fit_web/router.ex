@@ -6,7 +6,8 @@ defmodule SimpleFitWeb.Router do
   #   /api/health, /api/openapi, /api/docs   operational, unversioned
   #   /api/me, /api/auth/...                 session and viewer, unversioned (ADR 0010)
   #   /dev/emails                            email template preview, development only (ADR 0011)
-  #   /api/v1/...                            product resources (none yet)
+  #   /api/v1/...                            product resources: /me/account-profile,
+  #                                          /me/fighter-profile, /me/entry
 
   pipeline :api do
     plug :accepts, ["json"]
@@ -70,6 +71,9 @@ defmodule SimpleFitWeb.Router do
     get "/me/fighter-profile", FighterProfileController, :show
     patch "/me/fighter-profile", FighterProfileController, :update
     post "/me/fighter-profile/complete-onboarding", FighterProfileController, :complete_onboarding
+
+    # SF-45: post-authentication entry resolution (ADR 0017).
+    get "/me/entry", EntryController, :show
   end
 
   scope "/api" do

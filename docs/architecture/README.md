@@ -22,6 +22,7 @@ as ADRs in [`adr/`](adr/).
 | [0014](adr/0014-sign-in-with-apple.md) | Sign in with Apple: identity token plus SHA-256 nonce (iOS and Apple JS popup, no callback or code exchange), audience allowlist, shared key cache, `sub` identity, no scopes |
 | [0015](adr/0015-fighter-profile-onboarding.md) | Fighter profile and resumable Fighter onboarding: derived not_started / in_progress / completed, partial saves, server-checked completion, first `/api/v1` resources |
 | [0016](adr/0016-account-registration-consent.md) | Shared account registration: account profile (full name, date of birth ≥ 16), append-only versioned consents (Terms, Privacy, optional product news), derived state, explicit completion; Fighter completion requires it |
+| [0017](adr/0017-entry-resolution.md) | Post-authentication entry resolution: read-only `SimpleFit.Entry`, semantic destinations, ephemeral allow-listed intent, mandatory account registration first, capability projection (`GET /api/v1/me/entry`) |
 
 ---
 

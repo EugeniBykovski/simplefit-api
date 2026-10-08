@@ -60,6 +60,10 @@ defmodule SimpleFitWeb.ApiSpec do
           name: "Fighter profile",
           description: "The viewer's fighter profile and resumable Fighter onboarding."
         },
+        %Tag{
+          name: "Entry",
+          description: "Where an authenticated user goes next, as a semantic destination."
+        },
         %Tag{name: "System", description: "Operational endpoints."}
       ],
       paths: Paths.from_router(SimpleFitWeb.Router),
