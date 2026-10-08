@@ -292,6 +292,254 @@
       }
     },
     "schemas": {
+      "AccountProfileResponse": {
+        "additionalProperties": false,
+        "description": "Always returned, also before registration has started (`status: not_started`, every requirement\nmissing), so a client can render the shared Basics & Consent step from this response alone.\n",
+        "example": {
+          "account_profile": {
+            "consents": {
+              "privacy": {
+                "accepted": true,
+                "accepted_at": "2026-10-09T10:00:00.000000Z",
+                "accepted_version": "privacy-v1",
+                "current": true,
+                "current_version": "privacy-v1"
+              },
+              "terms": {
+                "accepted": true,
+                "accepted_at": "2026-10-09T10:00:00.000000Z",
+                "accepted_version": "terms-v1",
+                "current": true,
+                "current_version": "terms-v1"
+              }
+            },
+            "date_of_birth": null,
+            "full_name": "Alex Kowalski",
+            "product_news": {
+              "subscribed": false,
+              "updated_at": null
+            },
+            "registration": {
+              "completed_at": null,
+              "missing_requirements": [
+                "date_of_birth"
+              ],
+              "status": "in_progress"
+            }
+          }
+        },
+        "properties": {
+          "account_profile": {
+            "additionalProperties": false,
+            "properties": {
+              "consents": {
+                "additionalProperties": false,
+                "properties": {
+                  "privacy": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "accepted": {
+                        "description": "Whether any version has been accepted.",
+                        "type": "boolean"
+                      },
+                      "accepted_at": {
+                        "format": "date-time",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "accepted_version": {
+                        "description": "The latest accepted version.",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "current": {
+                        "description": "Whether the current version has been accepted. Initial registration completion requires it. A completed\nregistration stays complete when a later version makes this `false`; it only signals that a re-consent is\ndue (a future flow).\n",
+                        "type": "boolean"
+                      },
+                      "current_version": {
+                        "description": "The version currently in force.",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "accepted",
+                      "accepted_version",
+                      "accepted_at",
+                      "current_version",
+                      "current"
+                    ],
+                    "type": "object"
+                  },
+                  "terms": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "accepted": {
+                        "description": "Whether any version has been accepted.",
+                        "type": "boolean"
+                      },
+                      "accepted_at": {
+                        "format": "date-time",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "accepted_version": {
+                        "description": "The latest accepted version.",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "current": {
+                        "description": "Whether the current version has been accepted. Initial registration completion requires it. A completed\nregistration stays complete when a later version makes this `false`; it only signals that a re-consent is\ndue (a future flow).\n",
+                        "type": "boolean"
+                      },
+                      "current_version": {
+                        "description": "The version currently in force.",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "accepted",
+                      "accepted_version",
+                      "accepted_at",
+                      "current_version",
+                      "current"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "terms",
+                  "privacy"
+                ],
+                "type": "object"
+              },
+              "date_of_birth": {
+                "format": "date",
+                "nullable": true,
+                "type": "string"
+              },
+              "full_name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "product_news": {
+                "additionalProperties": false,
+                "properties": {
+                  "subscribed": {
+                    "type": "boolean"
+                  },
+                  "updated_at": {
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "subscribed",
+                  "updated_at"
+                ],
+                "type": "object"
+              },
+              "registration": {
+                "additionalProperties": false,
+                "properties": {
+                  "completed_at": {
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "missing_requirements": {
+                    "description": "What initial completion still needs, in form order: empty fields, and required consents not\naccepted at their current version. Always empty once complete, also after a document version\nchange (see `consents.*.current`).\n",
+                    "items": {
+                      "enum": [
+                        "full_name",
+                        "date_of_birth",
+                        "terms",
+                        "privacy"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "status": {
+                    "description": "`not_started`: nothing saved yet. `in_progress`: progress saved, not completed. `complete`:\ncompletion recorded by `completeAccountRegistration`; permanent, also after a later legal\ndocument version change.\n",
+                    "enum": [
+                      "not_started",
+                      "in_progress",
+                      "complete"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "completed_at",
+                  "missing_requirements"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "registration",
+              "full_name",
+              "date_of_birth",
+              "consents",
+              "product_news"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "account_profile"
+        ],
+        "title": "AccountProfileResponse",
+        "type": "object"
+      },
+      "AccountProfileUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Any subset of the registration basics and consent decisions. Omitted fields are unchanged. Nothing is\nrequired while registration is in progress. A save with nothing to persist creates nothing.\n",
+        "example": {
+          "accept_privacy": true,
+          "accept_terms": true,
+          "full_name": "Alex Kowalski",
+          "product_news": false
+        },
+        "properties": {
+          "accept_privacy": {
+            "description": "Accepts the current Privacy Policy version. Only `true` (`must_be_accepted`).",
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "accept_terms": {
+            "description": "Accepts the current Terms of Service version. Only `true`: required consents cannot be withdrawn here (`must_be_accepted`).",
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "date_of_birth": {
+            "description": "A real calendar date, not in the future, at least 16 years ago by calendar date (`too_young`\notherwise). Cannot be changed once registration is complete (`immutable`).\n",
+            "example": "2000-05-17",
+            "format": "date",
+            "type": "string"
+          },
+          "full_name": {
+            "description": "The person's full name (account level; not a role profile's public display name). Trimmed;\n`null` clears it while registration is in progress. After completion it can be changed, not cleared.\n",
+            "example": "Alex Kowalski",
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "product_news": {
+            "description": "Optional product news by email: `true` subscribes, `false` withdraws. Never required to complete registration.",
+            "type": "boolean"
+          }
+        },
+        "title": "AccountProfileUpdateRequest",
+        "type": "object"
+      },
       "AppleAuthRequest": {
         "additionalProperties": false,
         "description": "`id_token` is the Apple identity token (a JWT) from Sign in with Apple (Apple JS on the web, iOS). Its\nrequest must have carried the lowercase hex SHA-256 of `nonce`; the raw `nonce` is sent here. Both are\nverified by the API and never stored. Nothing else about the person (name, email) is sent or trusted.\n",
@@ -1348,6 +1596,8 @@
                   "does_not_exist",
                   "must_be_accepted",
                   "does_not_match",
+                  "too_young",
+                  "immutable",
                   "invalid"
                 ],
                 "type": "string"
@@ -2194,6 +2444,126 @@
         ]
       }
     },
+    "/api/v1/me/account-profile": {
+      "get": {
+        "callbacks": {},
+        "description": "Returns the shared account registration: basics, consent state and the missing requirements. Before\nregistration has started the response is still `200` with `status: not_started`; reading creates nothing.\nAuthentication never completes registration, whatever the sign-in method.\n",
+        "operationId": "getMyAccountProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProfileResponse"
+                }
+              }
+            },
+            "description": "The account registration state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My account registration state",
+        "tags": [
+          "Account"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Saves any subset of the basics and consent decisions. The first save that persists something creates the\naccount profile (`in_progress`); a save with nothing to persist creates nothing. Required consents are\nrecorded with their current document version; product news can be subscribed and withdrawn. An invalid\nrequest changes nothing.\n",
+        "operationId": "updateMyAccountProfile",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountProfileUpdateRequest"
+              }
+            }
+          },
+          "description": "Fields and decisions to save",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProfileResponse"
+                }
+              }
+            },
+            "description": "The account registration state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save account registration progress",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
+    "/api/v1/me/account-profile/complete-registration": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that shared account registration is complete, after checking every requirement on the server: full\nname, a date of birth at least 16 years ago, and current acceptance of the Terms of Service and the Privacy\nPolicy. While anything is missing the response is `422 validation_error` with a `required` field code per\nmissing item (`full_name`, `date_of_birth`, `terms`, `privacy`) and nothing changes. Completion is\npermanent: completing again returns the state with the original `completed_at`, and a later Terms or\nPrivacy version change does not reopen it (`consents.*.current` reports it instead).\n",
+        "operationId": "completeAccountRegistration",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountProfileResponse"
+                }
+              }
+            },
+            "description": "The account registration state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Complete account registration",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
     "/api/v1/me/fighter-profile": {
       "get": {
         "callbacks": {},
@@ -2279,7 +2649,7 @@
     "/api/v1/me/fighter-profile/complete-onboarding": {
       "post": {
         "callbacks": {},
-        "description": "Records that Fighter onboarding is complete, after checking every requirement on the server. While any\nrequired field is missing the response is `422 validation_error` with a `required` field code per missing\nfield, and nothing changes. Completing again returns the profile with its original `completed_at`.\n",
+        "description": "Records that Fighter onboarding is complete, after checking every requirement on the server. While any\nrequired field is missing the response is `422 validation_error` with a `required` field code per missing\nfield, and nothing changes. Completion also requires completed shared account registration\n(`completeAccountRegistration`): until then the error carries `account_registration` with code `required`. Completing again returns the profile with its original `completed_at`.\n",
         "operationId": "completeFighterOnboarding",
         "parameters": [],
         "responses": {
@@ -2327,6 +2697,10 @@
     {
       "description": "SimpleFit sessions and the authenticated viewer.",
       "name": "Auth"
+    },
+    {
+      "description": "Shared account registration: basics and consents, for every user.",
+      "name": "Account"
     },
     {
       "description": "The viewer's fighter profile and resumable Fighter onboarding.",

@@ -126,6 +126,13 @@ config :simple_fit, SimpleFit.Accounts.EmailAuth,
   max_failed_attempts: 5,
   resend_cooldown: 60
 
+# Account registration consents (ADR 0016): the current version of each
+# required legal document. Changing a version makes earlier acceptances
+# not current for registration completion. Identifiers only: the documents'
+# text is not part of the domain.
+config :simple_fit, SimpleFit.Accounts.Consents,
+  current_versions: %{terms: "terms-v1", privacy: "privacy-v1"}
+
 # Client IP for abuse limits (ADR 0012): by default the direct peer address;
 # X-Forwarded-For is trusted only for an explicitly configured number of
 # proxy hops (TRUSTED_PROXY_HOPS, config/runtime.exs).

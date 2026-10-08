@@ -2,6 +2,7 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
   use SimpleFitWeb.ConnCase, async: true
 
   import OpenApiSpex.TestAssertions
+  import SimpleFit.AccountRegistrationHelpers
 
   alias SimpleFit.Accounts
   alias SimpleFit.Fighters
@@ -23,6 +24,7 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
 
   setup do
     {:ok, user} = Accounts.register_user(:google, "fighter-#{System.unique_integer([:positive])}")
+    user = complete_account_registration!(user)
     {:ok, credentials} = Accounts.create_session(user)
     %{user: user, token: credentials.access_token}
   end
@@ -260,6 +262,19 @@ defmodule SimpleFitWeb.FighterProfileControllerTest do
                Map.new(@all_requirements, &{&1, ["required"]})
 
       assert Fighters.get_profile(user) == nil
+    end
+
+    test "is blocked while shared account registration is incomplete" do
+      {:ok, user} =
+        Accounts.register_user(:apple, "unregistered-#{System.unique_integer([:positive])}")
+
+      {:ok, credentials} = Accounts.create_session(user)
+      token = credentials.access_token
+      token |> patch_profile(@required) |> profile_body(200)
+
+      assert token |> complete() |> validation_error() == %{
+               "account_registration" => ["required"]
+             }
     end
 
     test "is idempotent once completed", %{token: token} do

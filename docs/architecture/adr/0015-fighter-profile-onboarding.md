@@ -137,6 +137,13 @@ separate record, and having one is what makes a user a fighter.
 * **Privacy.** Personal fields are `redact: true` and profile queries run with
   `log: false` (ADR 0008).
 
+## Amendment (SF-44, ADR 0016)
+
+Fighter onboarding completion also requires completed shared account
+registration (`SimpleFit.Accounts.registration_complete?/1`); until then
+completion fails with `account_registration` / `required`. Saving fighter
+progress is not gated, and no FighterProfile field changed.
+
 ## Consequences
 
 * Client synchronisation: `simplefit-platform` and `simplefit-mobile`

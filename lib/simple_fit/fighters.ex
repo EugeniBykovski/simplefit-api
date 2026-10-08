@@ -10,8 +10,9 @@ defmodule SimpleFit.Fighters do
     * `:in_progress` - a profile exists, completion is not recorded;
     * `:completed` - `onboarding_completed_at` is set. Only
       `complete_onboarding/1` sets it, and only when every required field is
-      present (`FighterProfile.required_fields/0`); the database enforces the
-      same invariant.
+      present (`FighterProfile.required_fields/0`; the database enforces the
+      same invariant) and the user's shared account registration is complete
+      (`SimpleFit.Accounts.registration_complete?/1`, ADR 0016).
 
   Progress is saved as the fighter goes (`update_profile/2` accepts any subset
   of fields and creates the profile on the first save). Every function acts
@@ -25,6 +26,7 @@ defmodule SimpleFit.Fighters do
 
   import Ecto.Query, only: [from: 2]
 
+  alias SimpleFit.Accounts
   alias SimpleFit.Accounts.User
   alias SimpleFit.Fighters.FighterProfile
   alias SimpleFit.Repo
@@ -87,6 +89,7 @@ defmodule SimpleFit.Fighters do
 
         profile
         |> FighterProfile.complete_changeset(DateTime.utc_now())
+        |> require_account_registration(user, profile)
         |> persist_completion()
         |> case do
           {:ok, profile} -> profile
@@ -104,6 +107,24 @@ defmodule SimpleFit.Fighters do
   @doc "See `FighterProfile.missing_requirements/1`."
   @spec missing_requirements(FighterProfile.t() | nil) :: [atom()]
   defdelegate missing_requirements(profile), to: FighterProfile
+
+  # Cross-context invariant (ADR 0016): Fighter onboarding completes only
+  # after the user's shared account registration. Saving fighter progress is
+  # not gated. A profile completed earlier stays idempotent: account
+  # registration can never become incomplete once complete.
+  defp require_account_registration(changeset, _user, %FighterProfile{
+         onboarding_completed_at: %DateTime{}
+       }),
+       do: changeset
+
+  defp require_account_registration(changeset, user, _profile) do
+    if Accounts.registration_complete?(user),
+      do: changeset,
+      else:
+        Ecto.Changeset.add_error(changeset, :account_registration, "must be completed first",
+          validation: :required
+        )
+  end
 
   # A missing profile is never inserted by completion: without one, the
   # changeset is always invalid (every requirement is missing).

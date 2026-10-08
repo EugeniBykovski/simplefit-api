@@ -69,7 +69,8 @@ defmodule SimpleFitWeb.FighterProfileController do
     description: """
     Records that Fighter onboarding is complete, after checking every requirement on the server. While any
     required field is missing the response is `422 validation_error` with a `required` field code per missing
-    field, and nothing changes. Completing again returns the profile with its original `completed_at`.
+    field, and nothing changes. Completion also requires completed shared account registration
+    (`completeAccountRegistration`): until then the error carries `account_registration` with code `required`. Completing again returns the profile with its original `completed_at`.
     """,
     security: @security,
     responses: [

@@ -1,6 +1,8 @@
 defmodule SimpleFit.FightersTest do
   use SimpleFit.DataCase, async: true
 
+  import SimpleFit.AccountRegistrationHelpers
+
   alias SimpleFit.Accounts
   alias SimpleFit.Fighters
   alias SimpleFit.Fighters.{CountryCodes, FighterProfile}
@@ -18,7 +20,9 @@ defmodule SimpleFit.FightersTest do
 
   setup do
     {:ok, user} = Accounts.register_user(:google, "fighter-#{System.unique_integer([:positive])}")
-    %{user: user}
+    # Fighter completion requires completed account registration (ADR 0016);
+    # the "account registration" describe below covers a user without it.
+    %{user: complete_account_registration!(user)}
   end
 
   defp field_codes({:error, changeset}), do: ChangesetErrors.details(changeset).field_codes
@@ -395,6 +399,42 @@ defmodule SimpleFit.FightersTest do
         |> Ecto.Changeset.change(onboarding_completed_at: DateTime.utc_now(:second))
         |> Repo.update()
       end
+    end
+  end
+
+  describe "account registration (cross-context invariant, ADR 0016)" do
+    setup do
+      {:ok, unregistered} = Accounts.register_user(:email, "unregistered@example.com")
+      %{unregistered: unregistered}
+    end
+
+    test "fighter progress can be saved before account registration", %{unregistered: user} do
+      assert {:ok, profile} = Fighters.update_profile(user, @required)
+      assert Fighters.onboarding_status(profile) == :in_progress
+    end
+
+    test "completion is blocked until account registration is complete", %{unregistered: user} do
+      {:ok, _} = Fighters.update_profile(user, @required)
+
+      assert field_codes(Fighters.complete_onboarding(user)) == %{
+               "account_registration" => ["required"]
+             }
+
+      assert Fighters.get_profile(user).onboarding_completed_at == nil
+
+      complete_account_registration!(user)
+
+      assert {:ok, %FighterProfile{onboarding_completed_at: %DateTime{}}} =
+               Fighters.complete_onboarding(user)
+    end
+
+    test "missing fighter fields and account registration are reported together", %{
+      unregistered: user
+    } do
+      {:ok, _} = Fighters.update_profile(user, Map.delete(@required, "city"))
+
+      assert field_codes(Fighters.complete_onboarding(user)) ==
+               %{"city" => ["required"], "account_registration" => ["required"]}
     end
   end
 

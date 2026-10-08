@@ -1,7 +1,8 @@
 defmodule SimpleFit.Accounts do
   @moduledoc """
   Users, the identities that sign them in (ADR 0009), their SimpleFit
-  sessions (ADR 0010) and passwordless email authentication (ADR 0012).
+  sessions (ADR 0010), passwordless email authentication (ADR 0012) and
+  shared account registration: basics and consents (ADR 0016).
 
   One person is one global `User`; a user owns any number of `Identity`
   records (email, Google, Apple). This context only stores and resolves them:
@@ -34,6 +35,7 @@ defmodule SimpleFit.Accounts do
     EmailAuth,
     GoogleAuth,
     Identity,
+    Registration,
     Sessions,
     User
   }
@@ -290,4 +292,37 @@ defmodule SimpleFit.Accounts do
   end
 
   defp error_on?(changeset, field), do: Keyword.has_key?(changeset.errors, field)
+
+  ## Account registration (ADR 0016)
+
+  @doc """
+  The user's shared account registration: profile (or `nil`), consent state,
+  derived status (`:not_started`, `:in_progress`, `:complete`) and the
+  missing requirements. Authentication never completes it: every user,
+  however they signed in, registers the same way.
+  """
+  @spec get_account_registration(User.t()) :: Registration.t()
+  defdelegate get_account_registration(user), to: Registration, as: :get
+
+  @doc """
+  Saves registration progress (`full_name`, `date_of_birth`, `accept_terms`,
+  `accept_privacy`, `product_news`). A save with nothing to persist creates
+  nothing; an invalid one changes nothing.
+  """
+  @spec update_account_registration(User.t(), map()) ::
+          {:ok, Registration.t()} | validation_error()
+  defdelegate update_account_registration(user, attrs), to: Registration, as: :update
+
+  @doc "Completes account registration once every requirement is met."
+  @spec complete_account_registration(User.t()) :: {:ok, Registration.t()} | validation_error()
+  defdelegate complete_account_registration(user), to: Registration, as: :complete
+
+  @doc """
+  Whether the user has successfully completed shared account registration.
+  Monotonic: it stays `true` after a later Terms or Privacy version change.
+  Role contexts and entry routing rely on it (Fighter onboarding completion
+  requires it).
+  """
+  @spec registration_complete?(User.t()) :: boolean()
+  defdelegate registration_complete?(user), to: Registration, as: :complete?
 end
