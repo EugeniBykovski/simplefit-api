@@ -45,6 +45,19 @@ mix setup            # deps.get + ecto.create + ecto.migrate
 mix phx.server       # or: iex -S mix phx.server
 ```
 
+After pulling changes that add migrations, apply them before starting the
+server:
+
+```bash
+mix ecto.migrate     # applies every pending migration to the dev database
+```
+
+In development every request checks the schema
+(`Phoenix.Ecto.CheckRepoStatus`): a dev database behind the code answers with
+`Phoenix.Ecto.PendingMigrationError` instead of running against an outdated
+schema. `mix ecto.migrations` lists each migration's status. `mix test`
+migrates its own test database.
+
 The API listens on <http://localhost:4000>:
 
 ```bash
@@ -112,8 +125,9 @@ psql -d postgres -c "ALTER USER postgres PASSWORD 'postgres';"
 | `mix ecto.reset` | Drop, create and migrate (destroys local data) |
 | `mix ecto.gen.migration name` | Create a new migration (UUID keys by default) |
 
-There are no product tables yet. Ecto manages its own `schema_migrations`
-table.
+Product tables (users and identities, sessions, email authentication, account
+registration and consents, fighter profiles) come from the migrations in
+`priv/repo/migrations`; Ecto records the applied ones in `schema_migrations`.
 
 ## Tests
 
