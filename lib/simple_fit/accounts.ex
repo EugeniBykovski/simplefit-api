@@ -318,8 +318,10 @@ defmodule SimpleFit.Accounts do
   defdelegate complete_account_registration(user), to: Registration, as: :complete
 
   @doc """
-  Whether the user has completed account registration. Role contexts use it
-  for their own invariants (Fighter onboarding completion requires it).
+  Whether the user has successfully completed shared account registration.
+  Monotonic: it stays `true` after a later Terms or Privacy version change.
+  Role contexts and entry routing rely on it (Fighter onboarding completion
+  requires it).
   """
   @spec registration_complete?(User.t()) :: boolean()
   defdelegate registration_complete?(user), to: Registration, as: :complete?

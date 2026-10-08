@@ -6,8 +6,10 @@ defmodule SimpleFit.Accounts.Consents do
   configuration (`config :simple_fit, SimpleFit.Accounts.Consents,
   current_versions: %{terms: "terms-v1", privacy: "privacy-v1"}`): an
   acceptance counts as current only for the configured version, so changing
-  it makes earlier acceptances not current. Document text is not part of the
-  domain. Internal to `SimpleFit.Accounts`.
+  it makes earlier acceptances not current. That gates initial registration
+  completion only; a completed registration stays complete and `current:
+  false` is the hook for a future re-consent flow. Document text is not part
+  of the domain. Internal to `SimpleFit.Accounts`.
   """
 
   import Ecto.Query, only: [from: 2]

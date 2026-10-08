@@ -86,8 +86,11 @@ defmodule SimpleFitWeb.Schemas.AccountProfileResponse do
       current_version: %Schema{type: :string, description: "The version currently in force."},
       current: %Schema{
         type: :boolean,
-        description:
-          "Whether the current version has been accepted (what registration completion checks)."
+        description: """
+        Whether the current version has been accepted. Initial registration completion requires it. A completed
+        registration stays complete when a later version makes this `false`; it only signals that a re-consent is
+        due (a future flow).
+        """
       }
     }
   }
@@ -118,7 +121,8 @@ defmodule SimpleFitWeb.Schemas.AccountProfileResponse do
                   enum: ["not_started", "in_progress", "complete"],
                   description: """
                   `not_started`: nothing saved yet. `in_progress`: progress saved, not completed. `complete`:
-                  completion recorded by `completeAccountRegistration`.
+                  completion recorded by `completeAccountRegistration`; permanent, also after a later legal
+                  document version change.
                   """
                 },
                 completed_at: %Schema{type: :string, format: :"date-time", nullable: true},
@@ -129,8 +133,9 @@ defmodule SimpleFitWeb.Schemas.AccountProfileResponse do
                     enum: ["full_name", "date_of_birth", "terms", "privacy"]
                   },
                   description: """
-                  What completion still needs, in form order: empty fields, and required consents not accepted
-                  at their current version. Empty once complete.
+                  What initial completion still needs, in form order: empty fields, and required consents not
+                  accepted at their current version. Always empty once complete, also after a document version
+                  change (see `consents.*.current`).
                   """
                 }
               }

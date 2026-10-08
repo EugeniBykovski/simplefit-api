@@ -9,6 +9,9 @@ defmodule SimpleFit.Accounts.Registration do
     * `:not_started` - no account profile;
     * `:in_progress` - a profile without `registration_completed_at`;
     * `:complete` - `registration_completed_at` is set (only by `complete/1`).
+      Completion is monotonic: once complete, always complete, with no
+      missing requirements, even after a legal document version change
+      (the consent state reports that separately).
   """
 
   import Ecto.Query, only: [from: 2]

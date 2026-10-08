@@ -353,7 +353,7 @@
                         "type": "string"
                       },
                       "current": {
-                        "description": "Whether the current version has been accepted (what registration completion checks).",
+                        "description": "Whether the current version has been accepted. Initial registration completion requires it. A completed\nregistration stays complete when a later version makes this `false`; it only signals that a re-consent is\ndue (a future flow).\n",
                         "type": "boolean"
                       },
                       "current_version": {
@@ -388,7 +388,7 @@
                         "type": "string"
                       },
                       "current": {
-                        "description": "Whether the current version has been accepted (what registration completion checks).",
+                        "description": "Whether the current version has been accepted. Initial registration completion requires it. A completed\nregistration stays complete when a later version makes this `false`; it only signals that a re-consent is\ndue (a future flow).\n",
                         "type": "boolean"
                       },
                       "current_version": {
@@ -448,7 +448,7 @@
                     "type": "string"
                   },
                   "missing_requirements": {
-                    "description": "What completion still needs, in form order: empty fields, and required consents not accepted\nat their current version. Empty once complete.\n",
+                    "description": "What initial completion still needs, in form order: empty fields, and required consents not\naccepted at their current version. Always empty once complete, also after a document version\nchange (see `consents.*.current`).\n",
                     "items": {
                       "enum": [
                         "full_name",
@@ -461,7 +461,7 @@
                     "type": "array"
                   },
                   "status": {
-                    "description": "`not_started`: nothing saved yet. `in_progress`: progress saved, not completed. `complete`:\ncompletion recorded by `completeAccountRegistration`.\n",
+                    "description": "`not_started`: nothing saved yet. `in_progress`: progress saved, not completed. `complete`:\ncompletion recorded by `completeAccountRegistration`; permanent, also after a later legal\ndocument version change.\n",
                     "enum": [
                       "not_started",
                       "in_progress",
@@ -2529,7 +2529,7 @@
     "/api/v1/me/account-profile/complete-registration": {
       "post": {
         "callbacks": {},
-        "description": "Records that shared account registration is complete, after checking every requirement on the server: full\nname, a date of birth at least 16 years ago, and current acceptance of the Terms of Service and the Privacy\nPolicy. While anything is missing the response is `422 validation_error` with a `required` field code per\nmissing item (`full_name`, `date_of_birth`, `terms`, `privacy`) and nothing changes. Completing again\nreturns the state with the original `completed_at`.\n",
+        "description": "Records that shared account registration is complete, after checking every requirement on the server: full\nname, a date of birth at least 16 years ago, and current acceptance of the Terms of Service and the Privacy\nPolicy. While anything is missing the response is `422 validation_error` with a `required` field code per\nmissing item (`full_name`, `date_of_birth`, `terms`, `privacy`) and nothing changes. Completion is\npermanent: completing again returns the state with the original `completed_at`, and a later Terms or\nPrivacy version change does not reopen it (`consents.*.current` reports it instead).\n",
         "operationId": "completeAccountRegistration",
         "parameters": [],
         "responses": {

@@ -3,7 +3,8 @@ defmodule SimpleFit.Accounts.ConsentVersionsTest do
   use SimpleFit.DataCase, async: false
 
   alias SimpleFit.Accounts
-  alias SimpleFit.Accounts.Consents
+  alias SimpleFit.Accounts.{AccountConsent, Consents}
+  alias SimpleFit.Repo
   alias SimpleFitWeb.ChangesetErrors
 
   setup do
@@ -29,13 +30,14 @@ defmodule SimpleFit.Accounts.ConsentVersionsTest do
     assert Consents.current_version(:privacy) == "privacy-v1"
   end
 
-  test "a new Terms version makes the earlier acceptance not current for completion", %{
+  test "A: an in-progress registration cannot complete with an obsolete Terms version", %{
     user: user
   } do
     {:ok, _} = Accounts.update_account_registration(user, attrs())
     set_versions(%{terms: "terms-v2", privacy: "privacy-v1"})
 
     registration = Accounts.get_account_registration(user)
+    assert registration.status == :in_progress
 
     assert %{
              accepted: true,
@@ -49,20 +51,92 @@ defmodule SimpleFit.Accounts.ConsentVersionsTest do
 
     assert {:error, changeset} = Accounts.complete_account_registration(user)
     assert ChangesetErrors.details(changeset).field_codes == %{"terms" => ["required"]}
+    refute Accounts.registration_complete?(user)
 
     {:ok, accepted} = Accounts.update_account_registration(user, %{"accept_terms" => true})
     assert %{accepted_version: "terms-v2", current: true} = accepted.consents.terms
     assert {:ok, %{status: :complete}} = Accounts.complete_account_registration(user)
   end
 
-  test "a version change does not undo a completed registration", %{user: user} do
+  test "B: a completed registration stays complete after a Terms version change", %{user: user} do
     {:ok, _} = Accounts.update_account_registration(user, attrs())
-    {:ok, _} = Accounts.complete_account_registration(user)
-    set_versions(%{terms: "terms-v1", privacy: "privacy-v2"})
+
+    {:ok, %{profile: %{registration_completed_at: completed_at}}} =
+      Accounts.complete_account_registration(user)
+
+    set_versions(%{terms: "terms-v2", privacy: "privacy-v1"})
 
     registration = Accounts.get_account_registration(user)
     assert registration.status == :complete
-    refute registration.consents.privacy.current
+    assert registration.missing_requirements == []
+    assert registration.profile.registration_completed_at == completed_at
     assert Accounts.registration_complete?(user)
+
+    assert %{
+             accepted: true,
+             accepted_version: "terms-v1",
+             current_version: "terms-v2",
+             current: false
+           } =
+             registration.consents.terms
+
+    assert registration.consents.privacy.current
+
+    # Completing again stays a no-op: no current-version check reopens it.
+    assert {:ok, %{status: :complete, missing_requirements: []} = again} =
+             Accounts.complete_account_registration(user)
+
+    assert again.profile.registration_completed_at == completed_at
+  end
+
+  test "C: accepting the new version later appends a record and keeps the completion time", %{
+    user: user
+  } do
+    {:ok, _} = Accounts.update_account_registration(user, attrs())
+
+    {:ok, %{profile: %{registration_completed_at: completed_at}}} =
+      Accounts.complete_account_registration(user)
+
+    set_versions(%{terms: "terms-v2", privacy: "privacy-v1"})
+
+    {:ok, registration} = Accounts.update_account_registration(user, %{"accept_terms" => true})
+
+    assert %{accepted_version: "terms-v2", current: true} = registration.consents.terms
+    assert registration.status == :complete
+    assert registration.missing_requirements == []
+    assert registration.profile.registration_completed_at == completed_at
+
+    terms_history =
+      Repo.all(
+        from(c in AccountConsent,
+          where: c.user_id == ^user.id and c.kind == :terms,
+          order_by: [asc: c.recorded_at],
+          select: {c.document_version, c.decision}
+        )
+      )
+
+    assert terms_history == [{"terms-v1", :accepted}, {"terms-v2", :accepted}]
+  end
+
+  test "the account API reports a rolled-over completed registration as complete", %{user: user} do
+    {:ok, _} = Accounts.update_account_registration(user, attrs())
+    {:ok, _} = Accounts.complete_account_registration(user)
+    set_versions(%{terms: "terms-v2", privacy: "privacy-v1"})
+
+    body =
+      SimpleFitWeb.AccountProfileJSON.show(%{
+        registration: Accounts.get_account_registration(user)
+      })
+
+    assert %{registration: %{status: :complete, missing_requirements: []}} = body.account_profile
+
+    assert body.account_profile.consents.terms ==
+             %{
+               accepted: true,
+               accepted_version: "terms-v1",
+               accepted_at: body.account_profile.consents.terms.accepted_at,
+               current_version: "terms-v2",
+               current: false
+             }
   end
 end

@@ -76,8 +76,9 @@ defmodule SimpleFitWeb.AccountProfileController do
     Records that shared account registration is complete, after checking every requirement on the server: full
     name, a date of birth at least 16 years ago, and current acceptance of the Terms of Service and the Privacy
     Policy. While anything is missing the response is `422 validation_error` with a `required` field code per
-    missing item (`full_name`, `date_of_birth`, `terms`, `privacy`) and nothing changes. Completing again
-    returns the state with the original `completed_at`.
+    missing item (`full_name`, `date_of_birth`, `terms`, `privacy`) and nothing changes. Completion is
+    permanent: completing again returns the state with the original `completed_at`, and a later Terms or
+    Privacy version change does not reopen it (`consents.*.current` reports it instead).
     """,
     security: @security,
     responses: [

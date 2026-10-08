@@ -65,10 +65,18 @@ complete registration.
   configuration (`config :simple_fit, SimpleFit.Accounts.Consents,
   current_versions: %{terms: "terms-v1", privacy: "privacy-v1"}`).
   * A required consent is current only when accepted at the configured
-    version, so changing the version makes earlier acceptances not current
-    for completion. Document text is outside the domain.
-  * A completed registration stays complete after a version change;
-    prompting for re-acceptance is a later ticket.
+    version. Initial completion requires current Terms and Privacy
+    acceptance, so an in-progress registration cannot complete on an
+    obsolete version. Document text is outside the domain.
+  * **Completion is monotonic.** Once `complete-registration` succeeds,
+    `registration_completed_at` is permanent: the status stays `complete`,
+    `missing_requirements` stays empty and `registration_complete?/1` stays
+    `true`, also after a later version change. The consent projection reports
+    the change instead (`accepted_version` vs `current_version`, `current:
+    false`). That is the hook for a future re-consent flow, which is not part
+    of SF-44.
+  * Accepting the new version later appends a record and leaves the
+    completion time unchanged.
 * **State is derived:**
   * no profile row → `not_started`;
   * a row without `registration_completed_at` → `in_progress`;
