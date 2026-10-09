@@ -18,10 +18,13 @@ defmodule SimpleFit.FirstRunTest do
     %{user: user}
   end
 
-  defp tour(user) do
-    [state] = FirstRun.list_experiences(user)
-    assert state.experience == :fighter_web_tour
-    state
+  defp tour(user), do: experience(user, :fighter_web_tour)
+  defp mobile(user), do: experience(user, :fighter_mobile_first_run)
+
+  defp experience(user, key) do
+    states = FirstRun.list_experiences(user)
+    assert Enum.map(states, & &1.experience) == [:fighter_web_tour, :fighter_mobile_first_run]
+    Enum.find(states, &(&1.experience == key))
   end
 
   describe "list_experiences/1" do
@@ -58,6 +61,51 @@ defmodule SimpleFit.FirstRunTest do
       complete_fighter_onboarding!(user)
       {:ok, _} = Fighters.complete_onboarding(user)
       assert %{status: :pending} = tour(user)
+      assert %{status: :pending} = mobile(user)
+    end
+
+    test "the mobile first run has the web tour's availability (SF-41)", %{user: user} do
+      assert %{status: :unavailable, recorded_at: nil} = mobile(user)
+
+      assert {:error, :conflict} =
+               FirstRun.record_outcome(user, "fighter_mobile_first_run", %{
+                 "outcome" => "completed"
+               })
+
+      complete_fighter_onboarding!(user)
+      assert %{status: :pending, recorded_at: nil} = mobile(user)
+    end
+  end
+
+  describe "web and mobile are independent (SF-41)" do
+    setup %{user: user} do
+      complete_fighter_onboarding!(user)
+      :ok
+    end
+
+    test "finishing the web tour leaves the mobile first run pending", %{user: user} do
+      {:ok, _} = FirstRun.record_outcome(user, "fighter_web_tour", %{"outcome" => "completed"})
+      assert %{status: :completed} = tour(user)
+      assert %{status: :pending, recorded_at: nil} = mobile(user)
+    end
+
+    test "each keeps its own first outcome", %{user: user} do
+      {:ok, mobile_state} =
+        FirstRun.record_outcome(user, "fighter_mobile_first_run", %{"outcome" => "dismissed"})
+
+      assert %{experience: :fighter_mobile_first_run, status: :dismissed} = mobile_state
+      assert %{status: :pending} = tour(user)
+
+      {:ok, _} = FirstRun.record_outcome(user, "fighter_web_tour", %{"outcome" => "completed"})
+
+      assert {:ok, %{status: :dismissed, recorded_at: at}} =
+               FirstRun.record_outcome(user, "fighter_mobile_first_run", %{
+                 "outcome" => "completed"
+               })
+
+      assert at == mobile_state.recorded_at
+      assert %{status: :completed} = tour(user)
+      assert Repo.aggregate(Outcome, :count) == 2
     end
   end
 
@@ -93,7 +141,7 @@ defmodule SimpleFit.FirstRunTest do
     end
 
     test "unknown experiences are not found", %{user: user} do
-      for experience <- ["coach_web_tour", "", "FIGHTER_WEB_TOUR"] do
+      for experience <- ["coach_web_tour", "", "FIGHTER_WEB_TOUR", "fighter_mobile_tour"] do
         assert {:error, :not_found} =
                  FirstRun.record_outcome(user, experience, %{"outcome" => "completed"})
       end

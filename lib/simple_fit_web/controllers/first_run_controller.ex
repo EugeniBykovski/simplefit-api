@@ -47,8 +47,8 @@ defmodule SimpleFitWeb.FirstRunController do
     (another tab or device), returns the kept outcome with its original `recorded_at`.
 
     * `not_found` - unknown experience.
-    * `conflict` - the experience is `unavailable` to the viewer (for `fighter_web_tour`, Fighter onboarding is
-      not complete); nothing is recorded.
+    * `conflict` - the experience is `unavailable` to the viewer (for the Fighter experiences, Fighter
+      onboarding is not complete); nothing is recorded.
     * `validation_error` - `outcome` is missing (`required`) or not an allowed value (`invalid_choice`).
     """,
     security: @security,

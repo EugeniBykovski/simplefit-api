@@ -70,6 +70,17 @@ mobile app would show a dismissed tour again.
 
 * A future tour (Coach, Gym, Sponsor, mobile) adds an allow-listed key and
   its availability rule. It needs no migration.
+
+## Amendment — SF-41 (Fighter mobile first run)
+
+* `fighter_mobile_first_run` is the Fighter mobile introduction (Claude
+  Design 34a, FR1–FR3). It has the web tour's availability rule (a completed
+  Fighter onboarding) and its own outcome: `completed` when the person
+  finishes the introduction, `dismissed` when they skip it.
+* The two Fighter experiences are independent. Finishing or ending the web
+  tour says nothing about the mobile introduction, and the other way round;
+  neither ever changes the other's row.
+* No migration: `experience` is plain text checked by the domain.
 * The first-run checklist is not stored here. Its items are derived from
   their domains (gym membership, bookings, training) once those exist, so
   finishing a step on one platform ticks it on the other.

@@ -1477,9 +1477,10 @@
         },
         "properties": {
           "experience": {
-            "description": "`fighter_web_tour`: the Fighter web Home tour, available once Fighter onboarding is complete.",
+            "description": "`fighter_web_tour`: the Fighter web Home tour. `fighter_mobile_first_run`: the Fighter mobile introduction. Both are available once Fighter onboarding is complete; each keeps its own outcome.",
             "enum": [
-              "fighter_web_tour"
+              "fighter_web_tour",
+              "fighter_mobile_first_run"
             ],
             "type": "string"
           },
@@ -1557,6 +1558,11 @@
           "experiences": [
             {
               "experience": "fighter_web_tour",
+              "recorded_at": null,
+              "status": "pending"
+            },
+            {
+              "experience": "fighter_mobile_first_run",
               "recorded_at": null,
               "status": "pending"
             }
@@ -2992,7 +2998,7 @@
     "/api/v1/me/first-run/{experience}": {
       "put": {
         "callbacks": {},
-        "description": "Records that the viewer finished (`completed`) or ended (`dismissed`) the experience, after which it is never\noffered again on any client. The first outcome is final: repeating the request, or sending the other outcome\n(another tab or device), returns the kept outcome with its original `recorded_at`.\n\n* `not_found` - unknown experience.\n* `conflict` - the experience is `unavailable` to the viewer (for `fighter_web_tour`, Fighter onboarding is\n  not complete); nothing is recorded.\n* `validation_error` - `outcome` is missing (`required`) or not an allowed value (`invalid_choice`).\n",
+        "description": "Records that the viewer finished (`completed`) or ended (`dismissed`) the experience, after which it is never\noffered again on any client. The first outcome is final: repeating the request, or sending the other outcome\n(another tab or device), returns the kept outcome with its original `recorded_at`.\n\n* `not_found` - unknown experience.\n* `conflict` - the experience is `unavailable` to the viewer (for the Fighter experiences, Fighter\n  onboarding is not complete); nothing is recorded.\n* `validation_error` - `outcome` is missing (`required`) or not an allowed value (`invalid_choice`).\n",
         "operationId": "recordMyFirstRunOutcome",
         "parameters": [
           {
@@ -3002,7 +3008,8 @@
             "required": true,
             "schema": {
               "enum": [
-                "fighter_web_tour"
+                "fighter_web_tour",
+                "fighter_mobile_first_run"
               ],
               "type": "string"
             }

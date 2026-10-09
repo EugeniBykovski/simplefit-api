@@ -7,8 +7,9 @@ defmodule SimpleFit.FirstRun do
   is derived on every read:
 
     * `:unavailable` - the user cannot have the experience yet. The Fighter
-      web tour needs a completed Fighter onboarding (ADR 0015), which itself
-      needs a completed account registration (ADR 0016).
+      web tour and the Fighter mobile introduction need a completed Fighter
+      onboarding (ADR 0015), which itself needs a completed account
+      registration (ADR 0016).
     * `:pending` - available, and no outcome is recorded.
     * `:completed` / `:dismissed` - the recorded outcome. It is final: a
       dismissed tour is never offered again, and recording again (the same or
@@ -91,7 +92,11 @@ defmodule SimpleFit.FirstRun do
     if available?(user, experience), do: :ok, else: {:error, :conflict}
   end
 
-  defp available?(user, :fighter_web_tour) do
+  # Both Fighter experiences need a completed Fighter onboarding. Each keeps
+  # its own outcome: finishing the web tour says nothing about the mobile
+  # introduction, and the other way round.
+  defp available?(user, experience)
+       when experience in [:fighter_web_tour, :fighter_mobile_first_run] do
     user |> Fighters.get_profile() |> Fighters.onboarding_status() == :completed
   end
 
