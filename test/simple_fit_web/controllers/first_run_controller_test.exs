@@ -25,7 +25,8 @@ defmodule SimpleFitWeb.FirstRunControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
     body = json_response(conn, 200)
     assert_schema(body, "FirstRunResponse", ApiSpec.spec())
-    [tour] = body["experiences"]
+    [tour, mobile] = body["experiences"]
+    assert mobile["experience"] == "fighter_mobile_first_run"
     tour
   end
 
@@ -78,6 +79,22 @@ defmodule SimpleFitWeb.FirstRunControllerTest do
 
     {:ok, other} = Accounts.create_session(user)
     assert %{"status" => "completed"} = list(other.access_token)
+  end
+
+  test "the mobile first run keeps its own outcome; the web tour stays pending (SF-41)", %{
+    user: user,
+    token: token
+  } do
+    complete_fighter_onboarding!(user)
+    mobile_path = @path <> "/fighter_mobile_first_run"
+
+    recorded = json_response(record(token, %{outcome: "completed"}, mobile_path), 200)
+    assert_schema(recorded, "FirstRunExperienceResponse", ApiSpec.spec())
+
+    assert %{"experience" => "fighter_mobile_first_run", "status" => "completed"} =
+             recorded["experience"]
+
+    assert %{"experience" => "fighter_web_tour", "status" => "pending"} = list(token)
   end
 
   test "errors", %{user: user, token: token} do

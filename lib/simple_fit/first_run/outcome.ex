@@ -11,10 +11,12 @@ defmodule SimpleFit.FirstRun.Outcome do
 
   alias SimpleFit.Accounts.User
 
-  @experiences [:fighter_web_tour]
+  # `fighter_mobile_first_run` (SF-41) is the Fighter mobile introduction; it
+  # is independent of the web tour: one outcome never counts for the other.
+  @experiences [:fighter_web_tour, :fighter_mobile_first_run]
   @outcomes [:completed, :dismissed]
 
-  @type experience :: :fighter_web_tour
+  @type experience :: :fighter_web_tour | :fighter_mobile_first_run
   @type outcome :: :completed | :dismissed
 
   @type t :: %__MODULE__{
