@@ -64,6 +64,11 @@ defmodule SimpleFitWeb.ApiSpec do
           name: "Entry",
           description: "Where an authenticated user goes next, as a semantic destination."
         },
+        %Tag{
+          name: "First run",
+          description:
+            "One-time first-run experiences, such as product tours, and how the viewer left them."
+        },
         %Tag{name: "System", description: "Operational endpoints."}
       ],
       paths: Paths.from_router(SimpleFitWeb.Router),

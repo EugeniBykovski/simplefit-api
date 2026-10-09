@@ -7,7 +7,8 @@ defmodule SimpleFitWeb.Router do
   #   /api/me, /api/auth/...                 session and viewer, unversioned (ADR 0010)
   #   /dev/emails                            email template preview, development only (ADR 0011)
   #   /api/v1/...                            product resources: /me/account-profile,
-  #                                          /me/fighter-profile, /me/entry
+  #                                          /me/fighter-profile, /me/entry,
+  #                                          /me/first-run
 
   pipeline :api do
     plug :accepts, ["json"]
@@ -74,6 +75,10 @@ defmodule SimpleFitWeb.Router do
 
     # SF-45: post-authentication entry resolution (ADR 0017).
     get "/me/entry", EntryController, :show
+
+    # SF-40: one-time first-run experiences (ADR 0018).
+    get "/me/first-run", FirstRunController, :index
+    put "/me/first-run/:experience", FirstRunController, :record
   end
 
   scope "/api" do
