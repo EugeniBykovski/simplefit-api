@@ -24,7 +24,9 @@ jobs:
       MIX_ENV: test
     services:
       postgres:
-        image: postgres:17-alpine
+        # The official image from the AWS ECR Public mirror of Docker Official
+        # Images: anonymous Docker Hub pulls hit the shared runners' rate limit.
+        image: public.ecr.aws/docker/library/postgres:17-alpine
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
