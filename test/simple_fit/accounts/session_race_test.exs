@@ -112,4 +112,52 @@ defmodule SimpleFit.Accounts.SessionRaceTest do
     assert Accounts.refresh_session(next.refresh_token) == {:error, :unauthorized}
     assert Accounts.authenticate_access_token(next.access_token) == {:error, :unauthorized}
   end
+
+  # SF-28: logout and refresh of the same session at the same time.
+
+  test "logout while a refresh is in flight: the refresh fails, the session stays revoked", %{
+    credentials: c
+  } do
+    gate = lock_token_row(c.refresh_token)
+    refresh = Task.async(fn -> Accounts.refresh_session(c.refresh_token) end)
+    await_lock_waiters(1)
+
+    # The logout lands while the refresh waits on the token row.
+    assert :ok = Accounts.revoke_session({:access, c.access_token})
+
+    send(gate, :release)
+    assert_receive :released, 5_000
+
+    # The refresh consumed nothing: it found a revoked session and rolled back.
+    assert Task.await(refresh, 5_000) == {:error, :unauthorized}
+    assert %Session{revoked_reason: :logout} = Repo.get!(Session, c.session.id)
+    assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+    assert Accounts.authenticate_access_token(c.access_token) == {:error, :unauthorized}
+  end
+
+  test "a refresh that won before the logout: its new credentials die with the session", %{
+    credentials: c
+  } do
+    {:ok, rotated} = Accounts.refresh_session(c.refresh_token)
+
+    # The client logs out with what it still holds: the consumed refresh token.
+    assert :ok = Accounts.revoke_session({:refresh, c.refresh_token})
+
+    assert %Session{revoked_reason: :logout} = Repo.get!(Session, c.session.id)
+    assert Accounts.refresh_session(rotated.refresh_token) == {:error, :unauthorized}
+    assert Accounts.authenticate_access_token(rotated.access_token) == {:error, :unauthorized}
+  end
+
+  test "concurrent logouts of one session are all :ok and revoke it once", %{credentials: c} do
+    logouts =
+      for credential <- [
+            {:access, c.access_token},
+            {:refresh, c.refresh_token},
+            {:access, c.access_token}
+          ],
+          do: Task.async(fn -> Accounts.revoke_session(credential) end)
+
+    assert Enum.all?(logouts, &(Task.await(&1, 5_000) == :ok))
+    assert %Session{revoked_reason: :logout} = Repo.get!(Session, c.session.id)
+  end
 end
