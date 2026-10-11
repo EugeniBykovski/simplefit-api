@@ -26,8 +26,10 @@ defmodule SimpleFit.Observability.SentryFilter do
       are dropped
     * stack frames keep module, function, file and line, never `vars`
       (function arguments)
-    * secrets in messages and exception values are redacted (bearer tokens,
-      `key=value` credentials, presigned-URL signatures, AWS and Resend keys)
+    * credentials and personal data in messages, exception values and
+      breadcrumbs are redacted by `SimpleFit.Observability.Redaction`
+      (SimpleFit and identity tokens, codes, `inspect` output, emails,
+      presigned-URL signatures, AWS and Resend keys; SF-29)
   """
 
   alias Sentry.Interfaces
@@ -43,15 +45,6 @@ defmodule SimpleFit.Observability.SentryFilter do
     :worker,
     :queue,
     :job_id
-  ]
-
-  @redactions [
-    {~r/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]+/i, "\\1 [REDACTED]"},
-    {~r/\b(X-Amz-(?:Signature|Credential|Security-Token))=[^&\s"']+/i, "\\1=[REDACTED]"},
-    {~r/\b(password|passwd|secret|token|api[_-]?key|access[_-]?key|authorization|code)(["']?\s*[:=]\s*["']?)[^\s&"',}]+/i,
-     "\\1\\2[REDACTED]"},
-    {~r/\bAKIA[0-9A-Z]{16}\b/, "[REDACTED]"},
-    {~r/\bre_[A-Za-z0-9_]{16,}\b/, "[REDACTED]"}
   ]
 
   @handler_id :sentry_handler
@@ -101,15 +94,9 @@ defmodule SimpleFit.Observability.SentryFilter do
     }
   end
 
-  @doc "Redacts credentials and signatures from free text."
-  @spec redact(String.t()) :: String.t()
-  def redact(text) when is_binary(text) do
-    Enum.reduce(@redactions, text, fn {pattern, replacement}, acc ->
-      Regex.replace(pattern, acc, replacement)
-    end)
-  end
-
-  def redact(other), do: other
+  @doc "Redacts credentials and personal data from free text (`SimpleFit.Observability.Redaction`)."
+  @spec redact(term()) :: term()
+  defdelegate redact(text), to: SimpleFit.Observability.Redaction
 
   defp sanitize_extra(extra) when is_map(extra) do
     extra

@@ -68,7 +68,7 @@ defmodule SimpleFitWeb.GoogleAuthController do
   def authenticate(conn, params) do
     with {:ok, transport} <- transport(conn, params),
          {:ok, %{credentials: credentials, account: account}} <-
-           Accounts.authenticate_with_google(params["id_token"], ClientIP.get(conn)) do
+           Accounts.authenticate_with_google(params["id_token"], ClientIP.limit_key(conn)) do
       conn
       |> SessionTransport.put_refresh_token(
         transport,

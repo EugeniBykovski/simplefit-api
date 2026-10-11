@@ -101,6 +101,9 @@ defmodule SimpleFitWeb.Telemetry do
       counter("simple_fit.auth.apple.unavailable.count", tags: [:reason]),
       counter("simple_fit.auth.apple.keys_unavailable.count", tags: [:reason]),
       counter("simple_fit.auth.apple.rate_limited.count"),
+      # Session refresh (ADR 0010, SF-29): outcome only (rotated, rejected,
+      # reuse); a reuse rate above zero is the stolen-token signal.
+      counter("simple_fit.auth.session.refresh.count", tags: [:outcome]),
 
       # Background jobs (Oban)
       summary("oban.job.stop.duration",

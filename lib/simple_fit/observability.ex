@@ -7,6 +7,8 @@ defmodule SimpleFit.Observability do
 
     * **Logs** (`Logger`, JSON in production): structured events with
       `request_id`, `trace_id`/`span_id`, service, environment and release.
+      `SimpleFit.Observability.LogRedactor` redacts the text of every event,
+      crash reports included (SF-29).
       `SimpleFit.Observability.RequestLogger` writes one line per request,
       `SimpleFit.Observability.JobLogger` one per job outcome.
     * **Error tracking** (Sentry): unexpected, actionable failures only.
@@ -21,7 +23,13 @@ defmodule SimpleFit.Observability do
   request or job.
   """
 
-  alias SimpleFit.Observability.{JobLogger, ProviderTracing, RequestLogger, SentryFilter}
+  alias SimpleFit.Observability.{
+    JobLogger,
+    LogRedactor,
+    ProviderTracing,
+    RequestLogger,
+    SentryFilter
+  }
 
   @service "simplefit-api"
 
@@ -55,6 +63,8 @@ defmodule SimpleFit.Observability do
   @spec setup() :: :ok
   def setup do
     put_global_log_metadata()
+    # Before anything else logs: every event's text is redacted (SF-29).
+    LogRedactor.attach()
     RequestLogger.attach()
 
     if Application.get_env(:simple_fit, :attach_job_logger, false) do

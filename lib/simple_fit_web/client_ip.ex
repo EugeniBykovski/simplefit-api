@@ -19,6 +19,12 @@ defmodule SimpleFitWeb.ClientIP do
   Setting `n` higher than the real number of proxies lets clients spoof
   their address, so it is set only after the deployment topology is
   verified, and the app must not be reachable around the proxies.
+
+  Abuse limits key on `limit_key/1`, not on the raw address (SF-29): an IPv6
+  client is identified by its /64 prefix, the smallest block a single host or
+  subscriber is normally assigned, so rotating through the 2^64 addresses of
+  its own network does not escape a per-IP limit; an IPv4-mapped IPv6 address
+  counts as its IPv4 address.
   """
 
   alias Plug.Conn
@@ -27,12 +33,33 @@ defmodule SimpleFitWeb.ClientIP do
 
   @doc "The client address of `conn`, as a string."
   @spec get(Conn.t()) :: String.t()
-  def get(%Conn{} = conn) do
+  def get(%Conn{} = conn), do: conn |> address() |> format()
+
+  @doc """
+  The rate-limit identity of the client of `conn`: its IPv4 address, or the
+  /64 prefix of its IPv6 address (`2001:db8:1:2::/64`). Used only as an abuse
+  limit key, never logged.
+  """
+  @spec limit_key(Conn.t()) :: String.t()
+  def limit_key(%Conn{} = conn) do
+    case address(conn) do
+      {0, 0, 0, 0, 0, 0xFFFF, high, low} ->
+        format({div(high, 256), rem(high, 256), div(low, 256), rem(low, 256)})
+
+      {a, b, c, d, _e, _f, _g, _h} ->
+        format({a, b, c, d, 0, 0, 0, 0}) <> "/64"
+
+      ipv4_or_unknown ->
+        format(ipv4_or_unknown)
+    end
+  end
+
+  defp address(conn) do
     with hops when hops > 0 <- hops(),
          {:ok, address} <- forwarded(conn, hops) do
-      format(address)
+      address
     else
-      _direct_peer -> format(conn.remote_ip)
+      _direct_peer -> conn.remote_ip
     end
   end
 
