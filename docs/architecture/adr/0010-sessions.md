@@ -243,3 +243,45 @@ abuse limits belong to SF-29.
 * A client that refreshes twice concurrently signs its user out. Clients
   must coordinate refreshes (see reuse above); the server never relaxes
   this.
+
+## Lifecycle semantics (SF-28)
+
+SF-28 audited the lifecycle across the API, web and mobile clients and
+changed no server behaviour; this section states the contract the clients
+build on, and `test/simple_fit_web/session_lifecycle_test.exs` plus the
+logout cases of `session_race_test.exs` assert it on PostgreSQL.
+
+* **One session per sign-in, per device.** Browser A, browser B and a phone
+  each hold their own session. Signing in again on a device creates a new
+  session; it never reuses or extends an old one.
+* **Logout is current-device only.** `POST /api/auth/logout` revokes the
+  session behind the presented credential and nothing else; the user's other
+  sessions keep working. There is no "sign out everywhere" and no session
+  list (Claude Design WS1 marks both as not current).
+* **Rotation and reuse.** A refresh rotates the token within the same
+  session. Presenting a consumed token revokes that session (`refresh_reuse`)
+  and only that one.
+* **Logout and refresh race safely.** A refresh waiting while the session is
+  revoked rolls back without consuming its token; a refresh that won first
+  issues credentials that die with the session, and a logout with the
+  consumed token still finds and revokes the session.
+* **Expiry.** Access tokens last 15 minutes, refresh tokens 30 days, a
+  session at most 90 days; an expired session can no longer refresh.
+* **Revocation from another device** is not an operation yet; a session ends
+  by its own logout, reuse, expiry or the deletion of its user.
+* **Provider sign-out is not SimpleFit sign-out.** Signing out of Google or
+  Apple on a device revokes no SimpleFit session, and a SimpleFit logout
+  signs nobody out of their Google or Apple account.
+* **Deleted users.** Deleting a user cascades to its sessions and refresh
+  tokens: every credential is then the same `401`, and nothing recreates the
+  account. Disabling or suspending an account is not a domain state yet
+  (no field, no operation); WS4 / ST14 belong to a later ticket.
+* **Offline logout.** A client that cannot reach the API discards its
+  credentials locally; the server session then stays valid until it expires,
+  and no client queues a credential to retry the logout later. The web app
+  cannot delete the `HttpOnly` cookie itself, so it remembers that a logout
+  is pending, never refreshes with that cookie, and retries the logout on the
+  next load.
+* **Passwordless.** There is no password, so password reset and password
+  change are not applicable; recovery is a new email code (ADR 0012) or the
+  provider sign-in again.
