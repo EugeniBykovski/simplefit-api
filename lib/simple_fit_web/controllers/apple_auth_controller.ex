@@ -75,7 +75,7 @@ defmodule SimpleFitWeb.AppleAuthController do
            Accounts.authenticate_with_apple(
              params["id_token"],
              params["nonce"],
-             ClientIP.get(conn)
+             ClientIP.limit_key(conn)
            ) do
       conn
       |> SessionTransport.put_refresh_token(

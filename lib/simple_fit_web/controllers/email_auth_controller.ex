@@ -222,7 +222,7 @@ defmodule SimpleFitWeb.EmailAuthController do
 
   ## Helpers
 
-  defp client_ip(conn), do: ClientIP.get(conn)
+  defp client_ip(conn), do: ClientIP.limit_key(conn)
 
   # The refresh token transport of a new session (ADR 0010). The cookie
   # transport carries an ambient credential, so it needs the CSRF proof

@@ -33,9 +33,19 @@ defmodule SimpleFit.Accounts.Sessions do
   the race is therefore a reuse too.
 
   Every failure is the same `{:error, :unauthorized}`.
+
+  ## Observability (SF-29)
+
+  Each refresh emits `[:simple_fit, :auth, :session, :refresh]` with an
+  `outcome` of `:rotated`, `:rejected` or `:reuse`, never a token, hash,
+  session or user id. A reuse is also logged as a warning: it is the
+  signature of a stolen or replayed refresh token (or of a client that does
+  not serialize its refreshes), worth watching as a rate, not paging on.
   """
 
   import Ecto.Query, only: [from: 2]
+
+  require Logger
 
   alias SimpleFit.Accounts.{RefreshToken, Session, User}
   alias SimpleFit.Repo
@@ -163,18 +173,36 @@ defmodule SimpleFit.Accounts.Sessions do
   """
   @spec refresh(String.t()) :: {:ok, credentials()} | {:error, :unauthorized}
   def refresh(refresh_token) do
-    with {:ok, hash} <- refresh_hash(refresh_token) do
-      refresh_hashed(hash, config!(), now())
+    case refresh_hash(refresh_token) do
+      {:ok, hash} ->
+        refresh_hashed(hash, config!(), now())
+
+      {:error, :unauthorized} ->
+        emit_refresh(:rejected)
+        {:error, :unauthorized}
     end
   end
 
   defp refresh_hashed(hash, config, now) do
     case Repo.transaction(fn -> rotate(hash, now, config) end) do
-      {:ok, credentials} -> {:ok, credentials}
-      {:error, :not_consumable} -> handle_unusable(hash)
-      {:error, :unauthorized} -> {:error, :unauthorized}
+      {:ok, credentials} ->
+        emit_refresh(:rotated)
+        {:ok, credentials}
+
+      {:error, :not_consumable} ->
+        handle_unusable(hash)
+
+      {:error, :unauthorized} ->
+        emit_refresh(:rejected)
+        {:error, :unauthorized}
     end
   end
+
+  defp emit_refresh(outcome),
+    do:
+      :telemetry.execute([:simple_fit, :auth, :session, :refresh], %{count: 1}, %{
+        outcome: outcome
+      })
 
   defp rotate(hash, now, config) do
     consume =
@@ -205,9 +233,12 @@ defmodule SimpleFit.Accounts.Sessions do
     case Repo.get_by(RefreshToken, [token_hash: hash], @secret_query) do
       %RefreshToken{consumed_at: %DateTime{}, session_id: session_id} ->
         :ok = revoke_session(session_id, :refresh_reuse)
+        Logger.warning("refresh token reuse: session revoked", reason: :refresh_reuse)
+        emit_refresh(:reuse)
         {:error, :unauthorized}
 
       _unknown_or_expired ->
+        emit_refresh(:rejected)
         {:error, :unauthorized}
     end
   end
