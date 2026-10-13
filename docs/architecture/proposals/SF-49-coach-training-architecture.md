@@ -7,6 +7,18 @@ controller, OpenAPI operation, client or screen was created for SF-49.
 Epic SF-48 (Coach–Fighter Coaching & Training MVP). Discovery date
 2026-10-13.
 
+**Revision 3 (2026-10-13).** Applies the product owner's final decisions
+O-1…O-15 (§0): exact CoachProfile field and enum contract (§4.2), SF-45
+precedence with zero/one/two completed contexts and a server-owned last
+explicit choice (§5), four-class Fighter data access with a versioned
+disclosure contract and the before/after-termination matrix (§6.4),
+invitation permissions, token rotation, verified deep-link transfer and a
+legal feature gate (§7), PostgreSQL-based IANA validation with DST
+criteria (§8.3), single-session training only (§8, §11), final design
+change requests and registry scope (§18), and the SF-50 implementation
+contract (§20). Revision 2's text below is superseded where revision 3
+restates a section.
+
 **Revision 2 (2026-10-13).** Reconciles the product owner's approved
 direction (§0), replaces the rejected "a completed role always wins" entry
 rule with a deterministic precedence (§5), and fixes the CoachProfile
@@ -18,31 +30,33 @@ concrete contract below still needs final approval.
 
 ---
 
-## 0. Architecture decision table
+## 0. Decision table (revision 3)
 
-"Direction approved" = the product owner approved the principle (revision 2
-brief). "Proposed" = the concrete contract derived from it, awaiting final
-approval. "Open" = needs a product-owner choice (§16).
+A-1…A-14 (revision 2 direction) are accepted as the foundation. O-1…O-15
+are the product owner's final decisions (revision 3 brief); the column
+"Contract" says where the exact contract derived from each decision lives.
+ADRs stay **PROPOSED** until the exact field contracts below are reviewed.
 
-| # | Decision | Status | Where |
+| # | Final product decision | Contract | Status |
 |---|---|---|---|
-| A-1 | CoachProfile is independent of AccountProfile, FighterProfile and any GymWorkspace | Direction approved | §4.1 |
-| A-2 | One user may be Coach and Fighter at once | Direction approved | §4.1, §5 |
-| A-3 | `CoachProfile.display_name` is its own public field, never copied from `AccountProfile.full_name` | Direction approved | §4.2 |
-| A-4 | Coach onboarding MVP uses only backend-supported fields with one vocabulary for web and mobile | Direction approved; vocabulary **Open** (O-1, O-2) | §4.2 |
-| A-5 | Multiple active coaches per fighter, no primary | Direction approved | §6.1 |
-| A-6 | Invitation and relationship are separate authoritative entities | Direction approved | §6.2, §7 |
-| A-7 | MVP invitations: email, authenticated explicit fighter acceptance | Direction approved | §7 |
-| A-8 | Coach sees only approved fighter fields + coach-authored sessions | Direction approved; whitelist **Open** (O-4) | §6.4 |
-| A-9 | Ending a relationship revokes private access at once; history kept; explicit policy for future sessions | Direction approved; policy Proposed, coach history view **Open** (O-6) | §6.3, §6.4 |
-| A-10 | TrainingSession MVP: one coach → one fighter; planned/completed/cancelled; backend-confirmed completion | Direction approved; completion actor **Open** (O-7) | §8 |
-| A-11 | Completion invents no metrics or training logs | Direction approved | §8.2 |
-| A-12 | UTC timestamps + validated IANA zone ids | Direction approved; tz database dependency **Open** (O-8) | §8.3 |
-| A-13 | Coaches work without gym membership | Direction approved | §9 |
-| A-14 | No under-16 participation in the MVP | Direction approved | §4.2 (no "Youth"), §19 |
-| A-15 | SF-45 precedence: explicit intent > requested context > default by role state; profile contexts ≠ gym workspaces | Proposed (replaces rev. 1 rows 8–12) | §5 |
-| A-16 | Training types = the design's five-value taxonomy | Proposed; **Open** (O-5) | §8.2 |
-| A-17 | Mixed state (one role completed, another in progress, no intent/context) → `context_selection` | Proposed; **Open** (O-3) | §5.3 |
+| O-1 | `coaching_formats` is canonical; no Independent / Gym coach / Both choice; levels, audiences and formats never share an enum; `fitness`/`womens` are not levels | §4.2: `coaching_formats` (4 values) + optional `competition_levels` (2 values); audiences deferred | Decided; contract for review |
+| O-2 | Coaching languages `en`, `pl`, `ru`, `be`, `uk` (spoken/coaching languages, not UI locales) | §4.2 | Decided |
+| O-3 | Explicit intent first; requested completed context opens it; 1 completed + 1 incomplete → completed; 2 completed → last explicit valid choice or selection; 1 incomplete only → resume; gym workspace selection separate | §5 | Decided; contract for review |
+| O-4 | No unrestricted tier 2; four classes; relationship-scoped projection only; defer goals/next fight without UI | §6.4 (classes, disclosure contract v1) | Decided; contract for review |
+| O-5 | Five training types only if the latest design supports them | §8.2.1: `technical`, `sparring`, `pads`, `strength_conditioning`, `roadwork` (W02 filter, design `1791877903-9d9a`) | Decided |
+| O-6 | Immediate revocation; minimum history; future planned sessions cancelled with explicit reason | §6.3 matrix | Decided; contract for review |
+| O-7 | Only the assigned fighter confirms completion; coach views the result | §8.2.2, §8.5 | Decided |
+| O-8 | UTC + validated IANA ids; check runtime first; dependency rule if needed; DST criteria | §8.3 (PostgreSQL zone data, no new dependency) | Decided; mechanism for review |
+| O-9 | Data-rules acknowledgement separate from SF-44; no invented legal text; CoachProfile not blocked by legal copy; feature gate | §4.2.4, §7.4; legal ticket key **unconfirmed** (§16) | Decided; one open fact |
+| O-10 | Completed coach invites; completed fighter accepts; incomplete fighter goes through account/fighter gates; no email matching | §7 | Decided |
+| O-11 | 14 days; resend = new one-time token, old one invalid; reuse hashing, limits, safe logging; verify fragment + deep links | §7.2, §7.3 | Decided |
+| O-12 | E08: recipient name optional; `coaching_name` falls back to `display_name` | §7.5 | Decided |
+| O-13 | Reduced Home: upcoming sessions, roster count, pending invitations, setup checklist — backend data only, approved empty states | §18 CR-8, §11 | Decided |
+| O-14 | Mobile coach session creation in MVP; design first; same API | §18 CR-6 | Decided |
+| O-15 | No batch/group assignment in MVP; one session for one authorized fighter per operation | §8, §11 | Decided |
+
+Revision history: rev. 1 `3cf1f96`, rev. 2 `60c2aec` (branch
+`SF-49-coach-training-architecture-discovery`), rev. 3 = this document.
 
 ---
 
@@ -132,7 +146,7 @@ data; **DEFER** = keep placeholder; **FUTURE** = design marks it future.
 | OC7 Services | OnbCServices | same | Commerce (future) | — | placeholder | DEFER |
 | OC8 Payouts | OnbCPayouts | same | Payments (future) | — | placeholder | DEFER |
 | OC9 Invite fighters | OnbCInvite | same | Coaching | invitations | placeholder | MVP (email invite only) D-07 |
-| OC10 Data rules | OnbCPrivacy | same | Coaching / legal | acknowledgement | placeholder | MVP, needs SF-48 legal D-10 |
+| OC10 Data rules | OnbCPrivacy | same | Coaching / legal | acknowledgement | placeholder | moved out of registration: before the first invitation (§7.4); legal ticket B-1 |
 | OC11 Complete | OnbCReady | same | Coaches | coach-profile | placeholder | REDUCED (no trial/payout/licence states) |
 | WCR1 Profile | WebRegCProfile | `web.app.onboarding.coach?step=profile` | Coaches | coach-profile | placeholder | MVP · D-01 |
 | WCR2 Coaching type | WebRegCType | `?step=type` | Coaches | coach-profile | placeholder | MVP · D-01 |
@@ -160,7 +174,7 @@ data; **DEFER** = keep placeholder; **FUTURE** = design marks it future.
 | C03 Fighters | Fighters | `mobile.coach.fighters` | Coaching | roster | placeholder | REDUCED |
 | WC4 Fighter 360 | WebFighter360 | `web.app.coach.fighters._fighter-id` | Coaching | roster detail, sessions | placeholder | REDUCED: Overview + Sessions only; Weight, Video, Notes, Medical DEFER D-10 |
 | C04 Fighter quick view | FighterQuick | `mobile.coach.fighters._fighter-id` | Coaching | roster detail | placeholder | REDUCED |
-| WC3 Program & session builder | WebProgramBuilder | `web.app.coach.sessions.new` | Training | training-sessions | placeholder | REDUCED: "Single fighter" (and "Group" = N individual sessions) only; blocks/timer/shared/class DEFER D-12 |
+| WC3 Program & session builder | WebProgramBuilder | `web.app.coach.sessions.new` | Training | training-sessions | placeholder | REDUCED: "Single fighter" only (O-15) only; blocks/timer/shared/class DEFER D-12 |
 | W08 Calendar (shared) | WebCalendar | `web.app.calendar` | Training projection | training-sessions | placeholder | MVP subset (training layer only) |
 | WC6 / CS1 Coach settings | WebCoachSettings / CoachSettings | `web.app.coach.settings` / `mobile.settings.coach` | Coaches | coach-profile | placeholder | REDUCED: profile edit only; services, booking rules, payouts, assistants, access log DEFER |
 | A04 Workspaces | Workspaces | `mobile.workspaces` | Entry projection | entry | placeholder | MVP (personal Fighter + Coach contexts only; no gym rows) D-05 |
@@ -245,99 +259,101 @@ counts outcomes only (ADR 0008/0019).
   CoachProfile.
 * No `gym_id`. No role on `users`. Coexists with FighterProfile.
 
-### 4.2 Field contract — revision 2 (PROPOSED)
+### 4.2 Field and enum contract — revision 3 (PROPOSED for final review)
 
-**Rule used:** a field enters the MVP only if (a) the backend can own it
-today without an absent domain, and (b) it is on *both* platforms once the
-design change request (§18, CR-1) lands. Enum keys are snake_case forms of
-the design labels; no value below is invented.
+**Rules.** A field is in the MVP only if the backend can own it without an
+absent domain and both platforms show it after CR-1. Every enum key is the
+snake_case form of an approved design label (design `1791877903-9d9a`); no
+value is invented. Formats, competition levels and audiences are separate
+concepts and never share an enum (O-1).
 
 #### 4.2.1 Design source inventory (verbatim)
 
-| Concept | Mobile (OC1/OC2/OC5) | Web (WCR1/WCR2/WCR5) |
+| Concept | Mobile (OC1 / OC2 / OC5) | Web (WCR1 / WCR2 / WCR5) |
 |---|---|---|
-| Public name | none: OC1 shows the account name "Yauheni Bykouski" read-only under the photo | none: only "Brand name" |
-| Brand name | OC5 "Brand name" (under "Independent coach", skippable step) | WCR1 "Brand name" (profile step) |
-| City | OC1 "City" | WCR1 "City" |
-| Country | OC1 "Country" | **absent** |
+| Public coach name | none — OC1 shows the account name read-only | none — only "Brand name" |
+| Brand name | OC5 "Brand name" (under "Independent coach") | WCR1 "Brand name" |
+| City / Country | OC1 "City", "Country" | WCR1 "City"; no country |
 | Bio | OC1 "Bio" | WCR1 "Bio" |
-| Languages | OC1 chips: English, Polski, Русский, Беларуская, Українська | WCR1 chips: Polish, English, Belarusian, Russian |
-| Years coaching | OC1: < 1 · 1–3 · 3–5 · 5–10 · 10+ (single) | **absent** |
-| Boxing background | OC1 free text | WCR3 (credentials step) free text |
-| Coaching type | OC2 "How do you coach?" (multi): Personal Training · Group Coaching · Amateur Competition · Professional Boxing · Online Coaching · Fight Camps · Strength & Conditioning | WCR2 three facets — **practice** (single): Independent · Gym coach · Both; **what you coach** (multi): Amateur boxing · Pro boxing · Fitness boxing · Youth · Women's boxing; **delivery** (multi): In person · Online coaching · Fight camps |
-| Practice / gym | OC5: Join existing gym · Create gym · Independent coach | WCR2 practice facet + WCR5 gym search, Own space, Online only |
+| Languages | OC1: English · Polski · Русский · Беларуская · Українська | WCR1: Polish · English · Belarusian · Russian |
+| Years coaching | OC1: < 1 · 1–3 · 3–5 · 5–10 · 10+ | — |
+| Boxing background | OC1 free text | WCR3 free text (credentials step) |
+| "How do you coach?" | OC2 multi: Personal Training (1:1 sessions) · Group Coaching (classes and team sessions) · Amateur Competition (corner and prep for bouts) · Professional Boxing (licensed pro fighters) · Online Coaching (video review, remote plans) · Fight Camps (6–12 week peaks) · Strength & Conditioning (S&C for boxers) | WCR2 practice (single): Independent · Gym coach · Both; "What you coach" (multi): Amateur boxing · Pro boxing · Fitness boxing · Youth · Women's boxing; "Delivery" (multi): In person · Online coaching · Fight camps |
 
-#### 4.2.2 Proposed canonical vocabulary (O-1, needs approval)
+#### 4.2.2 Classification of every design value
 
-Mobile OC2 mixes *what kind of service* with *what level*; web separates
-them. Recommendation: two orthogonal facets built only from those labels.
+| Design value | Platform(s) | Concept | MVP decision |
+|---|---|---|---|
+| Personal Training | mobile | format (1:1) | `coaching_formats.personal_training` |
+| Group Coaching | mobile | format (group) | `coaching_formats.group_coaching` |
+| Online Coaching / Online coaching | both | format (remote) | `coaching_formats.online_coaching` |
+| Fight Camps / Fight camps | both | format (6–12 week programme) | `coaching_formats.fight_camps` |
+| In person | web | delivery channel, implied by personal/group | not adopted |
+| Strength & Conditioning | mobile | training discipline (a training type, §8.2.1) | not a format; not adopted in CoachProfile |
+| Amateur Competition / Amateur boxing | both | competitive level of fighters coached | `competition_levels.amateur` |
+| Professional Boxing / Pro boxing | both | competitive level | `competition_levels.professional` |
+| Fitness boxing | web | discipline / non-competitive audience — **not a level** | deferred (future `coaching_audiences`) |
+| Women's boxing | web | audience — **not a level** | deferred (future `coaching_audiences`) |
+| Youth | web | audience | excluded (A-14) |
+| Independent / Gym coach / Both | web | practice / gym relation | removed from MVP (O-1, A-13) |
 
-**`coaching_formats`** (multi; "how you coach"):
+`competition_levels` keys match the corresponding FighterProfile
+`experience_level` keys (`amateur`, `professional`, ADR 0015), so
+"amateur" means the same thing in both profiles.
 
-| Key | Mobile label | Web label |
-|---|---|---|
-| `personal_training` | Personal Training | — (web: delivery "In person" is broader) |
-| `group_coaching` | Group Coaching | — |
-| `online_coaching` | Online Coaching | Online coaching (delivery) |
-| `fight_camps` | Fight Camps | Fight camps (delivery) |
-| `strength_conditioning` | Strength & Conditioning | — |
+#### 4.2.3 CoachProfile field contract
 
-Web delivery "In person" has no mobile counterpart and overlaps
-`personal_training` + `group_coaching`; recommendation: drop it (O-1b).
+| Field | Type | Required at completion | Validation | Editable after completion | Design source (after CR-1) |
+|---|---|---|---|---|---|
+| `display_name` | text | **yes** | trimmed, 1..60, printable | yes | new "Coach name" input on OC1 + WCR1 |
+| `brand_name` | text | no | trimmed, 1..80 | yes | WCR1; moved to OC1 |
+| `country_code` | text, ISO 3166-1 alpha-2 | **yes** | `Fighters.CountryCodes` allow-list (shared, SF-25) | yes | OC1; added to WCR1 |
+| `city` | text | **yes** | trimmed, 1..80 | yes | OC1, WCR1 |
+| `bio` | text | no | 0..500, plain text | yes | OC1, WCR1 |
+| `languages` | text[] | no | ⊆ {`en`,`pl`,`ru`,`be`,`uk`}, unique, ≤ 5 | yes | OC1, WCR1 (labels per CR-1) |
+| `coaching_formats` | text[] | **yes, ≥ 1** | ⊆ {`personal_training`,`group_coaching`,`online_coaching`,`fight_camps`}, unique | yes, stays ≥ 1 | OC2, WCR2 |
+| `competition_levels` | text[] | no | ⊆ {`amateur`,`professional`}, unique | yes | OC2, WCR2 |
+| `onboarding_completed_at` | utc timestamp | set by completion | immutable (trigger) | no | — |
 
-**`coaching_levels`** (multi; "who you coach"):
+`display_name` rules (A-3): the client may *suggest* the account
+`full_name` as an editable starting value; the API never copies, syncs or
+derives it, and an unchanged suggestion is saved only when the user
+submits it. FighterProfile `display_name` stays independent; neither
+profile updates the other.
 
-| Key | Mobile label | Web label |
-|---|---|---|
-| `amateur` | Amateur Competition | Amateur boxing |
-| `professional` | Professional Boxing | Pro boxing |
-| `fitness` | — | Fitness boxing |
-| `womens` | — | Women's boxing |
-| ~~`youth`~~ | — | Youth — **excluded** (A-14; also ambiguous vs the 16+ rule) |
+Out of the initial model (each needs another domain or exists on one
+platform only): photo, years coaching, boxing background, credentials and
+verification documents, federation/licence, gym affiliation, practice
+model, business size, plan/trial, services/prices, payouts, public slug,
+audiences.
 
-`fitness` and `womens` exist only on web; either mobile gains them (CR-1) or
-they are dropped (O-1c).
+#### 4.2.4 Coach onboarding completion prerequisites
 
-Not in MVP: **practice model** (Independent / Gym coach / Both) and every
-gym option (A-13: no gym domain; personal coaching is implied).
+1. Authenticated session; account registration complete (SF-44 — adult by
+   construction, A-14). Same `account_registration: required` error as
+   Fighter completion.
+2. `display_name`, `country_code`, `city` present and valid.
+3. `coaching_formats` has at least one value.
 
-**`languages`**: ISO 639-1 codes limited to the union of the design chips:
-`en`, `pl`, `ru`, `be`, `uk`. Widening to the app locales (`de`, `es`, `fr`)
-or to full ISO 639-1 is a product choice (O-2).
+Explicitly **not** prerequisites: the coach data-rules acknowledgement
+(O-9: it gates Coach-to-Fighter access, §7.4, not the profile), brand name,
+bio, languages, competition levels, any FighterProfile state.
 
-#### 4.2.3 Field contract
+#### 4.2.5 Storage plan (no extra migrations for vocabulary changes)
 
-| Field | Type | Required at completion | Owner | Validation | Editable after completion | Design source / CR |
-|---|---|---|---|---|---|---|
-| `display_name` | text 1..60 | **yes** | Coaches | trimmed, printable, never prefilled from `full_name` (A-3) | yes | **new input on OC1 + WCR1 (CR-1)**; shown as "Coach Marek" in CoachWebNav |
-| `brand_name` | text 1..80 | no | Coaches | trimmed | yes | WCR1; moved from OC5 to OC1 (CR-1) |
-| `country_code` | ISO 3166-1 alpha-2 | **yes** | Coaches | `SimpleFit.Fighters.CountryCodes` list (reuse, SF-25) | yes | OC1; **added to WCR1 (CR-1)** |
-| `city` | text 1..80 | **yes** | Coaches | trimmed | yes | OC1, WCR1 |
-| `bio` | text 0..500 | no | Coaches | plain text, no HTML | yes | OC1, WCR1 |
-| `languages` | array of `en`,`pl`,`ru`,`be`,`uk` (O-2), ≤ 5, unique | no | Coaches | allow-list | yes | OC1, WCR1 |
-| `coaching_formats` | array of 5 keys above, ≥ 1, unique | **yes** (OC2/WCR2 have no Skip) | Coaches | allow-list | yes (stays ≥ 1) | OC2, WCR2 (CR-1) |
-| `coaching_levels` | array of `amateur`,`professional`(,`fitness`,`womens`) | no | Coaches | allow-list | yes | OC2, WCR2 (CR-1) |
-| `onboarding_completed_at` | UTC timestamp | set by completion | Coaches | immutable (trigger) | no | — |
+One additive migration in SF-50 creates `coach_profiles`; vocabulary lives
+in the domain, as for `fighter_profiles` (text / text[] columns, Ecto
+allow-lists, DB checks on shape only):
 
-Deferred (each needs another domain or exists on one platform only):
-`years_coaching` (mobile only; marketplace use), `boxing_background`
-(mobile profile vs web credentials step), photo (uploads), credentials and
-verification, business size, plan/trial, services, payouts, gym
-affiliation, practice model, public slug.
+* columns as §4.2.3; arrays `text[] NOT NULL DEFAULT '{}'`;
+* `unique (user_id)`; FK `users` `ON DELETE CASCADE`;
+* CHECK `country_code ~ '^[A-Z]{2}$'`, no NULL array elements;
+* CHECK completion shape: `onboarding_completed_at IS NULL OR (display_name,
+  country_code, city IS NOT NULL AND cardinality(coaching_formats) >= 1)`;
+* trigger `coach_profiles_completion_immutable` (copy of the Fighter one).
 
-#### 4.2.4 Minimal completion requirements (recommendation)
-
-1. Account registration complete (SF-44; adult by construction, A-14).
-2. `display_name`, `country_code`, `city`.
-3. `coaching_formats` with at least one value.
-4. **Coach data-rules acknowledgement (OC10 "I agree")** — recommended
-   required, but it is a versioned legal text: it needs an SF-48 legal
-   document and a consent record (an `account_consents` kind, ADR 0016
-   style, or a coach-owned record). Until that text exists, either block
-   Coach completion or show OC10 as information only (O-9).
-
-Rejected: requiring brand name (optional on both designs), languages,
-levels, or any deferred field.
+Adding an enum value later is a code change; adding `coaching_audiences`
+later is one additive column. Nothing is split across tables.
 
 ### 4.3 Lifecycle — reuse the FighterProfile pattern
 
@@ -358,120 +374,116 @@ Recommended: identical semantics to ADR 0015.
 
 ---
 
-## 5. Coach capability and SF-45 entry precedence (revision 2)
+## 5. SF-45 entry precedence (revision 3, PROPOSED for final review)
 
-Revision 1's rule "a completed role always takes precedence over an
-unfinished one" is **withdrawn**. An explicit, authorized Coach journey is
-never overridden by a completed FighterProfile.
+Revision 2's mixed-state rule (`context_selection`) is replaced by O-3.
 
-### 5.1 Vocabulary — three different things
+### 5.1 Inputs and terms
 
-| Term | Meaning | Values | Grants anything? |
-|---|---|---|---|
-| **Journey intent** (`intent`, exists) | "I want to set up / enter this role's journey" — may start or resume onboarding | `fighter`, `coach`, `gym`, `sponsor` | no |
-| **Requested context** (`context`, new, additive) | "Open my existing application context" — selects among *completed* profile contexts only, never starts onboarding | `fighter`, `coach` | no |
-| **Workspace** (future, Gyms) | Which organization inside an organizational context (which gym) | gym ids | membership-based |
-
-Profile contexts (Fighter, Coach) are the user's own roles; a gym workspace
-is an organization. The entry resolver lists profile contexts and, later,
-"Gym" as one context; choosing *which* gym is a separate step owned by Gyms
-(session-scoped active workspace, `D-WORKSPACE-NOT-IN-URL`). The resolver
-never lists individual gyms.
-
-Facts: `account_registration`, `fighter_profile`, `coach_profile`
-(`not_started | in_progress | completed`). Capabilities: `FIGHTER` iff
-fighter completed, `COACH` iff coach completed (projection only; every API
-call is still authorized by its context).
-
-### 5.2 Deterministic precedence (backend, `GET /api/v1/me/entry`)
-
-Evaluated top to bottom; the first matching step decides.
-
-| Step | Condition | Destination | `mandatory` | Reason (new ones *italic*) |
+| Term | Owner | Values | Effect | Grants anything? |
 |---|---|---|---|---|
-| P1 | account registration not complete | `account_registration` (intent/context/returnTo carried as continuation) | yes | `account_registration_incomplete` |
-| P2a | `intent=fighter`, fighter completed | `fighter_home` | no | `fighter_onboarding_completed` |
-| P2b | `intent=fighter`, fighter not completed | `fighter_onboarding` | yes | `fighter_onboarding_not_started` / `_in_progress` |
-| P2c | `intent=coach`, coach completed | *`coach_home`* | no | *`coach_onboarding_completed`* |
-| P2d | `intent=coach`, coach not completed — **whatever the Fighter state** | `coach_onboarding` | yes | *`coach_onboarding_not_started`* / *`coach_onboarding_in_progress`* |
-| P2e | `intent=gym` / `sponsor` | `gym_onboarding` / `sponsor_application` (unchanged) | no | `gym_intent` / `sponsor_intent` |
-| P3a | `context=X` and X completed | X's home | no | *`requested_context`* |
-| P3b | `context=X` and X not completed | ignored → continue at P4 (never starts onboarding); response `context: null` | — | — |
-| P4a | no completed context, no role started | `role_selection` | no | `no_role_started` |
-| P4b | no completed context, exactly one role in progress | that role's onboarding | yes | `…_onboarding_in_progress` |
-| P4c | exactly one completed context, no other role started | that home | no | `…_onboarding_completed` |
-| P4d | ≥ 2 completed contexts | *`context_selection`* | no | *`multiple_contexts`* |
-| P4e | one completed + another in progress | *`context_selection`* (lists the completed context and "Continue coach setup") | no | *`unfinished_role`* — **O-3** |
-| P4f | none completed, ≥ 2 in progress | *`context_selection`* (which setup to continue) | no | *`multiple_contexts`* |
+| Journey `intent` (query, exists) | navigation | `fighter`, `coach`, `gym`, `sponsor` | may start or resume onboarding | no |
+| Requested `context` (query, new, additive) | navigation | `fighter`, `coach` | opens that context **only if completed**; otherwise ignored | no |
+| Last explicit context choice (new, stored) | Entry (backend) | `fighter`, `coach` | default among ≥ 2 completed contexts | no |
+| Gym workspace (future) | Gyms | gym ids | which organization inside the Gym context | membership-based |
 
-`intent` and `context` together: `intent` wins (explicit journey), `context`
-ignored. Invalid values of either: `validation_error` (`invalid_choice`), as
-today. `coach_intent` stays in the API enum (additive-only rule) but is no
-longer emitted.
+* The **last explicit choice** is written only by an explicit user action —
+  choosing on the context-selection screen or in the context switcher —
+  through `PUT /api/v1/me/entry/context` (§11). The write is rejected
+  (`422`, `context: not_available`) unless that context is completed. It is
+  re-validated on every read. One row per user (`entry_context_choices`:
+  `user_id` PK, `context`, `chosen_at`), owned by `SimpleFit.Entry`. The
+  resolver itself stays read-only; no client-owned state machine exists.
+* Profile contexts (Fighter, Coach) are the user's roles. A future gym
+  workspace is chosen *inside* a Gym context by the Gyms domain
+  (session-scoped, `D-WORKSPACE-NOT-IN-URL`); the entry resolver never lists
+  individual gyms and never stores a gym id.
 
-**O-3 alternatives for P4e** (completed Fighter, Coach in progress, nothing
-requested): (a) `context_selection` — recommended: honest, user decides
-once per device via the remembered context; (b) `fighter_home` plus a
-"continue coach setup" prompt — needs a new response field; (c)
-`coach_onboarding` mandatory — rejected: an abandoned optional journey would
-block a working context.
+### 5.2 Decision table (`GET /api/v1/me/entry`)
 
-### 5.3 Client application order (returnTo is client-only)
+First matching row wins. "Completed" = profile onboarding completed;
+capabilities: `FIGHTER` iff Fighter completed, `COACH` iff Coach completed.
 
-`returnTo` never reaches the API (SF-24/SF-45 path policy). After the
-resolver answers, the client decides in this order:
+| Row | Condition | Destination | `mandatory` | Reason |
+|---|---|---|---|---|
+| E1 | account registration not complete | `account_registration` | yes | `account_registration_incomplete` |
+| E2 | `intent=fighter`, Fighter completed | `fighter_home` | no | `fighter_onboarding_completed` |
+| E3 | `intent=fighter`, Fighter not completed | `fighter_onboarding` | yes | `fighter_onboarding_not_started` / `_in_progress` |
+| E4 | `intent=coach`, Coach completed | `coach_home` | no | `coach_onboarding_completed` |
+| E5 | `intent=coach`, Coach not completed — **regardless of Fighter** | `coach_onboarding` | yes | `coach_onboarding_not_started` / `_in_progress` |
+| E6 | `intent=gym` / `sponsor` | `gym_onboarding` / `sponsor_application` (unchanged) | no | `gym_intent` / `sponsor_intent` |
+| E7 | `context=X`, X completed | X's home | no | `requested_context` |
+| E8 | `context=X`, X not completed | ignored (no grant, no onboarding) → continue at E9 | — | — |
 
-1. `mandatory` destination → go there; `returnTo` kept as continuation.
-2. Destination from **P2** (intent) → go there; a `returnTo` is used only if
-   it is a home destination (P2a/P2c) and the `returnTo` route's capability
-   is the intent's capability.
-3. Otherwise a **usable `returnTo`** (safe path, not the entry route, route
-   capability held — `usableReturnTo`) wins over P3/P4.
-4. Otherwise the destination.
+Default (no intent, no usable context), by number of completed contexts:
 
-Examples:
+| Row | Completed | Other roles | Destination | `mandatory` | Reason |
+|---|---|---|---|---|---|
+| E9 | 0 | none started | `role_selection` | no | `no_role_started` |
+| E10 | 0 | exactly 1 in progress | that role's onboarding (resume) | yes | `…_onboarding_in_progress` |
+| E11 | 0 | 2 in progress | `role_selection` (WA6 shows both as "continue") | no | `multiple_roles_in_progress` |
+| E12 | 1 | the other not started **or in progress** | the completed role's home | no | `…_onboarding_completed` |
+| E13 | 2 | — | last explicit choice if valid → its home | no | `last_context` |
+| E14 | 2 | no valid last choice | `context_selection` | no | `context_choice_required` |
 
-| Situation | Result |
+`intent` and `context` together: `intent` wins. Invalid values:
+`validation_error` (`invalid_choice`). `coach_intent` stays in the API enum
+(additive rule) and is no longer emitted. Response gains `coach_profile`
+and `context` (the context applied, or `null`).
+
+E11 is the only row not dictated by O-3; it is proposed (non-blocking for
+SF-50).
+
+### 5.3 `returnTo` validation and precedence (client-side; never sent to the API)
+
+Validation is the existing `sanitizeReturnTo` (SF-24, web
+`shared/routes/return-to.ts`; mobile equivalent) plus one rule:
+
+1. string, starts with `/`, not `//`, ≤ 2048 chars, no backslash,
+   whitespace or control characters;
+2. resolves on a sentinel origin to the same origin; leading locale
+   removed; hash discarded;
+3. matches a canonical registry route that is not guest-only, not
+   onboarding, not restricted-account, not not-found, not the verification
+   link;
+4. **new:** the route's capability is `null` or held in
+   `entry.capabilities` (`usableReturnTo`, already implemented).
+
+Precedence after the resolver answers:
+
+| Destination came from | `returnTo` used? |
 |---|---|
-| Completed Fighter taps "Become a coach" (`intent=coach`) | `coach_onboarding` (P2d), mandatory |
-| Same user, Coach in progress, signs in on a new device, no intent | `context_selection` (P4e) |
-| Dual user opens `/app/coach/fighters` deep link | P4d → `context_selection`, but step 3: `returnTo` held → opens the link |
-| Fighter-only user opens `/app/coach/fighters` | `returnTo` dropped (COACH not held) → `fighter_home` |
-| Dual user's device remembers "Coach" | client sends `context=coach` → `coach_home` (P3a) |
-| Remembered "Coach" but the device is now used by another account | remembered choice is keyed by user id and cleared on sign-out (SF-28 boundary) → not sent |
+| `mandatory` destination (E1, E3, E5, E10) | no — kept as continuation, re-resolved after the step |
+| E2 / E4 (intent → home) | only if the route's capability equals the intent's capability |
+| E7 (requested context) | only if the route's capability equals that context's capability |
+| E9, E11, E12, E13, E14 | yes, if valid (rules 1–4) |
+| otherwise | destination |
 
-### 5.4 Context selection and switching
+A `returnTo` never writes the last explicit choice.
 
-* `context_selection` → web WA2 (post-auth variant, CR-9) / mobile A04.
-  Lists completed profile contexts, in-progress setups ("Continue coach
-  setup" = `intent=coach`), and "Set up another role" (→ WA6/O05). No gym
-  rows until Gyms exist; no fabricated workspace entries.
-* "Remember my choice on this device" = device-local, per user id, sent as
-  `context`. Nothing stored server-side.
-* In-shell switcher (web `D-WEB-WORKSPACE-SWITCHER`, mobile A04) navigates
-  to the chosen home; it lists the same items from `capabilities` + profile
-  states.
-* The URL is the context for profile contexts (`/app/home`, `/app/coach`;
-  `(fighter)`, `(coach)`); no server "active context".
-* Session restore re-resolves (SF-28); deep links follow §5.3.
-
-### 5.5 Gates and required client changes
+### 5.4 Gates, switching, restore
 
 * Area gates check capability (`FIGHTER` / `COACH` ∈ `capabilities`), never
-  destination equality (F-2). A gate that lacks its capability resolves with
-  no intent/context and redirects with the page as `returnTo`.
-* `entryHref` treats every `*_home` as a completed journey (F-3) and applies
-  §5.3.
-* Mobile `(coach)` and `(fighter)` groups get capability gates (F-4).
-* `knowsDestination` / `entryDestinations` gain `coach_home` and
-  `context_selection` (registry reconciliation R-2); unknown destinations
-  stay a controlled failure.
+  destination equality (F-2); without it they resolve with no intent and
+  redirect with the page as `returnTo`.
+* `entryHref` treats every `*_home` as a completed journey (F-3); mobile
+  groups get capability gates (F-4).
+* Switcher / context selection: list completed contexts (+ "Continue coach
+  setup" → `intent=coach` when Coach is in progress; + "Set up another
+  role" → WA6). Choosing writes the last explicit choice, then navigates.
+* Session restore re-resolves (SF-28); the stored choice is server-side, so
+  nothing leaks between accounts on a shared device.
 
-### 5.6 Decision table summary for ADR 0017 amendment
+### 5.5 Examples
 
-Rule order: registration → explicit journey intent → requested completed
-context → default by role state (single completed home, otherwise choice).
-Nothing written by the resolver; intent and context grant nothing.
+| Situation | Row |
+|---|---|
+| Completed Fighter taps "Become a coach" | E5 → `coach_onboarding` |
+| Same user signs in later, no intent, Coach still in progress | E12 → `fighter_home` (switcher offers "Continue coach setup") |
+| Dual user, last chose Coach | E13 → `coach_home` |
+| Dual user, never chose | E14 → `context_selection` |
+| Fighter-only user sends `context=coach` | E8 ignored → E12 `fighter_home` |
+| Dual user opens a `/app/coach/fighters` deep link | E13/E14, then `returnTo` (COACH held) |
 
 ---
 
@@ -589,115 +601,139 @@ state (single source of truth).
 | End | either side | relationship `ended`; future planned sessions cancelled (`system`, `relationship_ended`); access revoked immediately |
 | Re-invite | coach, after decline/expiry/revoke/end | new invitation; rate-limited per recipient digest |
 
-### 6.4 Fighter data whitelist and historical access (revision 2, PROPOSED — O-4, O-6)
+### 6.4 Fighter data access, disclosure and termination (revision 3, PROPOSED for final review)
 
-Three tiers. Only tiers 1 and 2 can ever reach a coach in the MVP, and only
-through an **active** relationship of **that** coach. Every row needs
-explicit product-owner approval (A-8); nothing outside this table is
-granted.
+#### 6.4.1 Four classes (O-4)
 
-**Tier 1 — public fighter identity** (ADR 0015 calls these the public
-fighter identity; visible to a coach with an active relationship).
-
-| FighterProfile field | Coach access | Evidence |
-|---|---|---|
-| `display_name` | read | WC7/C03/C04/WC4 show the fighter name |
-| `username` | read | WC7 roster (`@handle` pattern from SF-25 preview) |
-| `country_code` | read | — (identity; not exact location) |
-| `city` | read | ADR 0015 public identity; OC10 forbids *exact* location only |
-
-**Tier 2 — boxing profile, shared by the acceptance consent** (must be
-listed on the acceptance screen, CR-2; recommended individually).
-
-| FighterProfile field | Coach access | Recommendation | Evidence |
+| Class | FighterProfile / other data | MVP coach access | Basis |
 |---|---|---|---|
-| `experience_level` | read | include | WC7 "LEVEL", WC4 "Amateur" |
-| `stance` | read | include | WC4 "orthodox", C04 |
-| `amateur_bout_count` | read | include | coaching-relevant; C04 shows a record "7-2-0" (wins/losses/draws are **not** in FighterProfile — not provided) |
-| `goals` | read | include | coaching-relevant (fight_preparation, competition…) |
-| `next_fight_on`, `next_fight_name` | read | include | WC7 "Fight Nov 3", C04 "NEXT FIGHT", WC4 "31 days to Nov 3" |
-| onboarding status | — | not needed (a relationship requires completed profiles) | — |
+| **C1 identity** (public fighter identity, ADR 0015) | `display_name`, `username`, `country_code`, `city` | read, active relationship only | disclosure v1 |
+| **C2 basic coaching-relevant boxing info** | `experience_level`, `stance`, `amateur_bout_count` | read, active relationship only | disclosure v1 |
+| **C3 personal goals and future fights** — needs an explicit sharing policy | `goals`, `next_fight_on`, `next_fight_name` | **none in MVP (deferred)** | no per-field sharing UI exists; never exposed silently |
+| **C4 sensitive / private** — never automatically disclosed | `weight_class`, `current_weight_kg`, `height_cm`; AccountProfile `full_name`, `date_of_birth`, consents; email, identities, sessions/devices; other coaches' sessions and relationships; first-run/entry state | **never** | ADR 0015 owner-only, SF-44 privacy, OC10 "never" list |
 
-**Tier 3 — private / sensitive, never to a coach in the MVP.**
+Only the relationship-scoped projection (`Coaching` authorizes,
+`Fighters` builds it) exposes C1+C2; no other endpoint returns another
+user's FighterProfile.
 
-| Data | Why | Future path |
-|---|---|---|
-| `weight_class`, `current_weight_kg`, `height_cm` | ADR 0015: returned only to the owner; E08/OC10: weight only "during a camp", "only if you allow" | per-category consent + ADR 0015 amendment (Fight Camp / consent ticket) |
-| AccountProfile `full_name`, `date_of_birth`, consents, product news | SF-44 private account data (A-3) | never |
-| Email, identities, sessions, devices | identity data | never |
-| First-run outcomes, entry state | internal | never |
-| Training by other coaches, self-training, RPE, pain/body flags, videos, messages | other owners / absent domains; OC10 "NEVER: messages with others" | Training Log with consent scopes |
-| Other relationships of the fighter (who else coaches them) | privacy between coaches | product decision later |
+#### 6.4.2 Minimal disclosure contract (field-level, versioned)
 
-**Coach-authored sessions**: the authoring coach reads and manages the
-sessions they created for this fighter, including status and
-`completed_at` (A-8).
+* A server constant `coach_disclosure_v1` = the C1 + C2 field list above,
+  plus its human-readable copy version (from the legal ticket, §7.4).
+* `preview` returns `disclosure: {version, fields}`; the acceptance screen
+  shows exactly these fields and the C4 "never" list (CR-2).
+* `accept` must echo `disclosure_version`; a stale version → `409 conflict`
+  (the fighter sees the current list again). Nothing is accepted for a
+  version the fighter did not see.
+* The relationship stores `disclosure_version` and `accepted_at`. The
+  projection returns `fields(disclosure_version) ∩ current allow-list` —
+  never wider than what was accepted; narrowing later applies at once.
+* Adding C3 (or any field) needs a new version **and** fighter opt-in UI;
+  existing relationships keep v1 until the fighter accepts the new one.
+* My Coaches (CR-3) shows, per coach, the fields disclosed.
 
-**On termination (A-9)** — proposed policy:
+#### 6.4.3 ADR 0015 amendment (required)
 
-* Immediately: every tier 1/2 read and every session read/write of that
-  coach for that fighter stops (404).
-* Future `planned` sessions of the relationship → `cancelled`,
-  `cancelled_by = system`, `cancel_reason = relationship_ended`, in the same
-  transaction (explicit policy for future scheduled sessions).
-* Records are preserved: the relationship row (`ended`), invitations and all
-  sessions stay in the database; the fighter keeps full read access to
-  their own sessions.
-* **O-6 — coach's view of history after end.** Recommended: the coach keeps
-  only a relationship stub (fighter `display_name`, `started_at`,
-  `ended_at`) in an "ended" list, and no session or profile data.
-  Alternative: the coach keeps read access to the plan fields of sessions
-  they authored, without fighter completion data.
-* Re-connection creates a new relationship; sessions bound to the old one
-  never become visible again through it.
+ADR 0015 makes FighterProfile owner-only and weight data private. Amend:
+"A FighterProfile may also be read through the Coaching relationship
+projection, limited to the fields of the disclosure version the fighter
+accepted (v1: C1 + C2). Body measurements (`weight_class`,
+`current_weight_kg`, `height_cm`) remain owner-only." No other change to
+ADR 0015.
+
+#### 6.4.4 Access matrix before and after termination (O-6)
+
+| Data / action | Coach, active | Coach, after end | Fighter, active | Fighter, after end |
+|---|---|---|---|---|
+| C1 + C2 projection | read | **none** (404) | own profile always | own profile always |
+| C3 / C4 | none | none | own | own |
+| Relationship record | read | stub only: `id`, `started_at`, `ended_at`, `ended_by`, fighter `display_name` **snapshot taken at end** | read (coach `display_name`/`brand_name` live) | stub: coach name snapshot, dates, `ended_by` |
+| Create / edit / cancel sessions | yes (own, planned) | **no** | — | — |
+| Planned future sessions | — | cancelled at end (`cancelled_by=system`, `cancel_reason=relationship_ended`), same transaction | sees them as cancelled with reason | sees them as cancelled with reason |
+| Past sessions (completed / cancelled) | read own authored | read own authored: plan fields (`title`, `training_type`, `starts_at`, `time_zone`, `duration_minutes`, `notes`) and terminal `status`; no projection fields beyond the snapshot name | read | read (own training history) |
+| New actions on the relationship | end | none | end | none (a new invitation creates a new relationship) |
+
+Retention: rows are kept (no hard delete in MVP). How long the coach-side
+stub and authored sessions stay visible is a **retention policy** item for
+the legal ticket (§16); until it is decided, the stub list is the only
+coach-side history and contains no C1/C2 data except the name snapshot.
 
 ---
 
-## 7. Invitation domain
+## 7. Invitation domain (revision 3)
 
-### 7.1 MVP mechanism (direction approved, A-7)
+### 7.1 Mechanism and permissions (A-7, O-10)
 
-Recommended MVP: **coach → fighter email invitation (E08)**, single-use,
-accepted explicitly by a signed-in fighter. Deferred: the coach's standing
-share link/QR with coach approval (OC9 "You approve each fighter"),
-fighter→coach requests (OF7 "Request Coach Marek"), invite codes (WF3
-`YB-7Q2K`), roster import (OC9), marketplace.
+* Email invitation (E08) only. Deferred: share link/QR with coach approval,
+  fighter→coach requests, invite codes, roster import, marketplace.
+* **Send:** only a user whose CoachProfile is completed (and §7.4 gate on).
+* **Accept/decline:** only a signed-in user whose FighterProfile is
+  completed. A signed-out or incomplete user passes through the canonical
+  gates first — sign-in → account registration (E1) → Fighter onboarding
+  (`intent=fighter`, E3) — then returns to the acceptance screen.
+* No account linking, profile creation or relationship activation from an
+  email match; sending creates nothing but the invitation; acceptance is
+  always an explicit action on the acceptance screen (CR-2).
+* Self-invitation (coach accepting their own invitation as fighter) →
+  `invitation_unavailable`.
 
-### 7.2 Security
+### 7.2 Token security and lifecycle (O-11)
 
-* Token: 32 random bytes, base64url, prefix `sfi_`; stored only as
-  SHA-256 hash (`unique`); shown once in the email link
-  `…/invite/coach#token=sfi_…` (URL fragment, as ADR 0012 link tokens — never
-  in server logs or referrers). Add `i` to the Redaction prefix class (F-6).
-* Expiry: 14 days (decision); one-time use; accept/decline/revoke under a row
-  lock; a used/expired/revoked/unknown token yields one normalized error
-  `invitation_unavailable` (no enumeration of states).
-* **No email matching**: acceptance does not require the accepting
-  account's email to equal the invited address (Google/Apple emails differ;
-  ADR 0009 forbids linking by email). Mitigation: explicit consent screen
-  showing coach identity and data scope; the coach learns the identity of
-  whoever accepted and can end it. Recipient address is never shown to the
-  accepting user.
-* No account, FighterProfile or relationship is created by sending.
-* Rate limits (`RateLimit`): per coach per hour/day, per recipient digest
-  per day, preview/accept per IP (`ClientIP.limit_key`).
-* Stored: recipient HMAC digest (duplicate detection) + sealed address
-  (Plug.Crypto, existing key pattern) for resend; never plaintext; never logged.
-* Duplicate pending invite to the same digest → returns the existing pending
-  invitation (idempotent), resend rotates the token.
-* Concurrency: two accepts of one token → one wins, the other gets the
-  same result idempotently if it is the same user, `invitation_unavailable`
-  otherwise; an already active pair → invitation accepted, existing
-  relationship returned.
+* Token `sfi_` + 32 random bytes (base64url); stored only as SHA-256 hash
+  (unique); shown once, in the email link. Redaction gains the `sfi_`
+  prefix (`sf[agiv]_`); the SF-29 canary probe covers the new endpoints.
+* Expiry **14 days**. One-time use: accept/decline/revoke lock the row.
+* **Resend** rotates the token on the same pending invitation (new hash,
+  `expires_at = now + 14 d`); the old token stops matching immediately →
+  `invitation_unavailable`. Resend is limited per invitation and per coach.
+* Unknown / used / expired / revoked / rotated token → one normalized
+  error `invitation_unavailable` (no state oracle).
+* Rate limits (`SimpleFit.RateLimit`): create per coach (hour/day), per
+  recipient digest (day), preview/accept/decline per client
+  (`ClientIP.limit_key`, IPv6 /64).
+* Recipient stored as HMAC digest (dedupe, limits) + sealed address
+  (Plug.Crypto, existing key pattern) for resend; never plaintext, never
+  logged; telemetry carries outcomes only.
+* Duplicate pending invitation to the same digest from the same coach →
+  the existing invitation is returned (idempotent).
 
-### 7.3 Deep links
+### 7.3 Link and deep-link transfer — verified against current code
 
-Web: `/invite/coach#token=…` → if signed out, auth with continuation
-(token kept client-side like `intent`), account registration, Fighter
-onboarding if needed (`intent=fighter`), then the **accept/consent screen
-(missing artboard)**. Mobile: same via universal link to
-`mobile.invite._code`; SecureStore not needed (short-lived continuation in
-memory/router params). Never auto-accept (A-7; CR-2, CR-11).
+| Platform | Current capability (verified) | Design |
+|---|---|---|
+| Web | E01 already uses a URL fragment: `/verify-email#token=…`; `verification-link-result.tsx` reads `location.hash` and posts the token in the request body | E08 link `https://<web>/<locale>/invite/coach#token=sfi_…`. The page reads the fragment, removes it (`history.replaceState`), keeps the token in `sessionStorage` (tab-scoped) across sign-in, account registration and Fighter onboarding, and sends it only in POST bodies (`preview`, `accept`, `decline`). Never in a query string, `returnTo`, analytics, logs or Sentry breadcrumbs. Cleared on accept, decline, unavailable, or sign-out. |
+| Mobile | Only the custom scheme `simplefit://` (`app.config.ts`); **no** iOS Associated Domains or Android App Links | The emailed https link opens the browser; **MVP acceptance happens on web** (responsive), and the new relationship appears in the app. The token is never passed through the custom scheme (any app can claim it). Universal links (AASA + assetlinks + native build) are a separate future task; native builds are currently blocked by the Xcode 26 toolchain. |
+
+### 7.4 Legal gate for Coach-to-Fighter access (O-9)
+
+* The coach data-rules acknowledgement (OC10) is **separate** from SF-44
+  Terms/Privacy: a Coaching-owned, append-only record
+  (`coach_profile_id`, `document_version`, `acknowledged_at`) — not an
+  `account_consents` kind and not a CoachProfile field.
+* Fighter disclosure acceptance is recorded on the relationship
+  (`disclosure_version`, §6.4.2).
+* No legal text is written or approved here. The texts come from the
+  legal-document ticket, whose key is **not confirmed** (§16).
+* Feature gate `SimpleFit.Coaching, access_enabled` (runtime config,
+  default `false`; enabled per environment only when the legal versions
+  are configured): while off, every invitation and relationship endpoint
+  answers `404 not_found` (same as an unknown route; no new error code),
+  and E08 is never sent. CoachProfile (SF-50) and entry are unaffected.
+* With the gate on, a coach must have acknowledged the current data-rules
+  version before sending an invitation (`409 conflict`, detail
+  `data_rules_acknowledgement: required`).
+* Public launch stays blocked until the applicable legal materials exist.
+
+### 7.5 E08 template change (O-12)
+
+* `fighter_name` becomes **optional**: with it, "Hi {name}, train with me
+  on SimpleFit."; without it, the heading variant from CR-12 (copy to be
+  designed, not invented here).
+* `coaching_name` = CoachProfile `brand_name` if present, otherwise
+  `display_name`. `coach_name`/`coach_initials` derive from `display_name`.
+* Other template contracts (E01–E19 and their validations) are unchanged;
+  the composer's optional recipient name is the only source of
+  `fighter_name` (never derived from the email address).
 
 ---
 
@@ -717,7 +753,9 @@ memory/router params). Never auto-accept (A-7; CR-2, CR-11).
 
 MVP TrainingSession = **plan + its completion** in one row (no separate
 execution entity yet). Group assignment ("same plan, trained separately",
-WC3) = N TrainingSessions created in one request.
+WC3) is **deferred** (O-15): one operation creates one TrainingSession for
+one authorized fighter. A future batch API must be designed separately
+(idempotency, partial failures, authorization, abuse limits).
 
 ### 8.2 Field contract (proposed)
 
@@ -777,15 +815,48 @@ call it is **O-7** (recommended: the assigned fighter only — the record is
 the fighter's training; coach "End session" (C05) belongs to future group
 session control).
 
-### 8.3 Temporal semantics
+### 8.3 Temporal semantics (revision 3, O-8)
 
-UTC instant + IANA zone of where the training happens. Clients compute the
-instant from local date/time in that zone; the server re-validates the zone
-(tz database dependency, O-8) and stores both; a client-asserted, unvalidated
-zone is rejected by A-12. Display in the session's zone;
-show the viewer's zone if it differs. Rescheduling replaces both. DST: an
-instant is unambiguous; a non-existent local time is rejected client-side
-and server-side. Completion time is server `now()`.
+**Runtime inspection (2026-10-13):**
+
+* Elixir/OTP: default `Calendar.UTCOnlyTimeZoneDatabase`; no `tz` or
+  `tzdata` in `mix.exs`/`mix.lock`; no `:time_zone_database` config. The
+  API cannot convert or validate IANA zones in Elixir today.
+* PostgreSQL (the only database, already a runtime dependency): ships IANA
+  zone data — `pg_timezone_names` has 597 names on the local 14.17 server,
+  including `Europe/Warsaw`, `Europe/Kyiv` and the legacy alias
+  `Europe/Kiev`.
+
+**Mechanism (proposed, no new dependency):** clients send `starts_at` as a
+UTC instant (RFC 3339 with offset) and `time_zone` as an IANA id. The API
+stores both and validates the id with PostgreSQL:
+`name ∈ pg_timezone_names` **and** the id is `UTC` or matches
+`^[A-Za-z_]+(/[A-Za-z0-9_+-]+)+$` **and** it does not start with `posix/`,
+`right/` or `Etc/` (this excludes abbreviations and POSIX-style entries).
+The API performs no wall-clock arithmetic in the MVP. If a later feature
+needs server-side conversion (recurring schedules, "today" in a coach's
+zone), adding `tz` follows CLAUDE.md rule 18 and ADR 0004 at that time.
+The production database's tz data version must be checked during J-10.
+
+**DST acceptance criteria (J-10, J-11, J-12):**
+
+1. A non-existent local time (e.g. 02:30 on the last Sunday of March in
+   `Europe/Warsaw`) cannot be submitted: the client rejects it; the API
+   receives only instants.
+2. An ambiguous local time (02:30 on the last Sunday of October in
+   `Europe/Warsaw`) requires an explicit offset choice in the client; both
+   instants round-trip exactly.
+3. A session created on one side of a DST change and displayed on the other
+   side shows the wall time the coach chose (rendered in `time_zone`).
+4. Rescheduling across a DST boundary recomputes the instant from the new
+   wall time; the stored instant matches the displayed wall time.
+5. Listing by `from`/`to` (UTC) returns sessions on DST-transition days
+   exactly once.
+6. Legacy aliases (`Europe/Kiev`) are accepted; an unknown id → `422`
+   `time_zone: invalid`; a client zone newer than the server's tz data →
+   the same `422` (documented, not silent).
+7. Viewer in a different zone sees the session's zone and their own local
+   time.
 
 ### 8.4 State transitions
 
@@ -855,37 +926,38 @@ cross-coach, cross-fighter, ended relationship, self-relationship.
 
 ---
 
-## 11. Proposed API (indicative; nothing added to OpenAPI)
+## 11. Proposed API (revision 3; indicative, nothing added to OpenAPI)
 
-| Method | Path | Owner | Auth | Notes |
+| Method | Path | Owner | Auth / gate | Notes |
 |---|---|---|---|---|
-| GET | `/api/v1/me/coach-profile` | Coaches | session | `CoachProfileResponse` with `onboarding {status, completed_at, missing_requirements}` |
-| PATCH | `/api/v1/me/coach-profile` | Coaches | session | partial; 422 field_codes |
-| POST | `/api/v1/me/coach-profile/complete-onboarding` | Coaches | session | idempotent |
-| GET | `/api/v1/me/entry` | Entry | session | **additive**: query `context`; response `coach_profile`, `context`; destinations `coach_home`, `context_selection`; new reasons (§5.2); `COACH` |
-| PUT | `/api/v1/me/first-run/{experience}` | FirstRun | session | **additive** keys `coach_web_tour`, `coach_mobile_first_run` |
-| POST | `/api/v1/me/coach/invitations` | Coaching | completed coach | `{email, message?}` → 201/200 existing; 429 |
-| GET | `/api/v1/me/coach/invitations` | Coaching | completed coach | cursor pagination, `status` filter; email masked |
-| POST | `/api/v1/me/coach/invitations/{id}/resend` · `/revoke` | Coaching | inviting coach | 404 foreign; 409 non-pending |
-| POST | `/api/v1/coach-invitations/preview` | Coaching | none (token in body) | coach display info + data scope; `invitation_unavailable` |
-| POST | `/api/v1/me/coach-invitations/accept` · `/decline` | Coaching | completed fighter | `{token}`; idempotent per user |
-| GET | `/api/v1/me/coach/fighters` | Coaching | completed coach | roster (active), cursor pagination |
-| GET | `/api/v1/me/coach/fighters/{relationshipId}` | Coaching | completed coach | fighter projection (§6.4) |
-| POST | `/api/v1/me/coach/fighters/{relationshipId}/end` | Coaching | coach | 200 idempotent |
-| GET | `/api/v1/me/coaches` | Coaching | completed fighter | fighter's active coaches |
-| POST | `/api/v1/me/coaches/{relationshipId}/end` | Coaching | fighter | 200 idempotent |
-| POST | `/api/v1/me/coach/training-sessions` | Training | completed coach | single or `relationship_ids[]` batch; `client_request_id` |
-| GET | `/api/v1/me/coach/training-sessions` | Training | coach | `from`,`to`, `relationship_id`; cursor |
-| PATCH | `/api/v1/me/coach/training-sessions/{id}` | Training | authoring coach | planned only |
-| POST | `/api/v1/me/coach/training-sessions/{id}/cancel` | Training | authoring coach | idempotent |
+| GET | `/api/v1/me/coach-profile` | Coaches | session | `CoachProfileResponse` incl. `onboarding {status, completed_at, missing_requirements}` (SF-50) |
+| PATCH | `/api/v1/me/coach-profile` | Coaches | session | partial; `422` with `field_codes` (SF-50) |
+| POST | `/api/v1/me/coach-profile/complete-onboarding` | Coaches | session | idempotent (SF-50) |
+| GET | `/api/v1/me/entry` | Entry | session | additive: query `context`; response `coach_profile`, `context`; destinations `coach_home`, `context_selection`; reasons §5.2; `COACH` |
+| PUT | `/api/v1/me/entry/context` | Entry | session | `{context}`; `204`; `422 not_available` if not completed |
+| PUT | `/api/v1/me/first-run/{experience}` | FirstRun | session | additive keys `coach_web_tour`, `coach_mobile_first_run` |
+| POST | `/api/v1/me/coach/data-rules/acknowledge` | Coaching | completed coach, gate | `{document_version}`; idempotent |
+| POST | `/api/v1/me/coach/invitations` | Coaching | completed coach, gate, acknowledged | `{email, recipient_name?, message?}` → `201` / `200` existing; `429` |
+| GET | `/api/v1/me/coach/invitations` | Coaching | completed coach, gate | cursor pagination; email masked |
+| POST | `/api/v1/me/coach/invitations/{id}/resend` · `/revoke` | Coaching | inviting coach, gate | `404` foreign; `409` not pending |
+| POST | `/api/v1/coach-invitations/preview` | Coaching | none, gate | `{token}` → coach public info + `disclosure {version, fields}`; `invitation_unavailable` |
+| POST | `/api/v1/me/coach-invitations/accept` | Coaching | completed fighter, gate | `{token, disclosure_version}`; `409` stale version |
+| POST | `/api/v1/me/coach-invitations/decline` | Coaching | completed fighter, gate | `{token}` |
+| GET | `/api/v1/me/coach/fighters` | Coaching | completed coach, gate | roster (active), C1+C2, cursor |
+| GET | `/api/v1/me/coach/fighters/{relationshipId}` | Coaching | completed coach, gate | projection §6.4 |
+| GET | `/api/v1/me/coach/relationships?status=ended` | Coaching | coach, gate | ended stubs only |
+| POST | `/api/v1/me/coach/fighters/{relationshipId}/end` | Coaching | coach, gate | idempotent |
+| GET | `/api/v1/me/coaches` | Coaching | completed fighter, gate | active coaches + disclosed fields |
+| POST | `/api/v1/me/coaches/{relationshipId}/end` | Coaching | fighter, gate | idempotent |
+| POST | `/api/v1/me/coach/training-sessions` | Training | completed coach, gate | **one** session for one active relationship; `client_request_id` idempotency |
+| GET | `/api/v1/me/coach/training-sessions` | Training | coach, gate | `from`, `to`, `relationship_id`; cursor |
+| PATCH | `/api/v1/me/coach/training-sessions/{id}` | Training | authoring coach, active relationship | planned only |
+| POST | `/api/v1/me/coach/training-sessions/{id}/cancel` | Training | authoring coach, active relationship | idempotent |
 | GET | `/api/v1/me/training-sessions` · `/{id}` | Training | fighter | own sessions |
-| POST | `/api/v1/me/training-sessions/{id}/complete` | Training | fighter | idempotent |
+| POST | `/api/v1/me/training-sessions/{id}/complete` | Training | assigned fighter | no body; server time; idempotent |
 
-Errors: existing envelope and codes (`validation_error`, `unauthorized`,
-`not_found`, `conflict`, `rate_limited`) plus one new
-`invitation_unavailable`. Generated clients: web + mobile via
-`pnpm api:generate`. Premature (not proposed): `/api/v1/me/workspaces`,
-public coach pages, programs, bookings, shared sessions, admin.
+Errors: existing envelope and codes plus `invitation_unavailable`. No
+batch/group endpoint (O-15). Generated clients: web + mobile.
 
 ---
 
@@ -903,7 +975,7 @@ public coach pages, programs, bookings, shared sessions, admin.
 | Invite fighters | web composer (**missing artboard**), OC9 | `features/invite-fighter` | invitations | placeholder | Invitations UI |
 | Invitation accept/consent | **missing artboard**; INV1 landing | `features/accept-coach-invitation` | preview/accept | placeholder | Fighter Invitation Acceptance |
 | My coaches / remove access | **missing artboard** | `features/my-coaches` | coaches | — | Fighter Invitation Acceptance |
-| Session planner (single/group) | `web.app.coach.sessions.new` | `widgets/session-planner`, `entities/training-session` | training-sessions | placeholder | Coach Training Planner |
+| Session planner (single fighter, O-15) | `web.app.coach.sessions.new` | `widgets/session-planner`, `entities/training-session` | training-sessions | placeholder | Coach Training Planner |
 | Coach calendar | `web.app.calendar` (coach context) | `widgets/calendar` | training-sessions | placeholder | Coach Training Planner |
 | Fighter training hub / detail / complete | `mobile.training`, `mobile.sessions._session-id(+/complete)`; web `web.app.calendar` | `widgets/fighter-training` | training-sessions | placeholder | Fighter Training Screens |
 | Fighter Home next session | `web.app.home` / `mobile.home` | existing home widgets | training-sessions | real | Fighter Home Integration |
@@ -1004,128 +1076,124 @@ D-13 → O-5, D-14 → O-7, D-15 → O-10, D-16 → O-8. Design fixes are §18.
 
 ---
 
-## 16. Unresolved decisions for the product owner (revision 2)
+## 16. Remaining open items and blockers (revision 3)
 
-Rev. 1 items D-02, D-07, D-11, D-20, D-21 are settled in direction by §0
-(A-4, A-7, A-5, A-14, A-3). Remaining choices:
+### 16.1 Blockers to SF-50 (CoachProfile backend)
 
-| # | Question | Options | Recommendation | Blocks |
-|---|---|---|---|---|
-| O-1 | Coach vocabulary (§4.2.2) | a) `coaching_formats` = personal_training, group_coaching, online_coaching, fight_camps, strength_conditioning; b) drop web "In person"; c) keep or drop web-only levels `fitness`, `womens`; d) drop practice model (Independent/Gym coach/Both) from MVP | a yes · b drop · c keep both (add to mobile) · d drop | J-1, J-3, J-4, CR-1 |
-| O-2 | Coach languages | design chips {en, pl, ru, be, uk} / + app locales {de, es, fr} / full ISO 639-1 | design chips | J-1 |
-| O-3 | Mixed state, no intent/context (completed Fighter + Coach in progress) | `context_selection` / Fighter home + resume prompt / force coach onboarding | `context_selection` | J-2 |
-| O-4 | Fighter whitelist (§6.4) | approve tier 1 and each tier 2 field | tiers 1 + 2 as listed; tier 3 never | J-6, CR-2 |
-| O-5 | Training types (§8.2.1) | five-value taxonomy / S10 picker / both | five values: technical, sparring, pads, strength_conditioning, roadwork | J-10, CR-6 |
-| O-6 | Coach's view after a relationship ends | stub only / stub + authored plan fields | stub only | J-6 |
-| O-7 | Who confirms completion | fighter only / coach only / either | fighter only | J-10 |
-| O-8 | IANA validation dependency (CLAUDE.md rule 18, ADR 0004) | `tz` / `tzdata` | `tz` (pure Elixir, no runtime downloads) — justification at J-10 | J-10 |
-| O-9 | Coach data-rules acknowledgement (OC10) | required, versioned (needs SF-48 legal text) / informational only | required, versioned; J-1 completes once the text exists | J-1, J-L |
-| O-10 | Preconditions | invite needs completed CoachProfile; accept needs completed FighterProfile | yes / yes | J-6, CR-2 |
-| O-11 | Invitation lifetime and resend | 14 days; resend rotates the token and resets expiry | as stated | J-6 |
-| O-12 | E08 requires `fighter_name` and `coaching_name` | composer asks the recipient's name and `coaching_name` falls back to `display_name` / change the template to an optional greeting | composer field "Name (optional)" + template change to optional `fighter_name`; `coaching_name` = `brand_name` or `display_name` | J-6, CR-4, CR-12 |
-| O-13 | Reduced Coach Home cards (CR-8) | upcoming sessions, roster count, pending invitations, setup checklist (profile, invite, first session) | these four | J-14, CR-8 |
-| O-14 | Mobile coach session creation in MVP | yes (new artboard) / web planner only in MVP | yes | J-11, CR-6 |
-| O-15 | Batch "group" assignment (WC3 "Group: same plan, trained separately") | N single sessions in one request / single only | N single sessions, max 30 | J-10, J-11 |
+**None**, provided the product owner approves the exact contract in §4.2
+and §20 (field names, lengths, the four `coaching_formats` values, the two
+`competition_levels` values, the five languages, completion prerequisites).
+SF-50 needs no legal text (O-9), no design change merged, and no entry or
+Coaching work.
 
-Minor (implementer's choice within the ticket): bio length 500, display
-name 60, page sizes, batch limit, error field names, telemetry names.
+### 16.2 Open items that block later tasks (not SF-50)
+
+| # | Item | Blocks | Owner |
+|---|---|---|---|
+| B-1 | **Legal-document ticket key is unconfirmed.** Repo docs/code still say "Terms and Privacy documents (SF-48)" (web `docs/role-selection-web.md:106`, `docs/fighter-home-web.md:197`; mobile `docs/auth-mobile.md:53`, `src/features/account-registration/ui/account-basics-form.tsx:46`), but SF-48 is now the Coach–Fighter epic. No repository, commit or ADR records the real key. | lifting the §7.4 gate (J-6/J-9), public launch, the reference fix (J-DOC) | product owner (provide the Jira key) |
+| B-2 | Legal scope for that ticket: coach data-rules text, fighter disclosure copy (v1), retention period for ended-relationship history | §7.4 gate, CR-2 final copy | legal |
+| B-3 | Claude Design CR-1…CR-16 approved | UI tasks (J-3, J-4, J-5, J-7, J-8, J-9, J-11–J-14) | design |
+| B-4 | Route registry reconciliation after B-3 | client tasks | platform + mobile |
+| B-5 | E11 (two roles in progress, none completed → `role_selection`) — proposed, not covered by O-3 | J-2 | product owner (minor) |
+| B-6 | Production PostgreSQL tz data version check | J-10 | backend |
+| B-7 | Mobile universal links (AASA + assetlinks + native build; native build toolchain blocked by Xcode 26) | in-app invitation acceptance (future; MVP uses web) | mobile |
 
 ---
 
-## 17. Follow-up Jira tasks and dependencies (revision 2, proposal — no tickets created)
+## 17. Implementation tasks and dependencies (revision 3; proposal — no tickets created)
 
 | Key | Task | Repos | Depends on | ADR |
 |---|---|---|---|---|
-| J-0 | Product-owner approval of §0 + O-1…O-15 | — | this document | — |
-| J-L | Legal: coach data-rules text, fighter acceptance consent wording | docs/legal (SF-48) | J-0 | — |
-| J-D1 | Claude Design CR-1 Coach registration vocabulary + reduced steps | Claude Design | J-0 (O-1, O-2, O-9) | — |
-| J-D2 | Claude Design CR-2…CR-5, CR-11, CR-12 invitations (composer, acceptance/consent, my coaches, INV1/E08 copy) | Claude Design | J-0 (O-4, O-10, O-12), J-L | — |
-| J-D3 | Claude Design CR-6, CR-7, CR-10 training (mobile creator, reduced planner, fighter F04/F06/F24, Home card) | Claude Design | J-0 (O-5, O-7, O-14, O-15) | — |
-| J-D4 | Claude Design CR-8, CR-13, CR-14 reduced Coach Home, first run, roster, Fighter 360 | Claude Design | J-0 (O-4, O-13) | — |
-| J-D5 | Claude Design CR-9 context selection (WA2 post-auth, A04, switchers) | Claude Design | J-0 (O-3) | — |
-| J-R | Route-registry reconciliation R-1…R-6 (web + mobile, byte-identical) | platform, mobile | J-D1…J-D5 | — |
-| J-1 | CoachProfile backend | api | J-0, J-L (O-9) | 0020 |
-| J-2 | Entry precedence backend (§5) | api | J-1, O-3 | 0017 amd. |
+| J-0 | Final approval of §4.2, §5, §6.4, §8.2.1, §20 | — | this document | — |
+| **SF-50** | CoachProfile backend (§20) | api | J-0 | 0020 |
+| J-L | Legal documents (coach data rules, fighter disclosure v1, retention) — ticket key B-1 | legal | — | — |
+| J-DOC | Fix stale "SF-48" legal references (4 places, B-1) | platform, mobile | B-1 key | — |
+| J-D1 | Design CR-1 Coach registration | Claude Design | J-0 | — |
+| J-D2 | Design CR-2…CR-5, CR-11, CR-12 invitations | Claude Design | J-0, J-L (copy) | — |
+| J-D3 | Design CR-6, CR-7, CR-10 training | Claude Design | J-0 | — |
+| J-D4 | Design CR-8, CR-13, CR-14, CR-15 Home, first run, roster | Claude Design | J-0 | — |
+| J-D5 | Design CR-9 context selection | Claude Design | J-0 | — |
+| J-R | Route-registry reconciliation (§18.2) | platform, mobile | J-D1…J-D5 | — |
+| J-2 | Entry precedence backend + `entry_context_choices` | api | SF-50 | 0017 amd. |
 | J-2c | Client entry + capability gates (F-2…F-4) | platform, mobile | J-2, J-R | — |
-| J-3 / J-4 | Coach onboarding web / mobile | platform / mobile | J-1, J-D1, J-R | — |
-| J-5 | Coach shells + context selection UI | platform, mobile | J-2c, J-D5 | — |
-| J-6 | Coaching backend: relationships + invitations (+ Fighters coach projection, Redaction `sfi_`, E08 trigger) | api | J-1, O-4, O-6, O-10–O-12 | 0021, 0015 amd. |
-| J-7 | Invitation UI: web composer + mobile OC9 | platform, mobile | J-6, J-D2, J-R | — |
-| J-8 | Coach roster + Fighter 360 (reduced) | platform, mobile | J-6, J-D4, J-R | — |
-| J-9 | Fighter acceptance/consent + My Coaches | platform, mobile | J-6, J-D2, J-L, J-R | — |
-| J-10 | TrainingSession backend incl. completion | api | J-6, O-5, O-7, O-8, O-15 | 0022 |
-| J-11 | Coach planner web + mobile creator | platform, mobile | J-10, J-D3, J-R | — |
+| J-3 / J-4 | Coach onboarding web / mobile | platform / mobile | SF-50, J-D1, J-R | — |
+| J-5 | Coach shells + context selection | platform, mobile | J-2c, J-D5 | — |
+| J-6 | Coaching backend: invitations, relationships, disclosure v1, acknowledgement, gate, Fighters projection, `sfi_` redaction, E08 trigger + template change | api | SF-50 | 0021, 0015 amd., 0011 amd. |
+| J-7 | Invitation composer (web) + OC9 (mobile) | platform, mobile | J-6, J-D2, J-R | — |
+| J-8 | Roster + Fighter 360 (C1+C2) | platform, mobile | J-6, J-D4, J-R | — |
+| J-9 | Web acceptance/disclosure + My Coaches (web + mobile) | platform, mobile | J-6, J-D2, J-R | — |
+| J-10 | TrainingSession backend (single session, completion, PG zone validation, DST tests) | api | J-6 | 0022 |
+| J-11 | Coach planner web (single) + mobile creator | platform, mobile | J-10, J-D3, J-R | — |
 | J-12 | Fighter training screens | platform, mobile | J-10, J-D3, J-R | — |
-| J-13 | Fighter Home integration | platform, mobile | J-10, J-D3 | — |
-| J-14 | Reduced Coach Home + Coach first run (FirstRun keys) | api, platform, mobile | J-8, J-10, J-D4 | 0018 amd. |
-| J-15 | E2E hardening (SF-30 harness: dual-role, invitation, training, IDOR) | all | J-2c…J-14 | — |
+| J-13 | Fighter Home next-session card | platform, mobile | J-10, J-D3 | — |
+| J-14 | Reduced Coach Home + Coach first run | api, platform, mobile | J-8, J-10, J-D4 | 0018 amd. |
+| J-15 | E2E hardening (dual role, entry rows E1–E14, invitation, disclosure, termination, IDOR, DST) | all | J-2c…J-14 | — |
+| Gate lift | Enable `Coaching.access_enabled` per environment | ops | J-L, J-6 | — |
 
 ```mermaid
 graph TD
-  J0[J-0 approvals] --> JL[J-L legal] & JD1[J-D1] & JD2[J-D2] & JD3[J-D3] & JD4[J-D4] & JD5[J-D5]
-  JL --> J1[J-1 CoachProfile BE]
-  J0 --> J1
+  J0[J-0 approval] --> SF50[SF-50 CoachProfile BE]
+  J0 --> JD1[J-D1] & JD2[J-D2] & JD3[J-D3] & JD4[J-D4] & JD5[J-D5]
+  JL[J-L legal, key B-1] --> JD2 & GATE[gate lift]
   JD1 & JD2 & JD3 & JD4 & JD5 --> JR[J-R registry]
-  J1 --> J2[J-2 Entry BE] --> J2c[J-2c client gates]
+  SF50 --> J2[J-2 entry BE] --> J2c[J-2c gates]
   JR --> J2c
-  J1 --> J3[J-3 web onb.] & J4[J-4 mobile onb.]
+  SF50 --> J3[J-3 web onb.] & J4[J-4 mobile onb.]
   JD1 & JR --> J3 & J4
-  J2c & JD5 --> J5[J-5 shells + context]
-  J1 --> J6[J-6 Coaching BE]
-  J6 --> J7[J-7 invite UI] & J8[J-8 roster] & J9[J-9 acceptance] & J10[J-10 Training BE]
+  J2c & JD5 --> J5[J-5 shells/context]
+  SF50 --> J6[J-6 Coaching BE] --> GATE
+  J6 --> J7[J-7 composer] & J8[J-8 roster] & J9[J-9 acceptance/My Coaches] & J10[J-10 Training BE]
   JD2 --> J7 & J9
   JD4 --> J8
-  J10 --> J11[J-11 planner] & J12[J-12 fighter training] & J13[J-13 Home]
+  J10 --> J11[J-11 planner/creator] & J12[J-12 fighter training] & J13[J-13 Home card]
   JD3 --> J11 & J12 & J13
   J8 & J10 & JD4 --> J14[J-14 Coach Home + first run]
   J3 & J4 & J5 & J7 & J9 & J11 & J12 & J13 & J14 --> J15[J-15 E2E]
 ```
 
-Parallel: design tickets J-D1…J-D5 run in parallel with each other and with
-J-1/J-2/J-6/J-10 backend work once J-0 is decided; J-3 ∥ J-4; J-7 ∥ J-8 ∥
-J-9; J-11 ∥ J-12 ∥ J-13. Milestones: **M1** J-1…J-5 · **M2** J-6…J-9 ·
-**M3** J-10…J-14 · **M4** J-15.
-
-**Next implementation task after final approval: J-1 CoachProfile backend**
-(needs O-1, O-2, O-9 and the legal text, or O-9 = informational).
-
+Parallel after J-0: SF-50 ∥ J-D1…J-D5 ∥ J-L. After SF-50: J-2 ∥ J-6.
+Milestones: **M1** SF-50, J-2, J-2c, J-3–J-5 · **M2** J-6–J-9 · **M3**
+J-10–J-14 · **M4** J-15 + gate lift (legal).
 
 ---
 
-## 18. Design-reconciliation change request (PROPOSED — nothing changed in Claude Design or the registries)
+## 18. Final Claude Design change requests and registry scope (revision 3)
 
-### 18.1 Claude Design changes (artifact `JEsBg51MjX8KiHWEro8omY`, from version `1791877903-9d9a`)
+Nothing is changed in Claude Design or the registries by SF-49. Base
+version: `1791877903-9d9a` (re-verified 2026-10-13).
 
-| CR | Change | Artboards affected | Platform | New / edit |
-|---|---|---|---|---|
-| CR-1 | Canonical Coach registration: add **Coach name** (`display_name`) input; move Brand name to the profile step; add Country to web; replace OC2/WCR2 lists with `coaching_formats` + `coaching_levels` (§4.2.2); remove "Youth" and the practice facet; languages chips = O-2 set; mark OC3–OC8 and WCR3–WCR6 as FUTURE (like WF2–WF5); fix step counters; data-rules step per O-9 | OnbCProfile, OnbCType, OnbCWhere, OnbCCredentials, OnbCSize, OnbCPlan, OnbCServices, OnbCPayouts, OnbCPrivacy, WebRegCProfile, WebRegCType, WebRegCCreds, WebRegCSize, WebRegCGym, WebRegCPlan | both | edit |
-| CR-1b | Truthful completion screens: no trial, plan, licence review, payout or gym states | OnbCReady (OC11), WebRegCDone (WCR7) | both | edit |
-| CR-2 | **Fighter invitation acceptance + consent**: coach identity (display/brand name), tier 1/2 data list and "never" list, Accept / Decline, states: signed-out continuation, fighter setup required (O-10), already connected, invitation unavailable (one normalized state), self-invite, success | new (web + mobile) | both | new |
-| CR-3 | **My Coaches / Remove access**: active coaches, what each can see, remove-access confirmation, ended list | new (mobile settings area; web account/settings area) | both | new |
-| CR-4 | **Web Coach invitation composer**: email, optional recipient name (O-12), optional message ≤ 500 (E08), sent list with pending/accepted/declined/expired/revoked, resend/revoke, rate-limited state | new (from WC7 "Invite fighters", WC1) | web | new |
-| CR-5 | Mobile OC9 reduced to email invite; share link/QR/roster import marked FUTURE | OnbCInvite | mobile | edit |
-| CR-6 | **Mobile Coach session creation** (single fighter; optional multi-fighter = separate sessions, O-15): title, type (5 values), date/time + zone, duration, notes; edit; cancel; error/empty states | new (from C04, C01) | mobile | new |
-| CR-7 | Reduced web planner: single / group-separately only; no block library, timer presets, shared session, gym class, coaches list, capacity, visibility | WebProgramBuilder (WC3) | web | edit or new MVP state |
-| CR-8 | **Reduced truthful Coach Home**: cards per O-13; designed empty states; remove AI summary, weight corridors, attendance %, rounds, camp, sparring approvals, booking requests, video, revenue, team challenge | WebCoachDashboard (WC1), CoachToday (C01), FirstRunWebC (CRW1), FirstRunCToday (CR4), FirstRunC1–C3 copy, tours CRW2/CR5 targets | both | edit / MVP states |
-| CR-9 | **Context selection**: WA2 as a post-auth chooser (not only a sign-in step) and A04 listing Fighter / Coach / "Continue coach setup" / "Set up another role"; "Remember my choice on this device"; gym/sponsor rows marked FUTURE; shell identity cards show the personal coach context (not "WARSAW BC · HEAD COACH"); switcher action in CoachWebNav/FighterWebNav | WebLoginWorkspace (WA2), Workspaces (A04), CoachWebNav, FighterWebNav, CoachToday header | both | edit |
-| CR-10 | Fighter training reduced: F04 without blocks/equipment/timer; F06 = confirm completion only (no rounds, RPE, body check, "trained with"); F24 "Up next · assigned by coach" + history of coach sessions; calendar training layer; Fighter Home next-session card | SessionDetail, SessionLog, TrainingHub, Calendar (F12), WebCalendar (W08), WebHome/Main | both | edit / MVP states |
-| CR-11 | INV1 copy: remove "you land straight in Marek's team"; continue to CR-2 after sign-in | InviteCoach | mobile (+ web equivalent) | edit |
-| CR-12 | E08 copy/variables aligned with O-12 and the tier 1/2 consent list | EmailCoachInvite | email | edit |
-| CR-13 | Fighter 360 / quick view reduced to tiers 1–2 + coach-authored sessions (tabs Overview, Sessions) | WebFighter360 (WC4), FighterQuick (C04) | both | edit |
-| CR-14 | Roster reduced: name, username, level, stance, next fight, last/next coach session; no weight, attendance, flags, groups filters | WebCoachFighters (WC7), Fighters (C03) | both | edit |
+### 18.1 Claude Design (artifact `JEsBg51MjX8KiHWEro8omY`)
 
-### 18.2 Subsequent shared route-registry reconciliation (after CRs land; web + mobile byte-identical)
+| CR | Change | Artboards | Platform |
+|---|---|---|---|
+| CR-1 | **Canonical Coach registration**: add "Coach name" (`display_name`, prefilled from the account name as an editable suggestion); Brand name optional on the profile step; Country on web; Languages = English, Polski/Polish, Русский/Russian, Беларуская/Belarusian, Українська/Ukrainian (`en pl ru be uk`); "How do you coach?" = exactly Personal Training · Group Coaching · Online Coaching · Fight Camps (≥ 1); separate optional "Competition level" = Amateur · Professional; remove Strength & Conditioning, In person, Fitness boxing, Women's boxing, Youth and the Independent/Gym coach/Both choice; mark OC3–OC8, WCR3–WCR6 FUTURE; data-rules step moved out of registration (shown before first invitation, §7.4); step counters | OnbCProfile, OnbCType, OnbCWhere, OnbCCredentials, OnbCSize, OnbCPlan, OnbCServices, OnbCPayouts, OnbCPrivacy, WebRegCProfile, WebRegCType, WebRegCCreds, WebRegCSize, WebRegCGym, WebRegCPlan | both |
+| CR-1b | Truthful completion screens (no trial, plan, licence, payout, gym) | OnbCReady, WebRegCDone | both |
+| CR-2 | **Invitation acceptance + data-sharing disclosure** (web; also reached from mobile via browser): coach public info; "Your coach will see" = C1 + C2 fields; "Never shared" = C4 list; Accept / Decline; states: signed out (continue after sign-in), account/fighter setup required, unavailable, already connected, own invitation, success | new | web (+ responsive) |
+| CR-3 | **My Coaches / Remove access**: active coaches with disclosed fields, remove-access confirmation, ended list (stub), empty state | new | both |
+| CR-4 | **Web invitation composer**: email, optional recipient name, optional message ≤ 500; sent list with pending / accepted / declined / expired / revoked; resend, revoke; limit reached; data-rules acknowledgement prompt before the first invitation; feature-unavailable state | new (from WC7, WC1) | web |
+| CR-5 | Mobile OC9 → email invite only; share link/QR/import FUTURE | OnbCInvite | mobile |
+| CR-6 | **Mobile Coach session creation**: one fighter; title, type (5), date/time + zone, duration, notes; edit; cancel; errors (invalid zone, DST-ambiguous time, relationship ended) | new (from C04, C01) | mobile |
+| CR-7 | Web planner reduced to single-fighter creation (no block library, timer, group, shared, class, coaches, capacity, visibility) | WebProgramBuilder | web |
+| CR-8 | **Reduced Coach Home**: upcoming sessions, roster count, pending invitations, setup checklist (profile ✓, data rules, first invitation, first session); designed empty states; remove AI, weight, attendance, rounds, camp, sparring, bookings, video, revenue, challenges | WebCoachDashboard, CoachToday | both |
+| CR-9 | **Context selection**: WA2 post-auth chooser + A04 list Fighter / Coach / "Continue coach setup" / "Set up another role"; "we open your last choice next time" (server-remembered; remove the per-device checkbox); no gym rows until Gyms; shell identity shows the personal coach context; switcher action | WebLoginWorkspace, Workspaces, CoachWebNav, FighterWebNav, CoachToday header | both |
+| CR-10 | **Honest training states**: planned / completed (confirmed by the fighter) / cancelled (by coach, or "relationship ended"); F04 without blocks/equipment/timer; F06 = confirm only (no rounds, RPE, body check, "trained with"); F24 coach sessions; calendar training layer; Fighter Home next-session card | SessionDetail, SessionLog, TrainingHub, Calendar, WebCalendar, WebHome, Main | both |
+| CR-11 | Remove automatic-join copy ("you land straight in Marek's team") | InviteCoach (INV1) | mobile (+ web landing) |
+| CR-12 | E08: optional recipient name variant; brand/display-name fallback; consent panel = C1 + C2 / never list | EmailCoachInvite | email |
+| CR-13 | Fighter 360 / quick view = C1 + C2 + coach-authored sessions | WebFighter360, FighterQuick | both |
+| CR-14 | Roster = name, username, level, stance, bouts, next/last coach session; no weight, attendance, flags, groups, next fight | WebCoachFighters, Fighters | both |
+| CR-15 | Coach first run reduced (CR1–CR5, CRW1–CRW2): no invented team data; tour targets exist in the reduced Home | FirstRunC1–C3, FirstRunCToday, FirstRunCSessionTip(+Steps), FirstRunWebC, FirstRunWebCTour(+Steps) | both |
+| CR-16 | Coach nav/tab bar: MVP items only (Dashboard/Today, Fighters, Sessions/Calendar, Settings); others FUTURE | CoachWebNav, CoachTabs | both |
 
-| R | Change | Trigger |
-|---|---|---|
-| R-1 | `source.version` → the new design version; re-read rows | all CRs |
-| R-2 | `guards.entryDestinations`: `coach_home` → `web.app.coach` / `mobile.coach.today`; `context_selection` → web chooser route (WA2 post-auth: new authenticated route or `web.login?step=workspace` reclassified) / `mobile.workspaces`; `guards.workspaceChooser.web` updated | CR-9 |
-| R-3 | New routes: invitation acceptance (web; mobile decides between `mobile.invite._code` and a coach-specific route), My Coaches (web + mobile), mobile coach session create, web invite composer (route or in-page) | CR-2, CR-3, CR-4, CR-6 |
-| R-4 | FUTURE/DEFERRED statuses for deferred registration steps and Coach nav items (Board, Activity, Sparring, Services, Earnings, Billing, Messages, Requests, AI drafts) | CR-1, CR-8 |
-| R-5 | Resolve `D-WEB-COACH-FIGHTER-INVITE` with CR-4 | CR-4 |
-| R-6 | Access metadata for new routes (capability `COACH` for composer/session create; session-only for acceptance; `FIGHTER` for My Coaches) | CR-2…CR-6 |
+### 18.2 Route registry reconciliation (after the CRs; web + mobile byte-identical)
 
-Code (not registry): F-2…F-4 gates belong to J-2c.
+| R | Scope |
+|---|---|
+| R-1 | `source.version` → the post-CR design version; re-read every Coach row |
+| R-2 | `guards.entryDestinations`: `coach_home` → `web.app.coach` / `mobile.coach.today`; `context_selection` → web post-auth chooser (new authenticated route or reclassified `web.login?step=workspace`) / `mobile.workspaces`; `guards.workspaceChooser.web` updated |
+| R-3 | New routes: web invitation acceptance (`/invite/coach`), My Coaches (web + mobile), mobile coach session create, web composer (route or in-page) |
+| R-4 | FUTURE/DEFERRED for deferred registration steps and Coach nav items |
+| R-5 | Close `D-WEB-COACH-FIGHTER-INVITE` (CR-4) |
+| R-6 | Access metadata: acceptance = session; My Coaches = `FIGHTER`; composer/session create = `COACH` |
 
 ---
 
@@ -1133,8 +1201,8 @@ Code (not registry): F-2…F-4 gates belong to J-2c.
 
 | # | Existing decision | Contradiction / interaction | Resolution (proposed) |
 |---|---|---|---|
-| X-1 | SF-25 / ADR 0015: weight class, current weight, height "returned only to its owner" | Coach rosters in the design show weight and weight class | Keep owner-only (tier 3); a future consent ticket amends ADR 0015 |
-| X-2 | SF-25 / ADR 0015: FighterProfile read only by its owner (no non-owner read exists) | Coaches need tiers 1–2 | ADR 0015 amendment: a coach projection exposed by Fighters, authorized by Coaching (J-6) |
+| X-1 | SF-25 / ADR 0015: weight class, current weight, height "returned only to its owner" | Coach rosters in the design show weight and weight class | Keep owner-only (class C4); a future consent ticket amends ADR 0015 |
+| X-2 | SF-25 / ADR 0015: FighterProfile read only by its owner (no non-owner read exists) | Coaches need classes C1–C2 | ADR 0015 amendment: a coach projection exposed by Fighters, authorized by Coaching (J-6) |
 | X-3 | SF-25 / ADR 0015: production onboarding is OF1–OF4; OF7 "Coach" step not built; WF3 is FUTURE | INV1/OF7 imply joining a coach inside onboarding | Acceptance happens after FighterProfile completion (O-10); the invitation token rides the continuation |
 | X-4 | SF-25: FighterProfile `display_name` | A dual user has two public names (fighter, coach) | Intended: separate contexts; no copying either way (A-3) |
 | X-5 | SF-44 / ADR 0016: under 16 rejected, no guardian flow | Web WCR2 "Youth" | Removed (A-14); any youth coaching needs a legal guardian design first |
@@ -1148,3 +1216,50 @@ Code (not registry): F-2…F-4 gates belong to J-2c.
 | X-13 | SF-28: per-identity cache clearing and pending sign-out | Remembered context must not leak across accounts | Keyed by user id; cleared at the session boundary |
 | X-14 | SF-29: Redaction covers `sfa_ sfr_ sfv_ sfg_` | New invitation token | Add `sfi_` (J-6) and extend the canary probe to new endpoints |
 | X-15 | ADR 0011: E08 requires `fighter_name`, `coaching_name` | Email invite may target a person whose name the coach does not type; brand name optional | O-12 |
+| X-16 | SF-48 cited as the Terms/Privacy legal ticket in 4 places | SF-48 is now the Coach–Fighter epic | B-1: real key needed; J-DOC fixes the references |
+| X-17 | FighterProfile `experience_level` keys | Coach `competition_levels` reuse `amateur`, `professional` | Same meaning in both profiles; no shared enum module needed |
+
+---
+
+## 20. SF-50 implementation contract — CoachProfile backend (PROPOSED for final review)
+
+**Scope:** `SimpleFit.Coaches` context, `coach_profiles` table, three
+endpoints, OpenAPI, tests. Nothing else (no entry, Coaching, Training,
+first run, UI).
+
+**Migration (one, additive):** §4.2.5.
+
+**Context (mirrors `SimpleFit.Fighters`, ADR 0015 semantics):**
+`get_profile/1`, `update_profile/2` (row lock; first changed save creates;
+empty/no-op save creates nothing and returns current/`nil`; invalid save
+changes nothing), `complete_onboarding/1` (requires account registration
+complete; `required` error per missing field; repeat = no-op keeping the
+original time), `onboarding_status/1`, `missing_requirements/1`.
+
+**Endpoints:** §11 rows 1–3 (`getMyCoachProfile`, `updateMyCoachProfile`,
+`completeMyCoachOnboarding`), tag `Coach profile`, `no-store`, error
+envelope with `field_codes`:
+
+| Field | Codes |
+|---|---|
+| `display_name`, `city`, `brand_name`, `bio` | `required`, `too_long`, `invalid_format` |
+| `country_code` | `invalid_choice` |
+| `languages`, `coaching_formats`, `competition_levels` | `invalid_choice`, `duplicate`, `too_many` (languages), `required` (`coaching_formats` at completion / emptied after) |
+| `account_registration` | `required` |
+| read-only fields (`id`, `user_id`, `onboarding_completed_at`, …) | ignored, never written |
+
+**Response:** the fields of §4.2.3 + `onboarding {status, completed_at,
+missing_requirements}`; no `id`, `user_id`, internal timestamps; never
+returns AccountProfile or FighterProfile data.
+
+**Acceptance tests:** lifecycle (not_started/in_progress/completed);
+partial and concurrent PATCHes preserve other fields; completion gated on
+account registration; repeat completion; completed profile cannot drop a
+required field; every enum allow-list and duplicate rejected; `display_name`
+never derived from `full_name` (test with a registered account); a user
+with a completed FighterProfile can create a CoachProfile and both stay
+independent; OpenAPI schema assertions; SF-29 canary probe extended to the
+three endpoints; logs carry no field values.
+
+**Out of SF-50:** COACH capability in entry (J-2), data-rules
+acknowledgement (J-6), photo, every deferred field (§4.2.3).
