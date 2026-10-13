@@ -1261,5 +1261,10 @@ with a completed FighterProfile can create a CoachProfile and both stay
 independent; OpenAPI schema assertions; SF-29 canary probe extended to the
 three endpoints; logs carry no field values.
 
+**Implemented in SF-50 as ADR 0020.** The catalog has no `duplicate` or
+`too_many` codes: a repeated selection value is `invalid` (as for fighter
+goals) and no separate size limit exists beyond the vocabulary and the
+no-repeat rule.
+
 **Out of SF-50:** COACH capability in entry (J-2), data-rules
 acknowledgement (J-6), photo, every deferred field (§4.2.3).

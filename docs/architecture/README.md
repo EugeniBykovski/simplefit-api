@@ -25,6 +25,7 @@ as ADRs in [`adr/`](adr/).
 | [0017](adr/0017-entry-resolution.md) | Post-authentication entry resolution: read-only `SimpleFit.Entry`, semantic destinations, ephemeral allow-listed intent, mandatory account registration first, capability projection (`GET /api/v1/me/entry`) |
 | [0018](adr/0018-first-run-experiences.md) | First-run experiences: `SimpleFit.FirstRun`, one final outcome (`completed` / `dismissed`) per user and experience, derived `unavailable` / `pending`, account-wide (`GET /api/v1/me/first-run`, `PUT /api/v1/me/first-run/{experience}`) |
 | [0019](adr/0019-identity-security.md) | Identity security (SF-29): threat model and control audit, rate-limit policy (IPv6 keyed by /64), secret-redaction contract (`Redaction`, `LogRedactor` on every log event), expected vs actionable telemetry, refresh-reuse measurement |
+| [0020](adr/0020-coach-profile-onboarding.md) | Coach profile and resumable Coach onboarding (SF-50): `SimpleFit.Coaches`, one profile per user independent of account/fighter profiles and gyms, reconciled field and enum contract, explicit completion gated on account registration (`/api/v1/me/coach-profile`) |
 
 ---
 
@@ -52,6 +53,8 @@ lib/
                               # passwordless email authentication (ADR 0012)
     identity.ex, identity/    # Provider identity verification: Google (ADR 0013) and Apple (ADR 0014) tokens + shared signing-key cache
     rate_limit.ex             # PostgreSQL fixed-window limits for abuse-sensitive endpoints (ADR 0012)
+    fighters.ex, fighters/    # Fighter profile and onboarding (ADR 0015)
+    coaches.ex, coaches/      # Coach profile and onboarding (ADR 0020)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
     storage.ex, storage/      # Object storage boundary + S3 / Fake adapters

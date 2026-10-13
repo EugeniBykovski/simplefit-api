@@ -642,6 +642,300 @@
         "title": "AppleAuthResponse",
         "type": "object"
       },
+      "CoachProfileResponse": {
+        "additionalProperties": false,
+        "description": "Always returned, also before onboarding has started (`status: not_started`, every field empty), so a\nclient can render and resume onboarding from this response alone. Selections are always arrays.\n",
+        "example": {
+          "coach_profile": {
+            "bio": null,
+            "brand_name": null,
+            "city": "Warsaw",
+            "coaching_formats": [],
+            "competition_levels": [],
+            "country_code": "PL",
+            "display_name": "Coach Marek",
+            "languages": [
+              "pl",
+              "en"
+            ],
+            "onboarding": {
+              "completed_at": null,
+              "missing_requirements": [
+                "coaching_formats"
+              ],
+              "status": "in_progress"
+            }
+          }
+        },
+        "properties": {
+          "coach_profile": {
+            "additionalProperties": false,
+            "properties": {
+              "bio": {
+                "description": "Optional public bio, plain text. Trimmed; up to 500 characters; line breaks allowed.",
+                "example": "Footwork-first boxing. I run 10-week fight camps for amateurs.",
+                "maxLength": 500,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "brand_name": {
+                "description": "Optional public coaching brand. Trimmed; 1-80 characters.",
+                "example": "Marek Boxing",
+                "maxLength": 80,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "city": {
+                "description": "City. Trimmed; 1-80 characters. Required to complete onboarding.",
+                "example": "Warsaw",
+                "maxLength": 80,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "coaching_formats": {
+                "description": "How the coach works. Any number; a repeated value is rejected with `invalid`; `null` or `[]` clears. At least one is required to\ncomplete onboarding, and a completed profile cannot clear them all.\n",
+                "example": [
+                  "personal_training",
+                  "fight_camps"
+                ],
+                "items": {
+                  "enum": [
+                    "personal_training",
+                    "group_coaching",
+                    "online_coaching",
+                    "fight_camps"
+                  ],
+                  "type": "string"
+                },
+                "nullable": false,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "competition_levels": {
+                "description": "Optional competitive levels of the fighters the coach prepares (same keys as the fighter\nprofile's experience levels). Any number; a repeated value is rejected with `invalid`; `null` or\n`[]` clears.\n",
+                "example": [
+                  "amateur"
+                ],
+                "items": {
+                  "enum": [
+                    "amateur",
+                    "professional"
+                  ],
+                  "type": "string"
+                },
+                "nullable": false,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "country_code": {
+                "description": "Country as an officially assigned ISO 3166-1 alpha-2 code (same list as the fighter profile).\nTrimmed and returned in uppercase; codes that are not assigned are rejected with `invalid_choice`.\nRequired to complete onboarding.\n",
+                "example": "PL",
+                "nullable": true,
+                "pattern": "^\\s*[A-Za-z]{2}\\s*$",
+                "type": "string"
+              },
+              "display_name": {
+                "description": "Public coach name. Trimmed; 1-60 characters, no control characters. Owned by the coach profile:\nnever copied from the account's full name or the fighter profile, and changing either never changes\nit. Required to complete onboarding.\n",
+                "example": "Coach Marek",
+                "maxLength": 60,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "languages": {
+                "description": "Languages the coach coaches in (ISO 639-1; spoken languages, not app locales). Any number; a repeated\nvalue is rejected with `invalid`; `null` or `[]` clears.\n",
+                "example": [
+                  "pl",
+                  "en"
+                ],
+                "items": {
+                  "enum": [
+                    "en",
+                    "pl",
+                    "ru",
+                    "be",
+                    "uk"
+                  ],
+                  "type": "string"
+                },
+                "nullable": false,
+                "type": "array",
+                "uniqueItems": true
+              },
+              "onboarding": {
+                "additionalProperties": false,
+                "properties": {
+                  "completed_at": {
+                    "description": "When onboarding was completed; `null` until then. Never changes afterwards.",
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "missing_requirements": {
+                    "description": "Required fields still empty, in step order. Completion succeeds only when this is empty.",
+                    "items": {
+                      "enum": [
+                        "display_name",
+                        "country_code",
+                        "city",
+                        "coaching_formats"
+                      ],
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "status": {
+                    "description": "`not_started`: no coach profile yet. `in_progress`: progress saved, not completed (also when\nevery required field is present). `completed`: completion recorded by\n`completeMyCoachOnboarding`.\n",
+                    "enum": [
+                      "not_started",
+                      "in_progress",
+                      "completed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "completed_at",
+                  "missing_requirements"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "bio",
+              "brand_name",
+              "city",
+              "coaching_formats",
+              "competition_levels",
+              "country_code",
+              "display_name",
+              "languages",
+              "onboarding"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "coach_profile"
+        ],
+        "title": "CoachProfileResponse",
+        "type": "object"
+      },
+      "CoachProfileUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Any subset of the coach profile. Omitted fields are unchanged; `null` (or an empty or blank text, or\n`[]` for a selection) clears a field. Nothing is required while onboarding is in progress and saving\nnever completes it. After completion the required fields can be changed but not cleared. A field\noutside this schema (for example `user_id`, `coach_id`, `gym_id` or `onboarding_completed_at`) is\nrejected with `422 validation_error`, code `invalid` under that field name, and nothing is saved.\n",
+        "example": {
+          "city": "Warsaw",
+          "coaching_formats": [
+            "personal_training",
+            "group_coaching"
+          ],
+          "country_code": "PL",
+          "display_name": "Coach Marek"
+        },
+        "properties": {
+          "bio": {
+            "description": "Optional public bio, plain text. Trimmed; up to 500 characters; line breaks allowed.",
+            "example": "Footwork-first boxing. I run 10-week fight camps for amateurs.",
+            "maxLength": 500,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "brand_name": {
+            "description": "Optional public coaching brand. Trimmed; 1-80 characters.",
+            "example": "Marek Boxing",
+            "maxLength": 80,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "city": {
+            "description": "City. Trimmed; 1-80 characters. Required to complete onboarding.",
+            "example": "Warsaw",
+            "maxLength": 80,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "coaching_formats": {
+            "description": "How the coach works. Any number; a repeated value is rejected with `invalid`; `null` or `[]` clears. At least one is required to\ncomplete onboarding, and a completed profile cannot clear them all.\n",
+            "example": [
+              "personal_training",
+              "fight_camps"
+            ],
+            "items": {
+              "enum": [
+                "personal_training",
+                "group_coaching",
+                "online_coaching",
+                "fight_camps"
+              ],
+              "type": "string"
+            },
+            "nullable": true,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "competition_levels": {
+            "description": "Optional competitive levels of the fighters the coach prepares (same keys as the fighter\nprofile's experience levels). Any number; a repeated value is rejected with `invalid`; `null` or\n`[]` clears.\n",
+            "example": [
+              "amateur"
+            ],
+            "items": {
+              "enum": [
+                "amateur",
+                "professional"
+              ],
+              "type": "string"
+            },
+            "nullable": true,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "country_code": {
+            "description": "Country as an officially assigned ISO 3166-1 alpha-2 code (same list as the fighter profile).\nTrimmed and returned in uppercase; codes that are not assigned are rejected with `invalid_choice`.\nRequired to complete onboarding.\n",
+            "example": "PL",
+            "nullable": true,
+            "pattern": "^\\s*[A-Za-z]{2}\\s*$",
+            "type": "string"
+          },
+          "display_name": {
+            "description": "Public coach name. Trimmed; 1-60 characters, no control characters. Owned by the coach profile:\nnever copied from the account's full name or the fighter profile, and changing either never changes\nit. Required to complete onboarding.\n",
+            "example": "Coach Marek",
+            "maxLength": 60,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "languages": {
+            "description": "Languages the coach coaches in (ISO 639-1; spoken languages, not app locales). Any number; a repeated\nvalue is rejected with `invalid`; `null` or `[]` clears.\n",
+            "example": [
+              "pl",
+              "en"
+            ],
+            "items": {
+              "enum": [
+                "en",
+                "pl",
+                "ru",
+                "be",
+                "uk"
+              ],
+              "type": "string"
+            },
+            "nullable": true,
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "title": "CoachProfileUpdateRequest",
+        "type": "object"
+      },
       "CurrentUserResponse": {
         "additionalProperties": false,
         "description": "The authenticated viewer. `user` is the one global SimpleFit user; capabilities such as profiles\nand workspace memberships will be added as sibling fields when they exist.\n",
@@ -2786,6 +3080,126 @@
         ]
       }
     },
+    "/api/v1/me/coach-profile": {
+      "get": {
+        "callbacks": {},
+        "description": "Returns the current Coach onboarding state and every saved field. Before onboarding has started the\nresponse is still `200`, with `onboarding.status: not_started`, empty fields and every requirement listed\nas missing; no profile is created by reading.\n",
+        "operationId": "getMyCoachProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachProfileResponse"
+                }
+              }
+            },
+            "description": "The coach profile and onboarding state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My coach profile and onboarding state",
+        "tags": [
+          "Coach profile"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Saves any subset of the coach profile; the first save that stores a value creates the profile\n(`in_progress`). Values are validated but nothing is required until completion, and saving never\ncompletes onboarding. A field outside `CoachProfileUpdateRequest` (including ids, the owner and the\ncompletion time) is rejected with `422 validation_error` and code `invalid` under that field name; a\nrepeated selection value is rejected with `invalid`. An invalid request changes nothing. Saving does not\nrequire completed account registration.\n",
+        "operationId": "updateMyCoachProfile",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachProfileUpdateRequest"
+              }
+            }
+          },
+          "description": "Fields to save",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachProfileResponse"
+                }
+              }
+            },
+            "description": "The coach profile and onboarding state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save Coach onboarding progress",
+        "tags": [
+          "Coach profile"
+        ]
+      }
+    },
+    "/api/v1/me/coach-profile/complete-onboarding": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that Coach onboarding is complete, after checking every requirement on the server. While any\nrequired field is missing the response is `422 validation_error` with a `required` field code per missing\nfield, and nothing changes. Completion also requires completed shared account registration\n(`completeAccountRegistration`): until then the error carries `account_registration` with code `required`.\nCompleting again returns the profile with its original `completed_at`. Completion grants no access to\nother users' data.\n",
+        "operationId": "completeMyCoachOnboarding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachProfileResponse"
+                }
+              }
+            },
+            "description": "The coach profile and onboarding state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Complete Coach onboarding",
+        "tags": [
+          "Coach profile"
+        ]
+      }
+    },
     "/api/v1/me/entry": {
       "get": {
         "callbacks": {},
@@ -3085,6 +3499,10 @@
     {
       "description": "The viewer's fighter profile and resumable Fighter onboarding.",
       "name": "Fighter profile"
+    },
+    {
+      "description": "The viewer's coach profile and resumable Coach onboarding, independent of the fighter profile.",
+      "name": "Coach profile"
     },
     {
       "description": "Where an authenticated user goes next, as a semantic destination.",
