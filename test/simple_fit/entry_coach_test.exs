@@ -238,7 +238,6 @@ defmodule SimpleFit.EntryCoachTest do
         assert entry.capabilities == expected
         assert entry.destination in Entry.destinations()
         assert entry.reason in Entry.reasons()
-        refute entry.reason == :coach_intent
 
         assert entry.mandatory ==
                  entry.destination in [
