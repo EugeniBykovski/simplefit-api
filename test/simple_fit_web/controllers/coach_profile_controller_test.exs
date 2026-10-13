@@ -1,6 +1,7 @@
 defmodule SimpleFitWeb.CoachProfileControllerTest do
   use SimpleFitWeb.ConnCase, async: true
 
+  import ExUnit.CaptureLog
   import OpenApiSpex.TestAssertions
   import SimpleFit.AccountRegistrationHelpers
   import SimpleFit.FighterOnboardingHelpers
@@ -218,41 +219,120 @@ defmodule SimpleFitWeb.CoachProfileControllerTest do
       assert Coaches.get_profile(user) == nil
     end
 
-    test "repeated values are rejected, never silently dropped", %{token: token} do
-      assert token
-             |> patch_profile(%{"coaching_formats" => ["fight_camps", "fight_camps"]})
-             |> validation_error() ==
-               %{"coaching_formats" => ["invalid"]}
-    end
-
     test "wrong JSON types are invalid_type", %{token: token} do
       assert token |> patch_profile(%{"languages" => "pl", "city" => 7}) |> validation_error() ==
                %{"languages" => ["invalid_type"], "city" => ["invalid_type"]}
     end
 
-    test "unknown fields and ownership claims are ignored, never written", %{
+    test "unknown fields are rejected with invalid and nothing is saved", %{
       user: user,
       token: token
     } do
+      assert token
+             |> patch_profile(%{
+               "city" => "Warsaw",
+               "nickname" => "Iron",
+               "favourite_combo" => "1-2"
+             })
+             |> validation_error() == %{
+               "favourite_combo" => ["invalid"],
+               "nickname" => ["invalid"]
+             }
+
+      assert Coaches.get_profile(user) == nil
+    end
+
+    test "ownership and backend-owned fields are rejected, each one", %{user: user, token: token} do
       {:ok, other} = Accounts.register_user(:email, "other-coach@example.com")
+      token |> patch_profile(%{"city" => "Warsaw"}) |> profile_body(200)
 
-      profile =
-        token
-        |> patch_profile(%{
-          "city" => "Warsaw",
-          "user_id" => other.id,
-          "coach_id" => Ecto.UUID.generate(),
-          "id" => Ecto.UUID.generate(),
-          "onboarding_completed_at" => "2026-10-13T10:00:00Z",
-          "onboarding" => %{"status" => "completed"},
-          "capabilities" => ["COACH"],
-          "gym_id" => Ecto.UUID.generate()
-        })
-        |> profile_body(200)
+      for {field, value} <- [
+            {"user_id", other.id},
+            {"coach_id", Ecto.UUID.generate()},
+            {"gym_id", Ecto.UUID.generate()},
+            {"onboarding_completed_at", "2026-10-13T10:00:00Z"},
+            {"id", Ecto.UUID.generate()},
+            {"onboarding", %{"status" => "completed"}},
+            {"capabilities", ["COACH"]}
+          ] do
+        assert token |> patch_profile(%{field => value, "city" => "Kraków"}) |> validation_error() ==
+                 %{field => ["invalid"]},
+               field
+      end
 
-      assert profile["onboarding"]["status"] == "in_progress"
-      assert Coaches.get_profile(user).city == "Warsaw"
+      profile = Coaches.get_profile(user)
+      assert profile.city == "Warsaw"
+      assert profile.onboarding_completed_at == nil
       assert Coaches.get_profile(other) == nil
+    end
+
+    test "rejected values are never echoed into the error or the logs", %{token: token} do
+      canary = "CANARYsf50#{System.unique_integer([:positive])}"
+
+      {conn, log} =
+        with_log([level: :debug], fn ->
+          patch_profile(token, %{
+            "user_id" => canary,
+            "secret_note" => canary,
+            "display_name" => String.duplicate(canary, 5)
+          })
+        end)
+
+      assert validation_error(conn) == %{
+               "display_name" => ["too_long"],
+               "secret_note" => ["invalid"],
+               "user_id" => ["invalid"]
+             }
+
+      refute conn.resp_body =~ canary
+      refute log =~ canary
+    end
+
+    test "query parameters are not profile fields", %{user: user, token: token} do
+      conn =
+        token
+        |> authed()
+        |> put_req_header("content-type", "application/json")
+        |> patch(
+          @path <> "?city=Gdansk&user_id=x",
+          Jason.encode!(%{"display_name" => "Coach Marek"})
+        )
+
+      profile = profile_body(conn, 200)
+      assert profile["display_name"] == "Coach Marek"
+      assert profile["city"] == nil
+      assert Coaches.get_profile(user).city == nil
+    end
+
+    test "a JSON body that is not an object is rejected", %{user: user, token: token} do
+      conn =
+        token
+        |> authed()
+        |> put_req_header("content-type", "application/json")
+        |> patch(@path, Jason.encode!(["city", "Warsaw"]))
+
+      assert validation_error(conn) == %{"_json" => ["invalid"]}
+      assert Coaches.get_profile(user) == nil
+    end
+
+    test "a repeated value in any selection is invalid and nothing is saved", %{
+      user: user,
+      token: token
+    } do
+      assert token
+             |> patch_profile(%{
+               "city" => "Warsaw",
+               "languages" => ["pl", "pl"],
+               "coaching_formats" => ["fight_camps", "fight_camps"],
+               "competition_levels" => ["amateur", "amateur"]
+             })
+             |> validation_error() == %{
+               "languages" => ["invalid"],
+               "coaching_formats" => ["invalid"],
+               "competition_levels" => ["invalid"]
+             }
+
+      assert Coaches.get_profile(user) == nil
     end
 
     test "requires authentication", %{conn: conn} do

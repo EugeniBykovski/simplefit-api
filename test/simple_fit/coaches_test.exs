@@ -317,21 +317,36 @@ defmodule SimpleFit.CoachesTest do
                Coaches.update_profile(user, %{"country_code" => "ua"})
     end
 
-    test "never accepts the completion marker, ids or owner from a client", %{user: user} do
+    test "rejects the completion marker, ids, owner and unknown fields, saving nothing", %{
+      user: user
+    } do
       {:ok, other} =
         Accounts.register_user(:google, "other-#{System.unique_integer([:positive])}")
 
-      {:ok, profile} =
+      result =
         Coaches.update_profile(user, %{
           "city" => "Warsaw",
           "onboarding_completed_at" => "2026-10-13T10:00:00Z",
           "user_id" => other.id,
-          "id" => Ecto.UUID.generate()
+          "id" => Ecto.UUID.generate(),
+          "nickname" => "Iron"
         })
 
-      assert profile.onboarding_completed_at == nil
-      assert profile.user_id == user.id
+      assert field_codes(result) == %{
+               "id" => ["invalid"],
+               "nickname" => ["invalid"],
+               "onboarding_completed_at" => ["invalid"],
+               "user_id" => ["invalid"]
+             }
+
+      assert Coaches.get_profile(user) == nil
       assert Coaches.get_profile(other) == nil
+    end
+
+    test "unknown keys are reported as given, never turned into atoms", %{user: user} do
+      key = "unknown_#{System.unique_integer([:positive])}"
+      assert field_codes(Coaches.update_profile(user, %{key => 1})) == %{key => ["invalid"]}
+      assert_raise ArgumentError, fn -> String.to_existing_atom(key) end
     end
 
     test "concurrent first saves converge on one profile", %{user: user} do

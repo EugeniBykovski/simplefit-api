@@ -118,12 +118,15 @@ defmodule SimpleFit.Coaches.CoachProfile do
 
   Text is trimmed; an empty or blank text, like `null`, clears an optional
   field. `null` or `[]` clears a selection. Selections keep the order given
-  and reject repeated values.
+  and reject repeated values (`invalid`). A key that is not an editable field
+  (an unknown field, an id, the owner or the completion time) is rejected
+  with `invalid` under that key; its value is never echoed.
   """
   @spec update_changeset(t(), map()) :: Ecto.Changeset.t()
   def update_changeset(%__MODULE__{} = profile, attrs) when is_map(attrs) do
     profile
     |> cast(attrs, @editable_fields, empty_values: [])
+    |> reject_unknown_fields(attrs)
     |> update_change(:display_name, &trim/1)
     |> update_change(:brand_name, &trim/1)
     |> update_change(:country_code, &canonical_country_code/1)
@@ -187,6 +190,23 @@ defmodule SimpleFit.Coaches.CoachProfile do
   def onboarding_status(%__MODULE__{}), do: :in_progress
 
   ## Validation helpers
+
+  @editable_keys Enum.flat_map(@editable_fields, &[&1, Atom.to_string(&1)])
+
+  # Keys stay as given (never converted to atoms); only the key is reported.
+  defp reject_unknown_fields(changeset, attrs) do
+    attrs
+    |> Map.keys()
+    |> Enum.reject(&(&1 in @editable_keys))
+    |> Enum.sort_by(&to_string/1)
+    |> Enum.reduce(changeset, fn key, acc ->
+      %{
+        acc
+        | errors: [{key, {"is not a field of the coach profile", []}} | acc.errors],
+          valid?: false
+      }
+    end)
+  end
 
   defp trim(value) when is_binary(value) do
     case String.trim(value) do

@@ -696,7 +696,7 @@
                 "type": "string"
               },
               "coaching_formats": {
-                "description": "How the coach works. Any number, no repeats; `null` or `[]` clears. At least one is required to\ncomplete onboarding, and a completed profile cannot clear them all.\n",
+                "description": "How the coach works. Any number; a repeated value is rejected with `invalid`; `null` or `[]` clears. At least one is required to\ncomplete onboarding, and a completed profile cannot clear them all.\n",
                 "example": [
                   "personal_training",
                   "fight_camps"
@@ -715,7 +715,7 @@
                 "uniqueItems": true
               },
               "competition_levels": {
-                "description": "Optional competitive levels of the fighters the coach prepares (same keys as the fighter\nprofile's experience levels). Any number, no repeats; `null` or `[]` clears.\n",
+                "description": "Optional competitive levels of the fighters the coach prepares (same keys as the fighter\nprofile's experience levels). Any number; a repeated value is rejected with `invalid`; `null` or\n`[]` clears.\n",
                 "example": [
                   "amateur"
                 ],
@@ -746,7 +746,7 @@
                 "type": "string"
               },
               "languages": {
-                "description": "Languages the coach coaches in (ISO 639-1; spoken languages, not app locales). Any number, no\nrepeats; `null` or `[]` clears.\n",
+                "description": "Languages the coach coaches in (ISO 639-1; spoken languages, not app locales). Any number; a repeated\nvalue is rejected with `invalid`; `null` or `[]` clears.\n",
                 "example": [
                   "pl",
                   "en"
@@ -827,7 +827,7 @@
       },
       "CoachProfileUpdateRequest": {
         "additionalProperties": false,
-        "description": "Any subset of the coach profile. Omitted fields are unchanged; `null` (or an empty or blank text, or\n`[]` for a selection) clears a field. Nothing is required while onboarding is in progress and saving\nnever completes it. After completion the required fields can be changed but not cleared. Fields\noutside this schema (for example ids or completion times) are ignored.\n",
+        "description": "Any subset of the coach profile. Omitted fields are unchanged; `null` (or an empty or blank text, or\n`[]` for a selection) clears a field. Nothing is required while onboarding is in progress and saving\nnever completes it. After completion the required fields can be changed but not cleared. A field\noutside this schema (for example `user_id`, `coach_id`, `gym_id` or `onboarding_completed_at`) is\nrejected with `422 validation_error`, code `invalid` under that field name, and nothing is saved.\n",
         "example": {
           "city": "Warsaw",
           "coaching_formats": [
@@ -863,7 +863,7 @@
             "type": "string"
           },
           "coaching_formats": {
-            "description": "How the coach works. Any number, no repeats; `null` or `[]` clears. At least one is required to\ncomplete onboarding, and a completed profile cannot clear them all.\n",
+            "description": "How the coach works. Any number; a repeated value is rejected with `invalid`; `null` or `[]` clears. At least one is required to\ncomplete onboarding, and a completed profile cannot clear them all.\n",
             "example": [
               "personal_training",
               "fight_camps"
@@ -882,7 +882,7 @@
             "uniqueItems": true
           },
           "competition_levels": {
-            "description": "Optional competitive levels of the fighters the coach prepares (same keys as the fighter\nprofile's experience levels). Any number, no repeats; `null` or `[]` clears.\n",
+            "description": "Optional competitive levels of the fighters the coach prepares (same keys as the fighter\nprofile's experience levels). Any number; a repeated value is rejected with `invalid`; `null` or\n`[]` clears.\n",
             "example": [
               "amateur"
             ],
@@ -913,7 +913,7 @@
             "type": "string"
           },
           "languages": {
-            "description": "Languages the coach coaches in (ISO 639-1; spoken languages, not app locales). Any number, no\nrepeats; `null` or `[]` clears.\n",
+            "description": "Languages the coach coaches in (ISO 639-1; spoken languages, not app locales). Any number; a repeated\nvalue is rejected with `invalid`; `null` or `[]` clears.\n",
             "example": [
               "pl",
               "en"
@@ -3116,7 +3116,7 @@
       },
       "patch": {
         "callbacks": {},
-        "description": "Saves any subset of the coach profile; the first save that stores a value creates the profile\n(`in_progress`). Values are validated but nothing is required until completion, and saving never\ncompletes onboarding. An invalid request changes nothing. Saving does not require completed account\nregistration.\n",
+        "description": "Saves any subset of the coach profile; the first save that stores a value creates the profile\n(`in_progress`). Values are validated but nothing is required until completion, and saving never\ncompletes onboarding. A field outside `CoachProfileUpdateRequest` (including ids, the owner and the\ncompletion time) is rejected with `422 validation_error` and code `invalid` under that field name; a\nrepeated selection value is rejected with `invalid`. An invalid request changes nothing. Saving does not\nrequire completed account registration.\n",
         "operationId": "updateMyCoachProfile",
         "parameters": [],
         "requestBody": {

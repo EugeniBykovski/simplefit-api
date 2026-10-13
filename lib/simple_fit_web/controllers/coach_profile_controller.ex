@@ -44,8 +44,10 @@ defmodule SimpleFitWeb.CoachProfileController do
     description: """
     Saves any subset of the coach profile; the first save that stores a value creates the profile
     (`in_progress`). Values are validated but nothing is required until completion, and saving never
-    completes onboarding. An invalid request changes nothing. Saving does not require completed account
-    registration.
+    completes onboarding. A field outside `CoachProfileUpdateRequest` (including ids, the owner and the
+    completion time) is rejected with `422 validation_error` and code `invalid` under that field name; a
+    repeated selection value is rejected with `invalid`. An invalid request changes nothing. Saving does not
+    require completed account registration.
     """,
     security: @security,
     request_body:
@@ -57,10 +59,9 @@ defmodule SimpleFitWeb.CoachProfileController do
       internal_server_error: ApiSpec.error_response("internal_error")
     ]
 
-  def update(conn, params) do
-    attrs = Map.take(params, Enum.map(Coaches.CoachProfile.editable_fields(), &to_string/1))
-
-    with {:ok, profile} <- Coaches.update_profile(conn.assigns.current_user, attrs) do
+  # Only the JSON body is the request; query parameters are not profile fields.
+  def update(conn, _params) do
+    with {:ok, profile} <- Coaches.update_profile(conn.assigns.current_user, conn.body_params) do
       render_profile(conn, profile)
     end
   end
