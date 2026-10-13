@@ -87,7 +87,8 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
   describe "malformed requests with planted canaries" do
     @fields ~w(email code registration_token token refresh_token id_token identity_token nonce
                authorization_code full_name date_of_birth consents product_news intent
-               refresh_token_transport display_name)
+               refresh_token_transport display_name brand_name city bio country_code languages
+               coaching_formats competition_levels)
 
     @endpoints [
       {:post, "/api/auth/session/refresh", :anonymous},
@@ -105,6 +106,9 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       {:post, "/api/v1/me/account-profile/complete-registration", :signed_in},
       {:patch, "/api/v1/me/fighter-profile", :signed_in},
       {:post, "/api/v1/me/fighter-profile/complete-onboarding", :signed_in},
+      {:get, "/api/v1/me/coach-profile", :signed_in},
+      {:patch, "/api/v1/me/coach-profile", :signed_in},
+      {:post, "/api/v1/me/coach-profile/complete-onboarding", :signed_in},
       {:put, "/api/v1/me/first-run/canary", :signed_in},
       {:get, "/api/v1/me/entry", :signed_in}
     ]

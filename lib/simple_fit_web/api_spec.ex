@@ -61,6 +61,11 @@ defmodule SimpleFitWeb.ApiSpec do
           description: "The viewer's fighter profile and resumable Fighter onboarding."
         },
         %Tag{
+          name: "Coach profile",
+          description:
+            "The viewer's coach profile and resumable Coach onboarding, independent of the fighter profile."
+        },
+        %Tag{
           name: "Entry",
           description: "Where an authenticated user goes next, as a semantic destination."
         },

@@ -7,8 +7,8 @@ defmodule SimpleFitWeb.Router do
   #   /api/me, /api/auth/...                 session and viewer, unversioned (ADR 0010)
   #   /dev/emails                            email template preview, development only (ADR 0011)
   #   /api/v1/...                            product resources: /me/account-profile,
-  #                                          /me/fighter-profile, /me/entry,
-  #                                          /me/first-run
+  #                                          /me/fighter-profile, /me/coach-profile,
+  #                                          /me/entry, /me/first-run
 
   pipeline :api do
     plug :accepts, ["json"]
@@ -72,6 +72,11 @@ defmodule SimpleFitWeb.Router do
     get "/me/fighter-profile", FighterProfileController, :show
     patch "/me/fighter-profile", FighterProfileController, :update
     post "/me/fighter-profile/complete-onboarding", FighterProfileController, :complete_onboarding
+
+    # SF-50: the viewer's coach profile and resumable Coach onboarding (ADR 0020).
+    get "/me/coach-profile", CoachProfileController, :show
+    patch "/me/coach-profile", CoachProfileController, :update
+    post "/me/coach-profile/complete-onboarding", CoachProfileController, :complete_onboarding
 
     # SF-45: post-authentication entry resolution (ADR 0017).
     get "/me/entry", EntryController, :show
