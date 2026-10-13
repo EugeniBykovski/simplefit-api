@@ -126,11 +126,13 @@ defmodule SimpleFitWeb.EntryControllerTest do
     assert token |> entry() |> get_resp_header("cache-control") == ["no-store"]
   end
 
-  test "is a versioned product resource with a documented intent parameter" do
+  test "is a versioned product resource with documented intent and context parameters" do
     operation = ApiSpec.spec().paths[@path].get
     assert operation.operationId == "resolveMyEntry"
-    [param] = operation.parameters
-    assert {param.name, param.in, param.required} == {:intent, :query, false}
-    assert param.schema.enum == ~w(fighter coach gym sponsor)
+    [intent, context] = operation.parameters
+    assert {intent.name, intent.in, intent.required} == {:intent, :query, false}
+    assert intent.schema.enum == ~w(fighter coach gym sponsor)
+    assert {context.name, context.in, context.required} == {:context, :query, false}
+    assert context.schema.enum == ~w(fighter coach)
   end
 end

@@ -88,7 +88,9 @@ config :logger, :default_formatter,
     :intent,
     :destination,
     :account_registration,
-    :fighter_profile
+    :fighter_profile,
+    :coach_profile,
+    :entry_context
   ]
 
 # One structured "request completed" event per request comes from

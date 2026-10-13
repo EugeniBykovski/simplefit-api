@@ -9,6 +9,8 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
   @destinations Enum.map(Entry.destinations(), &Atom.to_string/1)
   @reasons Enum.map(Entry.reasons(), &Atom.to_string/1)
   @intents Enum.map(Entry.intents(), &Atom.to_string/1)
+  @contexts Enum.map(Entry.contexts(), &Atom.to_string/1)
+  @profile_statuses ["not_started", "in_progress", "completed"]
 
   OpenApiSpex.schema(
     %{
@@ -27,8 +29,10 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
             :reason,
             :mandatory,
             :intent,
+            :context,
             :account_registration,
             :fighter_profile,
+            :coach_profile,
             :capabilities
           ],
           additionalProperties: false,
@@ -38,9 +42,11 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
               enum: @destinations,
               description: """
               `account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses
-              where to start. `fighter_onboarding` / `fighter_home`: Fighter onboarding, or the Fighter home once
-              complete. `coach_onboarding`, `gym_onboarding`, `sponsor_application`: those journeys' entry points;
-              nothing is created for them.
+              a journey to start. `context_selection`: the user chooses between their profile contexts (both
+              completed without a remembered choice, or both onboardings in progress). `fighter_onboarding` /
+              `fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application
+              once completed. `gym_onboarding`, `sponsor_application`: those journeys' entry points; nothing is
+              created for them. A client that does not know a destination must fail visibly, never guess.
               """
             },
             reason: %Schema{
@@ -53,7 +59,7 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
               type: :boolean,
               description: """
               `true` when the client must go to `destination` even with a safe `returnTo` in hand (account
-              registration, unfinished Fighter onboarding); the `returnTo` is kept and resolved again afterwards.
+              registration, Fighter or Coach onboarding); the `returnTo` is kept and resolved again afterwards.
               """
             },
             intent: %Schema{
@@ -62,6 +68,16 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
               nullable: true,
               description: "The validated intent of this request, echoed; never stored."
             },
+            context: %Schema{
+              type: :string,
+              # `null` is listed so strict validators accept a nullable enum.
+              enum: @contexts ++ [nil],
+              nullable: true,
+              description: """
+              The requested `context` when it was applied (a completed profile, no `intent`, registration
+              complete); otherwise `null`. Never stored.
+              """
+            },
             account_registration: %Schema{
               type: :string,
               enum: ["not_started", "in_progress", "complete"],
@@ -69,15 +85,22 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
             },
             fighter_profile: %Schema{
               type: :string,
-              enum: ["not_started", "in_progress", "completed"],
+              enum: @profile_statuses,
               description: "Fighter onboarding status (see `getMyFighterProfile`)."
+            },
+            coach_profile: %Schema{
+              type: :string,
+              enum: @profile_statuses,
+              description: "Coach onboarding status (see `getMyCoachProfile`)."
             },
             capabilities: %Schema{
               type: :array,
-              items: %Schema{type: :string, enum: ["FIGHTER"]},
+              items: %Schema{type: :string, enum: ["FIGHTER", "COACH"]},
               description: """
               Capabilities derived from real backend state, in the client route registry's vocabulary
-              (`FIGHTER` once Fighter onboarding is complete). A routing projection, not an authorization grant.
+              (`FIGHTER` once Fighter onboarding is complete, `COACH` once Coach onboarding is complete; both can
+              be held at once). A routing projection, not an authorization grant: `COACH` opens the user's own
+              Coach application only.
               """
             }
           }
@@ -89,11 +112,42 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
           reason: "fighter_onboarding_in_progress",
           mandatory: true,
           intent: "fighter",
+          context: nil,
           account_registration: "complete",
           fighter_profile: "in_progress",
-          capabilities: []
+          coach_profile: "completed",
+          capabilities: ["COACH"]
         }
       }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.EntryContextChoiceRequest do
+  @moduledoc "OpenAPI schema: an explicit choice of application context (SF-51)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+  alias SimpleFit.Entry
+
+  OpenApiSpex.schema(
+    %{
+      title: "EntryContextChoiceRequest",
+      description: "The profile context the viewer chose. Must be a completed profile.",
+      type: :object,
+      required: [:context],
+      additionalProperties: false,
+      properties: %{
+        context: %Schema{
+          type: :string,
+          enum: Enum.map(Entry.contexts(), &Atom.to_string/1),
+          description:
+            "`fighter` or `coach`. Profile contexts only; gym workspaces are chosen elsewhere."
+        }
+      },
+      example: %{context: "coach"}
     },
     struct?: false
   )

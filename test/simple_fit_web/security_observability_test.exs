@@ -88,7 +88,7 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
     @fields ~w(email code registration_token token refresh_token id_token identity_token nonce
                authorization_code full_name date_of_birth consents product_news intent
                refresh_token_transport display_name brand_name city bio country_code languages
-               coaching_formats competition_levels)
+               coaching_formats competition_levels context)
 
     @endpoints [
       {:post, "/api/auth/session/refresh", :anonymous},
@@ -110,7 +110,8 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       {:patch, "/api/v1/me/coach-profile", :signed_in},
       {:post, "/api/v1/me/coach-profile/complete-onboarding", :signed_in},
       {:put, "/api/v1/me/first-run/canary", :signed_in},
-      {:get, "/api/v1/me/entry", :signed_in}
+      {:get, "/api/v1/me/entry", :signed_in},
+      {:put, "/api/v1/me/entry/context", :signed_in}
     ]
 
     defp shapes do

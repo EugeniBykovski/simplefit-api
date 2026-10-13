@@ -454,9 +454,9 @@ defmodule SimpleFitWeb.CoachProfileControllerTest do
       token |> complete() |> profile_body(200)
 
       assert Fighters.get_profile(user) == fighter
-      # Coach capability is not projected by entry until the Coach entry ticket.
+      # SF-51: entry projects both capabilities; neither grants access to others.
       entry = token |> authed() |> get("/api/v1/me/entry") |> json_response(200)
-      assert entry["entry"]["capabilities"] == ["FIGHTER"]
+      assert entry["entry"]["capabilities"] == ["FIGHTER", "COACH"]
     end
   end
 end

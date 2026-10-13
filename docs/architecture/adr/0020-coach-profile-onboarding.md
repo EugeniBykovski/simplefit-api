@@ -68,8 +68,8 @@ product owner approved the contract (O-1, O-2, A-3, A-13, A-14).
   `cache-control: no-store`. Errors use the existing envelope and codes
   (`required`, `too_long`, `invalid_format`, `invalid_choice`,
   `invalid_type`, `invalid` for a repeated value); no new codes.
-* A completed coach profile grants nothing else: the entry resolver does not
-  report `COACH` yet (Coach entry ticket, ADR 0017 amendment), and
+* A completed coach profile grants nothing else: the entry resolver reports
+  `COACH` for routing only (SF-51, ADR 0017 amendment), and
   Coach-to-Fighter access belongs to the future Coaching context behind its
   legal feature gate (SF-49 §7.4). The coach data-rules acknowledgement is
   not a completion requirement.
@@ -81,6 +81,6 @@ product owner approved the contract (O-1, O-2, A-3, A-13, A-14).
 * SF-49 §20 listed `duplicate` and `too_many` codes; the catalog has
   neither, so a repeated value is `invalid` (as for fighter goals) and the
   selection size is bounded by its vocabulary and the no-repeat rule.
-* Follow-ups: Coach entry resolution (`COACH` capability, `coach_home`);
-  Coach web/mobile onboarding UI; the fighter and account profile responses
+* Follow-ups: Coach web/mobile onboarding UI (Coach entry resolution and
+  the `COACH` capability landed in SF-51, ADR 0017 amendment); the fighter and account profile responses
   do not send `cache-control: no-store` yet (separate hardening ticket).
