@@ -11,8 +11,10 @@ defmodule SimpleFitWeb.EntryJSON do
         reason: entry.reason,
         mandatory: entry.mandatory,
         intent: entry.intent,
+        context: entry.context,
         account_registration: entry.account_registration,
         fighter_profile: entry.fighter_profile,
+        coach_profile: entry.coach_profile,
         capabilities: Enum.map(entry.capabilities, &capability/1)
       }
     }
@@ -20,4 +22,5 @@ defmodule SimpleFitWeb.EntryJSON do
 
   # The client route registry's capability vocabulary.
   defp capability(:fighter), do: "FIGHTER"
+  defp capability(:coach), do: "COACH"
 end

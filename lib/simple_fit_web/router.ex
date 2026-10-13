@@ -80,6 +80,8 @@ defmodule SimpleFitWeb.Router do
 
     # SF-45: post-authentication entry resolution (ADR 0017).
     get "/me/entry", EntryController, :show
+    # SF-51: the last explicitly chosen profile context (ADR 0017 amendment).
+    put "/me/entry/context", EntryController, :choose_context
 
     # SF-40: one-time first-run experiences (ADR 0018).
     get "/me/first-run", FirstRunController, :index

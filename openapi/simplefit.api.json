@@ -1209,13 +1209,39 @@
         "title": "EmailVerificationLinkResult",
         "type": "object"
       },
+      "EntryContextChoiceRequest": {
+        "additionalProperties": false,
+        "description": "The profile context the viewer chose. Must be a completed profile.",
+        "example": {
+          "context": "coach"
+        },
+        "properties": {
+          "context": {
+            "description": "`fighter` or `coach`. Profile contexts only; gym workspaces are chosen elsewhere.",
+            "enum": [
+              "fighter",
+              "coach"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "context"
+        ],
+        "title": "EntryContextChoiceRequest",
+        "type": "object"
+      },
       "EntryResponse": {
         "additionalProperties": false,
         "description": "Where the authenticated user goes next. `destination` is semantic: each client maps it to its own route.\n",
         "example": {
           "entry": {
             "account_registration": "complete",
-            "capabilities": [],
+            "capabilities": [
+              "COACH"
+            ],
+            "coach_profile": "completed",
+            "context": null,
             "destination": "fighter_onboarding",
             "fighter_profile": "in_progress",
             "intent": "fighter",
@@ -1237,23 +1263,45 @@
                 "type": "string"
               },
               "capabilities": {
-                "description": "Capabilities derived from real backend state, in the client route registry's vocabulary\n(`FIGHTER` once Fighter onboarding is complete). A routing projection, not an authorization grant.\n",
+                "description": "Capabilities derived from real backend state, in the client route registry's vocabulary\n(`FIGHTER` once Fighter onboarding is complete, `COACH` once Coach onboarding is complete; both can\nbe held at once). A routing projection, not an authorization grant: `COACH` opens the user's own\nCoach application only.\n",
                 "items": {
                   "enum": [
-                    "FIGHTER"
+                    "FIGHTER",
+                    "COACH"
                   ],
                   "type": "string"
                 },
                 "type": "array"
               },
+              "coach_profile": {
+                "description": "Coach onboarding status (see `getMyCoachProfile`).",
+                "enum": [
+                  "not_started",
+                  "in_progress",
+                  "completed"
+                ],
+                "type": "string"
+              },
+              "context": {
+                "description": "The requested `context` when it was applied (a completed profile, no `intent`, registration\ncomplete); otherwise `null`. Never stored.\n",
+                "enum": [
+                  "fighter",
+                  "coach",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              },
               "destination": {
-                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\nwhere to start. `fighter_onboarding` / `fighter_home`: Fighter onboarding, or the Fighter home once\ncomplete. `coach_onboarding`, `gym_onboarding`, `sponsor_application`: those journeys' entry points;\nnothing is created for them.\n",
+                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\na journey to start. `context_selection`: the user chooses between their profile contexts (both\ncompleted without a remembered choice, or both onboardings in progress). `fighter_onboarding` /\n`fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application\nonce completed. `gym_onboarding`, `sponsor_application`: those journeys' entry points; nothing is\ncreated for them. A client that does not know a destination must fail visibly, never guess.\n",
                 "enum": [
                   "account_registration",
                   "role_selection",
+                  "context_selection",
                   "fighter_onboarding",
                   "fighter_home",
                   "coach_onboarding",
+                  "coach_home",
                   "gym_onboarding",
                   "sponsor_application"
                 ],
@@ -1280,7 +1328,7 @@
                 "type": "string"
               },
               "mandatory": {
-                "description": "`true` when the client must go to `destination` even with a safe `returnTo` in hand (account\nregistration, unfinished Fighter onboarding); the `returnTo` is kept and resolved again afterwards.\n",
+                "description": "`true` when the client must go to `destination` even with a safe `returnTo` in hand (account\nregistration, Fighter or Coach onboarding); the `returnTo` is kept and resolved again afterwards.\n",
                 "type": "boolean"
               },
               "reason": {
@@ -1290,6 +1338,13 @@
                   "fighter_onboarding_not_started",
                   "fighter_onboarding_in_progress",
                   "fighter_onboarding_completed",
+                  "coach_onboarding_not_started",
+                  "coach_onboarding_in_progress",
+                  "coach_onboarding_completed",
+                  "requested_context",
+                  "last_context",
+                  "context_choice_required",
+                  "multiple_roles_in_progress",
                   "no_role_started",
                   "coach_intent",
                   "gym_intent",
@@ -1303,8 +1358,10 @@
               "reason",
               "mandatory",
               "intent",
+              "context",
               "account_registration",
               "fighter_profile",
+              "coach_profile",
               "capabilities"
             ],
             "type": "object"
@@ -3203,7 +3260,7 @@
     "/api/v1/me/entry": {
       "get": {
         "callbacks": {},
-        "description": "Resolves where the authenticated user should go next, as a semantic destination that each client maps to its\nown route (never a path). The answer is derived from current state on every call: nothing is stored, so\nrepeated and concurrent calls are safe and advance on their own as registration and onboarding complete.\n\nMandatory account registration wins over everything. `intent` is the journey the user explicitly tried to\nenter (for example a Fighter call to action before signing in); it is navigation only and grants nothing.\nWithout an intent no role is assumed: an in-progress Fighter onboarding resumes, a completed one goes home,\notherwise the user chooses (`role_selection`). `capabilities` projects real backend state for routing and is\nnot an authorization grant.\n\n* `validation_error` - `intent` is not one of the allowed values (`invalid_choice`).\n",
+        "description": "Resolves where the authenticated user should go next, as a semantic destination that each client maps to its\nown route (never a path). The answer is derived from current state on every call and resolving writes nothing,\nso repeated and concurrent calls are safe and advance on their own as registration and onboarding complete.\n\nOrder (ADR 0017 as amended by SF-51): mandatory account registration first; then an explicit `intent`\n(`fighter` / `coach` lead to that profile's home when completed, otherwise to its onboarding, whatever the\nother profile's state; `gym` / `sponsor` to their entry points); then a requested `context` that names a\ncompleted profile; otherwise the default by completed profiles: none - resume the one onboarding in progress\nor choose (`role_selection`, or `context_selection` when both are in progress); one - its home; both - the\nlast context chosen with `chooseMyEntryContext`, or `context_selection`. `intent` and `context` are navigation\nonly and grant nothing; `capabilities` projects completed profiles for routing and is not an authorization\ngrant.\n\n* `validation_error` - `intent` or `context` is not one of the allowed values (`invalid_choice`).\n",
         "operationId": "resolveMyEntry",
         "parameters": [
           {
@@ -3217,6 +3274,19 @@
                 "coach",
                 "gym",
                 "sponsor"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "An application context to open. Used only when that profile is completed (otherwise ignored, and it never\nstarts onboarding); ignored when `intent` is present. Never stored: see `chooseMyEntryContext`.\n",
+            "in": "query",
+            "name": "context",
+            "required": false,
+            "schema": {
+              "enum": [
+                "fighter",
+                "coach"
               ],
               "type": "string"
             }
@@ -3249,6 +3319,51 @@
           }
         ],
         "summary": "Where to go next",
+        "tags": [
+          "Entry"
+        ]
+      }
+    },
+    "/api/v1/me/entry/context": {
+      "put": {
+        "callbacks": {},
+        "description": "Records an explicit choice between the viewer's completed profile contexts (a context switcher or the\ncontext-selection screen). With both Fighter and Coach completed and no `intent` or `context`, the entry then\nresolves to this context's home. Only a completed context can be chosen; the latest choice replaces the\nprevious one, from any device. A navigation preference, never an authorization grant: it is re-checked on\nevery resolution. Resolving the entry never records a choice.\n\n* `conflict` - that profile context is not completed; nothing is recorded.\n* `validation_error` - `context` is missing (`required`) or not an allowed value (`invalid_choice`); any\n  other field is rejected with `invalid` under its name.\n",
+        "operationId": "chooseMyEntryContext",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EntryContextChoiceRequest"
+              }
+            }
+          },
+          "description": "The chosen context",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Recorded"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remember the application context I chose",
         "tags": [
           "Entry"
         ]

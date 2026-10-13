@@ -20,7 +20,11 @@ defmodule SimpleFit.EntryTest do
     defp expected(_intent, account, _fighter) when account != :complete,
       do: {:account_registration, :account_registration_incomplete, true}
 
-    defp expected(:coach, _, _), do: {:coach_onboarding, :coach_intent, false}
+    # SF-51 (E5): a Coach intent follows the Coach profile; with none it is
+    # Coach onboarding, mandatory, whatever the Fighter state.
+    defp expected(:coach, _, _),
+      do: {:coach_onboarding, :coach_onboarding_not_started, true}
+
     defp expected(:gym, _, _), do: {:gym_onboarding, :gym_intent, false}
     defp expected(:sponsor, _, _), do: {:sponsor_application, :sponsor_intent, false}
     defp expected(_, _, :completed), do: {:fighter_home, :fighter_onboarding_completed, false}
