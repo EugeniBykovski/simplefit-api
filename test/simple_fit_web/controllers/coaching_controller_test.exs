@@ -14,7 +14,7 @@ defmodule SimpleFitWeb.CoachingControllerTest do
   import OpenApiSpex.TestAssertions
   import SimpleFit.CoachingHelpers
 
-  alias SimpleFit.{Accounts, Coaching, Fighters}
+  alias SimpleFit.{Accounts, Fighters}
   alias SimpleFitWeb.ApiSpec
 
   @canary "CANARYsf56rel7Qm2Xv9Kp4Wd8"
@@ -226,11 +226,14 @@ defmodule SimpleFitWeb.CoachingControllerTest do
 
   describe "observability" do
     test "the real flow logs no personal data; telemetry carries outcomes only" do
+      # Created before the log level is raised: only the flow itself is captured.
+      coach = coach_user!("Coach #{@canary}")
+      fighter = planted_fighter!()
+
       level = Logger.level()
       Logger.configure(level: :debug)
       on_exit(fn -> Logger.configure(level: level) end)
 
-      parent = self()
       id = {__MODULE__, make_ref()}
 
       :telemetry.attach_many(
@@ -239,16 +242,11 @@ defmodule SimpleFitWeb.CoachingControllerTest do
           [:simple_fit, :coaching, :relationship, :activated],
           [:simple_fit, :coaching, :relationship, :ended]
         ],
-        fn event, measurements, metadata, _ ->
-          send(parent, {:event, event, measurements, metadata})
-        end,
-        nil
+        &__MODULE__.forward_event/4,
+        self()
       )
 
       on_exit(fn -> :telemetry.detach(id) end)
-
-      coach = coach_user!("Coach #{@canary}")
-      fighter = planted_fighter!()
 
       log =
         capture_log([level: :debug], fn ->
@@ -276,6 +274,10 @@ defmodule SimpleFitWeb.CoachingControllerTest do
       assert map_size(ended) == 1
     end
   end
+
+  @doc false
+  def forward_event(event, measurements, metadata, parent),
+    do: send(parent, {:event, event, measurements, metadata})
 
   describe "the sharing gate" do
     test "off: coach reads answer 404; ending and the fighter's own list still work" do
