@@ -22,23 +22,20 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       MIX_ENV: test
-    services:
-      postgres:
-        # The official image from the AWS ECR Public mirror of Docker Official
-        # Images: anonymous Docker Hub pulls hit the shared runners' rate limit.
-        image: public.ecr.aws/docker/library/postgres:17-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
       - uses: actions/checkout@v7
+
+      # The runner image ships PostgreSQL (16 on ubuntu-24.04): no container
+      # image is pulled, so registry rate limits (Docker Hub, then the ECR
+      # Public mirror's anonymous data limit) cannot fail the job. Tests
+      # connect as postgres/postgres on localhost (config/test.exs).
+      - name: Start PostgreSQL
+        run: |
+          sudo systemctl start postgresql.service
+          for i in $(seq 1 30); do pg_isready -h localhost -p 5432 && break; sleep 1; done
+          pg_isready -h localhost -p 5432
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER USER postgres PASSWORD 'postgres';"
+          psql --version
 
       - uses: erlef/setup-beam@v1
         with:

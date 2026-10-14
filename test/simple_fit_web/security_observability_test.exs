@@ -50,7 +50,9 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       [:simple_fit, :auth, :apple, :rejected],
       [:simple_fit, :auth, :apple, :unavailable],
       [:simple_fit, :auth, :apple, :rate_limited],
-      [:simple_fit, :auth, :session, :refresh]
+      [:simple_fit, :auth, :session, :refresh],
+      [:simple_fit, :coaching, :relationship, :activated],
+      [:simple_fit, :coaching, :relationship, :ended]
     ]
 
     :telemetry.attach_many(id, events, &__MODULE__.forward_event/4, parent)
@@ -111,7 +113,12 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       {:post, "/api/v1/me/coach-profile/complete-onboarding", :signed_in},
       {:put, "/api/v1/me/first-run/canary", :signed_in},
       {:get, "/api/v1/me/entry", :signed_in},
-      {:put, "/api/v1/me/entry/context", :signed_in}
+      {:put, "/api/v1/me/entry/context", :signed_in},
+      {:get, "/api/v1/me/coach/fighters", :signed_in},
+      {:get, "/api/v1/me/coach/fighters/sfa_#{@marker}", :signed_in},
+      {:post, "/api/v1/me/coach/fighters/sfa_#{@marker}/end", :signed_in},
+      {:get, "/api/v1/me/coaches", :signed_in},
+      {:post, "/api/v1/me/coaches/#{@marker}/end", :signed_in}
     ]
 
     defp shapes do

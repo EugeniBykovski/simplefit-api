@@ -144,6 +144,17 @@ registration (`SimpleFit.Accounts.registration_complete?/1`); until then
 completion fails with `account_registration` / `required`. Saving fighter
 progress is not gated, and no FighterProfile field changed.
 
+## Amendment (SF-56, ADR 0021)
+
+A fighter profile may also be read by a coach through the Coaching
+relationship projection (`SimpleFit.Fighters.coach_projection/2`), only for
+a relationship the fighter accepted and only the fields of the accepted
+disclosure version, never wider than C1 identity (`display_name`,
+`username`, `country_code`, `city`) and C2 basic boxing information
+(`experience_level`, `stance`, `amateur_bout_count`). Goals, next fight and
+weight data (weight class, current weight, height) remain owner-only. No
+FighterProfile field changed.
+
 ## Consequences
 
 * Client synchronisation: `simplefit-platform` and `simplefit-mobile`

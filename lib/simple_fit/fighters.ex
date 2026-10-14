@@ -17,7 +17,10 @@ defmodule SimpleFit.Fighters do
   Progress is saved as the fighter goes (`update_profile/2` accepts any subset
   of fields and creates the profile on the first save). Every function acts
   on the authenticated user it is given: a fighter only ever reads or changes
-  their own profile.
+  their own profile. The one exception is `coach_projection/2`: the fields of
+  a fighter's public identity and basic boxing information (C1 + C2, ADR 0015
+  as amended by ADR 0021), returned to `SimpleFit.Coaching` only for
+  relationships it has authorized, never wider than `coach_visible_fields/0`.
 
   Results: `{:ok, value}` or `{:error, %Ecto.Changeset{}}` (rendered as
   `validation_error`, with `required` field codes for missing requirements and
@@ -98,6 +101,47 @@ defmodule SimpleFit.Fighters do
       end,
       @unlogged
     )
+  end
+
+  # The most a coach can ever see of a fighter profile (C1 identity + C2 basic
+  # boxing information, SF-49 §6.4.1). Goals, next fight, body data and every
+  # other field stay owner-only; a field added to the profile is not visible
+  # to coaches until it is added here (and to an accepted disclosure).
+  @coach_visible_fields [
+    :display_name,
+    :username,
+    :country_code,
+    :city,
+    :experience_level,
+    :stance,
+    :amateur_bout_count
+  ]
+
+  @doc "The fighter profile fields a coach may ever be shown (C1 + C2)."
+  @spec coach_visible_fields() :: [atom()]
+  def coach_visible_fields, do: @coach_visible_fields
+
+  @doc """
+  The requested `fields` of the given fighter profiles, by profile id, for
+  `SimpleFit.Coaching` once it has authorized each relationship. Only fields
+  in `coach_visible_fields/0` are ever read; any other requested field is
+  ignored. Profiles that do not exist, and every profile when no allowed
+  field is requested, are absent from the result.
+  """
+  @spec coach_projection([Ecto.UUID.t()], [atom()]) :: %{Ecto.UUID.t() => map()}
+  def coach_projection([], _fields), do: %{}
+
+  def coach_projection(profile_ids, fields) when is_list(profile_ids) and is_list(fields) do
+    case Enum.filter(@coach_visible_fields, &(&1 in fields)) do
+      # Nothing disclosed: nothing is read.
+      [] ->
+        %{}
+
+      allowed ->
+        from(p in FighterProfile, where: p.id in ^profile_ids, select: {p.id, map(p, ^allowed)})
+        |> Repo.all(@unlogged)
+        |> Map.new()
+    end
   end
 
   @doc "See `FighterProfile.onboarding_status/1`."

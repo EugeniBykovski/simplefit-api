@@ -21,7 +21,8 @@ defmodule SimpleFit.Coaches do
   of fields and creates the profile on the first save). Every function acts
   on the authenticated user it is given: a coach only ever reads or changes
   their own profile. A completed coach profile grants no access to anyone
-  else's data: Coach-to-Fighter access belongs to the future Coaching context.
+  else's data: Coach-to-Fighter access belongs to `SimpleFit.Coaching`
+  (ADR 0021), which reads only `public_projection/1` from here.
 
   Results: `{:ok, value}` or `{:error, %Ecto.Changeset{}}` (rendered as
   `validation_error`, with `required` field codes for missing requirements).
@@ -43,6 +44,18 @@ defmodule SimpleFit.Coaches do
   @spec get_profile(User.t()) :: CoachProfile.t() | nil
   def get_profile(%User{id: user_id}) when is_binary(user_id) do
     Repo.one(from(p in CoachProfile, where: p.user_id == ^user_id), @unlogged)
+  end
+
+  @doc """
+  A coach profile by id, for `SimpleFit.Coaching` (an invitation names the
+  coach profile that sent it). Never exposed to clients by id.
+  """
+  @spec get_profile_by_id(Ecto.UUID.t()) :: CoachProfile.t() | nil
+  def get_profile_by_id(id) when is_binary(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, id} -> Repo.get(CoachProfile, id, @unlogged)
+      :error -> nil
+    end
   end
 
   @doc """
@@ -109,6 +122,23 @@ defmodule SimpleFit.Coaches do
       end,
       @unlogged
     )
+  end
+
+  @doc """
+  The public coach identity (`display_name`, `brand_name`) of the given coach
+  profiles, by profile id, for `SimpleFit.Coaching` to show a fighter their
+  own coaches. Nothing else of the profile is read.
+  """
+  @spec public_projection([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => map()}
+  def public_projection([]), do: %{}
+
+  def public_projection(profile_ids) when is_list(profile_ids) do
+    from(p in CoachProfile,
+      where: p.id in ^profile_ids,
+      select: {p.id, %{display_name: p.display_name, brand_name: p.brand_name}}
+    )
+    |> Repo.all(@unlogged)
+    |> Map.new()
   end
 
   @doc "See `CoachProfile.onboarding_status/1`."

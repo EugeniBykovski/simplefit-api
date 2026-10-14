@@ -1,8 +1,11 @@
 # SF-49 — Coach & Training Domain Architecture + Design Reconciliation
 
-**Status: PROPOSED. Nothing here is approved.** Every decision below waits
-for explicit product/architecture approval. No migration, schema,
-controller, OpenAPI operation, client or screen was created for SF-49.
+**Status: PROPOSED.** Implemented and accepted since: §4.2/§20 (ADR 0020,
+SF-50), §5 (ADR 0017 amendment, SF-51), §6 relationships (ADR 0021, SF-56,
+with the gate-scope, disclosure-configuration and history decisions
+recorded there). Every other decision below still waits for explicit
+product/architecture approval. SF-49 itself created no migration, schema,
+controller, OpenAPI operation, client or screen.
 
 Epic SF-48 (Coach–Fighter Coaching & Training MVP). Discovery date
 2026-10-13.
