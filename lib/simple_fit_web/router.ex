@@ -83,6 +83,14 @@ defmodule SimpleFitWeb.Router do
     # SF-51: the last explicitly chosen profile context (ADR 0017 amendment).
     put "/me/entry/context", EntryController, :choose_context
 
+    # SF-56: Coach–Fighter relationships (ADR 0021). No create operation:
+    # only a fighter's acceptance (Invitation task) activates a relationship.
+    get "/me/coach/fighters", CoachFighterController, :index
+    get "/me/coach/fighters/:relationship_id", CoachFighterController, :show
+    post "/me/coach/fighters/:relationship_id/end", CoachFighterController, :end_relationship
+    get "/me/coaches", MyCoachController, :index
+    post "/me/coaches/:relationship_id/end", MyCoachController, :end_relationship
+
     # SF-40: one-time first-run experiences (ADR 0018).
     get "/me/first-run", FirstRunController, :index
     put "/me/first-run/:experience", FirstRunController, :record

@@ -74,6 +74,11 @@ defmodule SimpleFitWeb.ApiSpec do
           description:
             "One-time first-run experiences, such as product tours, and how the viewer left them."
         },
+        %Tag{
+          name: "Coaching",
+          description:
+            "Coach–Fighter relationships: a coach's fighters as disclosed and a fighter's coaches (ADR 0021)."
+        },
         %Tag{name: "System", description: "Operational endpoints."}
       ],
       paths: Paths.from_router(SimpleFitWeb.Router),

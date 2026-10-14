@@ -152,6 +152,15 @@ config :opentelemetry,
     deployment: [environment: [name: observability_environment]]
   ]
 
+# Coach–Fighter sharing (ADR 0021): off unless enabled here, and only the
+# disclosure versions listed here (identifiers of approved legal texts) can
+# be accepted. A malformed list fails boot. Tests configure it themselves.
+if config_env() != :test do
+  config :simple_fit, SimpleFit.Coaching,
+    access_enabled: parse_boolean.("COACHING_ACCESS_ENABLED", false),
+    disclosures: SimpleFit.Coaching.Disclosure.parse!(get_env.("COACHING_DISCLOSURES"))
+end
+
 case config_env() do
   :dev ->
     # Loopback by default; PHX_BIND_ALL=true listens on every IPv4 interface

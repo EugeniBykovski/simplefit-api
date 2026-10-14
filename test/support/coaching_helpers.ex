@@ -1,0 +1,84 @@
+defmodule SimpleFit.CoachingHelpers do
+  @moduledoc """
+  Test helpers for Coach–Fighter relationships (ADR 0021): users with
+  completed coach / fighter profiles, a controlled sharing configuration and
+  activation through the trusted boundary (`SimpleFit.Coaching.Activation`),
+  the way the future invitation acceptance will call it.
+
+  The sharing configuration is global application state: tests that change
+  it are not async and restore it with `configure_sharing/1`'s `on_exit`.
+  """
+
+  import ExUnit.Callbacks, only: [on_exit: 1]
+  import SimpleFit.AccountRegistrationHelpers
+  import SimpleFit.FighterOnboardingHelpers
+
+  alias SimpleFit.Accounts
+  alias SimpleFit.Accounts.User
+  alias SimpleFit.Coaches
+  alias SimpleFit.Coaching.Activation
+
+  @version "test-disclosure-v1"
+
+  @doc "The disclosure version tests configure (a test identifier, never a legal text)."
+  def version, do: @version
+
+  @doc """
+  Sets the Coach–Fighter sharing gate and disclosure versions for this test
+  (defaults: enabled, `version/0` with the `basic_profile` scope) and
+  restores the previous configuration afterwards.
+  """
+  def configure_sharing(opts \\ []) do
+    previous = Application.get_env(:simple_fit, SimpleFit.Coaching)
+    on_exit(fn -> Application.put_env(:simple_fit, SimpleFit.Coaching, previous) end)
+    set_sharing(opts)
+  end
+
+  @doc "Changes the sharing configuration within a test (already restored by `configure_sharing/1`)."
+  def set_sharing(opts) do
+    Application.put_env(:simple_fit, SimpleFit.Coaching,
+      access_enabled: Keyword.get(opts, :enabled, true),
+      disclosures: Keyword.get(opts, :disclosures, %{@version => :basic_profile})
+    )
+  end
+
+  @doc "A new user (Google identity) with completed account registration."
+  def registered_user!(prefix \\ "coaching") do
+    {:ok, user} =
+      Accounts.register_user(:google, "#{prefix}-#{System.unique_integer([:positive])}")
+
+    complete_account_registration!(user)
+  end
+
+  @doc "Completes Coach onboarding for `user` (account registration must be complete)."
+  def complete_coach!(%User{} = user, name \\ "Coach Marek") do
+    {:ok, _} =
+      Coaches.update_profile(user, %{
+        "display_name" => name,
+        "brand_name" => "Marek Boxing",
+        "country_code" => "PL",
+        "city" => "Warsaw",
+        "coaching_formats" => ["personal_training"]
+      })
+
+    {:ok, _} = Coaches.complete_onboarding(user)
+    user
+  end
+
+  @doc "A new user with a completed coach profile."
+  def coach_user!(name \\ "Coach Marek"), do: registered_user!("coach") |> complete_coach!(name)
+
+  @doc "A new user with a completed fighter profile."
+  def fighter_user! do
+    {:ok, user} = Accounts.register_user(:google, "fighter-#{System.unique_integer([:positive])}")
+    complete_fighter_onboarding!(user)
+  end
+
+  @doc "Activates the relationship `fighter` accepts from `coach` (sharing must be configured)."
+  def activate!(%User{} = coach, %User{} = fighter, version \\ @version) do
+    {:ok, relationship, _outcome} =
+      Activation.activate(Coaches.get_profile(coach).id, fighter, version)
+
+    relationship
+  end
+end

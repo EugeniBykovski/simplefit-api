@@ -642,6 +642,215 @@
         "title": "AppleAuthResponse",
         "type": "object"
       },
+      "CoachFighterRelationship": {
+        "additionalProperties": false,
+        "description": "A coaching relationship seen by its coach. While `active`: the fighter fields of the accepted disclosure\nversion. Once `ended`: a stub (dates, who ended it, the fighter's name at the end) and no profile data.\n",
+        "example": {
+          "disclosed_fields": [
+            "display_name",
+            "username",
+            "country_code",
+            "city",
+            "experience_level",
+            "stance",
+            "amateur_bout_count"
+          ],
+          "disclosure_version": "fighter-disclosure-v1",
+          "ended_at": null,
+          "ended_by": null,
+          "fighter": {
+            "amateur_bout_count": 14,
+            "city": "Warsaw",
+            "country_code": "PL",
+            "display_name": "Alex K.",
+            "experience_level": "competitive_amateur",
+            "stance": "orthodox",
+            "username": "alex_k"
+          },
+          "fighter_display_name_at_end": null,
+          "relationship_id": "5b0a3c1e-2f43-4d0e-9a51-7f6d2c8e1b90",
+          "started_at": "2026-10-15T09:00:00.000000Z",
+          "status": "active"
+        },
+        "properties": {
+          "disclosed_fields": {
+            "description": "The fighter profile fields disclosed under `disclosure_version`, as the backend applies it today: never\nmore than the fighter accepted. Empty when the relationship has ended or the version is no longer offered.\n",
+            "items": {
+              "enum": [
+                "display_name",
+                "username",
+                "country_code",
+                "city",
+                "experience_level",
+                "stance",
+                "amateur_bout_count"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "disclosure_version": {
+            "description": "The disclosure version the fighter accepted (identifier of the approved legal text).",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_at": {
+            "description": "When the relationship ended; `null` while active.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_by": {
+            "description": "Which side ended it; `null` while active.",
+            "enum": [
+              "coach",
+              "fighter",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "fighter": {
+            "additionalProperties": false,
+            "description": "The fighter as disclosed to the coach: only the fields listed in `disclosed_fields` carry values, every\nother one is `null`. Never contains goals, next fight, weight, height, account name, date of birth, email\nor any other personal data. `null` for an ended relationship.\n",
+            "nullable": true,
+            "properties": {
+              "amateur_bout_count": {
+                "example": 14,
+                "minimum": 0,
+                "nullable": true,
+                "type": "integer"
+              },
+              "city": {
+                "example": "Warsaw",
+                "nullable": true,
+                "type": "string"
+              },
+              "country_code": {
+                "example": "PL",
+                "nullable": true,
+                "type": "string"
+              },
+              "display_name": {
+                "example": "Alex K.",
+                "nullable": true,
+                "type": "string"
+              },
+              "experience_level": {
+                "enum": [
+                  "new_to_boxing",
+                  "recreational",
+                  "amateur",
+                  "competitive_amateur",
+                  "professional",
+                  null
+                ],
+                "example": "amateur",
+                "nullable": true,
+                "type": "string"
+              },
+              "stance": {
+                "enum": [
+                  "orthodox",
+                  "southpaw",
+                  "switch",
+                  null
+                ],
+                "example": "orthodox",
+                "nullable": true,
+                "type": "string"
+              },
+              "username": {
+                "example": "alex_k",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "amateur_bout_count",
+              "city",
+              "country_code",
+              "display_name",
+              "experience_level",
+              "stance",
+              "username"
+            ],
+            "type": "object"
+          },
+          "fighter_display_name_at_end": {
+            "description": "The fighter's display name as it was when the relationship ended (the only fighter data kept\nfor the coach afterwards); `null` while active.\n",
+            "nullable": true,
+            "type": "string"
+          },
+          "relationship_id": {
+            "description": "The relationship. The only handle either side uses to address it.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "When the fighter accepted the relationship.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`active` until either side ends it; `ended` is final (a reconnection is a new relationship).",
+            "enum": [
+              "active",
+              "ended"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "disclosed_fields",
+          "disclosure_version",
+          "ended_at",
+          "ended_by",
+          "fighter",
+          "fighter_display_name_at_end",
+          "relationship_id",
+          "started_at",
+          "status"
+        ],
+        "title": "CoachFighterRelationship",
+        "type": "object"
+      },
+      "CoachFighterRelationshipList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "relationships": {
+            "description": "Newest first. Empty when the coach has none (a real, empty roster).",
+            "items": {
+              "$ref": "#/components/schemas/CoachFighterRelationship"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "next_cursor",
+          "relationships"
+        ],
+        "title": "CoachFighterRelationshipList",
+        "type": "object"
+      },
+      "CoachFighterRelationshipResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "relationship": {
+            "$ref": "#/components/schemas/CoachFighterRelationship"
+          }
+        },
+        "required": [
+          "relationship"
+        ],
+        "title": "CoachFighterRelationshipResponse",
+        "type": "object"
+      },
       "CoachProfileResponse": {
         "additionalProperties": false,
         "description": "Always returned, also before onboarding has started (`status: not_started`, every field empty), so a\nclient can render and resume onboarding from this response alone. Selections are always arrays.\n",
@@ -2056,6 +2265,152 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "MyCoachRelationship": {
+        "additionalProperties": false,
+        "description": "One of the viewer's coaching relationships, seen by the fighter: the coach's public identity and the\nfields of the viewer's profile it discloses while `active`; the coach's name at the end once `ended`.\n",
+        "example": {
+          "coach": {
+            "brand_name": "Marek Boxing",
+            "display_name": "Coach Marek"
+          },
+          "coach_display_name_at_end": null,
+          "disclosed_fields": [
+            "display_name",
+            "username",
+            "country_code",
+            "city",
+            "experience_level",
+            "stance",
+            "amateur_bout_count"
+          ],
+          "disclosure_version": "fighter-disclosure-v1",
+          "ended_at": null,
+          "ended_by": null,
+          "relationship_id": "5b0a3c1e-2f43-4d0e-9a51-7f6d2c8e1b90",
+          "started_at": "2026-10-15T09:00:00.000000Z",
+          "status": "active"
+        },
+        "properties": {
+          "coach": {
+            "additionalProperties": false,
+            "description": "The coach's public identity, current; `null` for an ended relationship.",
+            "nullable": true,
+            "properties": {
+              "brand_name": {
+                "example": "Marek Boxing",
+                "nullable": true,
+                "type": "string"
+              },
+              "display_name": {
+                "example": "Coach Marek",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "brand_name",
+              "display_name"
+            ],
+            "type": "object"
+          },
+          "coach_display_name_at_end": {
+            "description": "The coach's display name as it was when the relationship ended; `null` while active.",
+            "nullable": true,
+            "type": "string"
+          },
+          "disclosed_fields": {
+            "description": "The fighter profile fields disclosed under `disclosure_version`, as the backend applies it today: never\nmore than the fighter accepted. Empty when the relationship has ended or the version is no longer offered.\n",
+            "items": {
+              "enum": [
+                "display_name",
+                "username",
+                "country_code",
+                "city",
+                "experience_level",
+                "stance",
+                "amateur_bout_count"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "disclosure_version": {
+            "description": "The disclosure version the fighter accepted (identifier of the approved legal text).",
+            "nullable": false,
+            "type": "string"
+          },
+          "ended_at": {
+            "description": "When the relationship ended; `null` while active.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_by": {
+            "description": "Which side ended it; `null` while active.",
+            "enum": [
+              "coach",
+              "fighter",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "relationship_id": {
+            "description": "The relationship. The only handle either side uses to address it.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "When the fighter accepted the relationship.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`active` until either side ends it; `ended` is final (a reconnection is a new relationship).",
+            "enum": [
+              "active",
+              "ended"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "coach",
+          "coach_display_name_at_end",
+          "disclosed_fields",
+          "disclosure_version",
+          "ended_at",
+          "ended_by",
+          "relationship_id",
+          "started_at",
+          "status"
+        ],
+        "title": "MyCoachRelationship",
+        "type": "object"
+      },
+      "MyCoachRelationshipList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "relationships": {
+            "description": "Newest first. Empty when the fighter has none.",
+            "items": {
+              "$ref": "#/components/schemas/MyCoachRelationship"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "next_cursor",
+          "relationships"
+        ],
+        "title": "MyCoachRelationshipList",
+        "type": "object"
+      },
       "RefreshSessionRequest": {
         "additionalProperties": false,
         "description": "Body transport (mobile and other non-browser clients). Web clients send the refresh cookie instead and no body token.",
@@ -3257,6 +3612,293 @@
         ]
       }
     },
+    "/api/v1/me/coach/fighters": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's coaching relationships as their coach, newest first. `status=active` (default) returns each\nfighter with exactly the fields of the disclosure version they accepted (C1 identity, C2 basic boxing\ninformation) and nothing else; `status=ended` returns stubs: dates, who ended it and the fighter's display\nname as it was at the end, never profile data. An empty list is a real, empty roster.\n\n* `not_found` - Coach–Fighter sharing is not enabled, or the viewer has no completed coach profile.\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyCoachFighters",
+        "parameters": [
+          {
+            "description": "`active` (default) or `ended`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "active",
+              "enum": [
+                "active",
+                "ended"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1-100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page, for the same `status`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachFighterRelationshipList"
+                }
+              }
+            },
+            "description": "One page of relationships"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My fighters (coach roster)",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach/fighters/{relationship_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One active relationship of the viewer as coach, with the fighter fields of the accepted disclosure version.\nAn ended relationship, someone else's relationship and an unknown id all answer `404 not_found`, as does\nevery call while Coach–Fighter sharing is not enabled or without a completed coach profile.\n",
+        "operationId": "getMyCoachFighter",
+        "parameters": [
+          {
+            "description": "The relationship.",
+            "in": "path",
+            "name": "relationship_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachFighterRelationshipResponse"
+                }
+              }
+            },
+            "description": "The relationship"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One of my fighters",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach/fighters/{relationship_id}/end": {
+      "post": {
+        "callbacks": {},
+        "description": "Ends one of the viewer's relationships as coach. Access to the fighter's data stops at once and the\nrelationship can never become active again (a reconnection needs a new acceptance by the fighter). Also\navailable while Coach–Fighter sharing is not enabled. Idempotent: ending an ended relationship answers `204`\nand keeps its original end. Someone else's relationship and an unknown id answer `404 not_found`, as does\na viewer without a completed coach profile.\n",
+        "operationId": "endMyCoachFighterRelationship",
+        "parameters": [
+          {
+            "description": "The relationship.",
+            "in": "path",
+            "name": "relationship_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Ended (or already ended)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "End a coaching relationship (as coach)",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coaches": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's coaching relationships as fighter, newest first. `status=active` (default) returns each coach's\npublic identity and the fields of the viewer's profile disclosed to them; `status=ended` returns the coach's\nname as it was at the end, the dates and who ended it.\n\n* `not_found` - the viewer has no completed fighter profile.\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyCoaches",
+        "parameters": [
+          {
+            "description": "`active` (default) or `ended`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "active",
+              "enum": [
+                "active",
+                "ended"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1-100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page, for the same `status`.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCoachRelationshipList"
+                }
+              }
+            },
+            "description": "One page of relationships"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My coaches",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coaches/{relationship_id}/end": {
+      "post": {
+        "callbacks": {},
+        "description": "Removes a coach's access: ends one of the viewer's relationships as fighter. The coach stops seeing the\nviewer's data at once and the relationship can never become active again. Idempotent: ending an ended\nrelationship answers `204` and keeps its original end. Someone else's relationship and an unknown id answer\n`404 not_found`, as does a viewer without a completed fighter profile.\n",
+        "operationId": "endMyCoachRelationship",
+        "parameters": [
+          {
+            "description": "The relationship.",
+            "in": "path",
+            "name": "relationship_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Ended (or already ended)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "End a coaching relationship (as fighter)",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
     "/api/v1/me/entry": {
       "get": {
         "callbacks": {},
@@ -3626,6 +4268,10 @@
     {
       "description": "One-time first-run experiences, such as product tours, and how the viewer left them.",
       "name": "First run"
+    },
+    {
+      "description": "Coach–Fighter relationships: a coach's fighters as disclosed and a fighter's coaches (ADR 0021).",
+      "name": "Coaching"
     },
     {
       "description": "Operational endpoints.",

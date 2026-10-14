@@ -139,6 +139,13 @@ config :simple_fit, SimpleFit.Accounts.EmailAuth,
 config :simple_fit, SimpleFit.Accounts.Consents,
   current_versions: %{terms: "terms-v1", privacy: "privacy-v1"}
 
+# Coach–Fighter sharing (ADR 0021): fail-closed. No relationship can be
+# activated and no coach sees fighter data until an environment enables it
+# (COACHING_ACCESS_ENABLED) and names the disclosure versions of approved
+# legal texts (COACHING_DISCLOSURES, config/runtime.exs). No version is
+# assumed here.
+config :simple_fit, SimpleFit.Coaching, access_enabled: false, disclosures: %{}
+
 # Client IP for abuse limits (ADR 0012): by default the direct peer address;
 # X-Forwarded-For is trusted only for an explicitly configured number of
 # proxy hops (TRUSTED_PROXY_HOPS, config/runtime.exs).
