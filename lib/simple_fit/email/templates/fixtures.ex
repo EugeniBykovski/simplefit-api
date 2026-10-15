@@ -105,14 +105,18 @@ defmodule SimpleFit.Email.Templates.Fixtures do
       opt_out_url: "#{@app}/invite/member/opt-out?token=FIXTURE-INVITATION-TOKEN"
     },
     coach_invite: %{
-      fighter_name: "Oleg",
       coach_name: "Yauheni",
       coach_initials: "YB",
       coaching_name: "Yauheni Coaching",
-      coach_tagline: "Technique & fight camps · Warsaw BC",
+      shared_fields: [
+        "Display name and username",
+        "Country and city",
+        "Experience level, stance and amateur bouts"
+      ],
+      expires_on: ~D[2026-10-29],
       message:
         "Saw you at Saturday sparring — I’d like to run your next camp. Join and I’ll set up the first two weeks.",
-      join_url: "#{@app}/invite/coach?token=FIXTURE-INVITATION-TOKEN"
+      review_url: "#{@app}/invite/coach#token=FIXTURE-INVITATION-TOKEN"
     },
     join_approved: %{
       gym_name: "Warsaw Boxing Club",
@@ -198,7 +202,7 @@ defmodule SimpleFit.Email.Templates.Fixtures do
       "no-home-location" => {[:home_location], %{}},
       "minimal" => {[:active_until, :home_location], %{}}
     },
-    coach_invite: %{"no-note-no-tagline" => {[:message, :coach_tagline], %{}}},
+    coach_invite: %{"no-note" => {[:message], %{}}},
     join_approved: %{
       "no-booking" => {[:booked], %{}},
       "minimal" => {[:next_billing, :booked], %{}}

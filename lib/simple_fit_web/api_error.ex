@@ -58,11 +58,14 @@ defmodule SimpleFitWeb.APIError do
     {"bad_request", 400, "The request could not be processed"},
     {"unauthorized", 401, "Authentication is required"},
     {"forbidden", 403, "You do not have permission to perform this action"},
+    {"invitation_recipient_mismatch", 403,
+     "This invitation was sent to another email address; sign in with that address to respond"},
     {"not_found", 404, "The requested resource was not found"},
     {"not_acceptable", 406, "The requested response format is not supported"},
     {"conflict", 409, "The request conflicts with the current state of the resource"},
     {"verified_elsewhere", 409,
      "This email was verified on another device; sign in with a code to continue"},
+    {"invitation_unavailable", 410, "This invitation is no longer available"},
     {"payload_too_large", 413, "The request body is too large"},
     {"unsupported_media_type", 415, "The request content type is not supported"},
     {"validation_error", 422, "Request validation failed"},
@@ -77,7 +80,12 @@ defmodule SimpleFitWeb.APIError do
 
   # Codes that share a status with that status's default code and are only
   # ever sent explicitly (email authentication outcomes, ADR 0012).
-  @explicit_codes ["verified_elsewhere", "code_invalid", "code_expired"]
+  @explicit_codes [
+    "verified_elsewhere",
+    "code_invalid",
+    "code_expired",
+    "invitation_recipient_mismatch"
+  ]
 
   @doc "All catalogued error codes, in catalog order."
   @spec codes() :: [code()]

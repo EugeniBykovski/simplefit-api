@@ -45,6 +45,10 @@ defmodule SimpleFit.Coaching do
   read already running when the end commits may still complete with the data
   it was authorized for.
 
+  Relationships are created only by a fighter accepting a coach's
+  invitation (`accept_invitation/3`, SF-57), which calls the trusted
+  activation in the same transaction that consumes the invitation.
+
   The future TrainingSession domain hooks into the end transaction
   (`end_relationship/3`) to cancel planned sessions with reason
   `relationship_ended` (ADR 0021); no training data exists yet.
@@ -54,7 +58,7 @@ defmodule SimpleFit.Coaching do
 
   alias SimpleFit.Accounts.User
   alias SimpleFit.{Coaches, Fighters, Repo}
-  alias SimpleFit.Coaching.{Disclosure, Relationship}
+  alias SimpleFit.Coaching.{Disclosure, Invitations, Relationship}
 
   # Relationship rows and projections carry personal data; not logged.
   @unlogged [log: false]
@@ -90,6 +94,42 @@ defmodule SimpleFit.Coaching do
 
   @typedoc "A page of entries and the cursor of the next one (`nil` on the last page)."
   @type page(entry) :: %{entries: [entry], next_cursor: String.t() | nil}
+
+  ## Invitations (SF-57; `SimpleFit.Coaching.Invitations`)
+
+  @doc "See `SimpleFit.Coaching.Invitations.data_rules/1`."
+  defdelegate coach_data_rules(user), to: Invitations, as: :data_rules
+
+  @doc "See `SimpleFit.Coaching.Invitations.acknowledge_data_rules/2`."
+  defdelegate acknowledge_coach_data_rules(user, attrs),
+    to: Invitations,
+    as: :acknowledge_data_rules
+
+  @doc "See `SimpleFit.Coaching.Invitations.create/3`."
+  defdelegate invite(user, attrs, client_ip), to: Invitations, as: :create
+
+  @doc "See `SimpleFit.Coaching.Invitations.coach_view/2`."
+  defdelegate invitation_view(invitation), to: Invitations, as: :coach_view
+
+  @doc "See `SimpleFit.Coaching.Invitations.list/2`."
+  defdelegate list_invitations(user, params), to: Invitations, as: :list
+
+  @doc "See `SimpleFit.Coaching.Invitations.resend/3`."
+  defdelegate resend_invitation(user, id, client_ip), to: Invitations, as: :resend
+
+  @doc "See `SimpleFit.Coaching.Invitations.cancel/2`."
+  defdelegate cancel_invitation(user, id), to: Invitations, as: :cancel
+
+  @doc "See `SimpleFit.Coaching.Invitations.preview/2`."
+  defdelegate preview_invitation(token, client_ip), to: Invitations, as: :preview
+
+  @doc "See `SimpleFit.Coaching.Invitations.accept/3`."
+  defdelegate accept_invitation(user, params, client_ip), to: Invitations, as: :accept
+
+  @doc "See `SimpleFit.Coaching.Invitations.decline/3`."
+  defdelegate decline_invitation(user, params, client_ip), to: Invitations, as: :decline
+
+  ## Relationships
 
   @doc "Whether new Coach–Fighter sharing is enabled (runtime configuration, default `false`)."
   @spec access_enabled?() :: boolean()

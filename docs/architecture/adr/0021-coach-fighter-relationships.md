@@ -188,3 +188,118 @@ covers the new endpoints.
   relationships by email match (ADR 0009), gym membership as coaching
   authorization, a public create endpoint, a hard-coded disclosure version,
   serializing FighterProfile for coaches.
+
+## Amendment — SF-57 (2026-10-15): coach invitations and the fighter's acceptance
+
+Status: Accepted. Product decisions for SF-57 (2026-10-15): recipient
+binding by a verified email identity; interim truthful E08 copy; the abuse
+limits below; an anonymous, minimal token preview.
+
+### Model
+
+`coach_invitations` (owned by `SimpleFit.Coaching`, module
+`SimpleFit.Coaching.Invitations`): `coach_profile_id`, `token_hash`
+(SHA-256 of a one-time `sfi_` token, unique), `recipient_digest` (HMAC of
+the canonical address) and `recipient_sealed` (the address encrypted with
+`Plug.Crypto`, for resends and the masked display), optional `message`
+(≤ 500, one plain paragraph), `status` (`pending` → `accepted` | `declined`
+| `cancelled` | `expired`), `expires_at` (14 days), `send_count` /
+`last_sent_at`, and for an outcome `responded_at`,
+`accepted_disclosure_version` (the consent evidence) and `relationship_id`
+(`ON DELETE SET NULL`). A partial unique index allows one pending
+invitation per coach and recipient; a check constraint ties each status to
+its outcome fields; a trigger makes a resolved invitation immutable (it
+never becomes pending again) and keeps a pending one's coach, recipient
+and message. Expiry is derived from `expires_at` at every read and
+acceptance; the stored status catches up when the invitation is touched.
+
+`coach_data_rules_acknowledgements`: append-only (`coach_profile_id`,
+`document_version`, `acknowledged_at`), unique per version; separate from
+account consents and the coach profile (SF-49 §7.4).
+
+### Configuration (fail-closed)
+
+`current_disclosure` (the first `COACHING_DISCLOSURES` entry: the version
+a preview shows and an acceptance must echo) and `data_rules_version`
+(`COACHING_DATA_RULES_VERSION`) join `access_enabled` and `disclosures`.
+None has a default. Without the gate, a current disclosure and a data-rules
+version, creating, resending, previewing and accepting answer `404`.
+
+### Issuing
+
+A completed coach who acknowledged the configured data-rules version
+invites an address (`createMyCoachInvitation`): one transaction inserts the
+invitation and enqueues E08 (an outbox: the encrypted job exists exactly
+when the invitation commits). No user, identity, profile or relationship
+is created, and the response is the same whether the address has an
+account. A pending invitation of the same coach to the same address is
+returned unchanged (`200`, no email). A coach cannot invite an address they
+hold. Resend (`resendMyCoachInvitation`) rotates the token and the expiry
+on the same invitation; the previous token stops matching at once.
+
+### Accepting
+
+The recipient must be signed in with an email identity for the invited
+address (an address proved with a code, ADR 0012; Google and Apple
+identities store no email and do not count), with completed account
+registration and fighter profile, and must echo the current disclosure
+version. In one transaction the invitation row is locked by token hash,
+checked (pending, not expired, bound recipient, prerequisites, version),
+`SimpleFit.Coaching.Activation.activate/3` runs, and the invitation is
+consumed with the accepted version and the relationship id. Any failure
+rolls everything back. A pair already connected resolves to its existing
+relationship (`outcome: already_connected`): the invitation records the
+version accepted now, the relationship keeps the version it was accepted
+under (never widened). A consumed token answers `410 invitation_unavailable`
+(retries recover the relationship from `listMyCoaches`). Self-coaching is
+refused again at activation (`410`).
+
+Declining (`declineCoachInvitation`) has the same binding and fighter
+prerequisite and creates nothing; cancelling (`cancelMyCoachInvitation`)
+is the coach's, idempotent for cancelled or expired invitations, `409` once
+answered. Both work while the gate is off.
+
+### Errors
+
+New codes: `invitation_unavailable` (410) for every token that is not a
+current pending one (unknown, malformed, rotated, used, declined,
+cancelled, expired: no state oracle) and `invitation_recipient_mismatch`
+(403). `409 conflict` carries details (`disclosure_version: stale`,
+`data_rules_acknowledgement: required`, `pending_invitations:
+limit_reached`, `resends: limit_reached`); `429 rate_limited` carries
+`retry-after`.
+
+### Abuse limits (PostgreSQL windows, ADR 0019)
+
+Create: 10/hour and 30/day per coach, 3/day per recipient digest (any
+coach), 20 per 10 minutes per client. Resend: 60 s apart, at most 3 per
+invitation (and the coach's hourly limit). At most 50 pending invitations
+per coach. Preview, accept and decline: 30 per 10 minutes per client.
+Keys are HMACs; nothing personal is stored.
+
+### Token transport and secrecy
+
+E08 links to `<WEB_APP_URL>/invite/coach#token=sfi_…`: the token is in the
+fragment, which browsers never send, so it never reaches server logs,
+access logs or `Referer`. Clients send it only in request bodies (preview,
+accept, decline). The web client keeps it tab-scoped (`sessionStorage`)
+across sign-in, account registration and fighter onboarding and clears it
+on accept, decline, unavailable or sign-out (SF-49 §7.3); mobile acceptance
+happens on the web until universal links exist. The `sfi_` prefix is
+redacted from every log and Sentry event (`Redaction`); telemetry
+(`[:simple_fit, :coaching, :invitation, …]`) carries outcomes only.
+
+### SF-56 change found by SF-57
+
+`Activation` could raise when an acceptance's insert conflicted with the
+pair's active relationship and an end committed before the follow-up read.
+It now locks the existing active row (`FOR SHARE`, so a concurrent end
+waits) and retries the insert when that row was ended in between (bounded).
+The relationship model is unchanged.
+
+### Not decided (legal)
+
+The legal ticket, the fighter disclosure text and version, the coach data
+rules text and version, and the retention of invitations and ended
+relationships (rows are kept; no deletion job) are still open (SF-49 B-1,
+B-2). E08's copy is interim until design CR-12 and the legal texts.

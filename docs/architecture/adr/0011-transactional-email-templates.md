@@ -281,3 +281,17 @@ These do not block rendering; their owners decide them.
   links and workflows belong to the tickets that build those domains.
 * A design change re-reads the artboards, updates the renderer, inventory
   and fixtures, and records the new version.
+
+## Amendment (SF-57): E08 trigger and interim copy
+
+E08 is sent by `SimpleFit.Coaching` when a coach invites someone (and on
+each resend). Its variables changed: `coach_name`, `coach_initials`,
+`coaching_name` (brand, else display name), `shared_fields` (the current
+disclosure's fields), `expires_on`, `review_url` (token in the fragment)
+and an optional `message`; `fighter_name` and `coach_tagline` were removed
+(no source). The copy is interim and truthful: nothing is shared until the
+recipient reviews and accepts, exactly the disclosed fields and a
+never-shared list, the expiry and a "Review invitation" button; no team,
+sessions or other features are promised. Design CR-12 and the legal texts
+replace it.
+

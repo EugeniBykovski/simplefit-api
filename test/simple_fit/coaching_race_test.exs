@@ -143,6 +143,29 @@ defmodule SimpleFit.CoachingRaceTest do
     end
   end
 
+  test "activation never crashes when the pair's active relationship ends under it", %{
+    users: users
+  } do
+    # SF-57 found this: an insert that conflicted with the active row could
+    # find no active row afterwards when an end committed in between.
+    for _ <- 1..40 do
+      coach = coach!(users)
+      fighter = fighter!(users)
+      r = activate!(coach, fighter)
+      coach_profile = Coaches.get_profile(coach).id
+
+      results =
+        concurrently([
+          fn -> Coaching.end_relationship(fighter, :fighter, r.id) end,
+          fn -> Activation.activate(coach_profile, fighter, version()) end,
+          fn -> Activation.activate(coach_profile, fighter, version()) end
+        ])
+
+      assert [:ok, {:ok, %Relationship{}, _}, {:ok, %Relationship{}, _}] = results
+      assert pair_rows(coach, fighter, :active) <= 1
+    end
+  end
+
   test "once an end is confirmed, every later read is denied", %{users: users} do
     coach = coach!(users)
     fighter = fighter!(users)

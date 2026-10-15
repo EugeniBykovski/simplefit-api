@@ -242,27 +242,26 @@ defmodule SimpleFit.Email.Templates.Inventory do
              %{
                id: "E08",
                name: "Coach invited you",
-               trigger: "Coach invites a fighter (artboard links A03)",
-               subject: "{coach_name} invited you to train with {coaching_name}",
-               preheader: "Join {coach_name}’s team on SimpleFit — your log stays yours.",
+               trigger:
+                 "A coach invites someone by email (SimpleFit.Coaching, SF-57); resend rotates the link",
+               subject: "{coach_name} invited you to connect on SimpleFit",
+               preheader: "Nothing is shared unless you review and accept the invitation.",
                required_variables: [
-                 "fighter_name",
                  "coach_name",
                  "coach_initials",
                  "coaching_name",
-                 "join_url"
+                 "shared_fields",
+                 "expires_on",
+                 "review_url"
                ],
-               optional_variables: ["coach_tagline", "message"],
-               conditional_blocks: [
-                 "tagline under the coaching name (coach_tagline)",
-                 "quoted personal note, escaped plain text (message)"
-               ],
-               primary_cta: "Join {coach_name}’s team → join_url",
+               optional_variables: ["message"],
+               conditional_blocks: ["quoted personal note, escaped plain text (message)"],
+               primary_cta: "Review invitation → review_url",
                fallback_url: @plain_text_fallback,
                artboard: "project/EmailCoachInvite.dc.html",
                template: :coach_invite,
                module: SimpleFit.Email.Templates.CoachInvite,
-               trigger_owner: "Future coaching ticket (not yet created)",
+               trigger_owner: "SF-57 (interim copy until design CR-12 and the legal texts)",
                deferred: []
              },
              %{

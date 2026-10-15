@@ -19,6 +19,10 @@ defmodule SimpleFit.CoachingHelpers do
   alias SimpleFit.Coaching.Activation
 
   @version "test-disclosure-v1"
+  @data_rules "test-coach-data-rules-v1"
+
+  @doc "The coach data-rules version tests configure (a test identifier)."
+  def data_rules_version, do: @data_rules
 
   @doc "The disclosure version tests configure (a test identifier, never a legal text)."
   def version, do: @version
@@ -36,9 +40,13 @@ defmodule SimpleFit.CoachingHelpers do
 
   @doc "Changes the sharing configuration within a test (already restored by `configure_sharing/1`)."
   def set_sharing(opts) do
+    disclosures = Keyword.get(opts, :disclosures, %{@version => :basic_profile})
+
     Application.put_env(:simple_fit, SimpleFit.Coaching,
       access_enabled: Keyword.get(opts, :enabled, true),
-      disclosures: Keyword.get(opts, :disclosures, %{@version => :basic_profile})
+      disclosures: disclosures,
+      current_disclosure: Keyword.get(opts, :current, @version),
+      data_rules_version: Keyword.get(opts, :data_rules, @data_rules)
     )
   end
 
@@ -72,6 +80,42 @@ defmodule SimpleFit.CoachingHelpers do
   def fighter_user! do
     {:ok, user} = Accounts.register_user(:google, "fighter-#{System.unique_integer([:positive])}")
     complete_fighter_onboarding!(user)
+  end
+
+  @doc "A new user signed up with the email identity `address` and a completed fighter profile."
+  def email_fighter!(address) do
+    {:ok, user} = Accounts.register_user(:email, address)
+    complete_fighter_onboarding!(user)
+  end
+
+  @doc "A coach who acknowledged the configured data rules and can invite."
+  def inviting_coach!(name \\ "Coach Marek") do
+    coach = coach_user!(name)
+
+    {:ok, _} =
+      SimpleFit.Coaching.acknowledge_coach_data_rules(coach, %{
+        "document_version" => @data_rules
+      })
+
+    coach
+  end
+
+  @doc """
+  Invites `address` as `coach` and returns the invitation with the token
+  from the queued E08 (the way a recipient receives it).
+  """
+  def invite!(coach, address, attrs \\ %{}) do
+    {:ok, invitation, :created} =
+      SimpleFit.Coaching.invite(coach, Map.put(attrs, "email", address), "203.0.113.7")
+
+    {invitation, last_token_to(address)}
+  end
+
+  @doc "The invitation token of the latest E08 queued to `address`."
+  def last_token_to(address) do
+    %{text: text} = SimpleFit.EmailAuthHelpers.last_email_to(address)
+    [_, token] = Regex.run(~r"/invite/coach#token=(sfi_[A-Za-z0-9_-]{43})", text)
+    token
   end
 
   @doc "Activates the relationship `fighter` accepts from `coach` (sharing must be configured)."

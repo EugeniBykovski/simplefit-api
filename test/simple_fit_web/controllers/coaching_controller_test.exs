@@ -390,9 +390,7 @@ defmodule SimpleFitWeb.CoachingControllerTest do
 
       ops =
         ApiSpec.spec().paths
-        |> Enum.filter(fn {path, _} ->
-          path =~ ~r{/me/coach(es)?/} or path =~ "coach/fighters"
-        end)
+        |> Enum.filter(fn {path, _} -> path =~ ~r{^/api/v1/me/(coach/fighters|coaches)(/|$)} end)
         |> Enum.flat_map(fn {_path, item} ->
           for verb <- [:post, :put, :patch, :delete], op = Map.get(item, verb), do: op.operationId
         end)
