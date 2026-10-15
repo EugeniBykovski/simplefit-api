@@ -1,72 +1,84 @@
 defmodule SimpleFit.Email.Templates.CoachInvite do
   @moduledoc """
-  E08 · Coach invited you (`project/EmailCoachInvite.dc.html`, ADR 0011).
+  E08 · Coach invited you (`project/EmailCoachInvite.dc.html`, ADR 0011 as
+  amended by SF-57).
 
-  Sent when a coach invites a fighter. The trigger is deferred: no coach
-  profile, coach–fighter relationship, invitation or moderation domain
-  exists yet. The renderer only accepts presentation data.
+  Sent when a coach invites someone by email (`SimpleFit.Coaching`). The
+  copy is the interim truthful version approved for SF-57 until design CR-12
+  and the legal texts land: it names the coach, says nothing is shared
+  until the recipient reviews and accepts, lists exactly the fields the
+  current disclosure version shares and what is never shared, and gives
+  the expiry. It promises no team, sessions or other features. The
+  recipient's name is not collected, so the greeting has none.
 
   Required variables:
 
-    * `:fighter_name` - 1..80
-    * `:coach_name` - the coach's first name ("Yauheni"), 1..80
+    * `:coach_name` - the coach's display name, 1..80
     * `:coach_initials` - 1..3 uppercase letters for the avatar
-    * `:coaching_name` - the coach's business name ("Yauheni Coaching"), 1..80
-    * `:join_url` - absolute https URL to join the team
+    * `:coaching_name` - the coach's brand name, or the display name, 1..80
+    * `:shared_fields` - labels of the fields the coach would see, 1..10
+      lines of at most 60 characters (from the current disclosure version)
+    * `:expires_on` - the `Date` the invitation expires
+    * `:review_url` - absolute https URL of the invitation review page; the
+      one-time token travels in its fragment (`#token=…`)
 
-  Optional variables (each omits its line):
+  Optional variables:
 
-    * `:coach_tagline` - one line under the name, 1..80
     * `:message` - the coach's personal note: user-written text, rendered
       as escaped plain text (never HTML), one paragraph, 1..500 characters
-
-  The consent panel is the design's fixed copy.
   """
 
   import Ecto.Changeset
 
-  alias SimpleFit.Email.Templates.{Input, Layout, Rendered}
+  alias SimpleFit.Email.Templates.{Format, Input, Layout, Rendered}
 
   @types %{
-    fighter_name: :string,
     coach_name: :string,
     coach_initials: :string,
     coaching_name: :string,
-    coach_tagline: :string,
+    shared_fields: {:array, :string},
+    expires_on: :date,
     message: :string,
-    join_url: :string
+    review_url: :string
   }
+
+  @never_shared [
+    "Your weight, height, goals and next fight",
+    "Your account name, date of birth and email address",
+    "Anything you share with other coaches"
+  ]
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1, [:coach_tagline, :message]) do
+    with {:ok, data} <- Input.validate(attrs, @types, &checks/1, [:message]) do
       frame = %{
-        subject: "#{data.coach_name} invited you to train with #{data.coaching_name}",
-        preheader: "Join #{data.coach_name}’s team on SimpleFit — your log stays yours.",
+        subject: "#{data.coach_name} invited you to connect on SimpleFit",
+        preheader: "Nothing is shared unless you review and accept the invitation.",
         tag: "COACH INVITE",
         footer: :invitation
       }
 
       blocks = [
-        {:identity, data.coach_initials, "COACH", data.coaching_name, data[:coach_tagline]},
-        {:heading, "Hi #{data.fighter_name}, train with me on SimpleFit.", 24},
+        {:identity, data.coach_initials, "COACH", data.coaching_name, nil},
+        {:heading, "#{data.coach_name} invited you to connect as your coach on SimpleFit.", 24},
         if(data[:message],
           do: {:paragraph, ["“#{String.trim(data.message)}” — #{data.coach_name}"]}
         ),
         {:panel,
          [
-           {:label, "WHAT YOUR COACH CAN SEE · ONLY IF YOU ALLOW"},
-           {:bullets,
-            [
-              "Your trainings, rounds and attendance",
-              "RPE, pain flags and weight during a camp",
-              "Videos you choose to share"
-            ], :check},
+           {:label, "IF YOU ACCEPT, YOUR COACH WILL SEE"},
+           {:bullets, data.shared_fields, :check},
+           {:label, "NEVER SHARED"},
+           {:bullets, @never_shared, :dash},
            {:caption,
-            "Never your messages with others or your location. You can remove access any time.",
+            "Nothing is shared unless you review and accept. You can remove access at any time.",
             :left}
          ]},
-        {:button, "Join #{data.coach_name}’s team", data.join_url, :dark}
+        {:paragraph,
+         [
+           "This invitation expires on #{Format.long_date(data.expires_on)}. Sign in with this email address to accept."
+         ]},
+        {:button, "Review invitation", data.review_url, :dark}
       ]
 
       Layout.render(:coach_invite, frame, blocks)
@@ -75,12 +87,11 @@ defmodule SimpleFit.Email.Templates.CoachInvite do
 
   defp checks(changeset) do
     changeset
-    |> Input.validate_line(:fighter_name, 80)
     |> Input.validate_line(:coach_name, 80)
     |> validate_format(:coach_initials, ~r/\A\p{Lu}{1,3}\z/u)
     |> Input.validate_line(:coaching_name, 80)
-    |> Input.validate_line(:coach_tagline, 80)
+    |> Input.validate_lines(:shared_fields, 10, 60)
     |> Input.validate_line(:message, 500)
-    |> Input.validate_url(:join_url)
+    |> Input.validate_url(:review_url)
   end
 end

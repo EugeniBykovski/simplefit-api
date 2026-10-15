@@ -34,6 +34,11 @@ config :simple_fit, SimpleFit.Accounts.EmailAuth,
   secret_key_base: "tHkFROi6SIgZOTA5TukSa/GlLa4jqiwVQPxW+b6BhHteZDroFqYQxgekjxeAEoMS",
   web_app_url: "https://app.simplefit.example"
 
+# Test-only coach invitation key material (SF-57).
+config :simple_fit, SimpleFit.Coaching.Invitations,
+  secret_key_base: "Qm4xT8vR2kLp9WzN6cYb3HsJ7dFgA5eUoKiVn1MqXtPrZyBwCjEhDlSuGaOfI0RT",
+  web_app_url: "https://app.simplefit.example"
+
 # Google sign-in (ADR 0013): test audiences, and signing keys served by a
 # Req.Test stub instead of googleapis.com.
 config :simple_fit, SimpleFit.Identity.Google,

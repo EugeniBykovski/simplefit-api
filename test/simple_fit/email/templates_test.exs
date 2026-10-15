@@ -473,13 +473,13 @@ defmodule SimpleFit.Email.TemplatesTest do
     test "E08 coach invite renders the coach's message as escaped plain text" do
       r = rendered!(:coach_invite)
 
-      assert r.subject == "Yauheni invited you to train with Yauheni Coaching"
-      assert r.preheader == "Join Yauheni’s team on SimpleFit — your log stays yours."
+      assert r.subject == "Yauheni invited you to connect on SimpleFit"
+      assert r.preheader == "Nothing is shared unless you review and accept the invitation."
       assert r.html =~ ">YB</div>"
-      assert r.html =~ "Technique &amp; fight camps · Warsaw BC"
       assert r.text =~ "“Saw you at Saturday sparring"
       assert r.text =~ "” — Yauheni"
-      assert r.html =~ ">Join Yauheni’s team</a>"
+      assert r.html =~ ">Review invitation</a>"
+      assert r.text =~ "This invitation expires on Oct 29, 2026."
 
       {:ok, hostile} =
         render(:coach_invite, %{message: ~S|<a href="https://evil.example">win</a> & <b>bold</b>|})
@@ -493,6 +493,11 @@ defmodule SimpleFit.Email.TemplatesTest do
       for message <- ["line one\nline two", "x\r\nBcc: a@b.c", String.duplicate("a", 501)] do
         assert {:error, {:invalid_template_data, [message: _]}} =
                  render(:coach_invite, %{message: message})
+      end
+
+      for fields <- [[], List.duplicate("x", 11), ["line\nbreak"]] do
+        assert {:error, {:invalid_template_data, [shared_fields: _]}} =
+                 render(:coach_invite, %{shared_fields: fields})
       end
 
       # The pronoun input is gone; no gendered copy remains.
@@ -669,15 +674,20 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert {:identity_check_pending, :required} in errors
     end
 
-    test "E08 omits the tagline and the personal note when absent" do
-      r = variant!(:coach_invite, "no-note-no-tagline")
-      refute r.text =~ "Technique"
+    test "E08 promises nothing beyond the disclosure, and omits an absent note" do
+      r = variant!(:coach_invite, "no-note")
       refute r.text =~ "“"
-      assert r.text =~ "COACH\nYauheni Coaching\n\nHi Oleg"
+      assert r.text =~ "COACH\nYauheni Coaching\n\nYauheni invited you to connect as your coach"
+      assert r.text =~ "IF YOU ACCEPT, YOUR COACH WILL SEE"
+      assert r.text =~ "Country and city"
+      assert r.text =~ "NEVER SHARED"
+      assert r.text =~ "Your weight, height, goals and next fight"
+      assert r.text =~ "Nothing is shared unless you review and accept."
 
-      assert r.text =~
-               "Hi Oleg, train with me on SimpleFit.\n" <>
-                 String.duplicate("=", 36) <> "\n\nWHAT YOUR COACH"
+      # The pre-SF-57 copy promised data and features that do not exist.
+      for promise <- ~w(team trainings rounds attendance RPE pain videos camp) do
+        refute r.text =~ promise, "E08 mentions #{promise}"
+      end
     end
 
     test "E12 omits the challenge and the rival line, in the body and the preheader" do

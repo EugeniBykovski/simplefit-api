@@ -76,43 +76,65 @@ defmodule SimpleFit.Coaching.Activation do
   defp completed(%{onboarding_completed_at: %DateTime{}} = profile, _reason), do: {:ok, profile}
   defp completed(_profile, reason), do: {:error, reason}
 
-  # A concurrent acceptance of the same pair waits on the partial unique
-  # index, then inserts nothing; the row committed first is returned.
-  defp insert_or_existing(coach, fighter, version) do
+  # The pair's active relationship is locked (FOR SHARE) when it exists, so
+  # an end of it waits until this acceptance commits and the outcome stays
+  # true. Otherwise a new one is inserted; a concurrent acceptance of the
+  # same pair waits on the partial unique index and inserts nothing, and the
+  # row it conflicted with is then locked and returned. If that row was ended
+  # in between, the insert is simply tried again (bounded).
+  defp insert_or_existing(coach, fighter, version, attempts \\ 3)
+
+  defp insert_or_existing(_coach, _fighter, _version, 0),
+    do: raise("could not settle the active relationship of a pair")
+
+  defp insert_or_existing(coach, fighter, version, attempts) do
+    case lock_active(coach, fighter) do
+      %Relationship{} = existing ->
+        {existing, :existing}
+
+      nil ->
+        case insert(coach, fighter, version) do
+          {1, [created]} -> {created, :created}
+          {0, []} -> insert_or_existing(coach, fighter, version, attempts - 1)
+        end
+    end
+  end
+
+  defp lock_active(coach, fighter) do
+    Repo.one(
+      from(r in Relationship,
+        where:
+          r.coach_profile_id == ^coach.id and r.fighter_profile_id == ^fighter.id and
+            r.status == :active,
+        lock: "FOR SHARE"
+      ),
+      @unlogged
+    )
+  end
+
+  defp insert(coach, fighter, version) do
     now = DateTime.utc_now()
 
-    {inserted, _} =
-      Repo.insert_all(
-        Relationship,
-        [
-          %{
-            id: Ecto.UUID.generate(),
-            coach_profile_id: coach.id,
-            fighter_profile_id: fighter.id,
-            status: :active,
-            disclosure_version: version,
-            started_at: now,
-            inserted_at: now,
-            updated_at: now
-          }
-        ],
-        Keyword.merge(@unlogged,
-          on_conflict: :nothing,
-          conflict_target:
-            {:unsafe_fragment, "(coach_profile_id, fighter_profile_id) WHERE status = 'active'"}
-        )
+    Repo.insert_all(
+      Relationship,
+      [
+        %{
+          id: Ecto.UUID.generate(),
+          coach_profile_id: coach.id,
+          fighter_profile_id: fighter.id,
+          status: :active,
+          disclosure_version: version,
+          started_at: now,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      Keyword.merge(@unlogged,
+        on_conflict: :nothing,
+        conflict_target:
+          {:unsafe_fragment, "(coach_profile_id, fighter_profile_id) WHERE status = 'active'"},
+        returning: true
       )
-
-    relationship =
-      Repo.one!(
-        from(r in Relationship,
-          where:
-            r.coach_profile_id == ^coach.id and r.fighter_profile_id == ^fighter.id and
-              r.status == :active
-        ),
-        @unlogged
-      )
-
-    {relationship, if(inserted == 1, do: :created, else: :existing)}
+    )
   end
 end

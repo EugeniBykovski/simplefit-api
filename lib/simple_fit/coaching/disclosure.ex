@@ -13,7 +13,8 @@ defmodule SimpleFit.Coaching.Disclosure do
       (`experience_level`, `stance`, `amateur_bout_count`).
 
   With no version configured (the default), no relationship can be
-  activated. A relationship keeps the version its fighter accepted; what a
+  activated. The first configured version is the *current* one: the version
+  an invitation preview shows and an acceptance must echo (SF-57). A relationship keeps the version its fighter accepted; what a
   coach sees is that version's fields, intersected with what
   `SimpleFit.Fighters.coach_visible_fields/0` allows today. A version that is
   no longer configured discloses nothing, so withdrawing a version narrows
@@ -36,6 +37,37 @@ defmodule SimpleFit.Coaching.Disclosure do
   @spec configured() :: %{String.t() => atom()}
   def configured,
     do: Application.get_env(:simple_fit, SimpleFit.Coaching, [])[:disclosures] || %{}
+
+  @doc """
+  The disclosure version a fighter is shown and may accept now (the first
+  configured version, SF-57), or `nil` when none is configured. The other
+  configured versions stay valid for relationships accepted under them.
+  """
+  @spec current() :: String.t() | nil
+  def current do
+    config = Application.get_env(:simple_fit, SimpleFit.Coaching, [])
+
+    case config[:current_disclosure] do
+      version when is_binary(version) -> if offered?(version), do: version
+      _ -> nil
+    end
+  end
+
+  @doc "The fields `current/0` discloses (empty when there is none)."
+  @spec current_fields() :: [atom()]
+  def current_fields, do: if(version = current(), do: fields(version), else: [])
+
+  @doc """
+  The coach data-rules version a coach must acknowledge before inviting
+  (identifier of an approved legal text), or `nil` when none is configured.
+  """
+  @spec data_rules_version() :: String.t() | nil
+  def data_rules_version do
+    case Application.get_env(:simple_fit, SimpleFit.Coaching, [])[:data_rules_version] do
+      version when is_binary(version) -> version
+      _ -> nil
+    end
+  end
 
   @doc "Whether `version` is a configured disclosure version a fighter may accept now."
   @spec offered?(term()) :: boolean()
@@ -81,6 +113,38 @@ defmodule SimpleFit.Coaching.Disclosure do
         _ -> raise ArgumentError, "invalid COACHING_DISCLOSURES entry"
       end
     end)
+  end
+
+  @doc """
+  The current disclosure version from `COACHING_DISCLOSURES`: its first
+  entry, or `nil` when unset. Validated by `parse!/1`.
+  """
+  @spec parse_current!(String.t() | nil) :: String.t() | nil
+  def parse_current!(value) do
+    _validated = parse!(value)
+
+    case value && value |> String.split(",", trim: true) |> Enum.map(&String.trim/1) do
+      [first | _] when first != "" ->
+        first |> String.split("=", parts: 2) |> hd() |> String.trim()
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Parses a single legal version identifier (`COACHING_DATA_RULES_VERSION`):
+  `nil` when unset; raises on a malformed value.
+  """
+  @spec parse_version!(String.t() | nil) :: String.t() | nil
+  def parse_version!(nil), do: nil
+
+  def parse_version!(value) when is_binary(value) do
+    version = String.trim(value)
+
+    if version =~ ~r/^[A-Za-z0-9._-]{1,64}$/,
+      do: version,
+      else: raise(ArgumentError, "invalid COACHING_DATA_RULES_VERSION")
   end
 
   defp scope(name) do

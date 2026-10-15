@@ -95,6 +95,22 @@ defmodule SimpleFit.Accounts do
   end
 
   @doc """
+  The canonical addresses of the user's email identities. An email identity
+  exists only after its owner entered a code sent to that address (ADR
+  0012), so each address is verified. Emails a provider reports for a
+  Google or Apple identity are not stored and never count. Used to bind a
+  coach invitation to its recipient (SF-57); never links identities.
+  """
+  @spec verified_email_addresses(User.t()) :: [String.t()]
+  def verified_email_addresses(%User{id: user_id}) when is_binary(user_id) do
+    from(i in Identity,
+      where: i.user_id == ^user_id and i.provider == :email,
+      select: i.provider_subject
+    )
+    |> Repo.all(@unlogged)
+  end
+
+  @doc """
   Creates a new user together with its first identity, atomically.
 
   Returns the user with `identities` loaded. If the identity already exists

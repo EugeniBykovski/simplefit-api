@@ -109,6 +109,42 @@
         },
         "description": "500 An unexpected error occurred"
       },
+      "InvitationRecipientMismatch": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "invitation_recipient_mismatch",
+                "details": {},
+                "message": "This invitation was sent to another email address; sign in with that address to respond",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "403 This invitation was sent to another email address; sign in with that address to respond"
+      },
+      "InvitationUnavailable": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "invitation_unavailable",
+                "details": {},
+                "message": "This invitation is no longer available",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "410 This invitation is no longer available"
+      },
       "NotAcceptable": {
         "content": {
           "application/json": {
@@ -642,6 +678,55 @@
         "title": "AppleAuthResponse",
         "type": "object"
       },
+      "CoachDataRulesAcknowledgeRequest": {
+        "example": {
+          "document_version": "coach-data-rules-v1"
+        },
+        "properties": {
+          "document_version": {
+            "description": "The version from `getMyCoachDataRules` that the coach was shown.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_version"
+        ],
+        "title": "CoachDataRulesAcknowledgeRequest",
+        "type": "object"
+      },
+      "CoachDataRulesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data_rules": {
+            "additionalProperties": false,
+            "properties": {
+              "acknowledged_at": {
+                "description": "When the viewer acknowledged that version; `null` until then.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "document_version": {
+                "description": "The coach data-rules version to acknowledge before inviting; `null` while none is configured.",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "acknowledged_at",
+              "document_version"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "data_rules"
+        ],
+        "title": "CoachDataRulesResponse",
+        "type": "object"
+      },
       "CoachFighterRelationship": {
         "additionalProperties": false,
         "description": "A coaching relationship seen by its coach. While `active`: the fighter fields of the accepted disclosure\nversion. Once `ended`: a stub (dates, who ended it, the fighter's name at the end) and no profile data.\n",
@@ -849,6 +934,301 @@
           "relationship"
         ],
         "title": "CoachFighterRelationshipResponse",
+        "type": "object"
+      },
+      "CoachInvitation": {
+        "additionalProperties": false,
+        "description": "An invitation sent by the viewer. The recipient address is masked; whether it belongs to an account is\nnever revealed. `expired` is derived from `expires_at`.\n",
+        "example": {
+          "created_at": "2026-10-15T09:00:00.000000Z",
+          "expires_at": "2026-10-29T09:00:00.000000Z",
+          "invitation_id": "7d1e7c52-1d0b-4a1e-9e3c-2f4f5b1a9c10",
+          "last_sent_at": "2026-10-15T09:00:00.000000Z",
+          "message": null,
+          "recipient_email": "f•••@example.com",
+          "resends_remaining": 3,
+          "responded_at": null,
+          "status": "pending"
+        },
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "last_sent_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "nullable": true,
+            "type": "string"
+          },
+          "recipient_email": {
+            "description": "The invited address, masked (`f•••@example.com`).",
+            "type": "string"
+          },
+          "resends_remaining": {
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "responded_at": {
+            "description": "When it was accepted, declined or cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "expires_at",
+          "invitation_id",
+          "last_sent_at",
+          "message",
+          "recipient_email",
+          "resends_remaining",
+          "responded_at",
+          "status"
+        ],
+        "title": "CoachInvitation",
+        "type": "object"
+      },
+      "CoachInvitationAcceptRequest": {
+        "properties": {
+          "disclosure_version": {
+            "description": "The `disclosure.version` the recipient was shown (`previewCoachInvitation`). Any other value: `409`.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "token": {
+            "description": "The one-time invitation token from the E08 link fragment (`#token=…`). Send it only in request bodies,\nnever in a URL. Any value that is not a current token answers `410 invitation_unavailable`.\n",
+            "example": "sfi_3q2-7wEXAMPLEonlyEXAMPLEonlyEXAMPLEonlyEXAMPLEo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "disclosure_version",
+          "token"
+        ],
+        "title": "CoachInvitationAcceptRequest",
+        "type": "object"
+      },
+      "CoachInvitationAcceptResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "outcome": {
+            "description": "`created`: a new relationship under the accepted disclosure. `already_connected`: the pair already had an\nactive relationship, which is unchanged (its accepted disclosure is not widened).\n",
+            "enum": [
+              "created",
+              "already_connected"
+            ],
+            "type": "string"
+          },
+          "relationship_id": {
+            "description": "The active relationship (see `listMyCoaches`).",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "relationship_id"
+        ],
+        "title": "CoachInvitationAcceptResponse",
+        "type": "object"
+      },
+      "CoachInvitationCreateRequest": {
+        "additionalProperties": false,
+        "description": "The address to invite and an optional note. Any other field (a coach id, a status, an expiry...) is\nrejected with `422 validation_error`, code `invalid` under that field name.\n",
+        "example": {
+          "email": "fighter@example.com",
+          "message": "Saw you at Saturday sparring."
+        },
+        "properties": {
+          "email": {
+            "description": "The recipient's email address. Only someone signed in with this address can respond.",
+            "maxLength": 320,
+            "type": "string"
+          },
+          "message": {
+            "description": "Optional note shown in the email and the preview: one plain-text paragraph, 1-500 characters.",
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "CoachInvitationCreateRequest",
+        "type": "object"
+      },
+      "CoachInvitationList": {
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/CoachInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor"
+        ],
+        "title": "CoachInvitationList",
+        "type": "object"
+      },
+      "CoachInvitationPreview": {
+        "additionalProperties": false,
+        "description": "The inviting coach's public identity, their note, the expiry and the disclosure the recipient would\naccept. Nothing about the recipient or any account.\n",
+        "properties": {
+          "disclosure": {
+            "additionalProperties": false,
+            "properties": {
+              "fields": {
+                "description": "The fighter profile fields the coach would see after acceptance.",
+                "items": {
+                  "enum": [
+                    "display_name",
+                    "username",
+                    "country_code",
+                    "city",
+                    "experience_level",
+                    "stance",
+                    "amateur_bout_count"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "never_shared": {
+                "description": "What is never shared with a coach, as categories for the client to label.",
+                "items": {
+                  "enum": [
+                    "goals",
+                    "next_fight",
+                    "weight",
+                    "height",
+                    "account_name",
+                    "date_of_birth",
+                    "email",
+                    "other_coaches"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "version": {
+                "description": "The current disclosure version; accepting must echo exactly this value.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "fields",
+              "never_shared",
+              "version"
+            ],
+            "type": "object"
+          },
+          "invitation": {
+            "additionalProperties": false,
+            "properties": {
+              "coach": {
+                "additionalProperties": false,
+                "properties": {
+                  "brand_name": {
+                    "example": "Marek Boxing",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "display_name": {
+                    "example": "Coach Marek",
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "brand_name",
+                  "display_name"
+                ],
+                "type": "object"
+              },
+              "expires_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "message": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "coach",
+              "expires_at",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "disclosure",
+          "invitation"
+        ],
+        "title": "CoachInvitationPreview",
+        "type": "object"
+      },
+      "CoachInvitationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/CoachInvitation"
+          }
+        },
+        "required": [
+          "invitation"
+        ],
+        "title": "CoachInvitationResponse",
+        "type": "object"
+      },
+      "CoachInvitationTokenRequest": {
+        "properties": {
+          "token": {
+            "description": "The one-time invitation token from the E08 link fragment (`#token=…`). Send it only in request bodies,\nnever in a URL. Any value that is not a current token answers `410 invitation_unavailable`.\n",
+            "example": "sfi_3q2-7wEXAMPLEonlyEXAMPLEonlyEXAMPLEonlyEXAMPLEo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "CoachInvitationTokenRequest",
         "type": "object"
       },
       "CoachProfileResponse": {
@@ -1593,7 +1973,7 @@
         },
         "properties": {
           "code": {
-            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `not_found`, `not_acceptable`, `conflict`, `verified_elsewhere`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `code_expired`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
+            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `code_expired`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
             "example": "not_found",
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
@@ -3372,6 +3752,69 @@
         ]
       }
     },
+    "/api/v1/coach-invitations/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "No sign-in needed: the inviting coach's public identity and note, the expiry and the disclosure the recipient\nwould accept. Reveals nothing about the recipient or any account. Every token that is not a current pending\none (unknown, resent, accepted, declined, cancelled or expired) answers the same `410\ninvitation_unavailable`.\n\n* `not_found` - Coach–Fighter sharing is not enabled.\n* `rate_limited` - 30 responses per 10 minutes per client, shared with accept and decline.\n",
+        "operationId": "previewCoachInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationPreview"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "What an invitation link shows",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
     "/api/v1/me/account-profile": {
       "get": {
         "callbacks": {},
@@ -3492,6 +3935,153 @@
         ]
       }
     },
+    "/api/v1/me/coach-invitations/accept": {
+      "post": {
+        "callbacks": {},
+        "description": "The explicit acceptance. The viewer must be signed in with the invited address (an email identity they\nverified), have completed account registration and a fighter profile, and echo exactly the disclosure version\nshown by `previewCoachInvitation`. In one transaction the invitation is consumed and the relationship becomes\nactive with that disclosure; nothing changes if any step fails. A token works once: a repeated acceptance\nanswers `410` (see `listMyCoaches`).\n\n* `invitation_unavailable` (410) - not a current pending invitation, or the viewer's own.\n* `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.\n* `validation_error` - `account_registration` or `fighter_profile` `required`, or `disclosure_version`\n  missing.\n* `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`).\n* `not_found` - Coach–Fighter sharing is not enabled.\n* `rate_limited` - 30 per 10 minutes per client.\n",
+        "operationId": "acceptCoachInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachInvitationAcceptRequest"
+              }
+            }
+          },
+          "description": "The acceptance",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationAcceptResponse"
+                }
+              }
+            },
+            "description": "The relationship"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Accept an invitation",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach-invitations/decline": {
+      "post": {
+        "callbacks": {},
+        "description": "The explicit decline: by the viewer signed in with the invited address and with a completed fighter profile.\nCreates nothing; the link stops working. Also available while Coach–Fighter sharing is not enabled.\n\n* `invitation_unavailable` (410), `invitation_recipient_mismatch` (403), `validation_error`\n  (`account_registration` / `fighter_profile` `required`) - as for `acceptCoachInvitation`.\n* `rate_limited` - 30 per 10 minutes per client.\n",
+        "operationId": "declineCoachInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Declined"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Decline an invitation",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
     "/api/v1/me/coach-profile": {
       "get": {
         "callbacks": {},
@@ -3609,6 +4199,99 @@
         "summary": "Complete Coach onboarding",
         "tags": [
           "Coach profile"
+        ]
+      }
+    },
+    "/api/v1/me/coach/data-rules": {
+      "get": {
+        "callbacks": {},
+        "description": "The coach data-rules version the viewer must acknowledge before inviting, and when they did.\n`document_version` is `null` while no approved version is configured (inviting is then unavailable).\n\n* `not_found` - Coach–Fighter sharing is not enabled, or the viewer has no completed coach profile.\n",
+        "operationId": "getMyCoachDataRules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachDataRulesResponse"
+                }
+              }
+            },
+            "description": "The data rules"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The coach data rules to acknowledge",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach/data-rules/acknowledge": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the viewer acknowledged the configured coach data-rules version (separate from account consents\nand the coach profile). Idempotent: the first acknowledgement's time is kept.\n\n* `conflict` - `document_version` is not the configured version (details `document_version: stale`).\n* `not_found` - sharing is not enabled, no version is configured, or no completed coach profile.\n",
+        "operationId": "acknowledgeMyCoachDataRules",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachDataRulesAcknowledgeRequest"
+              }
+            }
+          },
+          "description": "The version shown",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachDataRulesResponse"
+                }
+              }
+            },
+            "description": "The data rules"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Acknowledge the coach data rules",
+        "tags": [
+          "Coaching"
         ]
       }
     },
@@ -3775,6 +4458,273 @@
           }
         ],
         "summary": "End a coaching relationship (as coach)",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach/invitations": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's invitations, newest first, with masked recipient addresses.\n\n* `not_found` - sharing is not enabled, or no completed coach profile.\n* `validation_error` - `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyCoachInvitations",
+        "parameters": [
+          {
+            "description": "Page size, 1-100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationList"
+                }
+              }
+            },
+            "description": "One page of invitations"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My invitations",
+        "tags": [
+          "Coaching"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Invites an email address to connect with the viewer as their coach and sends E08 with a one-time link\n(14 days). Creates no account, profile or relationship: only the recipient, signed in with that address,\ncan accept. A pending invitation of the viewer to the same address is returned unchanged (`200`, no new\nemail). Answers the same whether or not the address has an account.\n\n* `conflict` - the coach data rules are not acknowledged (`data_rules_acknowledgement: required`), or 50\n  invitations are pending (`pending_invitations: limit_reached`).\n* `not_found` - sharing is not enabled, no disclosure version is configured, or no completed coach profile.\n* `validation_error` - `email` missing, malformed or the viewer's own; `message` too long or not one plain\n  paragraph; any other field.\n* `rate_limited` - per coach (10/hour, 30/day), per recipient (3/day) or per client (20 per 10 minutes).\n",
+        "operationId": "createMyCoachInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoachInvitationCreateRequest"
+              }
+            }
+          },
+          "description": "The invitation",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Invite someone to connect",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach/invitations/{invitation_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "Cancels a pending invitation: its link stops working. Idempotent for an invitation already cancelled or\nexpired. Also available while Coach–Fighter sharing is not enabled.\n\n* `conflict` - already accepted or declined.\n* `not_found` - unknown or someone else's invitation, or no completed coach profile.\n",
+        "operationId": "cancelMyCoachInvitation",
+        "parameters": [
+          {
+            "description": "The invitation.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled (or already cancelled or expired)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel an invitation",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach/invitations/{invitation_id}/resend": {
+      "post": {
+        "callbacks": {},
+        "description": "Sends a pending invitation again with a new one-time link and a new 14-day expiry; the previous link stops\nworking at once. At most 3 resends, 60 seconds apart.\n\n* `conflict` - not pending (accepted, declined, cancelled or expired), or no resend left\n  (`resends: limit_reached`).\n* `rate_limited` - within 60 seconds of the last send, or the coach's hourly limit.\n* `not_found` - unknown or someone else's invitation, sharing not enabled, or no completed coach profile.\n",
+        "operationId": "resendMyCoachInvitation",
+        "parameters": [
+          {
+            "description": "The invitation.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Send an invitation again",
         "tags": [
           "Coaching"
         ]

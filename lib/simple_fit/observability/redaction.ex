@@ -9,7 +9,8 @@ defmodule SimpleFit.Observability.Redaction do
   It replaces, in any text:
 
     * SimpleFit credentials by their format: access (`sfa_`), refresh
-      (`sfr_`), email link (`sfv_`) and registration (`sfg_`) tokens;
+      (`sfr_`), email link (`sfv_`), registration (`sfg_`) and coach
+      invitation (`sfi_`, SF-57) tokens;
     * JSON Web Tokens (Google and Apple identity tokens);
     * `Bearer` / `Basic` authorization values;
     * the value of a credential or personal-data key, in `key=value`,
@@ -34,7 +35,7 @@ defmodule SimpleFit.Observability.Redaction do
     # Erlang-formatted terms (OTP crash reports): code => <<"...">>.
     {~r/(\b(?:#{@keys})\b\s*=>\s*)<<"(?:[^"\\]|\\.)*">>/i, "\\1<<\"[REDACTED]\">>"},
     {~r/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]+/i, "\\1 [REDACTED]"},
-    {~r/\bsf[argv]_[A-Za-z0-9._~+\/=-]+/, "[REDACTED]"},
+    {~r/\bsf[agirv]_[A-Za-z0-9._~+\/=-]+/, "[REDACTED]"},
     {~r/\beyJ[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*/, "[REDACTED]"},
     {~r/\b(X-Amz-(?:Signature|Credential|Security-Token))=[^&\s"']+/i, "\\1=[REDACTED]"},
     {~r/\b(#{@keys})(["']?\s*[:=]\s*["']?)[^\s&"',}\]]+/i, "\\1\\2[REDACTED]"},

@@ -91,9 +91,28 @@ defmodule SimpleFitWeb.Router do
     get "/me/coaches", MyCoachController, :index
     post "/me/coaches/:relationship_id/end", MyCoachController, :end_relationship
 
+    # SF-57: coach invitations and the recipient's explicit response. The only
+    # public way a relationship comes to exist is acceptCoachInvitation.
+    get "/me/coach/data-rules", CoachInvitationController, :data_rules
+    post "/me/coach/data-rules/acknowledge", CoachInvitationController, :acknowledge_data_rules
+    post "/me/coach/invitations", CoachInvitationController, :create
+    get "/me/coach/invitations", CoachInvitationController, :index
+    post "/me/coach/invitations/:invitation_id/resend", CoachInvitationController, :resend
+    post "/me/coach/invitations/:invitation_id/cancel", CoachInvitationController, :cancel
+    post "/me/coach-invitations/accept", CoachInvitationResponseController, :accept
+    post "/me/coach-invitations/decline", CoachInvitationResponseController, :decline
+
     # SF-40: one-time first-run experiences (ADR 0018).
     get "/me/first-run", FirstRunController, :index
     put "/me/first-run/:experience", FirstRunController, :record
+  end
+
+  # SF-57: what an invitation link shows before sign-in (token in the body,
+  # rate limited, nothing about the recipient).
+  scope "/api/v1", SimpleFitWeb do
+    pipe_through :api
+
+    post "/coach-invitations/preview", CoachInvitationResponseController, :preview
   end
 
   scope "/api" do

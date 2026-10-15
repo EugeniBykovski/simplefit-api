@@ -52,7 +52,15 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       [:simple_fit, :auth, :apple, :rate_limited],
       [:simple_fit, :auth, :session, :refresh],
       [:simple_fit, :coaching, :relationship, :activated],
-      [:simple_fit, :coaching, :relationship, :ended]
+      [:simple_fit, :coaching, :relationship, :ended],
+      [:simple_fit, :coaching, :invitation, :created],
+      [:simple_fit, :coaching, :invitation, :resent],
+      [:simple_fit, :coaching, :invitation, :cancelled],
+      [:simple_fit, :coaching, :invitation, :accepted],
+      [:simple_fit, :coaching, :invitation, :declined],
+      [:simple_fit, :coaching, :invitation, :rejected],
+      [:simple_fit, :coaching, :invitation, :rate_limited],
+      [:simple_fit, :coaching, :invitation, :data_rules_acknowledged]
     ]
 
     :telemetry.attach_many(id, events, &__MODULE__.forward_event/4, parent)
@@ -90,7 +98,8 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
     @fields ~w(email code registration_token token refresh_token id_token identity_token nonce
                authorization_code full_name date_of_birth consents product_news intent
                refresh_token_transport display_name brand_name city bio country_code languages
-               coaching_formats competition_levels context)
+               coaching_formats competition_levels context message disclosure_version
+               document_version)
 
     @endpoints [
       {:post, "/api/auth/session/refresh", :anonymous},
@@ -118,7 +127,16 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       {:get, "/api/v1/me/coach/fighters/sfa_#{@marker}", :signed_in},
       {:post, "/api/v1/me/coach/fighters/sfa_#{@marker}/end", :signed_in},
       {:get, "/api/v1/me/coaches", :signed_in},
-      {:post, "/api/v1/me/coaches/#{@marker}/end", :signed_in}
+      {:post, "/api/v1/me/coaches/#{@marker}/end", :signed_in},
+      {:get, "/api/v1/me/coach/data-rules", :signed_in},
+      {:post, "/api/v1/me/coach/data-rules/acknowledge", :signed_in},
+      {:post, "/api/v1/me/coach/invitations", :signed_in},
+      {:get, "/api/v1/me/coach/invitations", :signed_in},
+      {:post, "/api/v1/me/coach/invitations/sfi_#{@marker}/resend", :signed_in},
+      {:post, "/api/v1/me/coach/invitations/#{@marker}/cancel", :signed_in},
+      {:post, "/api/v1/coach-invitations/preview", :anonymous},
+      {:post, "/api/v1/me/coach-invitations/accept", :signed_in},
+      {:post, "/api/v1/me/coach-invitations/decline", :signed_in}
     ]
 
     defp shapes do

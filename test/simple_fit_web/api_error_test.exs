@@ -7,6 +7,8 @@ defmodule SimpleFitWeb.APIErrorTest do
     "bad_request" => 400,
     "unauthorized" => 401,
     "forbidden" => 403,
+    "invitation_recipient_mismatch" => 403,
+    "invitation_unavailable" => 410,
     "not_found" => 404,
     "not_acceptable" => 406,
     "conflict" => 409,
@@ -26,7 +28,12 @@ defmodule SimpleFitWeb.APIErrorTest do
 
     # Explicit-only codes share a status with its default code.
     for {code, status} <- @expected,
-        code not in ["verified_elsewhere", "code_invalid", "code_expired"] do
+        code not in [
+          "verified_elsewhere",
+          "code_invalid",
+          "code_expired",
+          "invitation_recipient_mismatch"
+        ] do
       assert APIError.code_for_status(status) == code
     end
 

@@ -10,6 +10,10 @@ defmodule SimpleFitWeb.FallbackController do
   | `{:error, :not_found}` | `not_found` |
   | `{:error, :forbidden}` | `forbidden` |
   | `{:error, :conflict}` | `conflict` |
+  | `{:error, {:conflict, details}}` | `conflict`, with `details` (e.g. `%{disclosure_version: "stale"}`) |
+  | `{:error, :invitation_unavailable}` / `:invitation_recipient_mismatch` | the same code |
+  | `{:error, {:rate_limited, retry_after}}` | `rate_limited`, with `retry-after` |
+  | `{:error, :service_unavailable}` | `service_unavailable` |
   | `{:error, provider_reason}` retryable (`:rate_limited`, `:timeout`, `:unavailable`) | `service_unavailable` |
   | `{:error, provider_reason}` other (`:unauthorized`, `:invalid_request`, `:configuration_error`) | `internal_error` |
   | anything else | `internal_error` |
@@ -46,6 +50,23 @@ defmodule SimpleFitWeb.FallbackController do
 
   def call(conn, {:error, reason}) when reason in [:not_found, :forbidden, :conflict] do
     APIError.send_error(conn, Atom.to_string(reason))
+  end
+
+  def call(conn, {:error, reason})
+      when reason in [:invitation_unavailable, :invitation_recipient_mismatch] do
+    APIError.send_error(conn, Atom.to_string(reason))
+  end
+
+  def call(conn, {:error, {:conflict, details}}) when is_map(details) do
+    APIError.send_error(conn, "conflict", details: details)
+  end
+
+  def call(conn, {:error, {:rate_limited, retry_after}}) when is_integer(retry_after) do
+    APIError.send_error(conn, "rate_limited", retry_after: retry_after)
+  end
+
+  def call(conn, {:error, :service_unavailable}) do
+    APIError.send_error(conn, "service_unavailable")
   end
 
   def call(conn, {:error, reason}) when reason in @provider_reasons do

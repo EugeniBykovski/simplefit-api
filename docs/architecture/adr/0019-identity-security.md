@@ -194,3 +194,12 @@ clients drop late responses of a previous session (SF-28).
   counting, window expiry, a 30-guess parallel burst on real connections.
 * `test/simple_fit_web/client_ip_test.exs`: spoofed and malformed forwarding
   headers, IPv6 /64, IPv4-mapped, multi-line headers.
+
+## Amendment (SF-57)
+
+Coach invitation tokens (`sfi_`) join the redacted token formats, and the
+invitation endpoints join the canary probe. Their limits (ADR 0021
+amendment) follow this ADR's conventions: PostgreSQL fixed windows, HMAC
+keys, `429 rate_limited` with `retry-after`, clients keyed by
+`ClientIP.limit_key/1`.
+

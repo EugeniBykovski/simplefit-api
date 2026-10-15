@@ -156,9 +156,14 @@ config :opentelemetry,
 # disclosure versions listed here (identifiers of approved legal texts) can
 # be accepted. A malformed list fails boot. Tests configure it themselves.
 if config_env() != :test do
+  disclosures = get_env.("COACHING_DISCLOSURES")
+
   config :simple_fit, SimpleFit.Coaching,
     access_enabled: parse_boolean.("COACHING_ACCESS_ENABLED", false),
-    disclosures: SimpleFit.Coaching.Disclosure.parse!(get_env.("COACHING_DISCLOSURES"))
+    disclosures: SimpleFit.Coaching.Disclosure.parse!(disclosures),
+    current_disclosure: SimpleFit.Coaching.Disclosure.parse_current!(disclosures),
+    data_rules_version:
+      SimpleFit.Coaching.Disclosure.parse_version!(get_env.("COACHING_DATA_RULES_VERSION"))
 end
 
 case config_env() do
@@ -188,10 +193,12 @@ case config_env() do
       | Keyword.update!(email, :from, &(&1 || "SimpleFit Dev <dev@simplefit.invalid>"))
     ]
 
-    # E01 verification links point at the local web app unless overridden.
+    # E01 verification and E08 invitation links point at the local web app
+    # unless overridden.
     if web_app_url = System.get_env("WEB_APP_URL") do
-      config :simple_fit, SimpleFit.Accounts.EmailAuth,
-        web_app_url: SimpleFit.Accounts.EmailAuth.parse_web_app_url!(web_app_url)
+      web_app_url = SimpleFit.Accounts.EmailAuth.parse_web_app_url!(web_app_url)
+      config :simple_fit, SimpleFit.Accounts.EmailAuth, web_app_url: web_app_url
+      config :simple_fit, SimpleFit.Coaching.Invitations, web_app_url: web_app_url
     end
 
     config :simple_fit, SimpleFitWeb.ClientIP,
@@ -270,6 +277,16 @@ case config_env() do
             environment variable WEB_APP_URL is missing.
             Set it to the https origin of the SimpleFit web app, for example: https://app.simplefit.com
             """),
+          require_https: true
+        )
+
+    # Coach invitations (SF-57): token hashes need no key; recipient digests,
+    # sealed recipient addresses and rate-limit keys are derived from the same
+    # secret with dedicated salts. E08 links point at the https web app.
+    config :simple_fit, SimpleFit.Coaching.Invitations,
+      secret_key_base: secret_key_base,
+      web_app_url:
+        SimpleFit.Accounts.EmailAuth.parse_web_app_url!(System.get_env("WEB_APP_URL"),
           require_https: true
         )
 

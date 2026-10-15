@@ -144,7 +144,16 @@ config :simple_fit, SimpleFit.Accounts.Consents,
 # (COACHING_ACCESS_ENABLED) and names the disclosure versions of approved
 # legal texts (COACHING_DISCLOSURES, config/runtime.exs). No version is
 # assumed here.
-config :simple_fit, SimpleFit.Coaching, access_enabled: false, disclosures: %{}
+#
+# The current disclosure version is the one a fighter is shown and accepts
+# now (the first of COACHING_DISCLOSURES); the coach data-rules version
+# (COACHING_DATA_RULES_VERSION) must be acknowledged before inviting. Both
+# are identifiers of approved legal texts; none is assumed here.
+config :simple_fit, SimpleFit.Coaching,
+  access_enabled: false,
+  disclosures: %{},
+  current_disclosure: nil,
+  data_rules_version: nil
 
 # Client IP for abuse limits (ADR 0012): by default the direct peer address;
 # X-Forwarded-For is trusted only for an explicitly configured number of
