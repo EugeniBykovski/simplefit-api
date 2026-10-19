@@ -118,7 +118,7 @@ defmodule SimpleFit.Accounts.SessionRaceTest do
   test "several concurrent refreshes leave exactly one live token", %{credentials: c} do
     gate = lock_session_row(c.session.id)
     refresh = fn -> Accounts.refresh_session(c.refresh_token) end
-    results = race(gate, 5, List.duplicate(refresh, 5))
+    results = race(gate, 4, List.duplicate(refresh, 4))
 
     assert Enum.all?(results, &match?({:ok, _}, &1))
     assert [live] = live_tokens(c.session.id)
@@ -129,12 +129,17 @@ defmodule SimpleFit.Accounts.SessionRaceTest do
              from t in RefreshToken,
                where: t.token_hash == ^:crypto.hash(:sha256, c.refresh_token),
                select: t.recoveries
-           ) == 4
+           ) == 3
   end
 
   test "concurrent presentations beyond the recovery limit revoke the session", %{
     credentials: c
   } do
+    # A small limit keeps every racer on its own pooled connection (CI pools
+    # are `schedulers_online * 2`); the rule is the same at the production 10.
+    original = Application.get_env(:simple_fit, Sessions)
+    on_exit(fn -> Application.put_env(:simple_fit, Sessions, original) end)
+    Application.put_env(:simple_fit, Sessions, Keyword.put(original, :refresh_recovery_limit, 2))
     limit = Sessions.config!().refresh_recovery_limit
     gate = lock_session_row(c.session.id)
     refresh = fn -> Accounts.refresh_session(c.refresh_token) end
