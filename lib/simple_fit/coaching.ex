@@ -123,6 +123,24 @@ defmodule SimpleFit.Coaching do
   @doc "See `SimpleFit.Coaching.Invitations.preview/2`."
   defdelegate preview_invitation(token, client_ip), to: Invitations, as: :preview
 
+  @doc "See `SimpleFit.Coaching.Invitations.list_incoming/2`."
+  defdelegate list_incoming_invitations(user, params), to: Invitations, as: :list_incoming
+
+  @doc "See `SimpleFit.Coaching.Invitations.preview_by_id/3`."
+  defdelegate preview_incoming_invitation(user, id, client_ip),
+    to: Invitations,
+    as: :preview_by_id
+
+  @doc "See `SimpleFit.Coaching.Invitations.accept_by_id/4`."
+  defdelegate accept_incoming_invitation(user, id, params, client_ip),
+    to: Invitations,
+    as: :accept_by_id
+
+  @doc "See `SimpleFit.Coaching.Invitations.decline_by_id/3`."
+  defdelegate decline_incoming_invitation(user, id, client_ip),
+    to: Invitations,
+    as: :decline_by_id
+
   @doc "See `SimpleFit.Coaching.Invitations.accept/3`."
   defdelegate accept_invitation(user, params, client_ip), to: Invitations, as: :accept
 

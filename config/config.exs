@@ -154,11 +154,17 @@ config :simple_fit, SimpleFit.Accounts.Consents,
 # now (the first of COACHING_DISCLOSURES); the coach data-rules version
 # (COACHING_DATA_RULES_VERSION) must be acknowledged before inviting. Both
 # are identifiers of approved legal texts; none is assumed here.
+#
+# Previewing and accepting an invitation by id from the recipient's inbox
+# (SF-73) stays off until SF-72 enforces 18+ and the approved document
+# language at acceptance. Deliberately not read from the environment
+# (config/runtime.exs): only tests turn it on.
 config :simple_fit, SimpleFit.Coaching,
   access_enabled: false,
   disclosures: %{},
   current_disclosure: nil,
-  data_rules_version: nil
+  data_rules_version: nil,
+  id_acceptance_enabled: false
 
 # Client IP for abuse limits (ADR 0012): by default the direct peer address;
 # X-Forwarded-For is trusted only for an explicitly configured number of
