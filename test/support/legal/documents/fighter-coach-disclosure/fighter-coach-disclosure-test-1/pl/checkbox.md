@@ -1,0 +1,1 @@
+TEST FIXTURE ONLY - I confirm Fighter Disclosure fighter-coach-disclosure-test-1 (pl).

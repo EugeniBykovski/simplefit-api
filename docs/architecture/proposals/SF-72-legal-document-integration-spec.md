@@ -12,6 +12,31 @@
   An ADR (proposed: ADR 0022 *Legal document registry and evidence*) is
   written as the first SF-72 step.
 
+## Implementation status (2026-10-20)
+
+Part A is implemented (ADR 0022 is the authority where they differ). Parts B
+and C are not: no legal text is approved, the production registry
+(`priv/legal`) is empty and sharing stays off.
+
+Deviations from this specification, decided during implementation:
+
+* **No draft mode.** Instead of `allow_drafts`, drafts are never acceptable
+  anywhere; tests and local E2E use clearly marked `test_only` fixtures
+  (`<document_id>-test-<n>`, `TEST-FIXTURE-NOT-APPROVED`) outside `priv/`,
+  accepted only where `allow_test_fixtures` is configured.
+* **An invalid registry does not stop the application**; it keeps sharing
+  unavailable (one readiness predicate, `sharing_ready?/0`).
+* **Evidence:** table `legal_evidence` as specified; an acceptance that
+  resolves to an already connected pair is recorded too (the fighter
+  accepted that text; one row per invitation).
+* **Scope widening:** only `basic_profile` exists, so no wider version can
+  be configured; the registry rejects unknown scopes. Withdrawal needs a
+  `withdrawal_notice_ref`.
+* **Public pages:** the API endpoints exist; the web pages wait for Claude
+  Design (`GAP-WEB-LEGAL-DOCUMENTS`, `D-WEB-LEGAL-DOCUMENT-PAGES`); the
+  flows show the approved full text in place.
+* **SF-73 switch removed**; id and token acceptance share the policy.
+
 ## 0. Invariants (must hold after SF-72)
 
 1. Coach access stays exactly `basic_profile` = C1 + C2 (7 fields); no C3/C4

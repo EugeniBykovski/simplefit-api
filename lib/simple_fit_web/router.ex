@@ -131,6 +131,10 @@ defmodule SimpleFitWeb.Router do
     pipe_through :api
 
     post "/coach-invitations/preview", CoachInvitationResponseController, :preview
+
+    # SF-72: published legal documents for the public pages (ADR 0022).
+    get "/legal-documents/:document_id", LegalDocumentController, :show
+    get "/legal-documents/:document_id/versions/:version", LegalDocumentController, :show_version
   end
 
   scope "/api" do

@@ -27,6 +27,7 @@ as ADRs in [`adr/`](adr/).
 | [0019](adr/0019-identity-security.md) | Identity security (SF-29): threat model and control audit, rate-limit policy (IPv6 keyed by /64), secret-redaction contract (`Redaction`, `LogRedactor` on every log event), expected vs actionable telemetry, refresh-reuse measurement |
 | [0020](adr/0020-coach-profile-onboarding.md) | Coach profile and resumable Coach onboarding (SF-50): `SimpleFit.Coaches`, one profile per user independent of account/fighter profiles and gyms, reconciled field and enum contract, explicit completion gated on account registration (`/api/v1/me/coach-profile`) |
 | [0021](adr/0021-coach-fighter-relationships.md) | Coach–Fighter relationships (SF-56): `SimpleFit.Coaching`, accepted relationships between completed coach and fighter profiles (several coaches per fighter, one active per pair, terminal end), trusted activation only, versioned disclosure (C1 + C2), fail-closed sharing gate, relationship-scoped reads and termination (`/api/v1/me/coach/fighters`, `/api/v1/me/coaches`); SF-57 amendment: coach invitations (one-time `sfi_` tokens stored as hashes, recipient bound to a verified email identity, atomic acceptance through the trusted activation, decline/cancel/expiry/resend, coach data-rules acknowledgement, abuse limits) |
+| [0022](adr/0022-legal-documents-coaching-policy.md) | Legal documents and the Coach–Fighter policy (SF-72): `SimpleFit.Legal`, a code-reviewed, hash-verified registry of versioned legal texts per language (production registry empty: nothing approved), one sharing readiness predicate, 18+ at activation, the shared token/id acceptance transaction with append-only evidence, public document endpoints (`/api/v1/legal-documents`). Engineering acceptance is not legal approval |
 
 ---
 
@@ -57,6 +58,7 @@ lib/
     fighters.ex, fighters/    # Fighter profile and onboarding (ADR 0015)
     coaches.ex, coaches/      # Coach profile and onboarding (ADR 0020)
     coaching.ex, coaching/    # Coach–Fighter relationships and their authorization (ADR 0021)
+    legal.ex, legal/          # Legal document registry and acceptance evidence (ADR 0022)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
     storage.ex, storage/      # Object storage boundary + S3 / Fake adapters

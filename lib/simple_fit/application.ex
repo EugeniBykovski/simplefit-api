@@ -21,6 +21,9 @@ defmodule SimpleFit.Application do
     :ok = Google.warn_if_not_configured()
     # So is Sign in with Apple (ADR 0014).
     :ok = Apple.warn_if_not_configured()
+    # Legal document registry (ADR 0022): an invalid one is logged and keeps
+    # Coach–Fighter sharing unavailable; it never stops the application.
+    _registry = SimpleFit.Legal.Registry.load()
 
     children = [
       SimpleFitWeb.Telemetry,

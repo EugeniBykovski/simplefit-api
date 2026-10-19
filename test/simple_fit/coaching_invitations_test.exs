@@ -14,6 +14,7 @@ defmodule SimpleFit.CoachingInvitationsTest do
 
   import SimpleFit.CoachingHelpers
   import SimpleFit.EmailAuthHelpers
+  import SimpleFit.LegalHelpers
   import SimpleFit.FighterOnboardingHelpers
 
   alias SimpleFit.{Accounts, Coaches, Coaching, Fighters}
@@ -31,7 +32,11 @@ defmodule SimpleFit.CoachingInvitationsTest do
   defp address, do: "fighter-#{System.unique_integer([:positive])}@example.com"
 
   defp accept(user, token, version \\ version()) do
-    Coaching.accept_invitation(user, %{"token" => token, "disclosure_version" => version}, @ip)
+    Coaching.accept_invitation(
+      user,
+      %{"token" => token, "disclosure_version" => version, "document_language" => "en"},
+      @ip
+    )
   end
 
   defp decline(user, token), do: Coaching.decline_invitation(user, %{"token" => token}, @ip)
@@ -96,7 +101,10 @@ defmodule SimpleFit.CoachingInvitationsTest do
                Coaching.invite(coach, params, @ip)
 
       {:ok, _} =
-        Coaching.acknowledge_coach_data_rules(coach, %{"document_version" => data_rules_version()})
+        Coaching.acknowledge_coach_data_rules(coach, %{
+          "document_version" => data_rules_version(),
+          "document_language" => "en"
+        })
 
       assert {:ok, _, :created} = Coaching.invite(coach, params, @ip)
 
@@ -106,8 +114,14 @@ defmodule SimpleFit.CoachingInvitationsTest do
         set_sharing([])
       end
 
-      # A new data-rules version must be acknowledged again.
-      set_sharing(data_rules: "test-coach-data-rules-v2")
+      # A newly published data-rules version must be acknowledged again.
+      build_registry!([
+        %{document_id: "fighter-coach-disclosure", version: version(), scope: "basic_profile"},
+        %{document_id: "coach-data-rules", version: data_rules_version(), status: "superseded"},
+        %{document_id: "coach-data-rules", version: "coach-data-rules-test-2"}
+      ])
+
+      set_sharing(data_rules: "coach-data-rules-test-2")
 
       assert {:error, {:conflict, %{data_rules_acknowledgement: "required"}}} =
                Coaching.invite(coach, %{"email" => address()}, @ip)
@@ -149,7 +163,10 @@ defmodule SimpleFit.CoachingInvitationsTest do
         )
 
       {:ok, _} =
-        Coaching.acknowledge_coach_data_rules(coach, %{"document_version" => data_rules_version()})
+        Coaching.acknowledge_coach_data_rules(coach, %{
+          "document_version" => data_rules_version(),
+          "document_language" => "en"
+        })
 
       assert {:error, %Ecto.Changeset{errors: [email: _]}} =
                Coaching.invite(coach, %{"email" => "Coach-Self@Example.com"}, @ip)
@@ -252,7 +269,7 @@ defmodule SimpleFit.CoachingInvitationsTest do
       {invitation, token} = invite!(inviting_coach!(), to)
       fighter = email_fighter!(to)
 
-      for version <- ["test-disclosure-v0", "fighter-disclosure-v1", "x"] do
+      for version <- ["fighter-coach-disclosure-test-0", "fighter-disclosure-v1", "x"] do
         assert {:error, {:conflict, %{disclosure_version: "stale"}}} =
                  accept(fighter, token, version)
       end
@@ -260,15 +277,34 @@ defmodule SimpleFit.CoachingInvitationsTest do
       assert {:error, %Ecto.Changeset{errors: [disclosure_version: _]}} =
                Coaching.accept_invitation(fighter, %{"token" => token}, @ip)
 
-      # The current version moves on between preview and acceptance.
+      # The current version moves on between preview and acceptance: a new
+      # version is published and the shown one superseded.
+      build_registry!([
+        %{
+          document_id: "fighter-coach-disclosure",
+          version: version(),
+          scope: "basic_profile",
+          status: "superseded"
+        },
+        %{
+          document_id: "fighter-coach-disclosure",
+          version: "fighter-coach-disclosure-test-2",
+          scope: "basic_profile"
+        },
+        %{document_id: "coach-data-rules", version: data_rules_version()}
+      ])
+
       set_sharing(
-        disclosures: %{version() => :basic_profile, "test-disclosure-v2" => :basic_profile},
-        current: "test-disclosure-v2"
+        disclosures: %{
+          version() => :basic_profile,
+          "fighter-coach-disclosure-test-2" => :basic_profile
+        },
+        current: "fighter-coach-disclosure-test-2"
       )
 
       assert {:error, {:conflict, %{disclosure_version: "stale"}}} = accept(fighter, token)
       assert reload(invitation).status == :pending
-      assert {:ok, _} = accept(fighter, token, "test-disclosure-v2")
+      assert {:ok, _} = accept(fighter, token, "fighter-coach-disclosure-test-2")
     end
 
     test "an already connected pair resolves to the unchanged relationship" do
@@ -277,15 +313,33 @@ defmodule SimpleFit.CoachingInvitationsTest do
       fighter = email_fighter!(to)
       existing = activate!(coach, fighter)
 
+      build_registry!([
+        %{
+          document_id: "fighter-coach-disclosure",
+          version: version(),
+          scope: "basic_profile",
+          status: "superseded"
+        },
+        %{
+          document_id: "fighter-coach-disclosure",
+          version: "fighter-coach-disclosure-test-2",
+          scope: "basic_profile"
+        },
+        %{document_id: "coach-data-rules", version: data_rules_version()}
+      ])
+
       set_sharing(
-        disclosures: %{version() => :basic_profile, "test-disclosure-v2" => :basic_profile},
-        current: "test-disclosure-v2"
+        disclosures: %{
+          version() => :basic_profile,
+          "fighter-coach-disclosure-test-2" => :basic_profile
+        },
+        current: "fighter-coach-disclosure-test-2"
       )
 
       {invitation, token} = invite!(coach, to)
 
       assert {:ok, %{relationship_id: id, outcome: :already_connected}} =
-               accept(fighter, token, "test-disclosure-v2")
+               accept(fighter, token, "fighter-coach-disclosure-test-2")
 
       assert id == existing.id
       # The earlier disclosure is not widened or replaced.
@@ -294,7 +348,7 @@ defmodule SimpleFit.CoachingInvitationsTest do
 
       accepted = reload(invitation)
       assert accepted.status == :accepted
-      assert accepted.accepted_disclosure_version == "test-disclosure-v2"
+      assert accepted.accepted_disclosure_version == "fighter-coach-disclosure-test-2"
     end
 
     test "self-coaching is refused at acceptance too, and nothing is consumed" do
@@ -349,7 +403,11 @@ defmodule SimpleFit.CoachingInvitationsTest do
         assert {:error, :invitation_unavailable} =
                  Coaching.accept_invitation(
                    fighter,
-                   %{"token" => token, "disclosure_version" => version()},
+                   %{
+                     "token" => token,
+                     "disclosure_version" => version(),
+                     "document_language" => "en"
+                   },
                    @ip
                  )
       end
@@ -526,20 +584,32 @@ defmodule SimpleFit.CoachingInvitationsTest do
       assert v == data_rules_version()
 
       assert {:error, {:conflict, %{document_version: "stale"}}} =
-               Coaching.acknowledge_coach_data_rules(coach, %{"document_version" => "v0"})
+               Coaching.acknowledge_coach_data_rules(coach, %{
+                 "document_version" => "v0",
+                 "document_language" => "en"
+               })
 
       {:ok, %{acknowledged_at: first}} =
-        Coaching.acknowledge_coach_data_rules(coach, %{"document_version" => v})
+        Coaching.acknowledge_coach_data_rules(coach, %{
+          "document_version" => v,
+          "document_language" => "en"
+        })
 
       {:ok, %{acknowledged_at: again}} =
-        Coaching.acknowledge_coach_data_rules(coach, %{"document_version" => v})
+        Coaching.acknowledge_coach_data_rules(coach, %{
+          "document_version" => v,
+          "document_language" => "en"
+        })
 
       assert first == again
 
       set_sharing(data_rules: nil)
 
       assert {:error, :not_found} =
-               Coaching.acknowledge_coach_data_rules(coach, %{"document_version" => v})
+               Coaching.acknowledge_coach_data_rules(coach, %{
+                 "document_version" => v,
+                 "document_language" => "en"
+               })
     end
   end
 

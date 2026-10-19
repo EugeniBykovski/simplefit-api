@@ -99,7 +99,7 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
     * `rate_limited` - 30 responses per 10 minutes per client, shared with accept and decline.
     """,
     request_body:
-      {"The token", "application/json", Schemas.CoachInvitationTokenRequest, required: true},
+      {"The token", "application/json", Schemas.CoachInvitationPreviewRequest, required: true},
     responses: [
       ok: {"The invitation", "application/json", Schemas.CoachInvitationPreview},
       not_found: ApiSpec.error_response("not_found"),
@@ -110,7 +110,11 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
 
   def preview(conn, _params) do
     with {:ok, preview} <-
-           Coaching.preview_invitation(conn.body_params["token"], ClientIP.limit_key(conn)) do
+           Coaching.preview_invitation(
+             conn.body_params["token"],
+             ClientIP.limit_key(conn),
+             conn.body_params["language"]
+           ) do
       conn |> no_store() |> render(:preview, preview: preview)
     end
   end
@@ -127,11 +131,16 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
 
     * `invitation_unavailable` (410) - not a current pending invitation, or the viewer's own.
     * `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.
-    * `validation_error` - `account_registration` or `fighter_profile` `required`, or `disclosure_version`
-      missing.
-    * `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`).
-    * `not_found` - Coach–Fighter sharing is not enabled.
+    * `validation_error` - `account_registration` or `fighter_profile` `required`; `coaching_age` `too_young`
+      (Coach–Fighter connections need the fighter to be 18 or older; the coach is never told); or
+      `disclosure_version` / `document_language` missing.
+    * `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`), or
+      `document_language` has no approved disclosure text (`document_language: unavailable`).
+    * `not_found` - Coach–Fighter sharing is not available (gate off or no published documents).
     * `rate_limited` - 30 per 10 minutes per client.
+
+    On success the relationship, the consumed invitation and the evidence of the acceptance (version, language,
+    text hash) commit together.
     """,
     security: @security,
     request_body:
@@ -218,13 +227,21 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
     #{@by_id_note}
     The coach's public identity and note, the expiry and the disclosure to accept, as `previewCoachInvitation`.
 
-    * `not_found` - Coach–Fighter sharing is not enabled, or responding by id is not available yet (it stays off
-      until the 18+ and document-language checks exist).
+    * `not_found` - Coach–Fighter sharing is not available (gate off or no published documents).
     * `validation_error` - `account_registration` `required`.
     * `rate_limited` - 30 per 10 minutes per client, shared with the other responses.
     """,
     security: @security,
-    parameters: [@invitation_id],
+    parameters: [
+      @invitation_id,
+      %Parameter{
+        name: :language,
+        in: :query,
+        required: false,
+        description: "The language to present the disclosure text in (the app language).",
+        schema: %Schema{type: :string}
+      }
+    ],
     responses: [
       ok: {"The invitation", "application/json", Schemas.CoachInvitationPreview},
       unauthorized: ApiSpec.error_response("unauthorized"),
@@ -235,12 +252,13 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
       internal_server_error: ApiSpec.error_response("internal_error")
     ]
 
-  def preview_incoming(conn, %{"invitation_id" => id}) do
+  def preview_incoming(conn, %{"invitation_id" => id} = params) do
     with {:ok, preview} <-
            Coaching.preview_incoming_invitation(
              conn.assigns.current_user,
              id,
-             ClientIP.limit_key(conn)
+             ClientIP.limit_key(conn),
+             params["language"]
            ) do
       conn |> no_store() |> render(:preview, preview: preview)
     end
@@ -255,10 +273,9 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
     `acceptCoachInvitation`: completed account registration and fighter profile, the exact current disclosure
     version, then the relationship is activated and the invitation consumed together.
 
-    * `not_found` - sharing is not enabled, or responding by id is not available yet.
-    * `validation_error` - `account_registration` or `fighter_profile` `required`, or `disclosure_version`
-      missing.
-    * `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`).
+    * `not_found` - Coach–Fighter sharing is not available (gate off or no published documents).
+    * `validation_error` - as for `acceptCoachInvitation` (`coaching_age` `too_young` included).
+    * `conflict` - `disclosure_version: stale` or `document_language: unavailable`.
     * `rate_limited` - 30 per 10 minutes per client.
     """,
     security: @security,

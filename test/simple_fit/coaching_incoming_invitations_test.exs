@@ -134,7 +134,10 @@ defmodule SimpleFit.CoachingIncomingInvitationsTest do
       dual = email_user!(email) |> complete_coach!("Dual")
 
       {:ok, _} =
-        Coaching.acknowledge_coach_data_rules(dual, %{"document_version" => data_rules_version()})
+        Coaching.acknowledge_coach_data_rules(dual, %{
+          "document_version" => data_rules_version(),
+          "document_language" => "en"
+        })
 
       {to_dual, _} = invite_to!(coach, email)
       {sent_by_dual, _} = invite_to!(dual, address())
@@ -158,7 +161,7 @@ defmodule SimpleFit.CoachingIncomingInvitationsTest do
       {:ok, _} =
         Coaching.accept_invitation(
           fighter,
-          %{"token" => token_b, "disclosure_version" => version()},
+          %{"token" => token_b, "disclosure_version" => version(), "document_language" => "en"},
           @ip
         )
 
@@ -337,8 +340,10 @@ defmodule SimpleFit.CoachingIncomingInvitationsTest do
       set_sharing(enabled: false)
       assert inbox(user) == {:error, :not_found}
 
+      # The flag alone is not enough: without a published current
+      # disclosure sharing is not ready.
       set_sharing(enabled: true, disclosures: %{}, current: nil)
-      assert {:ok, %{entries: [_]}} = inbox(user)
+      assert inbox(user) == {:error, :not_found}
     end
 
     test "account registration must be complete; a fighter profile is not required to read" do

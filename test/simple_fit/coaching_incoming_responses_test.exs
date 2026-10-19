@@ -1,8 +1,8 @@
 defmodule SimpleFit.CoachingIncomingResponsesTest do
   @moduledoc """
   Previewing, accepting and declining an invitation by id from the
-  recipient's inbox (SF-73): the fail-closed switch that keeps preview and
-  accept off until SF-72, verified-recipient binding (an id is never a
+  recipient's inbox (SF-73): the shared SF-72 policy (no approved document,
+  no acceptance; 18+), verified-recipient binding (an id is never a
   credential) and convergence with the SF-57 token responses.
   """
 
@@ -11,6 +11,7 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
 
   import SimpleFit.CoachingHelpers
   import SimpleFit.EmailAuthHelpers
+  import SimpleFit.LegalHelpers
 
   alias SimpleFit.{Accounts, Coaching}
   alias SimpleFit.Coaching.{Invitation, Relationship}
@@ -18,7 +19,7 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
   @ip "203.0.113.7"
 
   setup do
-    configure_sharing(id_acceptance: true)
+    configure_sharing()
     reset_rate_limits()
     :ok
   end
@@ -31,23 +32,53 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
   end
 
   defp accept(user, id, version \\ version()),
-    do: Coaching.accept_incoming_invitation(user, id, %{"disclosure_version" => version}, @ip)
+    do:
+      Coaching.accept_incoming_invitation(
+        user,
+        id,
+        %{"disclosure_version" => version, "document_language" => "en"},
+        @ip
+      )
 
   defp decline(user, id), do: Coaching.decline_incoming_invitation(user, id, @ip)
   defp preview(user, id), do: Coaching.preview_incoming_invitation(user, id, @ip)
   defp relationships, do: Repo.aggregate(Relationship, :count)
   defp reload(%Invitation{id: id}), do: Repo.get!(Invitation, id)
 
-  describe "fail-closed until SF-72" do
-    test "the switch is off in config.exs and is not read from the environment" do
+  describe "the SF-72 policy (replaces the SF-73 switch)" do
+    test "no switch remains: id responses depend only on the shared readiness" do
       config = Config.Reader.read!("config/config.exs", env: :prod)
-      assert config[:simple_fit][SimpleFit.Coaching][:id_acceptance_enabled] == false
+      refute Keyword.has_key?(config[:simple_fit][SimpleFit.Coaching], :id_acceptance_enabled)
       refute File.read!("config/runtime.exs") =~ "id_acceptance"
-      refute File.read!(".env.example") =~ ~r/ID_ACCEPTANCE/i
+      refute File.read!("lib/simple_fit/coaching/invitations.ex") =~ "id_acceptance"
     end
 
-    test "with the production default, preview and accept by id are unavailable, even for a 17-year-old" do
-      set_sharing(id_acceptance: false)
+    test "with the production registry (no approved document) preview and accept are unavailable" do
+      coach = inviting_coach!()
+      email = address()
+      fighter = email_fighter!(email)
+      {invitation, token} = invite_to!(coach, email)
+      use_production_registry!()
+
+      refute Coaching.sharing_ready?()
+      assert preview(fighter, invitation.id) == {:error, :not_found}
+      assert accept(fighter, invitation.id) == {:error, :not_found}
+
+      assert Coaching.accept_invitation(
+               fighter,
+               %{
+                 "token" => token,
+                 "disclosure_version" => version(),
+                 "document_language" => "en"
+               },
+               @ip
+             ) == {:error, :not_found}
+
+      assert relationships() == 0
+      assert reload(invitation).status == :pending
+    end
+
+    test "a 17-year-old fighter is refused on both paths; nothing is consumed or recorded" do
       coach = inviting_coach!()
       email = address()
       {:ok, minor} = Accounts.register_user(:email, email)
@@ -76,22 +107,39 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
         })
 
       {:ok, _} = SimpleFit.Fighters.complete_onboarding(minor)
-      {invitation, _token} = invite_to!(coach, email)
+      {invitation, token} = invite_to!(coach, email)
 
-      # No 18+ or document-language check exists yet (SF-72): the id path
-      # stays closed instead of accepting.
-      assert preview(minor, invitation.id) == {:error, :not_found}
-      assert accept(minor, invitation.id) == {:error, :not_found}
+      assert {:error, %Ecto.Changeset{errors: [coaching_age: {_, opts}]}} =
+               accept(minor, invitation.id)
+
+      assert opts[:validation] == :too_young and opts[:age] == 18
+
+      assert {:error, %Ecto.Changeset{errors: [coaching_age: _]}} =
+               Coaching.accept_invitation(
+                 minor,
+                 %{
+                   "token" => token,
+                   "disclosure_version" => version(),
+                   "document_language" => "en"
+                 },
+                 @ip
+               )
+
       assert relationships() == 0
       assert reload(invitation).status == :pending
+
+      assert Repo.aggregate(
+               from(e in SimpleFit.Legal.Evidence, where: e.subject_user_id == ^minor.id),
+               :count
+             ) == 0
     end
 
-    test "decline by id follows the SF-57 decline policy: available with the switch and the gate off" do
+    test "decline by id follows the SF-57 decline policy: available with the gate off" do
       coach = inviting_coach!()
       email = address()
       fighter = email_fighter!(email)
       {invitation, _} = invite_to!(coach, email)
-      set_sharing(enabled: false, id_acceptance: false)
+      set_sharing(enabled: false)
 
       assert decline(fighter, invitation.id) == :ok
       assert reload(invitation).status == :declined
@@ -105,7 +153,7 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
       {invitation, _} = invite_to!(coach, email)
 
       for opts <- [[enabled: false], [disclosures: %{}, current: nil]] do
-        set_sharing([id_acceptance: true] ++ opts)
+        set_sharing(opts)
         assert preview(fighter, invitation.id) == {:error, :not_found}
         assert accept(fighter, invitation.id) == {:error, :not_found}
       end
@@ -257,7 +305,7 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
       {:ok, _} =
         Coaching.accept_invitation(
           fighter,
-          %{"token" => token, "disclosure_version" => version()},
+          %{"token" => token, "disclosure_version" => version(), "document_language" => "en"},
           @ip
         )
 
@@ -269,7 +317,11 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
 
       assert Coaching.accept_invitation(
                fighter,
-               %{"token" => token_b, "disclosure_version" => version()},
+               %{
+                 "token" => token_b,
+                 "disclosure_version" => version(),
+                 "document_language" => "en"
+               },
                @ip
              ) == {:error, :invitation_unavailable}
 
@@ -290,7 +342,11 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
 
       assert Coaching.accept_invitation(
                fighter,
-               %{"token" => old_token, "disclosure_version" => version()},
+               %{
+                 "token" => old_token,
+                 "disclosure_version" => version(),
+                 "document_language" => "en"
+               },
                @ip
              ) == {:error, :invitation_unavailable}
 

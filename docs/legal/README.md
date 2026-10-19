@@ -13,6 +13,7 @@ activation checklist is complete.
 |---|---|
 | Product policy L-01 – L-16 | `PRODUCT_APPROVED` 2026-10-19 (product owner) |
 | Legal texts, bases, roles, retention periods | `PROPOSED_PENDING_LEGAL_REVIEW` — nothing is `LEGALLY_APPROVED` |
+| Engineering foundation (SF-72) | Implemented: registry, evidence, 18+, shared acceptance policy ([ADR 0022](../architecture/adr/0022-legal-documents-coaching-policy.md)); production registry empty |
 | Coach–Fighter sharing | Disabled in every environment |
 
 | Document | Content |

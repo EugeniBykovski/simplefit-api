@@ -341,4 +341,8 @@ defmodule SimpleFit.Accounts do
   """
   @spec registration_complete?(User.t()) :: boolean()
   defdelegate registration_complete?(user), to: Registration, as: :complete?
+
+  @doc "See `SimpleFit.Accounts.Registration.date_of_birth/1` (server-side age checks only)."
+  @spec date_of_birth(User.t()) :: Date.t() | nil
+  defdelegate date_of_birth(user), to: Registration
 end

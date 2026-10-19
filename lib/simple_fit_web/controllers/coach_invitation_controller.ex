@@ -38,12 +38,22 @@ defmodule SimpleFitWeb.CoachInvitationController do
     operation_id: "getMyCoachDataRules",
     summary: "The coach data rules to acknowledge",
     description: """
-    The coach data-rules version the viewer must acknowledge before inviting, and when they did.
-    `document_version` is `null` while no approved version is configured (inviting is then unavailable).
+    The coach data-rules version the viewer must acknowledge before inviting, when they did, and its approved text
+    in `language` (`document`). `document_version` is `null` while no approved version is published (inviting is
+    then unavailable).
 
-    * `not_found` - Coach–Fighter sharing is not enabled, or the viewer has no completed coach profile.
+    * `not_found` - Coach–Fighter sharing is not available, or the viewer has no completed coach profile.
     """,
     security: @security,
+    parameters: [
+      %Parameter{
+        name: :language,
+        in: :query,
+        required: false,
+        description: "The language to present the document text in (the app language).",
+        schema: %Schema{type: :string}
+      }
+    ],
     responses: [
       ok: {"The data rules", "application/json", Schemas.CoachDataRulesResponse},
       unauthorized: ApiSpec.error_response("unauthorized"),
@@ -51,8 +61,8 @@ defmodule SimpleFitWeb.CoachInvitationController do
       internal_server_error: ApiSpec.error_response("internal_error")
     ]
 
-  def data_rules(conn, _params) do
-    with {:ok, rules} <- Coaching.coach_data_rules(conn.assigns.current_user) do
+  def data_rules(conn, params) do
+    with {:ok, rules} <- Coaching.coach_data_rules(conn.assigns.current_user, params["language"]) do
       conn |> no_store() |> render(:data_rules, rules: rules)
     end
   end
@@ -61,10 +71,13 @@ defmodule SimpleFitWeb.CoachInvitationController do
     operation_id: "acknowledgeMyCoachDataRules",
     summary: "Acknowledge the coach data rules",
     description: """
-    Records that the viewer acknowledged the configured coach data-rules version (separate from account consents
-    and the coach profile). Idempotent: the first acknowledgement's time is kept.
+    Records that the viewer acknowledged the published coach data-rules version in the language they were shown
+    (separate from account consents and the coach profile), with its evidence. Idempotent: the first
+    acknowledgement is kept.
 
-    * `conflict` - `document_version` is not the configured version (details `document_version: stale`).
+    * `conflict` - `document_version` is not the current version (details `document_version: stale`), or
+      `document_language` has no approved text (`document_language: unavailable`).
+    * `validation_error` - `document_version` or `document_language` missing.
     * `not_found` - sharing is not enabled, no version is configured, or no completed coach profile.
     """,
     security: @security,

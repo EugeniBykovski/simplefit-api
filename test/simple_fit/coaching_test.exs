@@ -96,10 +96,16 @@ defmodule SimpleFit.CoachingTest do
                  Activation.activate(coach_id(coach), fighter, bad)
       end
 
-      set_sharing(disclosures: %{})
+      # Configured but not in the legal document registry: not offered.
+      set_sharing(
+        disclosures: %{
+          version() => :basic_profile,
+          "fighter-coach-disclosure-test-9" => :basic_profile
+        }
+      )
 
       assert {:error, :disclosure_not_offered} =
-               Activation.activate(coach_id(coach), fighter, version())
+               Activation.activate(coach_id(coach), fighter, "fighter-coach-disclosure-test-9")
 
       assert Repo.aggregate(Relationship, :count) == 0
     end
@@ -386,8 +392,29 @@ defmodule SimpleFit.CoachingTest do
       assert entry.fighter.experience_level == :amateur
     end
 
-    test "a version no longer offered discloses nothing", %{coach: c, r: r} do
-      set_sharing(disclosures: %{"another-version" => :basic_profile})
+    test "a withdrawn version discloses nothing", %{coach: c, r: r} do
+      SimpleFit.LegalHelpers.build_registry!([
+        %{
+          document_id: "fighter-coach-disclosure",
+          version: version(),
+          scope: "basic_profile",
+          status: "withdrawn"
+        },
+        %{
+          document_id: "fighter-coach-disclosure",
+          version: "fighter-coach-disclosure-test-2",
+          scope: "basic_profile"
+        },
+        %{document_id: "coach-data-rules", version: data_rules_version()}
+      ])
+
+      set_sharing(
+        disclosures: %{
+          "fighter-coach-disclosure-test-2" => :basic_profile,
+          version() => :basic_profile
+        },
+        current: "fighter-coach-disclosure-test-2"
+      )
 
       {:ok, entry} = Coaching.get_coach_relationship(c, r.id)
       assert entry.disclosed_fields == []

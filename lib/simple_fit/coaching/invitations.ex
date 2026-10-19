@@ -55,11 +55,20 @@ defmodule SimpleFit.Coaching.Invitations do
   checks, `Activation` call and consumption (`accept_locked/3`,
   `decline_locked/2`). Unlike the token, an id survives a resend.
 
-  Preview and accept by id stay unavailable (`:not_found`) until the
-  checks SF-72 owns (18+ at acceptance, approved document language) exist:
-  `id_acceptance_enabled` is `false` in `config/config.exs`, is not read
-  from the environment, and only tests turn it on. Decline by id follows the
-  SF-57 decline policy (it grants nothing).
+  Decline by id follows the SF-57 decline policy (it grants nothing).
+
+  ## Legal documents, language and age (SF-72; ADR 0022)
+
+  Sharing is available only when `SimpleFit.Coaching.sharing_ready?/0`
+  holds (gate, valid registry, published disclosure and data rules). Both
+  acceptance paths share one policy: the fighter echoes the exact current
+  disclosure version **and** the language of the approved variant they were
+  shown (`document_language`; no variant in that language:
+  `{:conflict, %{document_language: "unavailable"}}`), must be 18+
+  (`SimpleFit.Coaching.Activation`), and the evidence of the acceptance
+  (`SimpleFit.Legal.record_acceptance!/1`) commits with the relationship and
+  the consumed invitation, or nothing does. The coach acknowledges the data
+  rules the same way, with its own evidence.
 
   ## Abuse limits (PostgreSQL windows, ADR 0019 conventions)
 
@@ -72,7 +81,7 @@ defmodule SimpleFit.Coaching.Invitations do
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Changeset
-  alias SimpleFit.{Accounts, Coaches, Coaching, Email, Fighters, RateLimit, Repo}
+  alias SimpleFit.{Accounts, Coaches, Coaching, Email, Fighters, Legal, RateLimit, Repo}
   alias SimpleFit.Accounts.User
   alias SimpleFit.Coaching.{Activation, DataRulesAcknowledgement, Disclosure}
   alias SimpleFit.Coaching.{Invitation, InvitationSecrets}
@@ -121,50 +130,104 @@ defmodule SimpleFit.Coaching.Invitations do
   it. `:not_found` while sharing is disabled or without a completed coach
   profile.
   """
-  @spec data_rules(User.t()) ::
-          {:ok, %{document_version: String.t() | nil, acknowledged_at: DateTime.t() | nil}}
+  @spec data_rules(User.t(), term()) ::
+          {:ok,
+           %{
+             document_version: String.t() | nil,
+             acknowledged_at: DateTime.t() | nil,
+             document: Legal.ref() | nil
+           }}
           | {:error, :not_found}
-  def data_rules(%User{} = user) do
+  def data_rules(%User{} = user, language \\ nil) do
     with {:ok, coach} <- coach(user) do
-      version = Disclosure.data_rules_version()
-      {:ok, %{document_version: version, acknowledged_at: acknowledged_at(coach, version)}}
+      {:ok, rules_of(coach, Disclosure.data_rules_version(), language)}
     end
   end
+
+  # Sharing being ready implies a published version; it may still have been
+  # withdrawn by a registry reload in between: then nothing to acknowledge.
+  defp rules_of(coach, version, language) when is_binary(version) do
+    document =
+      case Legal.ref("coach-data-rules", version, language) do
+        {:ok, ref} -> ref
+        :error -> nil
+      end
+
+    %{
+      document_version: version,
+      acknowledged_at: acknowledged_at(coach, version),
+      document: document
+    }
+  end
+
+  defp rules_of(_coach, _version, _language),
+    do: %{document_version: nil, acknowledged_at: nil, document: nil}
 
   @doc """
   Records the coach's acknowledgement of `document_version`, which must be
   the configured coach data-rules version (otherwise `{:conflict,
-  %{document_version: "stale"}}`). Idempotent: the first acknowledgement's
-  time is kept.
+  %{document_version: "stale"}}`), in `document_language`, which must have
+  an approved variant (otherwise `{:conflict, %{document_language:
+  "unavailable"}}`). The acknowledgement and its evidence commit together.
+  Idempotent: the first acknowledgement (time and evidence) is kept.
   """
   @spec acknowledge_data_rules(User.t(), map()) ::
-          {:ok, %{document_version: String.t(), acknowledged_at: DateTime.t() | nil}}
+          {:ok,
+           %{
+             document_version: String.t(),
+             acknowledged_at: DateTime.t() | nil,
+             document: Legal.ref()
+           }}
           | {:error, error()}
   def acknowledge_data_rules(%User{} = user, attrs) when is_map(attrs) do
     with {:ok, coach} <- coach(user),
          {:ok, current} <- configured_data_rules(),
          {:ok, version} <- version_param(attrs, "document_version"),
-         :ok <- same_version(version, current, :document_version) do
-      {_inserted, _} =
-        Repo.insert_all(
-          DataRulesAcknowledgement,
-          [
-            %{
-              id: Ecto.UUID.generate(),
-              coach_profile_id: coach.id,
-              document_version: version,
-              acknowledged_at: DateTime.utc_now()
-            }
-          ],
-          Keyword.merge(@unlogged,
-            on_conflict: :nothing,
-            conflict_target: [:coach_profile_id, :document_version]
-          )
-        )
+         {:ok, language} <- language_param(attrs),
+         :ok <- same_version(version, current, :document_version),
+         {:ok, variant} <- presented("coach-data-rules", version, language) do
+      {:ok, _} =
+        Repo.transaction(fn -> acknowledge!(user, coach, version, variant) end, @unlogged)
 
       emit(:data_rules_acknowledged, %{})
-      {:ok, %{document_version: version, acknowledged_at: acknowledged_at(coach, version)}}
+      {:ok, document} = Legal.ref("coach-data-rules", version, language)
+
+      {:ok,
+       %{
+         document_version: version,
+         acknowledged_at: acknowledged_at(coach, version),
+         document: document
+       }}
     end
+  end
+
+  defp acknowledge!(user, coach, version, variant) do
+    {inserted, _} =
+      Repo.insert_all(
+        DataRulesAcknowledgement,
+        [
+          %{
+            id: Ecto.UUID.generate(),
+            coach_profile_id: coach.id,
+            document_version: version,
+            acknowledged_at: DateTime.utc_now()
+          }
+        ],
+        Keyword.merge(@unlogged,
+          on_conflict: :nothing,
+          conflict_target: [:coach_profile_id, :document_version]
+        )
+      )
+
+    if inserted == 1,
+      do:
+        Legal.record_acknowledgement!(%{
+          coach_user_id: user.id,
+          version: version,
+          variant: variant
+        })
+
+    :ok
   end
 
   defp configured_data_rules do
@@ -334,15 +397,18 @@ defmodule SimpleFit.Coaching.Invitations do
   recipient or account information.
   """
   @spec preview(term(), String.t()) :: {:ok, map()} | {:error, error()}
-  def preview(token, client_ip) when is_binary(client_ip) do
+  def preview(token, client_ip, language \\ nil) when is_binary(client_ip) do
     with :ok <- inviting_available(),
          :ok <- response_limit(client_ip),
          {:ok, invitation} <- usable(token) do
-      {:ok, preview_of(invitation)}
+      {:ok, preview_of(invitation, language)}
     end
   end
 
-  defp preview_of(invitation) do
+  # The disclosure as data (fields, never-shared) and as the approved text in
+  # the requested language (`document`, metadata only when that language has
+  # no approved variant).
+  defp preview_of(invitation, language) do
     coach = Coaches.public_projection([invitation.coach_profile_id])
     version = Disclosure.current()
 
@@ -354,7 +420,12 @@ defmodule SimpleFit.Coaching.Invitations do
         version: version,
         fields: Disclosure.fields(version),
         never_shared: @never_shared
-      }
+      },
+      document:
+        case Legal.ref("fighter-coach-disclosure", version, language) do
+          {:ok, ref} -> ref
+          _ -> nil
+        end
     }
   end
 
@@ -376,8 +447,12 @@ defmodule SimpleFit.Coaching.Invitations do
     with :ok <- inviting_available(),
          :ok <- response_limit(client_ip),
          {:ok, hash} <- token_param(params),
-         {:ok, version} <- version_param(params, "disclosure_version") do
-      Repo.transaction(fn -> accept_locked(user, {:token, hash}, version) end, @unlogged)
+         {:ok, version} <- version_param(params, "disclosure_version"),
+         {:ok, language} <- language_param(params) do
+      Repo.transaction(
+        fn -> accept_locked(user, {:token, hash}, version, language) end,
+        @unlogged
+      )
       |> accepted()
     end
   end
@@ -422,14 +497,13 @@ defmodule SimpleFit.Coaching.Invitations do
   until the SF-72 acceptance checks exist (see the moduledoc).
   """
   @spec preview_by_id(User.t(), term(), String.t()) :: {:ok, map()} | {:error, error()}
-  def preview_by_id(%User{} = user, id, client_ip) when is_binary(client_ip) do
-    with :ok <- id_acceptance_available(),
-         :ok <- inviting_available(),
+  def preview_by_id(%User{} = user, id, client_ip, language \\ nil) when is_binary(client_ip) do
+    with :ok <- inviting_available(),
          :ok <- registered(user),
          :ok <- response_limit(client_ip),
          {:ok, id} <- invitation_id(id),
          {:ok, invitation} <- pending_for_recipient(user, id) do
-      {:ok, preview_of(invitation)}
+      {:ok, preview_of(invitation, language)}
     end
   end
 
@@ -452,12 +526,12 @@ defmodule SimpleFit.Coaching.Invitations do
           | {:error, error()}
   def accept_by_id(%User{} = user, id, params, client_ip)
       when is_map(params) and is_binary(client_ip) do
-    with :ok <- id_acceptance_available(),
-         :ok <- inviting_available(),
+    with :ok <- inviting_available(),
          :ok <- response_limit(client_ip),
          {:ok, id} <- invitation_id(id),
-         {:ok, version} <- version_param(params, "disclosure_version") do
-      Repo.transaction(fn -> accept_locked(user, {:id, id}, version) end, @unlogged)
+         {:ok, version} <- version_param(params, "disclosure_version"),
+         {:ok, language} <- language_param(params) do
+      Repo.transaction(fn -> accept_locked(user, {:id, id}, version, language) end, @unlogged)
       |> accepted()
     end
   end
@@ -478,16 +552,9 @@ defmodule SimpleFit.Coaching.Invitations do
 
   # -- Prerequisites ---------------------------------------------------------
 
-  # Fail-closed until SF-72: code configuration only, never the environment.
-  defp id_acceptance_available do
-    if Application.get_env(:simple_fit, SimpleFit.Coaching, [])[:id_acceptance_enabled] == true,
-      do: :ok,
-      else: {:error, :not_found}
-  end
-
   # Coach operations other than cancel need the sharing gate.
   defp coach(user) do
-    if Coaching.access_enabled?(),
+    if Coaching.sharing_ready?(),
       do: completed(Coaches.get_profile(user)),
       else: {:error, :not_found}
   end
@@ -497,7 +564,7 @@ defmodule SimpleFit.Coaching.Invitations do
 
   # Like the coach's own list: only while sharing is enabled.
   defp incoming_available do
-    if Coaching.access_enabled?(), do: :ok, else: {:error, :not_found}
+    if Coaching.sharing_ready?(), do: :ok, else: {:error, :not_found}
   end
 
   defp registered(user) do
@@ -508,7 +575,7 @@ defmodule SimpleFit.Coaching.Invitations do
 
   # New sharing needs the gate and a disclosure a fighter can accept now.
   defp inviting_available do
-    if Coaching.access_enabled?() and is_binary(Disclosure.current()),
+    if Coaching.sharing_ready?(),
       do: :ok,
       else: {:error, :not_found}
   end
@@ -526,8 +593,6 @@ defmodule SimpleFit.Coaching.Invitations do
           else: {:error, {:conflict, %{data_rules_acknowledgement: "required"}}}
     end
   end
-
-  defp acknowledged_at(_coach, nil), do: nil
 
   defp acknowledged_at(coach, version) do
     Repo.one(
@@ -636,6 +701,31 @@ defmodule SimpleFit.Coaching.Invitations do
          {%{}, types}
          |> Changeset.change()
          |> Changeset.add_error(String.to_existing_atom(key), "is invalid", validation: :required)}
+    end
+  end
+
+  # The language of the text the user was shown: required for acceptance and
+  # acknowledgement; whether it has an approved variant is checked against
+  # the registry (`presented/3`).
+  defp language_param(params) do
+    case params["document_language"] do
+      language when is_binary(language) and byte_size(language) in 1..16 ->
+        {:ok, language}
+
+      _ ->
+        {:error,
+         {%{}, %{document_language: :string}}
+         |> Changeset.change()
+         |> Changeset.add_error(:document_language, "is invalid", validation: :required)}
+    end
+  end
+
+  # The approved variant actually presented, or `document_language:
+  # unavailable` (never another language instead).
+  defp presented(document_id, version, language) do
+    case Legal.variant(document_id, version, language) do
+      {:ok, variant} -> {:ok, variant}
+      :error -> {:error, {:conflict, %{document_language: "unavailable"}}}
     end
   end
 
@@ -889,14 +979,17 @@ defmodule SimpleFit.Coaching.Invitations do
 
   # The one acceptance transaction, whether the invitation was located by
   # token or by id.
-  defp accept_locked(user, locator, version) do
+  defp accept_locked(user, locator, version, language) do
     {invitation, now} = locked_for_recipient(user, locator)
     require_fighter!(user)
 
-    case same_version(version, Disclosure.current(), :disclosure_version) do
-      :ok -> :ok
-      {:error, reason} -> Repo.rollback(reason)
-    end
+    variant =
+      with :ok <- same_version(version, Disclosure.current(), :disclosure_version),
+           {:ok, variant} <- presented("fighter-coach-disclosure", version, language) do
+        variant
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
 
     case Activation.activate(invitation.coach_profile_id, user, version) do
       {:ok, relationship, outcome} ->
@@ -909,6 +1002,15 @@ defmodule SimpleFit.Coaching.Invitations do
             updated_at: now
           ]
         )
+
+        Legal.record_acceptance!(%{
+          fighter_user_id: user.id,
+          coach_user_id: Coaches.get_profile_by_id(invitation.coach_profile_id).user_id,
+          invitation_id: invitation.id,
+          relationship_id: relationship.id,
+          version: version,
+          variant: variant
+        })
 
         %{
           relationship_id: relationship.id,
@@ -923,6 +1025,11 @@ defmodule SimpleFit.Coaching.Invitations do
 
       {:error, :fighter_not_completed} ->
         Repo.rollback(prerequisite_error(:fighter_profile))
+
+      # Never the age or the date of birth: only that the fighter is not
+      # eligible; the invitation stays pending (the coach sees nothing new).
+      {:error, :fighter_too_young} ->
+        Repo.rollback(too_young_error())
 
       # A coach accepting their own invitation, or a coach profile gone.
       {:error, reason} when reason in [:self_coaching, :coach_unavailable] ->
@@ -949,6 +1056,15 @@ defmodule SimpleFit.Coaching.Invitations do
       true ->
         :ok
     end
+  end
+
+  defp too_young_error do
+    {%{}, %{coaching_age: :string}}
+    |> Changeset.change()
+    |> Changeset.add_error(:coaching_age, "must be at least %{age} years",
+      validation: :too_young,
+      age: Activation.minimum_age()
+    )
   end
 
   defp prerequisite_error(field) do

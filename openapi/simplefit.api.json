@@ -680,9 +680,24 @@
       },
       "CoachDataRulesAcknowledgeRequest": {
         "example": {
-          "document_version": "coach-data-rules-v1"
+          "document_language": "en",
+          "document_version": "coach-data-rules-2026-11-1"
         },
         "properties": {
+          "document_language": {
+            "description": "The `document.language` of the text the coach was shown (an approved variant).",
+            "enum": [
+              "en",
+              "pl",
+              "ru",
+              "uk",
+              "de",
+              "es",
+              "es-MX",
+              "fr"
+            ],
+            "type": "string"
+          },
           "document_version": {
             "description": "The version from `getMyCoachDataRules` that the coach was shown.",
             "maxLength": 64,
@@ -691,6 +706,7 @@
           }
         },
         "required": [
+          "document_language",
           "document_version"
         ],
         "title": "CoachDataRulesAcknowledgeRequest",
@@ -708,6 +724,16 @@
                 "nullable": true,
                 "type": "string"
               },
+              "document": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/LegalDocumentRef"
+                  }
+                ],
+                "description": "The current data-rules text in the requested `language` (`null` while no version is published).\nAcknowledge with its `version` and `language`; no `language` (no approved variant in the requested\nlanguage): acknowledging is not possible yet.\n",
+                "nullable": true,
+                "type": "object"
+              },
               "document_version": {
                 "description": "The coach data-rules version to acknowledge before inviting; `null` while none is configured.",
                 "nullable": true,
@@ -716,6 +742,7 @@
             },
             "required": [
               "acknowledged_at",
+              "document",
               "document_version"
             ],
             "type": "object"
@@ -1019,6 +1046,20 @@
             "minLength": 1,
             "type": "string"
           },
+          "document_language": {
+            "description": "The `document.language` of the disclosure text the fighter was shown (an approved variant).",
+            "enum": [
+              "en",
+              "pl",
+              "ru",
+              "uk",
+              "de",
+              "es",
+              "es-MX",
+              "fr"
+            ],
+            "type": "string"
+          },
           "token": {
             "description": "The one-time invitation token from the E08 link fragment (`#token=…`). Send it only in request bodies,\nnever in a URL. Any value that is not a current token answers `410 invitation_unavailable`.\n",
             "example": "sfi_3q2-7wEXAMPLEonlyEXAMPLEonlyEXAMPLEonlyEXAMPLEo",
@@ -1027,6 +1068,7 @@
         },
         "required": [
           "disclosure_version",
+          "document_language",
           "token"
         ],
         "title": "CoachInvitationAcceptRequest",
@@ -1157,6 +1199,16 @@
             ],
             "type": "object"
           },
+          "document": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/LegalDocumentRef"
+              }
+            ],
+            "description": "The current disclosure's approved text in the requested `language` (metadata only when that language has\nno approved variant: then the fighter cannot accept in it). `null` while no disclosure is published.\n",
+            "nullable": true,
+            "type": "object"
+          },
           "invitation": {
             "additionalProperties": false,
             "properties": {
@@ -1199,9 +1251,28 @@
         },
         "required": [
           "disclosure",
+          "document",
           "invitation"
         ],
         "title": "CoachInvitationPreview",
+        "type": "object"
+      },
+      "CoachInvitationPreviewRequest": {
+        "properties": {
+          "language": {
+            "description": "The language to present the disclosure text in (the app language); see `document`.",
+            "type": "string"
+          },
+          "token": {
+            "description": "The one-time invitation token from the E08 link fragment (`#token=…`). Send it only in request bodies,\nnever in a URL. Any value that is not a current token answers `410 invitation_unavailable`.\n",
+            "example": "sfi_3q2-7wEXAMPLEonlyEXAMPLEonlyEXAMPLEonlyEXAMPLEo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "CoachInvitationPreviewRequest",
         "type": "object"
       },
       "CoachInvitationResponse": {
@@ -2736,10 +2807,25 @@
             "maxLength": 64,
             "minLength": 1,
             "type": "string"
+          },
+          "document_language": {
+            "description": "The `document.language` of the disclosure text the fighter was shown (an approved variant).",
+            "enum": [
+              "en",
+              "pl",
+              "ru",
+              "uk",
+              "de",
+              "es",
+              "es-MX",
+              "fr"
+            ],
+            "type": "string"
           }
         },
         "required": [
-          "disclosure_version"
+          "disclosure_version",
+          "document_language"
         ],
         "title": "IncomingCoachInvitationAcceptRequest",
         "type": "object"
@@ -2765,6 +2851,146 @@
           "next_cursor"
         ],
         "title": "IncomingCoachInvitationList",
+        "type": "object"
+      },
+      "LegalDocumentRef": {
+        "additionalProperties": false,
+        "description": "One version of a legal document from the backend's registry (ADR 0022). The metadata is always present;\nthe text (`title`, `summary`, `checkbox`, `full`) only when an approved variant exists in exactly the\nrequested language, never another language instead. `language` is the language of the text returned (the\none to echo as `document_language` when accepting); `null` with no text. Render `summary`, `checkbox`\nand `full` as plain text or the Markdown subset (headings, paragraphs, `-` lists); never as HTML.\n",
+        "properties": {
+          "available_languages": {
+            "description": "The languages with an approved text of this version.",
+            "items": {
+              "enum": [
+                "en",
+                "pl",
+                "ru",
+                "uk",
+                "de",
+                "es",
+                "es-MX",
+                "fr"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "checkbox": {
+            "description": "The confirmation label next to an unticked checkbox.",
+            "nullable": true,
+            "type": "string"
+          },
+          "content_sha256": {
+            "description": "The SHA-256 of the returned text (registry definition).",
+            "nullable": true,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "document_id": {
+            "enum": [
+              "fighter-coach-disclosure",
+              "coach-data-rules"
+            ],
+            "type": "string"
+          },
+          "effective_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "full": {
+            "description": "The full text (Markdown subset).",
+            "nullable": true,
+            "type": "string"
+          },
+          "language": {
+            "description": "The language of the returned text; `null` when no approved variant exists for it.",
+            "enum": [
+              "en",
+              "pl",
+              "ru",
+              "uk",
+              "de",
+              "es",
+              "es-MX",
+              "fr"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "requested_language": {
+            "description": "The language asked for; `null` when none or not a product locale.",
+            "enum": [
+              "en",
+              "pl",
+              "ru",
+              "uk",
+              "de",
+              "es",
+              "es-MX",
+              "fr"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "Only `published` can be accepted; `superseded` is an archive.",
+            "enum": [
+              "draft",
+              "approved",
+              "published",
+              "superseded",
+              "withdrawn"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "description": "The short in-app text.",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "nullable": true,
+            "type": "string"
+          },
+          "version": {
+            "description": "The version id; one id covers all languages.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "available_languages",
+          "checkbox",
+          "content_sha256",
+          "document_id",
+          "effective_at",
+          "full",
+          "language",
+          "published_at",
+          "requested_language",
+          "status",
+          "summary",
+          "title",
+          "version"
+        ],
+        "title": "LegalDocumentRef",
+        "type": "object"
+      },
+      "LegalDocumentResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/LegalDocumentRef"
+          }
+        },
+        "required": [
+          "document"
+        ],
+        "title": "LegalDocumentResponse",
         "type": "object"
       },
       "MyCoachRelationship": {
@@ -3897,7 +4123,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CoachInvitationTokenRequest"
+                "$ref": "#/components/schemas/CoachInvitationPreviewRequest"
               }
             }
           },
@@ -3947,6 +4173,121 @@
         "summary": "What an invitation link shows",
         "tags": [
           "Coaching"
+        ]
+      }
+    },
+    "/api/v1/legal-documents/{document_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "The `published` version of a document. `not_found` while none is published (the current state).",
+        "operationId": "getLegalDocument",
+        "parameters": [
+          {
+            "description": "The document.",
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "enum": [
+                "fighter-coach-disclosure",
+                "coach-data-rules"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The language to read the text in. Without an approved variant in that language the text fields are `null`\nand `available_languages` lists the approved ones (never another language instead).\n",
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentResponse"
+                }
+              }
+            },
+            "description": "The document"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "The current version of a legal document",
+        "tags": [
+          "Legal"
+        ]
+      }
+    },
+    "/api/v1/legal-documents/{document_id}/versions/{version}": {
+      "get": {
+        "callbacks": {},
+        "description": "A `published` or `superseded` version (an archive whose text never changes). Anything else: `not_found`.",
+        "operationId": "getLegalDocumentVersion",
+        "parameters": [
+          {
+            "description": "The document.",
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "enum": [
+                "fighter-coach-disclosure",
+                "coach-data-rules"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version id.",
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The language to read the text in. Without an approved variant in that language the text fields are `null`\nand `available_languages` lists the approved ones (never another language instead).\n",
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentResponse"
+                }
+              }
+            },
+            "description": "The document"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "One version of a legal document",
+        "tags": [
+          "Legal"
         ]
       }
     },
@@ -4152,7 +4493,7 @@
     "/api/v1/me/coach-invitations/accept": {
       "post": {
         "callbacks": {},
-        "description": "The explicit acceptance. The viewer must be signed in with the invited address (an email identity they\nverified), have completed account registration and a fighter profile, and echo exactly the disclosure version\nshown by `previewCoachInvitation`. In one transaction the invitation is consumed and the relationship becomes\nactive with that disclosure; nothing changes if any step fails. A token works once: a repeated acceptance\nanswers `410` (see `listMyCoaches`).\n\n* `invitation_unavailable` (410) - not a current pending invitation, or the viewer's own.\n* `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.\n* `validation_error` - `account_registration` or `fighter_profile` `required`, or `disclosure_version`\n  missing.\n* `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`).\n* `not_found` - Coach–Fighter sharing is not enabled.\n* `rate_limited` - 30 per 10 minutes per client.\n",
+        "description": "The explicit acceptance. The viewer must be signed in with the invited address (an email identity they\nverified), have completed account registration and a fighter profile, and echo exactly the disclosure version\nshown by `previewCoachInvitation`. In one transaction the invitation is consumed and the relationship becomes\nactive with that disclosure; nothing changes if any step fails. A token works once: a repeated acceptance\nanswers `410` (see `listMyCoaches`).\n\n* `invitation_unavailable` (410) - not a current pending invitation, or the viewer's own.\n* `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.\n* `validation_error` - `account_registration` or `fighter_profile` `required`; `coaching_age` `too_young`\n  (Coach–Fighter connections need the fighter to be 18 or older; the coach is never told); or\n  `disclosure_version` / `document_language` missing.\n* `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`), or\n  `document_language` has no approved disclosure text (`document_language: unavailable`).\n* `not_found` - Coach–Fighter sharing is not available (gate off or no published documents).\n* `rate_limited` - 30 per 10 minutes per client.\n\nOn success the relationship, the consumed invitation and the evidence of the acceptance (version, language,\ntext hash) commit together.\n",
         "operationId": "acceptCoachInvitation",
         "parameters": [],
         "requestBody": {
@@ -4299,7 +4640,7 @@
     "/api/v1/me/coach-invitations/{invitation_id}/accept": {
       "post": {
         "callbacks": {},
-        "description": "Located by id among the invitations addressed to the viewer's verified email identities (no token: possession\nof the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,\nunknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.\n\nThe explicit acceptance, with the same prerequisites and the same single transaction as\n`acceptCoachInvitation`: completed account registration and fighter profile, the exact current disclosure\nversion, then the relationship is activated and the invitation consumed together.\n\n* `not_found` - sharing is not enabled, or responding by id is not available yet.\n* `validation_error` - `account_registration` or `fighter_profile` `required`, or `disclosure_version`\n  missing.\n* `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`).\n* `rate_limited` - 30 per 10 minutes per client.\n",
+        "description": "Located by id among the invitations addressed to the viewer's verified email identities (no token: possession\nof the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,\nunknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.\n\nThe explicit acceptance, with the same prerequisites and the same single transaction as\n`acceptCoachInvitation`: completed account registration and fighter profile, the exact current disclosure\nversion, then the relationship is activated and the invitation consumed together.\n\n* `not_found` - Coach–Fighter sharing is not available (gate off or no published documents).\n* `validation_error` - as for `acceptCoachInvitation` (`coaching_age` `too_young` included).\n* `conflict` - `disclosure_version: stale` or `document_language: unavailable`.\n* `rate_limited` - 30 per 10 minutes per client.\n",
         "operationId": "acceptMyIncomingCoachInvitation",
         "parameters": [
           {
@@ -4451,7 +4792,7 @@
     "/api/v1/me/coach-invitations/{invitation_id}/preview": {
       "get": {
         "callbacks": {},
-        "description": "Located by id among the invitations addressed to the viewer's verified email identities (no token: possession\nof the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,\nunknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.\n\nThe coach's public identity and note, the expiry and the disclosure to accept, as `previewCoachInvitation`.\n\n* `not_found` - Coach–Fighter sharing is not enabled, or responding by id is not available yet (it stays off\n  until the 18+ and document-language checks exist).\n* `validation_error` - `account_registration` `required`.\n* `rate_limited` - 30 per 10 minutes per client, shared with the other responses.\n",
+        "description": "Located by id among the invitations addressed to the viewer's verified email identities (no token: possession\nof the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,\nunknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.\n\nThe coach's public identity and note, the expiry and the disclosure to accept, as `previewCoachInvitation`.\n\n* `not_found` - Coach–Fighter sharing is not available (gate off or no published documents).\n* `validation_error` - `account_registration` `required`.\n* `rate_limited` - 30 per 10 minutes per client, shared with the other responses.\n",
         "operationId": "previewMyIncomingCoachInvitation",
         "parameters": [
           {
@@ -4461,6 +4802,15 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The language to present the disclosure text in (the app language).",
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
               "type": "string"
             }
           }
@@ -4645,9 +4995,19 @@
     "/api/v1/me/coach/data-rules": {
       "get": {
         "callbacks": {},
-        "description": "The coach data-rules version the viewer must acknowledge before inviting, and when they did.\n`document_version` is `null` while no approved version is configured (inviting is then unavailable).\n\n* `not_found` - Coach–Fighter sharing is not enabled, or the viewer has no completed coach profile.\n",
+        "description": "The coach data-rules version the viewer must acknowledge before inviting, when they did, and its approved text\nin `language` (`document`). `document_version` is `null` while no approved version is published (inviting is\nthen unavailable).\n\n* `not_found` - Coach–Fighter sharing is not available, or the viewer has no completed coach profile.\n",
         "operationId": "getMyCoachDataRules",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "The language to present the document text in (the app language).",
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4683,7 +5043,7 @@
     "/api/v1/me/coach/data-rules/acknowledge": {
       "post": {
         "callbacks": {},
-        "description": "Records that the viewer acknowledged the configured coach data-rules version (separate from account consents\nand the coach profile). Idempotent: the first acknowledgement's time is kept.\n\n* `conflict` - `document_version` is not the configured version (details `document_version: stale`).\n* `not_found` - sharing is not enabled, no version is configured, or no completed coach profile.\n",
+        "description": "Records that the viewer acknowledged the published coach data-rules version in the language they were shown\n(separate from account consents and the coach profile), with its evidence. Idempotent: the first\nacknowledgement is kept.\n\n* `conflict` - `document_version` is not the current version (details `document_version: stale`), or\n  `document_language` has no approved text (`document_language: unavailable`).\n* `validation_error` - `document_version` or `document_language` missing.\n* `not_found` - sharing is not enabled, no version is configured, or no completed coach profile.\n",
         "operationId": "acknowledgeMyCoachDataRules",
         "parameters": [],
         "requestBody": {
@@ -5711,6 +6071,10 @@
     {
       "description": "Coach–Fighter relationships: a coach's fighters as disclosed and a fighter's coaches (ADR 0021).",
       "name": "Coaching"
+    },
+    {
+      "description": "Published legal documents (versioned, per language; ADR 0022).",
+      "name": "Legal"
     },
     {
       "description": "Operational endpoints.",

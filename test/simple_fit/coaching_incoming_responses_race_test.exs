@@ -24,7 +24,7 @@ defmodule SimpleFit.CoachingIncomingResponsesRaceTest do
 
   setup do
     Sandbox.mode(Repo, :auto)
-    configure_sharing(id_acceptance: true)
+    configure_sharing()
     reset_rate_limits()
     {:ok, users} = Agent.start(fn -> [] end)
 
@@ -32,6 +32,14 @@ defmodule SimpleFit.CoachingIncomingResponsesRaceTest do
       Sandbox.mode(Repo, :auto)
       ids = Agent.get(users, & &1)
       Repo.delete_all(from(u in User, where: u.id in ^ids))
+
+      # Evidence has no foreign key (ADR 0022): remove this test's rows.
+      Repo.delete_all(
+        from(e in SimpleFit.Legal.Evidence,
+          where: e.subject_user_id in ^ids or e.counterparty_user_id in ^ids
+        )
+      )
+
       Repo.delete_all(from(j in Oban.Job, where: j.worker == "SimpleFit.Email.DeliveryWorker"))
       reset_rate_limits()
       Agent.stop(users)
@@ -50,13 +58,19 @@ defmodule SimpleFit.CoachingIncomingResponsesRaceTest do
   defp concurrently(funs), do: funs |> Enum.map(&Task.async/1) |> Task.await_many(15_000)
 
   defp accept_id(user, id),
-    do: Coaching.accept_incoming_invitation(user, id, %{"disclosure_version" => version()}, @ip)
+    do:
+      Coaching.accept_incoming_invitation(
+        user,
+        id,
+        %{"disclosure_version" => version(), "document_language" => "en"},
+        @ip
+      )
 
   defp accept_token(user, token),
     do:
       Coaching.accept_invitation(
         user,
-        %{"token" => token, "disclosure_version" => version()},
+        %{"token" => token, "disclosure_version" => version(), "document_language" => "en"},
         @ip
       )
 
@@ -105,6 +119,12 @@ defmodule SimpleFit.CoachingIncomingResponsesRaceTest do
     assert Enum.count(results, &(&1 == {:error, :invitation_unavailable})) == 9
     assert active(coach) == 1
     assert consistent!(invitation).status == :accepted
+
+    # One acceptance, one evidence row.
+    assert Repo.aggregate(
+             from(e in SimpleFit.Legal.Evidence, where: e.invitation_id == ^invitation.id),
+             :count
+           ) == 1
   end
 
   test "acceptance by id racing acceptance by token: one relationship", %{users: users} do
@@ -121,6 +141,11 @@ defmodule SimpleFit.CoachingIncomingResponsesRaceTest do
       assert Enum.count(results, &(&1 == {:error, :invitation_unavailable})) == 1
       assert active(coach) == 1
       assert consistent!(invitation).status == :accepted
+
+      assert Repo.aggregate(
+               from(e in SimpleFit.Legal.Evidence, where: e.invitation_id == ^invitation.id),
+               :count
+             ) == 1
     end
   end
 

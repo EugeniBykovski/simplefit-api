@@ -48,6 +48,22 @@ defmodule SimpleFit.Accounts.Registration do
   end
 
   @doc """
+  The date of birth of a user who completed registration (immutable from
+  then on, ADR 0016), or `nil`. For server-side age checks only (SF-72);
+  never rendered to anyone else.
+  """
+  @spec date_of_birth(User.t()) :: Date.t() | nil
+  def date_of_birth(%User{id: user_id}) when is_binary(user_id) do
+    Repo.one(
+      from(p in AccountProfile,
+        where: p.user_id == ^user_id and not is_nil(p.registration_completed_at),
+        select: p.date_of_birth
+      ),
+      @unlogged
+    )
+  end
+
+  @doc """
   Saves registration progress. The first save that persists something (a
   field or a consent decision) creates the profile; a save with nothing to
   persist creates nothing. An invalid save changes nothing.
