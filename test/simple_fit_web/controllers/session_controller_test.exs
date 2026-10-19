@@ -46,13 +46,41 @@ defmodule SimpleFitWeb.SessionControllerTest do
       assert {:ok, _viewer} = Accounts.authenticate_access_token(body["access_token"])
     end
 
-    test "the old refresh token is rejected afterwards", %{conn: conn, credentials: c} do
-      json_post(conn, ~p"/api/auth/session/refresh", %{refresh_token: c.refresh_token})
+    test "the old refresh token is rejected once its successor was used", %{
+      conn: conn,
+      credentials: c
+    } do
+      next =
+        json_post(conn, ~p"/api/auth/session/refresh", %{refresh_token: c.refresh_token})
+        |> json_response(200)
+
+      json_post(build_conn(), ~p"/api/auth/session/refresh", %{
+        refresh_token: next["refresh_token"]
+      })
+      |> json_response(200)
 
       conn =
         json_post(build_conn(), ~p"/api/auth/session/refresh", %{refresh_token: c.refresh_token})
 
       assert %{"error" => %{"code" => "unauthorized"}} = json_response(conn, 401)
+      assert revoked?(c.session.id)
+    end
+
+    test "a lost response is recovered with the same token (SF-75)", %{
+      conn: conn,
+      credentials: c
+    } do
+      # The first answer never reaches the app (killed before it stored it).
+      json_post(conn, ~p"/api/auth/session/refresh", %{refresh_token: c.refresh_token})
+      |> json_response(200)
+
+      body =
+        json_post(build_conn(), ~p"/api/auth/session/refresh", %{refresh_token: c.refresh_token})
+        |> json_response(200)
+
+      assert_schema(body, "SessionTokens", ApiSpec.spec())
+      assert {:ok, _viewer} = Accounts.authenticate_access_token(body["access_token"])
+      refute revoked?(c.session.id)
     end
 
     test "every invalid credential is the same 401 without echoing it", %{
@@ -137,6 +165,83 @@ defmodule SimpleFitWeb.SessionControllerTest do
       # The rejected requests did not consume the token.
       conn = build_conn() |> cookie_conn(c.refresh_token) |> post(~p"/api/auth/session/refresh")
       assert json_response(conn, 200)
+    end
+
+    test "a navigation that lost the Set-Cookie recovers with the old cookie (SF-75)", %{
+      conn: conn,
+      credentials: c
+    } do
+      # The page was unloaded after the API rotated: the browser kept the old
+      # cookie and never applied the new one.
+      lost = conn |> cookie_conn(c.refresh_token) |> post(~p"/api/auth/session/refresh")
+      lost_cookie = lost.resp_cookies[SessionTransport.cookie_name()].value
+
+      recovered =
+        build_conn() |> cookie_conn(c.refresh_token) |> post(~p"/api/auth/session/refresh")
+
+      body = json_response(recovered, 200)
+      assert_schema(body, "SessionTokens", ApiSpec.spec())
+      refute Map.has_key?(body, "refresh_token")
+      new_cookie = recovered.resp_cookies[SessionTransport.cookie_name()].value
+      refute new_cookie in [c.refresh_token, lost_cookie]
+      refute revoked?(c.session.id)
+
+      # The new cookie rotates normally.
+      next = build_conn() |> cookie_conn(new_cookie) |> post(~p"/api/auth/session/refresh")
+      assert json_response(next, 200)
+    end
+
+    test "a superseded cookie is reuse: 401, cookie cleared, session revoked", %{
+      conn: conn,
+      credentials: c
+    } do
+      lost = conn |> cookie_conn(c.refresh_token) |> post(~p"/api/auth/session/refresh")
+      lost_cookie = lost.resp_cookies[SessionTransport.cookie_name()].value
+      build_conn() |> cookie_conn(c.refresh_token) |> post(~p"/api/auth/session/refresh")
+
+      # A late copy of the replaced cookie (another holder, or a late response).
+      conn = build_conn() |> cookie_conn(lost_cookie) |> post(~p"/api/auth/session/refresh")
+
+      assert %{"error" => %{"code" => "unauthorized"}} = json_response(conn, 401)
+      assert conn.resp_cookies[SessionTransport.cookie_name()].max_age == 0
+      assert revoked?(c.session.id)
+    end
+
+    test "recovery keeps the CSRF boundary: no Origin or header, nothing consumed", %{
+      conn: conn,
+      credentials: c
+    } do
+      conn |> cookie_conn(c.refresh_token) |> post(~p"/api/auth/session/refresh")
+
+      for attempt <- [
+            &delete_req_header(&1, "x-simplefit-csrf"),
+            &put_req_header(&1, "origin", "https://evil.example"),
+            &delete_req_header(&1, "origin")
+          ] do
+        conn =
+          build_conn()
+          |> cookie_conn(c.refresh_token)
+          |> attempt.()
+          |> post(~p"/api/auth/session/refresh")
+
+        assert json_response(conn, 403)
+      end
+
+      # The forbidden attempts neither recovered nor revoked anything.
+      hash = :crypto.hash(:sha256, c.refresh_token)
+      assert Repo.get_by!(SimpleFit.Accounts.RefreshToken, token_hash: hash).recoveries == 0
+      refute revoked?(c.session.id)
+    end
+
+    test "a forged cookie of the right shape is a plain 401 that revokes nothing", %{
+      conn: conn,
+      credentials: c
+    } do
+      forged = "sfr_" <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+      conn = conn |> cookie_conn(forged) |> post(~p"/api/auth/session/refresh")
+
+      assert json_response(conn, 401)
+      refute revoked?(c.session.id)
     end
 
     test "an invalid cookie is a 401 that clears the cookie", %{conn: conn} do
