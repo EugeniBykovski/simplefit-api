@@ -418,3 +418,30 @@ user's language (L-11); SF-72 replaces the switch with those checks. They
 also need the sharing gate and a current disclosure (`404` otherwise).
 The token acceptance keeps its SF-57 behaviour; it stays unusable in
 production because the sharing gate is off.
+
+## Amendment — SF-74 (2026-10-20): the fighter's relationship by id
+
+`getMyCoachRelationship` (`GET /api/v1/me/coaches/{relationship_id}`)
+returns `{relationship: MyCoachRelationship}`: the entry `listMyCoaches`
+shows, built by the same projection (`fighter_entries/1`): the coach's live
+public identity while `active`; the coach's name at the end, the dates and
+who ended it once `ended`. It replaces paging through the list to find one
+relationship.
+
+* **Ownership:** one primary-key lookup scoped to the caller's own
+  completed fighter profile (`id = $id AND fighter_profile_id = $mine`);
+  foreign, unknown and malformed ids and users without a completed fighter
+  profile answer the same `404 not_found`. The coach of the relationship
+  cannot read it through this endpoint. `Cache-Control: no-store`.
+* **Gate:** like `listMyCoaches`, available whatever the sharing gate says.
+* **Read semantics:** each statement reads committed data (READ
+  COMMITTED). A read racing an end returns either the whole active entry or
+  the whole ended stub; later reads return the stub. A coach profile exists
+  for every relationship row (foreign key, cascade), so an active entry
+  without one means the coach was deleted mid-read: the read answers
+  `404`, never a half entry.
+* **Queries:** three bounded statements (fighter profile, relationship by
+  primary key, the coach's public identity while active); no index added.
+* **Follow-up:** `listMyCoaches` builds the same projection in two
+  statements and keeps the pre-existing window in which a coach deleted
+  between them yields an active entry without `coach`; unchanged by SF-74.

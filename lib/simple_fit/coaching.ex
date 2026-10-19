@@ -208,6 +208,38 @@ defmodule SimpleFit.Coaching do
   end
 
   @doc """
+  One of the fighter's own relationships, active or ended, exactly as
+  `list_fighter_relationships/2` shows it (SF-74): the coach's live public
+  identity while active, the coach's name at the end once ended. One lookup
+  by primary key, scoped to the caller's fighter profile; an unknown,
+  malformed or foreign id is `:not_found`, as is a user without a completed
+  fighter profile. Available whatever the sharing gate says. Each statement
+  reads committed data (READ COMMITTED): a read racing an end returns the
+  whole active entry or the whole ended stub; a relationship deleted with its
+  coach mid-read is `:not_found`.
+  """
+  @spec get_fighter_relationship(User.t(), term()) ::
+          {:ok, fighter_entry()} | {:error, :not_found}
+  def get_fighter_relationship(%User{} = user, id) do
+    with {:ok, fighter} <- completed(Fighters.get_profile(user)),
+         {:ok, id} <- relationship_id(id),
+         %Relationship{} = relationship <-
+           Repo.one(from(r in owned_by(:fighter, fighter.id), where: r.id == ^id), @unlogged),
+         [entry] = fighter_entries([relationship]),
+         :ok <- whole(entry) do
+      {:ok, entry}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  # A coach profile exists for every relationship row (foreign key, cascade).
+  # An active entry without one means the coach was deleted after the row was
+  # read, and the relationship with it: never return that half entry.
+  defp whole(%{status: :active, coach: nil}), do: :gone
+  defp whole(_entry), do: :ok
+
+  @doc """
   Ends one of the user's relationships as `side` (`:coach` or `:fighter`).
   Idempotent: an already ended relationship stays as it ended. Available
   whatever the sharing gate says; `:not_found` for an unknown or foreign

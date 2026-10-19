@@ -89,6 +89,7 @@ defmodule SimpleFitWeb.Router do
     get "/me/coach/fighters/:relationship_id", CoachFighterController, :show
     post "/me/coach/fighters/:relationship_id/end", CoachFighterController, :end_relationship
     get "/me/coaches", MyCoachController, :index
+    get "/me/coaches/:relationship_id", MyCoachController, :show
     post "/me/coaches/:relationship_id/end", MyCoachController, :end_relationship
 
     # SF-57: coach invitations and the recipient's explicit response. The only

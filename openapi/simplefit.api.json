@@ -2913,6 +2913,19 @@
         "title": "MyCoachRelationshipList",
         "type": "object"
       },
+      "MyCoachRelationshipResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "relationship": {
+            "$ref": "#/components/schemas/MyCoachRelationship"
+          }
+        },
+        "required": [
+          "relationship"
+        ],
+        "title": "MyCoachRelationshipResponse",
+        "type": "object"
+      },
       "RefreshSessionRequest": {
         "additionalProperties": false,
         "description": "Body transport (mobile and other non-browser clients). Web clients send the refresh cookie instead and no body token.",
@@ -5229,6 +5242,55 @@
           }
         ],
         "summary": "My coaches",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coaches/{relationship_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One of the viewer's relationships as fighter, active or ended, exactly as `listMyCoaches` shows it: the\ncoach's public identity and the disclosed fields while `active`; the coach's name at the end, the dates and who\nended it once `ended`. Someone else's relationship, an unknown or malformed id and a viewer without a completed\nfighter profile all answer `404 not_found`. Available whatever the Coach–Fighter sharing gate says.\n",
+        "operationId": "getMyCoachRelationship",
+        "parameters": [
+          {
+            "description": "The relationship.",
+            "in": "path",
+            "name": "relationship_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyCoachRelationshipResponse"
+                }
+              }
+            },
+            "description": "The relationship"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One of my coaches",
         "tags": [
           "Coaching"
         ]

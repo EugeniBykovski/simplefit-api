@@ -52,6 +52,32 @@ defmodule SimpleFitWeb.MyCoachController do
     end
   end
 
+  operation :show,
+    operation_id: "getMyCoachRelationship",
+    summary: "One of my coaches",
+    description: """
+    One of the viewer's relationships as fighter, active or ended, exactly as `listMyCoaches` shows it: the
+    coach's public identity and the disclosed fields while `active`; the coach's name at the end, the dates and who
+    ended it once `ended`. Someone else's relationship, an unknown or malformed id and a viewer without a completed
+    fighter profile all answer `404 not_found`. Available whatever the Coach–Fighter sharing gate says.
+    """,
+    security: @security,
+    parameters: [CoachingParams.relationship_id()],
+    responses: [
+      ok: {"The relationship", "application/json", Schemas.MyCoachRelationshipResponse},
+      unauthorized: ApiSpec.error_response("unauthorized"),
+      not_found: ApiSpec.error_response("not_found"),
+      internal_server_error: ApiSpec.error_response("internal_error")
+    ]
+
+  def show(conn, %{"relationship_id" => id}) do
+    with {:ok, entry} <- Coaching.get_fighter_relationship(conn.assigns.current_user, id) do
+      conn
+      |> put_resp_header("cache-control", "no-store")
+      |> render(:show, entry: entry)
+    end
+  end
+
   operation :end_relationship,
     operation_id: "endMyCoachRelationship",
     summary: "End a coaching relationship (as fighter)",
