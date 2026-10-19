@@ -30,6 +30,14 @@ defmodule SimpleFit.CoachingInvitationsRaceTest do
       Sandbox.mode(Repo, :auto)
       ids = Agent.get(users, & &1)
       Repo.delete_all(from(u in User, where: u.id in ^ids))
+
+      # Evidence has no foreign key (ADR 0022): remove this test's rows.
+      Repo.delete_all(
+        from(e in SimpleFit.Legal.Evidence,
+          where: e.subject_user_id in ^ids or e.counterparty_user_id in ^ids
+        )
+      )
+
       Repo.delete_all(from(j in Oban.Job, where: j.worker == "SimpleFit.Email.DeliveryWorker"))
       reset_rate_limits()
       Agent.stop(users)
@@ -51,7 +59,7 @@ defmodule SimpleFit.CoachingInvitationsRaceTest do
     do:
       Coaching.accept_invitation(
         user,
-        %{"token" => token, "disclosure_version" => version()},
+        %{"token" => token, "disclosure_version" => version(), "document_language" => "en"},
         @ip
       )
 

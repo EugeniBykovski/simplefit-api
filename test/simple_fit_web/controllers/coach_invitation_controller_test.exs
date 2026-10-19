@@ -75,7 +75,8 @@ defmodule SimpleFitWeb.CoachInvitationControllerTest do
     do:
       api(who, :post, "/api/v1/me/coach-invitations/accept", %{
         token: token,
-        disclosure_version: version
+        disclosure_version: version,
+        document_language: "en"
       })
 
   defp decline(who, token),
@@ -329,7 +330,8 @@ defmodule SimpleFitWeb.CoachInvitationControllerTest do
       |> complete_coach!()
 
     api(both, :post, "/api/v1/me/coach/data-rules/acknowledge", %{
-      document_version: data_rules_version()
+      document_version: data_rules_version(),
+      document_language: "en"
     })
     |> body(200, "CoachDataRulesResponse")
 
@@ -352,13 +354,17 @@ defmodule SimpleFitWeb.CoachInvitationControllerTest do
 
     assert %{"details" => %{"document_version" => "stale"}} =
              api(coach, :post, "/api/v1/me/coach/data-rules/acknowledge", %{
-               document_version: "v0"
+               document_version: "v0",
+               document_language: "en"
              })
              |> error(409, "conflict")
 
     error(invite(coach, address()), 409, "conflict")
 
-    api(coach, :post, "/api/v1/me/coach/data-rules/acknowledge", %{document_version: v})
+    api(coach, :post, "/api/v1/me/coach/data-rules/acknowledge", %{
+      document_version: v,
+      document_language: "en"
+    })
     |> body(200, "CoachDataRulesResponse")
 
     invite(coach, address()) |> body(201, "CoachInvitationResponse")

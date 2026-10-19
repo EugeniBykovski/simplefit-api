@@ -1,0 +1,1 @@
+TEST FIXTURE ONLY - I confirm Coach Data Rules coach-data-rules-test-1 (pl).

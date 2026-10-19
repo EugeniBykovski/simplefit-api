@@ -1,0 +1,1 @@
+TEST FIXTURE ONLY - not a legal text. Summary of Coach Data Rules coach-data-rules-test-1 in en.

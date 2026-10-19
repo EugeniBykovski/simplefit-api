@@ -79,6 +79,10 @@ defmodule SimpleFitWeb.ApiSpec do
           description:
             "Coach–Fighter relationships: a coach's fighters as disclosed and a fighter's coaches (ADR 0021)."
         },
+        %Tag{
+          name: "Legal",
+          description: "Published legal documents (versioned, per language; ADR 0022)."
+        },
         %Tag{name: "System", description: "Operational endpoints."}
       ],
       paths: Paths.from_router(SimpleFitWeb.Router),

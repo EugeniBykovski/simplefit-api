@@ -213,7 +213,8 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
     conn =
       post_json(fighter, "/api/v1/me/coach-invitations/accept", %{
         token: token,
-        disclosure_version: version()
+        disclosure_version: version(),
+        document_language: "en"
       })
 
     assert json_response(conn, 200)["outcome"] == "created"
@@ -286,17 +287,21 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
     end
   end
 
-  test "with the production default, preview and accept by id answer 404; decline works" do
+  test "with the production registry (no approved document), preview and accept by id answer 404; decline works" do
     coach = inviting_coach!()
     email = address()
     fighter = email_fighter!(email)
     {invitation, _} = invite_to!(coach, email)
     {other, _} = invite_to!(inviting_coach!("Coach B"), email)
+    SimpleFit.LegalHelpers.use_production_registry!()
 
     error(by_id(fighter, "preview", invitation.id), 404, "not_found")
 
     error(
-      by_id(fighter, "accept", invitation.id, %{disclosure_version: version()}),
+      by_id(fighter, "accept", invitation.id, %{
+        disclosure_version: version(),
+        document_language: "en"
+      }),
       404,
       "not_found"
     )
@@ -306,12 +311,7 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
     assert Repo.get!(Invitation, other.id).status == :declined
   end
 
-  describe "with responding by id enabled (test configuration)" do
-    setup do
-      set_sharing(id_acceptance: true)
-      :ok
-    end
-
+  describe "with sharing ready (test-only registry)" do
     test "inbox → preview → explicit acceptance; repeats are 410" do
       coach = inviting_coach!("Coach Marek")
       email = address()
@@ -328,14 +328,19 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
       assert preview["invitation"]["coach"]["display_name"] == "Coach Marek"
       refute conn.resp_body =~ token
 
-      conn = by_id(fighter, "accept", id, %{disclosure_version: preview["disclosure"]["version"]})
+      conn =
+        by_id(fighter, "accept", id, %{
+          disclosure_version: preview["disclosure"]["version"],
+          document_language: "en"
+        })
+
       result = json_response(conn, 200)
       assert_schema(result, "CoachInvitationAcceptResponse", ApiSpec.spec())
       assert get_resp_header(conn, "cache-control") == ["no-store"]
       assert result["outcome"] == "created"
 
       error(
-        by_id(fighter, "accept", id, %{disclosure_version: version()}),
+        by_id(fighter, "accept", id, %{disclosure_version: version(), document_language: "en"}),
         410,
         "invitation_unavailable"
       )
@@ -345,7 +350,8 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
       conn =
         post_json(fighter, "/api/v1/me/coach-invitations/accept", %{
           token: token,
-          disclosure_version: version()
+          disclosure_version: version(),
+          document_language: "en"
         })
 
       error(conn, 410, "invitation_unavailable")
@@ -369,7 +375,7 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
           id <- [invitation.id, Ecto.UUID.generate(), "not-a-uuid", "%27%20OR%201%3D1"],
           action <- ["preview", "accept", "decline"] do
         reset_rate_limits()
-        conn = by_id(who, action, id, %{disclosure_version: version()})
+        conn = by_id(who, action, id, %{disclosure_version: version(), document_language: "en"})
         body = error(conn, 410, "invitation_unavailable")
         refute inspect(body) =~ invitation.id
       end
@@ -391,7 +397,10 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
 
       details =
         error(
-          by_id(user, "accept", invitation.id, %{disclosure_version: version()}),
+          by_id(user, "accept", invitation.id, %{
+            disclosure_version: version(),
+            document_language: "en"
+          }),
           422,
           "validation_error"
         )["details"]
@@ -403,7 +412,10 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
 
       body =
         error(
-          by_id(fighter, "accept", invitation.id, %{disclosure_version: "x"}),
+          by_id(fighter, "accept", invitation.id, %{
+            disclosure_version: "x",
+            document_language: "en"
+          }),
           409,
           "conflict"
         )
@@ -411,10 +423,13 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
       assert body["details"] == %{"disclosure_version" => "stale"}
       error(by_id(fighter, "accept", invitation.id, %{}), 422, "validation_error")
 
-      set_sharing(enabled: false, id_acceptance: true)
+      set_sharing(enabled: false)
 
       error(
-        by_id(fighter, "accept", invitation.id, %{disclosure_version: version()}),
+        by_id(fighter, "accept", invitation.id, %{
+          disclosure_version: version(),
+          document_language: "en"
+        }),
         404,
         "not_found"
       )

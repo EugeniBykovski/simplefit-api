@@ -409,6 +409,10 @@ ends accepted (a resend rotates the token, not the id); already connected
 pairs resolve to the existing relationship (`already_connected`), whose
 accepted disclosure is never widened.
 
+**Superseded by SF-72 (ADR 0022):** the switch below was removed; both
+paths now share the SF-72 policy (readiness, approved document language,
+18+, evidence). Historical text:
+
 **Legal, age and language gates (fail-closed).** Preview and accept by id
 additionally require `id_acceptance_enabled`, which is `false` in
 `config/config.exs`, deliberately **not** read from the environment, and

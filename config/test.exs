@@ -97,3 +97,9 @@ config :phoenix, :plug_init_mode, :runtime
 
 # SF-30: `mix e2e.email_code` is tested here. Never in prod.
 config :simple_fit, :e2e_tools, enabled: true
+
+# Test-only legal registry (ADR 0022): fixtures with `-test-` versions that
+# the production registry (priv/legal) refuses.
+config :simple_fit, SimpleFit.Legal,
+  registry_path: Path.expand("../test/support/legal", __DIR__),
+  allow_test_fixtures: true

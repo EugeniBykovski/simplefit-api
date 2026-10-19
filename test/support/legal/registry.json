@@ -1,0 +1,45 @@
+{
+  "documents": [
+    {
+      "document_id": "fighter-coach-disclosure",
+      "version": "fighter-coach-disclosure-test-1",
+      "status": "published",
+      "test_only": true,
+      "approval_ref": "TEST-FIXTURE-NOT-APPROVED",
+      "approved_by": [
+        "test fixture"
+      ],
+      "effective_at": "2026-01-01T00:00:00Z",
+      "published_at": "2026-01-01T00:00:00Z",
+      "languages": {
+        "en": {
+          "content_sha256": "ab7312fc618c88ba2f9a21849d06ce12f80826c800d309607c597dafa8eed6dc"
+        },
+        "pl": {
+          "content_sha256": "af2b562a04afeca5632bf2567375c187b99e78b47c185caaa440699c604696d4"
+        }
+      },
+      "scope": "basic_profile"
+    },
+    {
+      "document_id": "coach-data-rules",
+      "version": "coach-data-rules-test-1",
+      "status": "published",
+      "test_only": true,
+      "approval_ref": "TEST-FIXTURE-NOT-APPROVED",
+      "approved_by": [
+        "test fixture"
+      ],
+      "effective_at": "2026-01-01T00:00:00Z",
+      "published_at": "2026-01-01T00:00:00Z",
+      "languages": {
+        "en": {
+          "content_sha256": "5d6340ec2422801c2419e67da12554a00fe8f5666d33027aa84e74de08e2182f"
+        },
+        "pl": {
+          "content_sha256": "e90522acc1954deead106c4259d11b7ab24a9b204167291c54c1706c0e966125"
+        }
+      }
+    }
+  ]
+}

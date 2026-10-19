@@ -66,8 +66,18 @@ defmodule SimpleFitWeb.Schemas.CoachDataRulesResponse do
         data_rules: %Schema{
           type: :object,
           additionalProperties: false,
-          required: [:acknowledged_at, :document_version],
+          required: [:acknowledged_at, :document, :document_version],
           properties: %{
+            document: %Schema{
+              type: :object,
+              allOf: [SimpleFitWeb.Schemas.LegalDocumentRef],
+              nullable: true,
+              description: """
+              The current data-rules text in the requested `language` (`null` while no version is published).
+              Acknowledge with its `version` and `language`; no `language` (no approved variant in the requested
+              language): acknowledging is not possible yet.
+              """
+            },
             document_version: %Schema{
               type: :string,
               nullable: true,
@@ -99,16 +109,22 @@ defmodule SimpleFitWeb.Schemas.CoachDataRulesAcknowledgeRequest do
     %{
       title: "CoachDataRulesAcknowledgeRequest",
       type: :object,
-      required: [:document_version],
+      required: [:document_language, :document_version],
       properties: %{
         document_version: %Schema{
           type: :string,
           minLength: 1,
           maxLength: 64,
           description: "The version from `getMyCoachDataRules` that the coach was shown."
+        },
+        document_language: %Schema{
+          type: :string,
+          enum: SimpleFit.Legal.Registry.languages(),
+          description:
+            "The `document.language` of the text the coach was shown (an approved variant)."
         }
       },
-      example: %{document_version: "coach-data-rules-v1"}
+      example: %{document_version: "coach-data-rules-2026-11-1", document_language: "en"}
     },
     struct?: false
   )
@@ -282,6 +298,32 @@ defmodule SimpleFitWeb.Schemas.CoachInvitationTokenRequest do
   )
 end
 
+defmodule SimpleFitWeb.Schemas.CoachInvitationPreviewRequest do
+  @moduledoc "OpenAPI schema: previewing an invitation link (token and the language to read it in)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+  alias SimpleFitWeb.Schemas.CoachInvitationFields
+
+  OpenApiSpex.schema(
+    %{
+      title: "CoachInvitationPreviewRequest",
+      type: :object,
+      required: [:token],
+      properties: %{
+        token: CoachInvitationFields.token(),
+        language: %Schema{
+          type: :string,
+          description:
+            "The language to present the disclosure text in (the app language); see `document`."
+        }
+      }
+    },
+    struct?: false
+  )
+end
+
 defmodule SimpleFitWeb.Schemas.CoachInvitationPreview do
   @moduledoc "OpenAPI schema: what an invitation link shows before responding."
 
@@ -299,8 +341,17 @@ defmodule SimpleFitWeb.Schemas.CoachInvitationPreview do
       """,
       type: :object,
       additionalProperties: false,
-      required: [:disclosure, :invitation],
+      required: [:disclosure, :document, :invitation],
       properties: %{
+        document: %Schema{
+          type: :object,
+          allOf: [SimpleFitWeb.Schemas.LegalDocumentRef],
+          nullable: true,
+          description: """
+          The current disclosure's approved text in the requested `language` (metadata only when that language has
+          no approved variant: then the fighter cannot accept in it). `null` while no disclosure is published.
+          """
+        },
         invitation: %Schema{
           type: :object,
           additionalProperties: false,
@@ -338,9 +389,15 @@ defmodule SimpleFitWeb.Schemas.CoachInvitationAcceptRequest do
     %{
       title: "CoachInvitationAcceptRequest",
       type: :object,
-      required: [:disclosure_version, :token],
+      required: [:disclosure_version, :document_language, :token],
       properties: %{
         token: CoachInvitationFields.token(),
+        document_language: %Schema{
+          type: :string,
+          enum: SimpleFit.Legal.Registry.languages(),
+          description:
+            "The `document.language` of the disclosure text the fighter was shown (an approved variant)."
+        },
         disclosure_version: %Schema{
           type: :string,
           minLength: 1,
@@ -498,7 +555,7 @@ defmodule SimpleFitWeb.Schemas.IncomingCoachInvitationAcceptRequest do
     %{
       title: "IncomingCoachInvitationAcceptRequest",
       type: :object,
-      required: [:disclosure_version],
+      required: [:disclosure_version, :document_language],
       properties: %{
         disclosure_version: %Schema{
           type: :string,
@@ -506,6 +563,12 @@ defmodule SimpleFitWeb.Schemas.IncomingCoachInvitationAcceptRequest do
           maxLength: 64,
           description:
             "Exactly the `disclosure.version` shown by `previewMyIncomingCoachInvitation`."
+        },
+        document_language: %Schema{
+          type: :string,
+          enum: SimpleFit.Legal.Registry.languages(),
+          description:
+            "The `document.language` of the disclosure text the fighter was shown (an approved variant)."
         }
       }
     },

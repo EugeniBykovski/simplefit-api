@@ -57,7 +57,7 @@ defmodule SimpleFit.Coaching do
   import Ecto.Query, only: [from: 2]
 
   alias SimpleFit.Accounts.User
-  alias SimpleFit.{Coaches, Fighters, Repo}
+  alias SimpleFit.{Coaches, Fighters, Legal, Repo}
   alias SimpleFit.Coaching.{Disclosure, Invitations, Relationship}
 
   # Relationship rows and projections carry personal data; not logged.
@@ -97,8 +97,8 @@ defmodule SimpleFit.Coaching do
 
   ## Invitations (SF-57; `SimpleFit.Coaching.Invitations`)
 
-  @doc "See `SimpleFit.Coaching.Invitations.data_rules/1`."
-  defdelegate coach_data_rules(user), to: Invitations, as: :data_rules
+  @doc "See `SimpleFit.Coaching.Invitations.data_rules/2`."
+  defdelegate coach_data_rules(user, language \\ nil), to: Invitations, as: :data_rules
 
   @doc "See `SimpleFit.Coaching.Invitations.acknowledge_data_rules/2`."
   defdelegate acknowledge_coach_data_rules(user, attrs),
@@ -120,14 +120,16 @@ defmodule SimpleFit.Coaching do
   @doc "See `SimpleFit.Coaching.Invitations.cancel/2`."
   defdelegate cancel_invitation(user, id), to: Invitations, as: :cancel
 
-  @doc "See `SimpleFit.Coaching.Invitations.preview/2`."
-  defdelegate preview_invitation(token, client_ip), to: Invitations, as: :preview
+  @doc "See `SimpleFit.Coaching.Invitations.preview/3`."
+  defdelegate preview_invitation(token, client_ip, language \\ nil),
+    to: Invitations,
+    as: :preview
 
   @doc "See `SimpleFit.Coaching.Invitations.list_incoming/2`."
   defdelegate list_incoming_invitations(user, params), to: Invitations, as: :list_incoming
 
-  @doc "See `SimpleFit.Coaching.Invitations.preview_by_id/3`."
-  defdelegate preview_incoming_invitation(user, id, client_ip),
+  @doc "See `SimpleFit.Coaching.Invitations.preview_by_id/4`."
+  defdelegate preview_incoming_invitation(user, id, client_ip, language \\ nil),
     to: Invitations,
     as: :preview_by_id
 
@@ -149,10 +151,24 @@ defmodule SimpleFit.Coaching do
 
   ## Relationships
 
-  @doc "Whether new Coach–Fighter sharing is enabled (runtime configuration, default `false`)."
+  @doc "Whether the sharing gate flag is on (runtime configuration, default `false`). See `sharing_ready?/0`."
   @spec access_enabled?() :: boolean()
   def access_enabled?,
     do: Application.get_env(:simple_fit, __MODULE__, [])[:access_enabled] == true
+
+  @doc """
+  Whether Coach–Fighter sharing is available at all (ADR 0022): the gate
+  flag is on **and** the legal document registry is valid **and** the
+  configured current disclosure and coach data rules are `published` there
+  (the disclosure with the configured scope). The flag alone never enables
+  anything. Global checks only; each acceptance adds its per-invitation and
+  per-user checks (recipient, versions, language, age, profiles).
+  """
+  @spec sharing_ready?() :: boolean()
+  def sharing_ready? do
+    access_enabled?() and Legal.Registry.valid?() and is_binary(Disclosure.current()) and
+      is_binary(Disclosure.data_rules_version())
+  end
 
   @doc """
   The coach's relationships, newest first: `status` `"active"` (default,
@@ -267,9 +283,9 @@ defmodule SimpleFit.Coaching do
 
   # -- Authorization -------------------------------------------------------
 
-  # Coach reads need the sharing gate and a completed coach profile.
+  # Coach reads need sharing to be ready and a completed coach profile.
   defp coach_reader(user) do
-    if access_enabled?(), do: completed(Coaches.get_profile(user)), else: {:error, :not_found}
+    if sharing_ready?(), do: completed(Coaches.get_profile(user)), else: {:error, :not_found}
   end
 
   defp party_profile(user, :coach), do: completed(Coaches.get_profile(user))

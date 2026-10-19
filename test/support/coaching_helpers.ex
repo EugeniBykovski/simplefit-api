@@ -18,8 +18,8 @@ defmodule SimpleFit.CoachingHelpers do
   alias SimpleFit.Coaches
   alias SimpleFit.Coaching.Activation
 
-  @version "test-disclosure-v1"
-  @data_rules "test-coach-data-rules-v1"
+  @version "fighter-coach-disclosure-test-1"
+  @data_rules "coach-data-rules-test-1"
 
   @doc "The coach data-rules version tests configure (a test identifier)."
   def data_rules_version, do: @data_rules
@@ -29,9 +29,9 @@ defmodule SimpleFit.CoachingHelpers do
 
   @doc """
   Sets the Coach–Fighter sharing gate and disclosure versions for this test
-  (defaults: enabled, `version/0` with the `basic_profile` scope; preview
-  and accept by invitation id off, as in production) and restores the
-  previous configuration afterwards.
+  (defaults: enabled, `version/0` with the `basic_profile` scope, the
+  test-only versions of `test/support/legal`) and restores the previous
+  configuration afterwards.
   """
   def configure_sharing(opts \\ []) do
     previous = Application.get_env(:simple_fit, SimpleFit.Coaching)
@@ -47,9 +47,7 @@ defmodule SimpleFit.CoachingHelpers do
       access_enabled: Keyword.get(opts, :enabled, true),
       disclosures: disclosures,
       current_disclosure: Keyword.get(opts, :current, @version),
-      data_rules_version: Keyword.get(opts, :data_rules, @data_rules),
-      # SF-73: off like production unless a test opts in (`id_acceptance: true`).
-      id_acceptance_enabled: Keyword.get(opts, :id_acceptance, false)
+      data_rules_version: Keyword.get(opts, :data_rules, @data_rules)
     )
   end
 
@@ -97,7 +95,8 @@ defmodule SimpleFit.CoachingHelpers do
 
     {:ok, _} =
       SimpleFit.Coaching.acknowledge_coach_data_rules(coach, %{
-        "document_version" => @data_rules
+        "document_version" => @data_rules,
+        "document_language" => "en"
       })
 
     coach

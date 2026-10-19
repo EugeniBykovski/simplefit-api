@@ -1,0 +1,1 @@
+TEST FIXTURE ONLY - not a legal text. Summary of Fighter Disclosure fighter-coach-disclosure-test-1 in en.

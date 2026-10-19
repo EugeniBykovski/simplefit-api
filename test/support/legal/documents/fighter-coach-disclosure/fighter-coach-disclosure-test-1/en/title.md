@@ -1,0 +1,1 @@
+TEST FIXTURE Fighter Disclosure (en)

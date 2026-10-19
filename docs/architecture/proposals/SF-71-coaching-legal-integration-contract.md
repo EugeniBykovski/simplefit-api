@@ -104,15 +104,15 @@ broadened without a separate approved architecture decision.
 | F-04 evidence on counterparty rows | L-08 | SF-72 A5; T-2/T-3 for deletion | Yes |
 | F-05 no account deletion; cross-user cascade | L-09 | T-3 | Yes |
 | F-06 E08 to non-users | L-15, Q-06 | SF-72 B3, T-1 | Yes |
-| F-07 no web acknowledgement step; no document reference | L-04, L-10 | SF-72 A9/A10/A11 | Yes |
+| F-07 no web acknowledgement step; no document reference | L-04, L-10 | SF-72 A9/A10/A11 (done, ADR 0022) | Yes |
 | F-08 coach cannot end while gate off | L-16 | T-4 | Yes |
 | F-09 "dates only" copy | L-03 | SF-72 A12 | Yes (accuracy) |
 | F-10 `weight_class` not named | L-03 | Disclosure and Data Rules drafts (done); SF-72 B1; never-shared category list kept as is (`weight` covers it), text names it | Yes (text) |
 | F-11 silent version withdrawal | L-13 | SF-72 §6 guard; Q-18 policy | Yes |
 | F-12 separate acknowledgement and acceptance | — | Accepted; preserved by SF-72 | — |
 | F-13 token security | — | Accepted; preserved by SF-72 | — |
-| F-14 English message fallback | L-11 | SF-72 A8/A10, T-1 | Yes |
-| F-15 no 18+ check | L-14 | SF-72 A6 | Yes |
+| F-14 English message fallback | L-11 | SF-72 A8/A10 (done: legal text only from the API), T-1 | Yes |
+| F-15 no 18+ check | L-14 | SF-72 A6 (done: `Activation`, both paths) | Yes |
 
 ## 5. Contract for SF-72
 
