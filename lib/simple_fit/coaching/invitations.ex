@@ -45,6 +45,22 @@ defmodule SimpleFit.Coaching.Invitations do
   without an email identity has an empty inbox. Reading never responds,
   activates or links anything.
 
+  ## Responding by invitation id (SF-73)
+
+  The recipient may also preview, accept or decline an invitation from the
+  inbox by its id instead of the link's token. An id is not a credential:
+  the row is loaded only together with the caller's recipient digests, so a
+  foreign, unknown or malformed id answers like an unusable token
+  (`:invitation_unavailable`). Both ways lock the row and then run the same
+  checks, `Activation` call and consumption (`accept_locked/3`,
+  `decline_locked/2`). Unlike the token, an id survives a resend.
+
+  Preview and accept by id stay unavailable (`:not_found`) until the
+  checks SF-72 owns (18+ at acceptance, approved document language) exist:
+  `id_acceptance_enabled` is `false` in `config/config.exs`, is not read
+  from the environment, and only tests turn it on. Decline by id follows the
+  SF-57 decline policy (it grants nothing).
+
   ## Abuse limits (PostgreSQL windows, ADR 0019 conventions)
 
   Per coach 10/hour and 30/day, per recipient (any coach) 3/day, per client
@@ -322,21 +338,24 @@ defmodule SimpleFit.Coaching.Invitations do
     with :ok <- inviting_available(),
          :ok <- response_limit(client_ip),
          {:ok, invitation} <- usable(token) do
-      coach = Coaches.public_projection([invitation.coach_profile_id])
-      version = Disclosure.current()
-
-      {:ok,
-       %{
-         coach: Map.get(coach, invitation.coach_profile_id),
-         message: invitation.message,
-         expires_at: invitation.expires_at,
-         disclosure: %{
-           version: version,
-           fields: Disclosure.fields(version),
-           never_shared: @never_shared
-         }
-       }}
+      {:ok, preview_of(invitation)}
     end
+  end
+
+  defp preview_of(invitation) do
+    coach = Coaches.public_projection([invitation.coach_profile_id])
+    version = Disclosure.current()
+
+    %{
+      coach: Map.get(coach, invitation.coach_profile_id),
+      message: invitation.message,
+      expires_at: invitation.expires_at,
+      disclosure: %{
+        version: version,
+        fields: Disclosure.fields(version),
+        never_shared: @never_shared
+      }
+    }
   end
 
   @doc """
@@ -358,17 +377,19 @@ defmodule SimpleFit.Coaching.Invitations do
          :ok <- response_limit(client_ip),
          {:ok, hash} <- token_param(params),
          {:ok, version} <- version_param(params, "disclosure_version") do
-      Repo.transaction(fn -> accept_locked(user, hash, version) end, @unlogged)
-      |> case do
-        {:ok, result} ->
-          emit(:accepted, %{outcome: result.outcome})
-          {:ok, result}
-
-        {:error, reason} ->
-          emit(:rejected, %{reason: reason_tag(reason)})
-          {:error, reason}
-      end
+      Repo.transaction(fn -> accept_locked(user, {:token, hash}, version) end, @unlogged)
+      |> accepted()
     end
+  end
+
+  defp accepted({:ok, result}) do
+    emit(:accepted, %{outcome: result.outcome})
+    {:ok, result}
+  end
+
+  defp accepted({:error, reason}) do
+    emit(:rejected, %{reason: reason_tag(reason)})
+    {:error, reason}
   end
 
   @doc """
@@ -380,20 +401,89 @@ defmodule SimpleFit.Coaching.Invitations do
   def decline(%User{} = user, params, client_ip) when is_map(params) and is_binary(client_ip) do
     with :ok <- response_limit(client_ip),
          {:ok, hash} <- token_param(params) do
-      Repo.transaction(fn -> decline_locked(user, hash) end, @unlogged)
-      |> case do
-        {:ok, :declined} ->
-          emit(:declined, %{})
-          :ok
+      Repo.transaction(fn -> decline_locked(user, {:token, hash}) end, @unlogged)
+      |> declined()
+    end
+  end
 
-        {:error, reason} ->
-          emit(:rejected, %{reason: reason_tag(reason)})
-          {:error, reason}
-      end
+  defp declined({:ok, :declined}) do
+    emit(:declined, %{})
+    :ok
+  end
+
+  defp declined({:error, reason}) do
+    emit(:rejected, %{reason: reason_tag(reason)})
+    {:error, reason}
+  end
+
+  @doc """
+  `preview/2` for an invitation addressed to `user` (by id): the coach's
+  public identity, note, expiry and the current disclosure. Unavailable
+  until the SF-72 acceptance checks exist (see the moduledoc).
+  """
+  @spec preview_by_id(User.t(), term(), String.t()) :: {:ok, map()} | {:error, error()}
+  def preview_by_id(%User{} = user, id, client_ip) when is_binary(client_ip) do
+    with :ok <- id_acceptance_available(),
+         :ok <- inviting_available(),
+         :ok <- registered(user),
+         :ok <- response_limit(client_ip),
+         {:ok, id} <- invitation_id(id),
+         {:ok, invitation} <- pending_for_recipient(user, id) do
+      {:ok, preview_of(invitation)}
+    end
+  end
+
+  # Unlocked read for the preview; responses lock (`locked_for_recipient/2`).
+  defp pending_for_recipient(user, id) do
+    invitation = Repo.one(recipient_query(user, id), @unlogged)
+
+    if invitation && Invitation.effective_status(invitation, DateTime.utc_now()) == :pending,
+      do: {:ok, invitation},
+      else: {:error, :invitation_unavailable}
+  end
+
+  @doc """
+  `accept/3` for an invitation addressed to `user`, by id (`params`:
+  `"disclosure_version"`): the same locked transaction, checks and
+  activation. Unavailable until the SF-72 acceptance checks exist.
+  """
+  @spec accept_by_id(User.t(), term(), map(), String.t()) ::
+          {:ok, %{relationship_id: Ecto.UUID.t(), outcome: :created | :already_connected}}
+          | {:error, error()}
+  def accept_by_id(%User{} = user, id, params, client_ip)
+      when is_map(params) and is_binary(client_ip) do
+    with :ok <- id_acceptance_available(),
+         :ok <- inviting_available(),
+         :ok <- response_limit(client_ip),
+         {:ok, id} <- invitation_id(id),
+         {:ok, version} <- version_param(params, "disclosure_version") do
+      Repo.transaction(fn -> accept_locked(user, {:id, id}, version) end, @unlogged)
+      |> accepted()
+    end
+  end
+
+  @doc """
+  `decline/3` for an invitation addressed to `user`, by id: the same locked
+  transaction and fighter prerequisite. Creates nothing; available whatever
+  the sharing gate says, like the token decline.
+  """
+  @spec decline_by_id(User.t(), term(), String.t()) :: :ok | {:error, error()}
+  def decline_by_id(%User{} = user, id, client_ip) when is_binary(client_ip) do
+    with :ok <- response_limit(client_ip),
+         {:ok, id} <- invitation_id(id) do
+      Repo.transaction(fn -> decline_locked(user, {:id, id}) end, @unlogged)
+      |> declined()
     end
   end
 
   # -- Prerequisites ---------------------------------------------------------
+
+  # Fail-closed until SF-72: code configuration only, never the environment.
+  defp id_acceptance_available do
+    if Application.get_env(:simple_fit, SimpleFit.Coaching, [])[:id_acceptance_enabled] == true,
+      do: :ok,
+      else: {:error, :not_found}
+  end
 
   # Coach operations other than cancel need the sharing gate.
   defp coach(user) do
@@ -567,6 +657,15 @@ defmodule SimpleFit.Coaching.Invitations do
   end
 
   defp uuid(_id), do: {:error, :not_found}
+
+  # A recipient's invitation id: anything that is not a UUID is as unusable
+  # as an unknown id (no format oracle).
+  defp invitation_id(id) do
+    case uuid(id) do
+      {:ok, id} -> {:ok, id}
+      {:error, :not_found} -> {:error, :invitation_unavailable}
+    end
+  end
 
   # -- Limits ----------------------------------------------------------------
 
@@ -751,15 +850,19 @@ defmodule SimpleFit.Coaching.Invitations do
   end
 
   # Locks the invitation, then checks it in an order that leaks nothing to a
-  # token holder who is not the recipient beyond "this token is unusable".
-  defp locked_for_recipient(user, hash) do
+  # token holder who is not the recipient beyond "this token is unusable". By
+  # id, only an invitation addressed to the caller is ever loaded, so a
+  # foreign id is indistinguishable from an unknown one.
+  defp locked_for_recipient(user, locator) do
     now = DateTime.utc_now()
 
-    invitation =
-      Repo.one(
-        from(i in Invitation, where: i.token_hash == ^hash, lock: "FOR UPDATE"),
-        @unlogged
-      )
+    query =
+      case locator do
+        {:token, hash} -> from(i in Invitation, where: i.token_hash == ^hash)
+        {:id, id} -> recipient_query(user, id)
+      end
+
+    invitation = Repo.one(from(i in query, lock: "FOR UPDATE"), @unlogged)
 
     cond do
       is_nil(invitation) or Invitation.effective_status(invitation, now) != :pending ->
@@ -773,14 +876,21 @@ defmodule SimpleFit.Coaching.Invitations do
     end
   end
 
+  defp recipient_query(user, id) do
+    digests = recipient_digests(user)
+    from(i in Invitation, where: i.id == ^id and i.recipient_digest in ^digests)
+  end
+
   defp recipient_digests(user),
     do:
       user
       |> Accounts.verified_email_addresses()
       |> Enum.map(&InvitationSecrets.recipient_digest/1)
 
-  defp accept_locked(user, hash, version) do
-    {invitation, now} = locked_for_recipient(user, hash)
+  # The one acceptance transaction, whether the invitation was located by
+  # token or by id.
+  defp accept_locked(user, locator, version) do
+    {invitation, now} = locked_for_recipient(user, locator)
     require_fighter!(user)
 
     case same_version(version, Disclosure.current(), :disclosure_version) do
@@ -820,8 +930,8 @@ defmodule SimpleFit.Coaching.Invitations do
     end
   end
 
-  defp decline_locked(user, hash) do
-    {invitation, now} = locked_for_recipient(user, hash)
+  defp decline_locked(user, locator) do
+    {invitation, now} = locked_for_recipient(user, locator)
     require_fighter!(user)
     resolve!(invitation, set: [status: :declined, responded_at: now, updated_at: now])
     :declined

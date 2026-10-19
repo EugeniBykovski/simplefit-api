@@ -92,7 +92,9 @@ defmodule SimpleFitWeb.Router do
     post "/me/coaches/:relationship_id/end", MyCoachController, :end_relationship
 
     # SF-57: coach invitations and the recipient's explicit response. The only
-    # public way a relationship comes to exist is acceptCoachInvitation.
+    # public ways a relationship comes to exist are acceptCoachInvitation and
+    # (SF-73, off until SF-72) acceptMyIncomingCoachInvitation, which share
+    # one transaction.
     get "/me/coach/data-rules", CoachInvitationController, :data_rules
     post "/me/coach/data-rules/acknowledge", CoachInvitationController, :acknowledge_data_rules
     post "/me/coach/invitations", CoachInvitationController, :create
@@ -101,6 +103,19 @@ defmodule SimpleFitWeb.Router do
     post "/me/coach/invitations/:invitation_id/cancel", CoachInvitationController, :cancel
     # SF-73: the invitations addressed to the viewer's verified email identities.
     get "/me/coach-invitations", CoachInvitationResponseController, :index
+
+    get "/me/coach-invitations/:invitation_id/preview",
+        CoachInvitationResponseController,
+        :preview_incoming
+
+    post "/me/coach-invitations/:invitation_id/accept",
+         CoachInvitationResponseController,
+         :accept_incoming
+
+    post "/me/coach-invitations/:invitation_id/decline",
+         CoachInvitationResponseController,
+         :decline_incoming
+
     post "/me/coach-invitations/accept", CoachInvitationResponseController, :accept
     post "/me/coach-invitations/decline", CoachInvitationResponseController, :decline
 

@@ -486,3 +486,29 @@ defmodule SimpleFitWeb.Schemas.IncomingCoachInvitationList do
     struct?: false
   )
 end
+
+defmodule SimpleFitWeb.Schemas.IncomingCoachInvitationAcceptRequest do
+  @moduledoc "OpenAPI schema: accepting an invitation by id and its disclosure (SF-73)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "IncomingCoachInvitationAcceptRequest",
+      type: :object,
+      required: [:disclosure_version],
+      properties: %{
+        disclosure_version: %Schema{
+          type: :string,
+          minLength: 1,
+          maxLength: 64,
+          description:
+            "Exactly the `disclosure.version` shown by `previewMyIncomingCoachInvitation`."
+        }
+      }
+    },
+    struct?: false
+  )
+end

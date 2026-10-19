@@ -2729,6 +2729,21 @@
         "title": "IncomingCoachInvitation",
         "type": "object"
       },
+      "IncomingCoachInvitationAcceptRequest": {
+        "properties": {
+          "disclosure_version": {
+            "description": "Exactly the `disclosure.version` shown by `previewMyIncomingCoachInvitation`.",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "disclosure_version"
+        ],
+        "title": "IncomingCoachInvitationAcceptRequest",
+        "type": "object"
+      },
       "IncomingCoachInvitationList": {
         "additionalProperties": false,
         "properties": {
@@ -4045,7 +4060,7 @@
     "/api/v1/me/coach-invitations": {
       "get": {
         "callbacks": {},
-        "description": "The invitations sent to any email identity the viewer verified with a code, newest first, with the coach's\npublic identity and note and the effective status. Matched on the server from the session's user: no\naddress, user id or provider email is accepted, and Google or Apple sign-ins without an email identity have\nan empty inbox. Nothing here is a relationship (see `listMyCoaches`); responding still uses the invitation\nlink (`acceptCoachInvitation`, `declineCoachInvitation`). Other query parameters are ignored.\n\n* `not_found` - Coach–Fighter sharing is not enabled (distinct from an empty inbox).\n* `validation_error` - `account_registration` `required`, or `limit`, `cursor` or `status` invalid.\n",
+        "description": "The invitations sent to any email identity the viewer verified with a code, newest first, with the coach's\npublic identity and note and the effective status. Matched on the server from the session's user: no\naddress, user id or provider email is accepted, and Google or Apple sign-ins without an email identity have\nan empty inbox. Nothing here is a relationship (see `listMyCoaches`); respond with the invitation link\n(`acceptCoachInvitation`, `declineCoachInvitation`) or by id (`acceptMyIncomingCoachInvitation`,\n`declineMyIncomingCoachInvitation`). Other query parameters are ignored.\n\n* `not_found` - Coach–Fighter sharing is not enabled (distinct from an empty inbox).\n* `validation_error` - `account_registration` `required`, or `limit`, `cursor` or `status` invalid.\n",
         "operationId": "listMyIncomingCoachInvitations",
         "parameters": [
           {
@@ -4263,6 +4278,232 @@
           }
         ],
         "summary": "Decline an invitation",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach-invitations/{invitation_id}/accept": {
+      "post": {
+        "callbacks": {},
+        "description": "Located by id among the invitations addressed to the viewer's verified email identities (no token: possession\nof the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,\nunknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.\n\nThe explicit acceptance, with the same prerequisites and the same single transaction as\n`acceptCoachInvitation`: completed account registration and fighter profile, the exact current disclosure\nversion, then the relationship is activated and the invitation consumed together.\n\n* `not_found` - sharing is not enabled, or responding by id is not available yet.\n* `validation_error` - `account_registration` or `fighter_profile` `required`, or `disclosure_version`\n  missing.\n* `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`).\n* `rate_limited` - 30 per 10 minutes per client.\n",
+        "operationId": "acceptMyIncomingCoachInvitation",
+        "parameters": [
+          {
+            "description": "An invitation id from `listMyIncomingCoachInvitations`. Not a credential: only an invitation addressed to\none of the viewer's verified email identities is ever found.\n",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncomingCoachInvitationAcceptRequest"
+              }
+            }
+          },
+          "description": "The acceptance",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationAcceptResponse"
+                }
+              }
+            },
+            "description": "The relationship"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Accept an invitation addressed to me",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach-invitations/{invitation_id}/decline": {
+      "post": {
+        "callbacks": {},
+        "description": "Located by id among the invitations addressed to the viewer's verified email identities (no token: possession\nof the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,\nunknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.\n\nThe explicit decline, as `declineCoachInvitation`: a completed fighter profile is required, nothing is\ncreated, and it also works while Coach–Fighter sharing is not enabled.\n\n* `validation_error` - `account_registration` or `fighter_profile` `required`.\n* `rate_limited` - 30 per 10 minutes per client.\n",
+        "operationId": "declineMyIncomingCoachInvitation",
+        "parameters": [
+          {
+            "description": "An invitation id from `listMyIncomingCoachInvitations`. Not a credential: only an invitation addressed to\none of the viewer's verified email identities is ever found.\n",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Declined"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Decline an invitation addressed to me",
+        "tags": [
+          "Coaching"
+        ]
+      }
+    },
+    "/api/v1/me/coach-invitations/{invitation_id}/preview": {
+      "get": {
+        "callbacks": {},
+        "description": "Located by id among the invitations addressed to the viewer's verified email identities (no token: possession\nof the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,\nunknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.\n\nThe coach's public identity and note, the expiry and the disclosure to accept, as `previewCoachInvitation`.\n\n* `not_found` - Coach–Fighter sharing is not enabled, or responding by id is not available yet (it stays off\n  until the 18+ and document-language checks exist).\n* `validation_error` - `account_registration` `required`.\n* `rate_limited` - 30 per 10 minutes per client, shared with the other responses.\n",
+        "operationId": "previewMyIncomingCoachInvitation",
+        "parameters": [
+          {
+            "description": "An invitation id from `listMyIncomingCoachInvitations`. Not a credential: only an invitation addressed to\none of the viewer's verified email identities is ever found.\n",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachInvitationPreview"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Review an invitation addressed to me",
         "tags": [
           "Coaching"
         ]

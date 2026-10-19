@@ -34,8 +34,9 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
     The invitations sent to any email identity the viewer verified with a code, newest first, with the coach's
     public identity and note and the effective status. Matched on the server from the session's user: no
     address, user id or provider email is accepted, and Google or Apple sign-ins without an email identity have
-    an empty inbox. Nothing here is a relationship (see `listMyCoaches`); responding still uses the invitation
-    link (`acceptCoachInvitation`, `declineCoachInvitation`). Other query parameters are ignored.
+    an empty inbox. Nothing here is a relationship (see `listMyCoaches`); respond with the invitation link
+    (`acceptCoachInvitation`, `declineCoachInvitation`) or by id (`acceptMyIncomingCoachInvitation`,
+    `declineMyIncomingCoachInvitation`). Other query parameters are ignored.
 
     * `not_found` - Coach–Fighter sharing is not enabled (distinct from an empty inbox).
     * `validation_error` - `account_registration` `required`, or `limit`, `cursor` or `status` invalid.
@@ -187,6 +188,134 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
            Coaching.decline_invitation(
              conn.assigns.current_user,
              conn.body_params,
+             ClientIP.limit_key(conn)
+           ) do
+      send_resp(conn, :no_content, "")
+    end
+  end
+
+  @invitation_id %Parameter{
+    name: :invitation_id,
+    in: :path,
+    required: true,
+    description: """
+    An invitation id from `listMyIncomingCoachInvitations`. Not a credential: only an invitation addressed to
+    one of the viewer's verified email identities is ever found.
+    """,
+    schema: %Schema{type: :string, format: :uuid}
+  }
+
+  @by_id_note """
+  Located by id among the invitations addressed to the viewer's verified email identities (no token: possession
+  of the E08 email is not required, so a valid session is enough; see ADR 0021, SF-73 amendment). A foreign,
+  unknown, malformed or no longer pending id answers `410 invitation_unavailable`, the same for all.
+  """
+
+  operation :preview_incoming,
+    operation_id: "previewMyIncomingCoachInvitation",
+    summary: "Review an invitation addressed to me",
+    description: """
+    #{@by_id_note}
+    The coach's public identity and note, the expiry and the disclosure to accept, as `previewCoachInvitation`.
+
+    * `not_found` - Coach–Fighter sharing is not enabled, or responding by id is not available yet (it stays off
+      until the 18+ and document-language checks exist).
+    * `validation_error` - `account_registration` `required`.
+    * `rate_limited` - 30 per 10 minutes per client, shared with the other responses.
+    """,
+    security: @security,
+    parameters: [@invitation_id],
+    responses: [
+      ok: {"The invitation", "application/json", Schemas.CoachInvitationPreview},
+      unauthorized: ApiSpec.error_response("unauthorized"),
+      not_found: ApiSpec.error_response("not_found"),
+      gone: ApiSpec.error_response("invitation_unavailable"),
+      unprocessable_entity: ApiSpec.error_response("validation_error"),
+      too_many_requests: @rate_limited,
+      internal_server_error: ApiSpec.error_response("internal_error")
+    ]
+
+  def preview_incoming(conn, %{"invitation_id" => id}) do
+    with {:ok, preview} <-
+           Coaching.preview_incoming_invitation(
+             conn.assigns.current_user,
+             id,
+             ClientIP.limit_key(conn)
+           ) do
+      conn |> no_store() |> render(:preview, preview: preview)
+    end
+  end
+
+  operation :accept_incoming,
+    operation_id: "acceptMyIncomingCoachInvitation",
+    summary: "Accept an invitation addressed to me",
+    description: """
+    #{@by_id_note}
+    The explicit acceptance, with the same prerequisites and the same single transaction as
+    `acceptCoachInvitation`: completed account registration and fighter profile, the exact current disclosure
+    version, then the relationship is activated and the invitation consumed together.
+
+    * `not_found` - sharing is not enabled, or responding by id is not available yet.
+    * `validation_error` - `account_registration` or `fighter_profile` `required`, or `disclosure_version`
+      missing.
+    * `conflict` - `disclosure_version` is not the current version (details `disclosure_version: stale`).
+    * `rate_limited` - 30 per 10 minutes per client.
+    """,
+    security: @security,
+    parameters: [@invitation_id],
+    request_body:
+      {"The acceptance", "application/json", Schemas.IncomingCoachInvitationAcceptRequest,
+       required: true},
+    responses: [
+      ok: {"The relationship", "application/json", Schemas.CoachInvitationAcceptResponse},
+      unauthorized: ApiSpec.error_response("unauthorized"),
+      not_found: ApiSpec.error_response("not_found"),
+      conflict: ApiSpec.error_response("conflict"),
+      gone: ApiSpec.error_response("invitation_unavailable"),
+      unprocessable_entity: ApiSpec.error_response("validation_error"),
+      too_many_requests: @rate_limited,
+      internal_server_error: ApiSpec.error_response("internal_error")
+    ]
+
+  def accept_incoming(conn, %{"invitation_id" => id}) do
+    with {:ok, result} <-
+           Coaching.accept_incoming_invitation(
+             conn.assigns.current_user,
+             id,
+             conn.body_params,
+             ClientIP.limit_key(conn)
+           ) do
+      conn |> no_store() |> render(:accept, result: result)
+    end
+  end
+
+  operation :decline_incoming,
+    operation_id: "declineMyIncomingCoachInvitation",
+    summary: "Decline an invitation addressed to me",
+    description: """
+    #{@by_id_note}
+    The explicit decline, as `declineCoachInvitation`: a completed fighter profile is required, nothing is
+    created, and it also works while Coach–Fighter sharing is not enabled.
+
+    * `validation_error` - `account_registration` or `fighter_profile` `required`.
+    * `rate_limited` - 30 per 10 minutes per client.
+    """,
+    security: @security,
+    parameters: [@invitation_id],
+    responses: [
+      no_content: "Declined",
+      unauthorized: ApiSpec.error_response("unauthorized"),
+      gone: ApiSpec.error_response("invitation_unavailable"),
+      unprocessable_entity: ApiSpec.error_response("validation_error"),
+      too_many_requests: @rate_limited,
+      internal_server_error: ApiSpec.error_response("internal_error")
+    ]
+
+  def decline_incoming(conn, %{"invitation_id" => id}) do
+    with :ok <-
+           Coaching.decline_incoming_invitation(
+             conn.assigns.current_user,
+             id,
              ClientIP.limit_key(conn)
            ) do
       send_resp(conn, :no_content, "")

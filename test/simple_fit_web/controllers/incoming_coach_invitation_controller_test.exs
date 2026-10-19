@@ -265,4 +265,230 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
     refute log =~ token
     refute log =~ email
   end
+
+  # --- Responding by id (SF-73) --------------------------------------------
+
+  defp by_id(who, action, id, body \\ %{}) do
+    path = "#{@path}/#{id}/#{action}"
+
+    conn =
+      build_conn()
+      |> put_req_header("authorization", "Bearer " <> token_for(who))
+
+    case action do
+      "preview" ->
+        get(conn, path)
+
+      _ ->
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post(path, Jason.encode!(body))
+    end
+  end
+
+  test "with the production default, preview and accept by id answer 404; decline works" do
+    coach = inviting_coach!()
+    email = address()
+    fighter = email_fighter!(email)
+    {invitation, _} = invite_to!(coach, email)
+    {other, _} = invite_to!(inviting_coach!("Coach B"), email)
+
+    error(by_id(fighter, "preview", invitation.id), 404, "not_found")
+
+    error(
+      by_id(fighter, "accept", invitation.id, %{disclosure_version: version()}),
+      404,
+      "not_found"
+    )
+
+    assert Repo.aggregate(Relationship, :count) == 0
+    assert by_id(fighter, "decline", other.id).status == 204
+    assert Repo.get!(Invitation, other.id).status == :declined
+  end
+
+  describe "with responding by id enabled (test configuration)" do
+    setup do
+      set_sharing(id_acceptance: true)
+      :ok
+    end
+
+    test "inbox → preview → explicit acceptance; repeats are 410" do
+      coach = inviting_coach!("Coach Marek")
+      email = address()
+      fighter = email_fighter!(email)
+      {invitation, token} = invite_to!(coach, email)
+
+      [entry] = page(get_inbox(fighter, "?status=pending"))["invitations"]
+      id = entry["invitation_id"]
+
+      conn = by_id(fighter, "preview", id)
+      preview = json_response(conn, 200)
+      assert_schema(preview, "CoachInvitationPreview", ApiSpec.spec())
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
+      assert preview["invitation"]["coach"]["display_name"] == "Coach Marek"
+      refute conn.resp_body =~ token
+
+      conn = by_id(fighter, "accept", id, %{disclosure_version: preview["disclosure"]["version"]})
+      result = json_response(conn, 200)
+      assert_schema(result, "CoachInvitationAcceptResponse", ApiSpec.spec())
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
+      assert result["outcome"] == "created"
+
+      error(
+        by_id(fighter, "accept", id, %{disclosure_version: version()}),
+        410,
+        "invitation_unavailable"
+      )
+
+      error(by_id(fighter, "preview", id), 410, "invitation_unavailable")
+
+      conn =
+        post_json(fighter, "/api/v1/me/coach-invitations/accept", %{
+          token: token,
+          disclosure_version: version()
+        })
+
+      error(conn, 410, "invitation_unavailable")
+      assert Repo.aggregate(Relationship, :count) == 1
+
+      assert [%{"status" => "accepted"}] = page(get_inbox(fighter))["invitations"]
+      roster = json_response(get_with(coach, "/api/v1/me/coach/fighters"), 200)
+      assert length(roster["relationships"]) == 1
+    end
+
+    test "foreign, unknown and malformed ids answer the same 410 for every user" do
+      coach = inviting_coach!()
+      email = address()
+      _owner = email_fighter!(email)
+      {invitation, _} = invite_to!(coach, email)
+
+      stranger = email_fighter!(address())
+      oauth_only = fighter_user!()
+
+      for who <- [stranger, oauth_only, coach],
+          id <- [invitation.id, Ecto.UUID.generate(), "not-a-uuid", "%27%20OR%201%3D1"],
+          action <- ["preview", "accept", "decline"] do
+        reset_rate_limits()
+        conn = by_id(who, action, id, %{disclosure_version: version()})
+        body = error(conn, 410, "invitation_unavailable")
+        refute inspect(body) =~ invitation.id
+      end
+
+      assert Repo.get!(Invitation, invitation.id).status == :pending
+      assert Repo.aggregate(Relationship, :count) == 0
+    end
+
+    test "errors: stale version, missing version, incomplete profiles, gate off, unauthenticated" do
+      coach = inviting_coach!()
+      email = address()
+      {invitation, _} = invite_to!(coach, email)
+      {:ok, user} = Accounts.register_user(:email, email)
+
+      details = error(by_id(user, "preview", invitation.id), 422, "validation_error")["details"]
+      assert details["fields"]["account_registration"]
+
+      user = SimpleFit.AccountRegistrationHelpers.complete_account_registration!(user)
+
+      details =
+        error(
+          by_id(user, "accept", invitation.id, %{disclosure_version: version()}),
+          422,
+          "validation_error"
+        )["details"]
+
+      assert details["fields"]["fighter_profile"]
+
+      fighter = SimpleFit.FighterOnboardingHelpers.complete_fighter_onboarding!(user)
+      reset_rate_limits()
+
+      body =
+        error(
+          by_id(fighter, "accept", invitation.id, %{disclosure_version: "x"}),
+          409,
+          "conflict"
+        )
+
+      assert body["details"] == %{"disclosure_version" => "stale"}
+      error(by_id(fighter, "accept", invitation.id, %{}), 422, "validation_error")
+
+      set_sharing(enabled: false, id_acceptance: true)
+
+      error(
+        by_id(fighter, "accept", invitation.id, %{disclosure_version: version()}),
+        404,
+        "not_found"
+      )
+
+      error(by_id(fighter, "preview", invitation.id), 404, "not_found")
+
+      for action <- ["preview", "accept", "decline"] do
+        conn =
+          if action == "preview",
+            do: get(build_conn(), "#{@path}/#{invitation.id}/preview"),
+            else: post(build_conn(), "#{@path}/#{invitation.id}/#{action}", %{})
+
+        error(conn, 401, "unauthorized")
+      end
+
+      assert Repo.aggregate(Relationship, :count) == 0
+    end
+
+    test "canaries in ids, bodies and nested values never echo, log or 5xx" do
+      coach = inviting_coach!()
+      email = address()
+      fighter = email_fighter!(email)
+      {invitation, token} = invite_to!(coach, email)
+
+      level = Logger.level()
+      Logger.configure(level: :debug)
+      on_exit(fn -> Logger.configure(level: level) end)
+
+      shapes = [
+        "sfi_#{@canary}abcdefghijklmnopqrstuvwxyz0",
+        "#{String.downcase(@canary)}@example.com",
+        %{"nested" => @canary},
+        [@canary],
+        String.duplicate("A", 5_000) <> @canary,
+        token
+      ]
+
+      log =
+        capture_log([level: :debug], fn ->
+          for shape <- shapes,
+              id <- [invitation.id, URI.encode_www_form(@canary)],
+              action <- ["preview", "accept", "decline"] do
+            reset_rate_limits()
+
+            body = %{
+              "disclosure_version" => shape,
+              "token" => shape,
+              "email" => shape,
+              "user_id" => shape,
+              "recipient_digest" => shape
+            }
+
+            conn = by_id(fighter, action, id, body)
+            assert conn.status < 500
+
+            if conn.status >= 400 do
+              refute conn.resp_body =~ @canary
+              refute conn.resp_body =~ String.downcase(@canary)
+              refute conn.resp_body =~ token
+            end
+          end
+        end)
+
+      refute log =~ @canary
+      refute log =~ String.downcase(@canary)
+      refute log =~ token
+      refute log =~ email
+      assert Repo.aggregate(Relationship, :count) == 0
+    end
+  end
+
+  defp get_with(who, path) do
+    build_conn()
+    |> put_req_header("authorization", "Bearer " <> token_for(who))
+    |> get(path)
+  end
 end

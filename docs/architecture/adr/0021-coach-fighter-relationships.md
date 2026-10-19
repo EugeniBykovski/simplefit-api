@@ -306,8 +306,10 @@ B-2). E08's copy is interim until design CR-12 and the legal texts.
 
 ## Amendment — SF-73 (2026-10-20): the recipient's invitation inbox
 
-**Status:** accepted for the read-only inbox; ID-based responses **not
-decided** (below).
+**Status:** accepted (2026-10-20): the read-only inbox, and responding by
+invitation id as an explicit product/security decision that **reduces**
+the SF-57 defence (below). Preview and accept by id are implemented but
+stay **off** until SF-72's acceptance checks exist.
 
 ### Inbox
 
@@ -345,36 +347,74 @@ Nothing is decrypted to filter.
   the result is the caller's own data, bounded, indexed and without an
   oracle about other accounts. Telemetry `[:simple_fit, :coaching,
   :invitation, :incoming_listed]` carries no metadata.
-* **Key rotation:** digests are HMACs under a key derived from
-  `SECRET_KEY_BASE`. Rotating it makes every stored digest unmatchable (for
-  the inbox, acceptance and per-recipient limits alike); a rotation must
-  re-digest stored invitations from their sealed addresses, or accept that
-  open invitations stop matching. Unchanged by SF-73.
+* **Key rotation (follow-up risk):** digests are HMACs under a key derived
+  from `SECRET_KEY_BASE`. Rotating it makes every stored digest
+  unmatchable (inbox, both acceptance paths, per-recipient limits); a
+  rotation must re-digest stored invitations from their sealed addresses,
+  or accept that open invitations stop matching. SF-73 does not change the
+  global secret policy; a separate task should define the rotation
+  procedure.
 
-### ID-based accept / decline (not implemented; decision needed)
+### Responding by invitation id (approved 2026-10-20)
 
-SF-73 permits accept/decline by invitation id only if it keeps the SF-57
-guarantees. The SF-57 contract above says acceptance "locks and verifies
-the invitation by token hash", and the router records `acceptCoachInvitation`
-as the only public way a relationship comes to exist. Responding by id
-changes that invariant, so it is documented here and not implemented.
+`previewMyIncomingCoachInvitation` (`GET
+/api/v1/me/coach-invitations/{invitation_id}/preview`),
+`acceptMyIncomingCoachInvitation` and `declineMyIncomingCoachInvitation`
+(`POST …/{invitation_id}/accept|decline`). The token endpoints are
+unchanged.
 
-| Guarantee | Token (SF-57) | By id (proposed) |
-|---|---|---|
-| Who may respond | Holder of a verified email identity for the address **and** the link | Holder of a verified email identity for the address |
-| One-time | Token consumed with the invitation | Invitation is terminal after the response (same row, same trigger) |
-| Retry after an end is harmless | Consumed token → `410` | Terminal invitation → `410` |
-| Rotation/resend invalidates old links | Yes | Not applicable (no link); the id is stable across resends |
-| Prerequisites, disclosure echo, gate, `Activation`, one transaction | Yes | Same code path, locked by id instead of token hash |
+**Invitation id versus token.** The token (`sfi_…`, E08 fragment, stored
+as a hash, rotated on resend) is a secret that proves the holder received
+the email. The invitation id is a stable, non-secret identifier shown in
+the inbox; it authorises nothing. A request by id loads the row only
+`WHERE id = $id AND recipient_digest IN (<caller's verified email
+digests>)`, so a foreign, unknown, malformed, terminal or expired id
+answers the same `410 invitation_unavailable` (no existence or format
+oracle). No secret is ever placed in a URL.
 
-Assessment: binding to a verified email identity, not the token, is the
-authorization (a forwarded link is already useless). Dropping the token
-removes "proof of receiving this email" as a second factor, so a session
-holder (for example a stolen access token) could accept without the email;
-the same session can already do everything else for that account.
-Recommendation: approve, implemented as `POST
-/api/v1/me/coach-invitations/{invitation_id}/accept|decline`, locking the row
-`FOR UPDATE` by id **and** digest set (foreign or unknown ids → the same
-`410 invitation_unavailable`, no existence oracle), reusing the SF-57
-acceptance transaction and `Activation.activate/3` unchanged, with SF-72's
-18+ and language checks once merged. Requires product/security approval.
+**Verified recipient binding.** As for the inbox: the user comes from the
+session, the digests from their email identities (code-verified, ADR
+0012) with the SF-57 HMAC; addresses, user ids, roles or provider claims in
+the request are ignored. The inviting coach cannot respond to their own
+invitation.
+
+**Reduced defence (accepted trade-off, not equivalent to the token).**
+SF-57 required both a verified email identity **and** possession of the
+E08 token. By id, only the identity bound to an authenticated session is
+required: possession of the email is no longer a second factor. **A stolen
+or hijacked SimpleFit session is sufficient to preview and accept an
+invitation addressed to that account**, without access to the mailbox.
+Mitigations that remain: short-lived access tokens and refresh rotation
+with reuse detection (ADR 0010, SF-75), the explicit disclosure-version
+echo, the 30 per 10 minutes response limit per client, the fighter can end
+the relationship at any time, and everything shared is limited to the
+approved C1/C2 scope.
+
+**One transaction for both paths.** `accept_locked/3` and
+`decline_locked/2` take a locator (`{:token, hash}` or `{:id, id}`); after
+locating, both paths run the same code: lock the row `FOR UPDATE`, check
+pending and not expired, bind the recipient, require account registration
+and the fighter profile, check the exact current disclosure version, call
+`SimpleFit.Coaching.Activation.activate/3`, and consume the invitation
+with the accepted version and the relationship id. Any failure rolls back
+everything. Decline by id has the SF-57 decline policy (fighter profile,
+creates nothing, available while the gate is off).
+
+**Concurrency.** The row lock serialises every response, cancel and
+resend of one invitation, whichever path it uses. Verified on separate
+connections: ten simultaneous id acceptances give one relationship and nine
+`410`; id versus token, accept versus decline, cancel and expiry each end in
+exactly one consistent outcome; an id acceptance racing a resend always
+ends accepted (a resend rotates the token, not the id); already connected
+pairs resolve to the existing relationship (`already_connected`), whose
+accepted disclosure is never widened.
+
+**Legal, age and language gates (fail-closed).** Preview and accept by id
+additionally require `id_acceptance_enabled`, which is `false` in
+`config/config.exs`, deliberately **not** read from the environment, and
+turned on only by tests. They answer `404 not_found` until SF-72 enforces
+18+ at acceptance (L-14) and acceptance only with an approved text in the
+user's language (L-11); SF-72 replaces the switch with those checks. They
+also need the sharing gate and a current disclosure (`404` otherwise).
+The token acceptance keeps its SF-57 behaviour; it stays unusable in
+production because the sharing gate is off.
