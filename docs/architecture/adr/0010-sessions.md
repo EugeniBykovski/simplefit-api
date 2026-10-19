@@ -3,6 +3,8 @@
 * Status: Accepted
 * Date: 2026-10-06
 * Ticket: SF-20 (builds on ADR 0009; amends ADR 0007 for the refresh cookie)
+* Amended: 2026-10-19, SF-75: lost-response recovery (see "Reuse" and
+  "Lost-response recovery (SF-75)"), approved as a change to strict rotation
 
 ## Context
 
@@ -35,13 +37,16 @@ sessions                id, user_id → users (ON DELETE CASCADE), expires_at,
                         timestamps
 session_refresh_tokens  id, session_id → sessions (ON DELETE CASCADE),
                         token_hash (SHA-256, unique), expires_at,
-                        consumed_at, inserted_at
+                        consumed_at, parent_id → session_refresh_tokens,
+                        superseded_at, recoveries, inserted_at
 ```
 
 * Database invariants:
   * at most one unconsumed refresh token per session (partial unique index);
   * `token_hash` is exactly 32 bytes and unique;
   * revocation fields are set together with a known reason;
+  * only a consumed token can be superseded, and recoveries are bounded
+    (SF-75);
   * a session expires after it was created.
 * Indexes: `token_hash` (refresh lookup), the partial one-live-token index,
   and `user_id` / `session_id` for the cascades and a future "sign out
@@ -90,31 +95,38 @@ start when it is missing or inconsistent. There is no "remember me" option.
 ### Refresh rotation
 
 1. In one transaction:
-   * `UPDATE session_refresh_tokens SET consumed_at = now WHERE token_hash = $1
-     AND consumed_at IS NULL AND expires_at > now RETURNING session_id`;
-   * lock the session row (`FOR UPDATE`) and check it is neither revoked nor
-     expired;
-   * insert the successor token and sign a new access token.
-2. Concurrent refreshes with the same token queue on the row lock; the
-   first consumes it, the others then find it consumed. Exactly one rotation
-   succeeds, and each loser is a reuse (below), so the session ends up
-   revoked. The partial unique index makes two live successors impossible
-   even if the code were wrong. This is tested on real, separate connections.
+   * find the token by hash and lock its session row (`FOR UPDATE`); check
+     the session is neither revoked nor expired (otherwise `401`, nothing
+     changes);
+   * read the token again under the lock;
+   * a live, unexpired token: consume it, insert its successor (a child,
+     `parent_id`) and sign a new access token;
+   * a consumed token: a lost-response recovery or a reuse (below).
+2. Every refresh, recovery and logout of a session queues on its row lock,
+   on any node or connection, so the decisions are serialized. Concurrent
+   presentations of one live token: the first rotates; the next find it
+   consumed with an unused child, which is a recovery (within its bounds) that
+   supersedes that child. Exactly one live token remains: the partial unique
+   index makes two impossible even if the code were wrong. The holder of a
+   superseded child is detected on its next refresh. This is tested on real,
+   separate connections.
 
 ### Reuse (replay): strict rotation
 
-A refresh token is single use. Once A has rotated to B, A is permanently
-consumed, and **any** later presentation of A, at any time, is reuse:
+A refresh token is single use. Once A has rotated to B and **B has been
+presented**, A is permanently retired, and any later presentation of A, at
+any time, is reuse. Presenting a superseded token, or a consumed token
+outside the recovery bounds below, is reuse too:
 
 * the response is the same `401 unauthorized` as for any invalid token;
 * the session is revoked (`refresh_reuse`): the successor B can no longer
   refresh, and every access token of the session stops working through the
   per-request session check.
 
-There is no grace window. The server cannot tell a second tab, a retried
-request or an attacker's replay apart, so it treats them all as theft. A
-concurrent refresh that loses the race therefore revokes the session too,
-by design.
+There is no grace window: acceptance never depends on time alone. The only
+exception is the lost-response recovery below, which is defined by the
+token chain (the presented token's successor was never used) and only
+bounded by time and count.
 
 **Clients must serialize and coalesce refreshes:**
 
@@ -123,6 +135,53 @@ by design.
 * the web app coordinates across tabs.
 
 Unknown and expired tokens fail without revoking anything.
+
+### Lost-response recovery (SF-75)
+
+A response can be lost after the server committed a rotation: a web page is
+unloaded mid-refresh and the browser never applies `Set-Cookie`, or an app
+is killed before it stores the new token. The client still holds A, already
+consumed. Under strict rotation its next refresh revoked a legitimate
+session (SF-54 investigation; reproduced in Chromium, Firefox and WebKit).
+
+A consumed token A is **recovered** when, under the session lock:
+
+* its child is the session's live token: none of A's children was ever
+  presented, so nothing proves the response carrying it arrived;
+* A itself was not superseded;
+* A is unexpired, was consumed at most `refresh_recovery_window` (60 s)
+  ago, and has fewer than `refresh_recovery_limit` (10) recoveries.
+
+A recovery marks the unused child superseded (consumed), issues a new child
+of A and increments A's `recoveries`. Anything else is reuse.
+
+Security argument:
+
+* **One chain.** A recovery replaces the only live token atomically; two
+  live tokens cannot exist.
+* **Two holders always collide.** If an owner and a thief both hold A, at
+  most one holds the live child. The other's next refresh presents a
+  superseded child (reuse), A after a child was used (reuse), or A again
+  (a recovery that supersedes the first holder's child, whose next use is
+  reuse). The session is revoked; detection is delayed by at most one
+  refresh, never lost.
+* **Bounded exposure.** Only the token a session presented last is
+  recoverable, only until its child is used and only for 60 s. This extends
+  the risk already accepted below ("a stolen refresh token used before its
+  owner refreshes") to the predecessor for at most 60 s. A token older than
+  one completed refresh can never be recovered.
+* **Not proof of possession.** Inside the window the server cannot tell the
+  owner's retry from a copy of the cookie used elsewhere; IP, User-Agent or
+  tab ids would not prove it either. Only a device-bound key would; it is
+  not part of this design.
+* A late response for a superseded child that a browser applies after the
+  newer cookie is presented as a superseded token: reuse, as before SF-75.
+  Clients must not make refresh responses outlive their page (no
+  `keepalive`).
+
+Tokens issued before SF-75 have no `parent_id`, so their first rotation
+after the deploy is strict. Code rollback is safe: older code sees
+superseded tokens as consumed (reuse).
 
 ### Revocation and logout
 
@@ -240,9 +299,11 @@ abuse limits belong to SF-29.
 * A stolen refresh token used before its owner refreshes is not detected
   until the owner presents the consumed one; then both lose the session.
   Rotation shortens that window to one refresh cycle.
-* A client that refreshes twice concurrently signs its user out. Clients
-  must coordinate refreshes (see reuse above); the server never relaxes
-  this.
+* A client that refreshes twice concurrently gets one live token and one
+  superseded token; if it ever presents the superseded one, its user is
+  signed out. Clients must still coordinate refreshes (see reuse above).
+  The server relaxes strict rotation only for the bounded lost-response
+  recovery (SF-75).
 
 ## Lifecycle semantics (SF-28)
 

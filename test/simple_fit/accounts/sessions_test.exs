@@ -152,15 +152,22 @@ defmodule SimpleFit.Accounts.SessionsTest do
       assert Repo.aggregate(from(t in RefreshToken, where: is_nil(t.consumed_at)), :count) == 1
     end
 
-    test "the old refresh token cannot refresh again", %{credentials: c} do
-      {:ok, _next} = Accounts.refresh_session(c.refresh_token)
+    test "once its successor was presented, the old token can never refresh again", %{
+      credentials: c
+    } do
+      {:ok, next} = Accounts.refresh_session(c.refresh_token)
+      {:ok, _third} = Accounts.refresh_session(next.refresh_token)
       assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
     end
 
-    test "an immediate replay revokes the whole session", %{credentials: c} do
-      {:ok, next} = Accounts.refresh_session(c.refresh_token)
+    test "a replay after the successor was presented revokes the whole session", %{
+      credentials: c
+    } do
+      {:ok, second} = Accounts.refresh_session(c.refresh_token)
+      {:ok, next} = Accounts.refresh_session(second.refresh_token)
 
-      # Replayed right away: no grace window, this is reuse.
+      # The successor's use proved its response arrived: the old token is
+      # now reuse, however soon it comes back.
       assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
 
       assert %Session{revoked_reason: :refresh_reuse} = Repo.get!(Session, c.session.id)
@@ -168,6 +175,7 @@ defmodule SimpleFit.Accounts.SessionsTest do
       assert Accounts.refresh_session(next.refresh_token) == {:error, :unauthorized}
       assert Accounts.authenticate_access_token(next.access_token) == {:error, :unauthorized}
       assert Accounts.authenticate_access_token(c.access_token) == {:error, :unauthorized}
+      assert Accounts.authenticate_access_token(second.access_token) == {:error, :unauthorized}
     end
 
     test "reuse of any older token in the chain also revokes", %{credentials: c} do
@@ -225,6 +233,168 @@ defmodule SimpleFit.Accounts.SessionsTest do
       end
 
       assert Repo.get!(Session, c.session.id).revoked_at == nil
+    end
+  end
+
+  describe "refresh_session/1: lost-response recovery (SF-75)" do
+    setup %{user: user} do
+      {:ok, credentials} = Accounts.create_session(user)
+      %{credentials: credentials}
+    end
+
+    defp token_row(refresh_token),
+      do: Repo.get_by!(RefreshToken, token_hash: :crypto.hash(:sha256, refresh_token))
+
+    defp live_tokens(session_id),
+      do:
+        Repo.all(
+          from t in RefreshToken, where: t.session_id == ^session_id and is_nil(t.consumed_at)
+        )
+
+    defp age_consumption(refresh_token, seconds) do
+      hash = :crypto.hash(:sha256, refresh_token)
+      at = DateTime.add(DateTime.utc_now(:second), -seconds)
+
+      Repo.update_all(from(t in RefreshToken, where: t.token_hash == ^hash),
+        set: [consumed_at: at]
+      )
+    end
+
+    test "the token presented again before its successor was used recovers the session", %{
+      credentials: c
+    } do
+      # The response carrying `lost` never reached the client.
+      {:ok, lost} = Accounts.refresh_session(c.refresh_token)
+      assert {:ok, recovered} = Accounts.refresh_session(c.refresh_token)
+
+      assert recovered.session.id == c.session.id
+      refute recovered.refresh_token in [c.refresh_token, lost.refresh_token]
+      assert {:ok, _viewer} = Accounts.authenticate_access_token(recovered.access_token)
+      assert Repo.get!(Session, c.session.id).revoked_at == nil
+
+      # Exactly one live token: the recovered one, a child of the same token.
+      assert [live] = live_tokens(c.session.id)
+      assert live.id == token_row(recovered.refresh_token).id
+      assert live.parent_id == token_row(c.refresh_token).id
+
+      assert %RefreshToken{superseded_at: %DateTime{}, consumed_at: %DateTime{}} =
+               token_row(lost.refresh_token)
+
+      assert token_row(c.refresh_token).recoveries == 1
+    end
+
+    test "the superseded successor is reuse: two holders of one token collide", %{
+      credentials: c
+    } do
+      # One holder of the token refreshes, another presents it too.
+      {:ok, first} = Accounts.refresh_session(c.refresh_token)
+      {:ok, second} = Accounts.refresh_session(c.refresh_token)
+
+      assert Accounts.refresh_session(first.refresh_token) == {:error, :unauthorized}
+      assert %Session{revoked_reason: :refresh_reuse} = Repo.get!(Session, c.session.id)
+      assert Accounts.refresh_session(second.refresh_token) == {:error, :unauthorized}
+      assert Accounts.authenticate_access_token(first.access_token) == {:error, :unauthorized}
+      assert Accounts.authenticate_access_token(second.access_token) == {:error, :unauthorized}
+    end
+
+    test "the recovered token rotates normally; the old token is then reuse", %{credentials: c} do
+      {:ok, _lost} = Accounts.refresh_session(c.refresh_token)
+      {:ok, recovered} = Accounts.refresh_session(c.refresh_token)
+      {:ok, next} = Accounts.refresh_session(recovered.refresh_token)
+
+      assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+      assert Repo.get!(Session, c.session.id).revoked_reason == :refresh_reuse
+      assert Accounts.refresh_session(next.refresh_token) == {:error, :unauthorized}
+    end
+
+    test "successive lost responses recover up to the limit, then it is reuse", %{
+      credentials: c
+    } do
+      limit = Sessions.config!().refresh_recovery_limit
+      {:ok, _lost} = Accounts.refresh_session(c.refresh_token)
+
+      for _ <- 1..limit do
+        assert {:ok, _recovered} = Accounts.refresh_session(c.refresh_token)
+        assert length(live_tokens(c.session.id)) == 1
+      end
+
+      assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+      assert Repo.get!(Session, c.session.id).revoked_reason == :refresh_reuse
+    end
+
+    test "after the recovery window it is reuse", %{credentials: c} do
+      window = Sessions.config!().refresh_recovery_window
+      {:ok, lost} = Accounts.refresh_session(c.refresh_token)
+
+      age_consumption(c.refresh_token, window)
+      assert {:ok, recovered} = Accounts.refresh_session(c.refresh_token)
+
+      # The window runs from the first consumption; recoveries never extend it.
+      age_consumption(c.refresh_token, window + 1)
+      assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+      assert Repo.get!(Session, c.session.id).revoked_reason == :refresh_reuse
+      assert Accounts.refresh_session(recovered.refresh_token) == {:error, :unauthorized}
+      assert Accounts.refresh_session(lost.refresh_token) == {:error, :unauthorized}
+    end
+
+    test "a token whose child has no recorded parent (issued before SF-75) is reuse", %{
+      credentials: c
+    } do
+      {:ok, next} = Accounts.refresh_session(c.refresh_token)
+      hash = :crypto.hash(:sha256, next.refresh_token)
+
+      Repo.update_all(from(t in RefreshToken, where: t.token_hash == ^hash),
+        set: [parent_id: nil]
+      )
+
+      assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+      assert Repo.get!(Session, c.session.id).revoked_reason == :refresh_reuse
+    end
+
+    test "an expired consumed token is reuse, not a recovery", %{credentials: c} do
+      {:ok, _next} = Accounts.refresh_session(c.refresh_token)
+      hash = :crypto.hash(:sha256, c.refresh_token)
+      past = DateTime.add(DateTime.utc_now(:second), -1)
+
+      Repo.update_all(from(t in RefreshToken, where: t.token_hash == ^hash),
+        set: [expires_at: past]
+      )
+
+      assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+      assert Repo.get!(Session, c.session.id).revoked_reason == :refresh_reuse
+    end
+
+    test "a logged-out session cannot be recovered and keeps its reason", %{credentials: c} do
+      {:ok, next} = Accounts.refresh_session(c.refresh_token)
+      :ok = Accounts.revoke_session({:access, next.access_token})
+
+      assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+      assert Accounts.refresh_session(next.refresh_token) == {:error, :unauthorized}
+      assert Repo.get!(Session, c.session.id).revoked_reason == :logout
+      assert token_row(c.refresh_token).recoveries == 0
+      assert [_still_unused] = live_tokens(c.session.id)
+    end
+
+    test "an expired session cannot be recovered", %{credentials: c} do
+      {:ok, _next} = Accounts.refresh_session(c.refresh_token)
+      past = DateTime.add(DateTime.utc_now(:second), -1)
+
+      Repo.update_all(from(s in Session, where: s.id == ^c.session.id),
+        set: [expires_at: past, inserted_at: DateTime.add(past, -10)]
+      )
+
+      assert Accounts.refresh_session(c.refresh_token) == {:error, :unauthorized}
+      assert token_row(c.refresh_token).recoveries == 0
+    end
+
+    test "recovery stays inside its own session", %{credentials: c, user: user} do
+      {:ok, other} = Accounts.create_session(user)
+      {:ok, _lost} = Accounts.refresh_session(c.refresh_token)
+      {:ok, recovered} = Accounts.refresh_session(c.refresh_token)
+
+      assert recovered.session.id == c.session.id
+      assert {:ok, _} = Accounts.refresh_session(other.refresh_token)
+      assert Repo.get!(Session, other.session.id).revoked_at == nil
     end
   end
 
@@ -310,6 +480,24 @@ defmodule SimpleFit.Accounts.SessionsTest do
                "token_hash_is_sha256"
     end
 
+    test "only a consumed token can be superseded; recoveries are bounded", %{credentials: c} do
+      hash = :crypto.hash(:sha256, c.refresh_token)
+
+      assert constraint_of(fn ->
+               Repo.query(
+                 "UPDATE session_refresh_tokens SET superseded_at = now() WHERE token_hash = $1",
+                 [hash]
+               )
+             end) == "superseded_is_consumed"
+
+      assert constraint_of(fn ->
+               Repo.query(
+                 "UPDATE session_refresh_tokens SET recoveries = 101 WHERE token_hash = $1",
+                 [hash]
+               )
+             end) == "recoveries_bounded"
+    end
+
     test "a refresh token needs its session" do
       assert constraint_of(fn ->
                insert_token(Ecto.UUID.generate(), :crypto.strong_rand_bytes(32))
@@ -349,14 +537,26 @@ defmodule SimpleFit.Accounts.SessionsTest do
   end
 
   describe "configuration" do
-    test "the production policy is 15 minutes / 30 days / 90 days, with no reuse grace" do
+    test "the production policy is 15 minutes / 30 days / 90 days, recovery 60 s × 10, no grace" do
       config = Sessions.config!()
 
       assert Map.keys(config) |> Enum.sort() ==
-               [:access_token_ttl, :refresh_token_ttl, :secret_key_base, :session_lifetime]
+               [
+                 :access_token_ttl,
+                 :refresh_recovery_limit,
+                 :refresh_recovery_window,
+                 :refresh_token_ttl,
+                 :secret_key_base,
+                 :session_lifetime
+               ]
 
-      assert %{access_token_ttl: 900, refresh_token_ttl: 2_592_000, session_lifetime: 7_776_000} =
-               config
+      assert %{
+               access_token_ttl: 900,
+               refresh_token_ttl: 2_592_000,
+               session_lifetime: 7_776_000,
+               refresh_recovery_window: 60,
+               refresh_recovery_limit: 10
+             } = config
 
       refute Keyword.has_key?(Application.get_env(:simple_fit, Sessions), :refresh_reuse_grace)
     end
@@ -369,6 +569,11 @@ defmodule SimpleFit.Accounts.SessionsTest do
             access_token_ttl: 0,
             refresh_token_ttl: 60,
             session_lifetime: 60,
+            refresh_recovery_window: 0,
+            refresh_recovery_window: 900,
+            refresh_recovery_window: nil,
+            refresh_recovery_limit: 0,
+            refresh_recovery_limit: 101,
             secret_key_base: "too-short",
             secret_key_base: nil
           ] do
@@ -400,7 +605,17 @@ defmodule SimpleFit.Accounts.SessionsTest do
                ]
 
       assert RefreshToken.__schema__(:fields) ==
-               [:id, :session_id, :token_hash, :expires_at, :consumed_at, :inserted_at]
+               [
+                 :id,
+                 :session_id,
+                 :token_hash,
+                 :expires_at,
+                 :consumed_at,
+                 :parent_id,
+                 :superseded_at,
+                 :recoveries,
+                 :inserted_at
+               ]
     end
   end
 end

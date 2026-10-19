@@ -121,7 +121,12 @@ config :opentelemetry,
 config :simple_fit, SimpleFit.Accounts.Sessions,
   access_token_ttl: 15 * 60,
   refresh_token_ttl: 30 * 24 * 60 * 60,
-  session_lifetime: 90 * 24 * 60 * 60
+  session_lifetime: 90 * 24 * 60 * 60,
+  # Lost-response recovery (SF-75): a consumed token whose children were
+  # never presented may be presented again, within this window after its
+  # consumption and at most this many times; anything else is reuse.
+  refresh_recovery_window: 60,
+  refresh_recovery_limit: 10
 
 # Passwordless email authentication (ADR 0012): production policy, in
 # seconds. Tests run with the same values. The key material and the web app

@@ -47,7 +47,7 @@ end.
 | `.../verification-links/verify` | Hashed link token, per-client limit, never starts a session | Verified (ADR 0012 tests) |
 | `.../registrations/status` | Per-client limit, generic `expired` for unknown tokens | Verified |
 | `POST /api/auth/google`, `/apple` | Per-client and per-subject limits, full token verification, fail closed | Verified (ADR 0013/0014 tests) |
-| `POST /api/auth/session/refresh` | 256-bit single-use tokens, hashed, row-locked rotation, reuse revokes; CSRF + exact origin on the cookie transport | Verified; reuse now measured |
+| `POST /api/auth/session/refresh` | 256-bit single-use tokens, hashed, row-locked rotation, reuse revokes (bounded lost-response recovery since SF-75, ADR 0010); CSRF + exact origin on the cookie transport | Verified; reuse now measured |
 | `POST /api/auth/logout` | Current session only, idempotent, CSRF on the cookie transport | Verified (SF-28) |
 | `GET /api/me`, `/api/v1/me/*` | Bearer token + live session check; every resource is the caller's own (no id in the path) | Verified; no 5xx and no echo on malformed input |
 | Account registration and consent | Consent recorded for the authenticated caller only; versions server-side | Verified (ADR 0016 tests) |
@@ -144,6 +144,7 @@ only).
 | Invalid code / provider credential | 422 / 401 | `*.rejected.count` with a bounded `reason` | No |
 | Provider or key-set outage | 503 `service_unavailable` | `*.unavailable.count`, `*.keys_unavailable.count` with a bounded `reason`; warning log | No (alert on the rate) |
 | Refresh-token reuse | 401 | `session.refresh.count{outcome=reuse}`; warning log | No (alert on the rate) |
+| Lost-response recovery (SF-75) | 200 | `session.refresh.count{outcome=recovered}`; info log | No (a rising rate means responses are being lost) |
 | Unexpected exception, crash, DB failure | 500 | Error log | Yes, redacted |
 
 Labels are bounded enums only: never an address, token, user agent, IP or

@@ -35,7 +35,9 @@ defmodule SimpleFitWeb.SessionController do
     summary: "Rotate the refresh token and get a new access token",
     description: """
     Consumes the refresh token and issues a new access token and a new refresh token for the same
-    session. A refresh token works once: presenting a consumed token again revokes its session.
+    session. A refresh token works once: presenting a consumed token again revokes its session,
+    except to recover a lost response: until the new refresh token is first used, the previous one
+    can be presented again for a short time, which replaces the unused new token (ADR 0010).
 
     **Transport** (exactly one):
 

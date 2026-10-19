@@ -61,6 +61,16 @@ defmodule SimpleFitWeb.SessionPrivacyTest do
 
     cookie_value = cookie.resp_cookies[SessionTransport.cookie_name()].value
 
+    # The cookie answer was lost: the same cookie again is a recovery (SF-75).
+    recovered =
+      build_conn()
+      |> put_req_cookie(SessionTransport.cookie_name(), next_refresh)
+      |> put_req_header("origin", "http://localhost:3000")
+      |> put_req_header("x-simplefit-csrf", "1")
+      |> post(~p"/api/auth/session/refresh")
+
+    recovered_value = recovered.resp_cookies[SessionTransport.cookie_name()].value
+
     # Replaying the first token is reuse: it revokes the session.
     replay =
       build_conn()
@@ -78,8 +88,8 @@ defmodule SimpleFitWeb.SessionPrivacyTest do
       |> get(~p"/api/me")
 
     %{
-      conns: [me, refreshed, replay, cookie, logout, rejected],
-      issued: [next_refresh, next_access, cookie_value]
+      conns: [me, refreshed, replay, cookie, recovered, logout, rejected],
+      issued: [next_refresh, next_access, cookie_value, recovered_value]
     }
   end
 

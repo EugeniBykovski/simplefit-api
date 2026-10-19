@@ -3618,7 +3618,7 @@
     "/api/auth/session/refresh": {
       "post": {
         "callbacks": {},
-        "description": "Consumes the refresh token and issues a new access token and a new refresh token for the same\nsession. A refresh token works once: presenting a consumed token again revokes its session.\n\n**Transport** (exactly one):\n\n* Mobile/body: send `{\"refresh_token\": \"sfr_...\"}`; the new refresh token is returned in the body.\n* Web/cookie: send the `__Secure-sf_refresh` cookie (no body token), an allow-listed `Origin` and\n  `x-simplefit-csrf: 1`; the new refresh token is set as the cookie and omitted from the body.\n\nEvery invalid, expired, revoked or reused token yields the same `401 unauthorized` (and, for the\ncookie transport, clears the cookie).\n",
+        "description": "Consumes the refresh token and issues a new access token and a new refresh token for the same\nsession. A refresh token works once: presenting a consumed token again revokes its session,\nexcept to recover a lost response: until the new refresh token is first used, the previous one\ncan be presented again for a short time, which replaces the unused new token (ADR 0010).\n\n**Transport** (exactly one):\n\n* Mobile/body: send `{\"refresh_token\": \"sfr_...\"}`; the new refresh token is returned in the body.\n* Web/cookie: send the `__Secure-sf_refresh` cookie (no body token), an allow-listed `Origin` and\n  `x-simplefit-csrf: 1`; the new refresh token is set as the cookie and omitted from the body.\n\nEvery invalid, expired, revoked or reused token yields the same `401 unauthorized` (and, for the\ncookie transport, clears the cookie).\n",
         "operationId": "refreshSession",
         "parameters": [
           {

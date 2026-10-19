@@ -231,10 +231,17 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
                       refresh_token: c.refresh_token
                     })
 
-                  assert json_response(rotated, 200)
-                  # The consumed token again: reuse, which revokes the session.
+                  lost = json_response(rotated, 200)
+
+                  # The consumed token again before its successor was used:
+                  # a lost-response recovery (SF-75).
                   assert json(build_conn(), :post, "/api/auth/session/refresh", %{
                            refresh_token: c.refresh_token
+                         }).status == 200
+
+                  # The superseded successor: reuse, which revokes the session.
+                  assert json(build_conn(), :post, "/api/auth/session/refresh", %{
+                           refresh_token: lost["refresh_token"]
                          }).status == 401
 
                   # Malformed and unknown tokens: rejected.
@@ -256,7 +263,8 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
           metadata.outcome
         end
 
-      assert outcomes == [:rotated, :reuse, :rejected]
+      assert outcomes == [:rotated, :recovered, :reuse, :rejected]
+      assert log =~ "refresh token recovery: unused successor superseded"
       assert log =~ "refresh token reuse: session revoked"
       refute log =~ c.refresh_token
       refute log =~ @marker

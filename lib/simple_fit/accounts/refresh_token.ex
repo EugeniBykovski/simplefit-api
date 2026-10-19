@@ -5,7 +5,9 @@ defmodule SimpleFit.Accounts.RefreshToken do
   Only the SHA-256 of the secret is stored (`token_hash`, redacted from
   `inspect/2`); the secret itself exists only in the response that issued it.
   A token is usable once: refreshing consumes it (`consumed_at`) and issues
-  its successor.
+  its successor, a child (`parent_id`). A child replaced by a lost-response
+  recovery before its first use is `superseded_at` (SF-75); `recoveries`
+  counts the recoveries made from a token.
   """
 
   use Ecto.Schema
@@ -19,6 +21,9 @@ defmodule SimpleFit.Accounts.RefreshToken do
           token_hash: binary() | nil,
           expires_at: DateTime.t() | nil,
           consumed_at: DateTime.t() | nil,
+          parent_id: Ecto.UUID.t() | nil,
+          superseded_at: DateTime.t() | nil,
+          recoveries: non_neg_integer(),
           inserted_at: DateTime.t() | nil
         }
 
@@ -31,6 +36,9 @@ defmodule SimpleFit.Accounts.RefreshToken do
     field :token_hash, :binary, redact: true
     field :expires_at, :utc_datetime
     field :consumed_at, :utc_datetime
+    field :parent_id, :binary_id
+    field :superseded_at, :utc_datetime
+    field :recoveries, :integer, default: 0
 
     timestamps()
   end

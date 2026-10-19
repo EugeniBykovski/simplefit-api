@@ -15,7 +15,7 @@ as ADRs in [`adr/`](adr/).
 | [0007](adr/0007-cors-policy.md) | Cross-origin (CORS) policy: explicit allow-list, preflight, no credentials |
 | [0008](adr/0008-observability.md) | Observability: structured logs, Sentry, OpenTelemetry, privacy rules |
 | [0009](adr/0009-identity-domain.md) | Identity domain: one global user, many identities, no silent account merging |
-| [0010](adr/0010-sessions.md) | SimpleFit sessions: access/refresh tokens, rotation, reuse detection, web cookie vs mobile body, `/api/me` |
+| [0010](adr/0010-sessions.md) | SimpleFit sessions: access/refresh tokens, rotation, reuse detection with bounded lost-response recovery (SF-75), web cookie vs mobile body, `/api/me` |
 | [0011](adr/0011-transactional-email-templates.md) | Transactional email templates: app-owned rendering, HTML + text, encrypted job payloads, dev preview |
 | [0012](adr/0012-passwordless-email-authentication.md) | Passwordless email authentication: verification vs sign-in challenges, keyed code verifiers, Version 66 device rule, PostgreSQL rate limits, client IP |
 | [0013](adr/0013-google-authentication.md) | Google authentication: ID-token verification (jose, cached Google keys), aud/azp allowlist, `sub` identity, no email linking, SF-20 sessions |
