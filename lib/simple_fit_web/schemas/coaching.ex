@@ -282,6 +282,25 @@ defmodule SimpleFitWeb.Schemas.MyCoachRelationship do
   )
 end
 
+defmodule SimpleFitWeb.Schemas.MyCoachRelationshipResponse do
+  @moduledoc "OpenAPI schema: one relationship of the viewer as fighter (SF-74)."
+
+  require OpenApiSpex
+
+  alias SimpleFitWeb.Schemas.MyCoachRelationship
+
+  OpenApiSpex.schema(
+    %{
+      title: "MyCoachRelationshipResponse",
+      type: :object,
+      additionalProperties: false,
+      required: [:relationship],
+      properties: %{relationship: MyCoachRelationship}
+    },
+    struct?: false
+  )
+end
+
 defmodule SimpleFitWeb.Schemas.MyCoachRelationshipList do
   @moduledoc "OpenAPI schema: one page of the fighter's own relationships."
 

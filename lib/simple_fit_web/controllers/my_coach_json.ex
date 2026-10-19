@@ -9,6 +9,8 @@ defmodule SimpleFitWeb.MyCoachJSON do
   def index(%{page: %{entries: entries, next_cursor: cursor}}),
     do: %{relationships: Enum.map(entries, &entry/1), next_cursor: cursor}
 
+  def show(%{entry: entry}), do: %{relationship: entry(entry)}
+
   defp entry(entry) do
     entry
     |> CoachingJSON.lifecycle()
