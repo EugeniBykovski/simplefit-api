@@ -316,7 +316,7 @@ defmodule SimpleFitWeb.IncomingCoachInvitationControllerTest do
       coach = inviting_coach!("Coach Marek")
       email = address()
       fighter = email_fighter!(email)
-      {invitation, token} = invite_to!(coach, email)
+      {_invitation, token} = invite_to!(coach, email)
 
       [entry] = page(get_inbox(fighter, "?status=pending"))["invitations"]
       id = entry["invitation_id"]

@@ -38,11 +38,6 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
   defp relationships, do: Repo.aggregate(Relationship, :count)
   defp reload(%Invitation{id: id}), do: Repo.get!(Invitation, id)
 
-  defp registered_email_user!(email) do
-    {:ok, user} = Accounts.register_user(:email, email)
-    SimpleFit.AccountRegistrationHelpers.complete_account_registration!(user)
-  end
-
   describe "fail-closed until SF-72" do
     test "the switch is off in config.exs and is not read from the environment" do
       config = Config.Reader.read!("config/config.exs", env: :prod)
@@ -330,10 +325,6 @@ defmodule SimpleFit.CoachingIncomingResponsesTest do
     end
   end
 
-  defp end_relationship!(fighter, relationship) do
-    case Coaching.end_relationship(fighter, :fighter, relationship.id) do
-      {:ok, _} -> :ok
-      :ok -> :ok
-    end
-  end
+  defp end_relationship!(fighter, relationship),
+    do: :ok = Coaching.end_relationship(fighter, :fighter, relationship.id)
 end
