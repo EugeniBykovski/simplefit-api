@@ -2,7 +2,10 @@
 
 **STATUS: DRAFT — REQUIRES PRODUCT AND LEGAL APPROVAL**
 
-Ticket SF-71. Covers brief §6, §10 and §11. Today's facts:
+Ticket SF-71. Covers brief §6, §10 and §11. Policy PRODUCT_APPROVED
+2026-10-19 (L-10 – L-13); legal statements PROPOSED_PENDING_LEGAL_REVIEW.
+Implementation: [SF-72](../../architecture/proposals/SF-72-legal-document-integration-spec.md).
+Today's facts:
 [integration contract](../../architecture/proposals/SF-71-coaching-legal-integration-contract.md).
 
 ## 1. Separate decisions, never one flag
@@ -20,7 +23,7 @@ Ticket SF-71. Covers brief §6, §10 and §11. Today's facts:
 A coach acknowledgement is never fighter consent; a fighter acceptance never
 implies account-level consent and vice versa.
 
-## 2. Lifecycles (as implemented; gate on)
+## 2. Lifecycles (as implemented; gate on; SF-72 additions marked)
 
 **Coach.** CoachProfile completed → reads current Data Rules → ticks the
 unticked box → `POST /me/coach/data-rules/acknowledge {document_version}` →
@@ -30,13 +33,18 @@ appends the record → invitation creation becomes eligible.
 **Fighter.** Invitation link (token in fragment) → anonymous preview (coach,
 note, expiry, current disclosure) → sign-in with a verified email identity of
 the invited address → account registration (Terms, Privacy, age ≥ 16) →
-fighter onboarding → review of the current disclosure → ticks the unticked
-box → accept with the echoed version → server verifies binding, version,
-prerequisites; activates and consumes in one transaction.
+fighter onboarding → review of the current disclosure (*SF-72: approved
+variant in the app language, else "not available in your language"*) →
+ticks the unticked box → accept with the echoed version (*SF-72: and
+language*) → server verifies binding, version, prerequisites (*SF-72: age
+18+, language*); activates, consumes (*SF-72: writes evidence*) in one
+transaction.
 
-**Termination.** Active → coach or fighter ends → live access revoked in the
-same transaction → stub with name snapshots → retention policy applies
-(retention not implemented yet, F-03).
+**Termination / withdrawal.** Active → coach or fighter ends (gate
+independent) → live access revoked in the same transaction (withdrawal of
+consent if consent is the basis, L-02) → stub with name snapshots (SF-56) →
+retention policy applies (not implemented yet, F-03, T-2). Turning the gate
+off is **not** termination (checklist §3.1).
 
 ## 3. Audit evidence (minimum)
 
@@ -49,19 +57,58 @@ same transaction → stub with name snapshots → retention policy applies
 
 Proposal: keep the current minimal evidence (no IP or fingerprint: not needed
 to prove a version-specific action by an authenticated account). Because the
-evidence lives on rows deleted with the counterparty (F-04), L-08 proposes a
-fighter-owned acceptance record with its own retention.
+evidence lives on rows deleted with the counterparty (F-04), L-08 proposes
+separate, append-only evidence records with their own lifecycle
+([retention policy](SF-71-retention-policy.md) §7), including the language of
+the accepted text.
 
-## 4. Version rollover (product/legal decisions, L-13)
+## 4. Version rollover and disclosure renewal (L-13)
+
+### 4.1 Data Rules (coach)
 
 | Question | Proposal |
 |---|---|
-| Material change | Any change that widens shared data, adds a recipient category or purpose, changes retention to the detriment of the user, changes the controller, or changes rights or obligations of coaches in substance. |
-| Old acknowledgements | Remain valid evidence for their version; a coach must acknowledge the new Data Rules version before inviting again. |
-| Existing relationships after a disclosure change | Keep their accepted version (already enforced). A narrowing change applies at once; a widening change needs a new acceptance per relationship (new invitation or an in-product re-accept flow, SF-72 decision). Users get a notice of any material change. |
-| Documents unavailable | Fail closed: no current version → preview, create, accept answer `404` (implemented); boot fails if a configured version is not in the registry (SF-72). |
-| Old version silently treated as current | Prevented: current = configured; acceptance must echo it; SF-72 registry check; changing the current version is a configuration change reviewed like code. |
-| Withdrawing a version | Only together with a notice to affected users, since withdrawn versions disclose nothing (F-11). |
+| Material change | Any change that widens what coaches may do, adds obligations or sanctions in substance, or changes the controller. Decided by product and counsel, never by engineering |
+| Old acknowledgements | Remain valid evidence for their version; a coach acknowledges the new version before inviting or resending again (implemented: `409 data_rules_acknowledgement: required`) |
+| Existing relationships | Continue; coaches are informed of the change |
+
+### 4.2 Fighter disclosure — MVP policy
+
+1. **Fixed authorized scope.** Every relationship stays limited to the fields
+   authorized by the disclosure version its fighter accepted (implemented:
+   `disclosure_version` per relationship; a later version never widens it).
+2. **No expansion without new explicit fighter authorization.** Neither a
+   configuration change nor a new version may add fields to an existing
+   relationship.
+3. **Wider scopes stay disabled.** A disclosure version whose scope is wider
+   than `basic_profile` must not be configured as current until an approved
+   renewal operation exists (T-5). SF-72 enforces this at boot through the
+   registry (a scope-widening version is rejected while no renewal operation
+   is registered).
+4. **Not the re-consent mechanism:** ending a relationship and sending a new
+   invitation. It loses relationship identity and history and is not offered
+   as the way to authorize more data.
+5. **Future renewal operation (T-5, design only).** In-product request to the
+   fighter for a specific new version on the **same relationship**: same
+   relationship id, history and start date; new acceptance evidence (§3,
+   L-08); the old scope stays in force until the fighter accepts; declining
+   or ignoring changes nothing; the coach cannot force or pre-tick it.
+6. **Narrowing** (fewer fields) applies at once to all relationships under
+   the affected version, **with** the approved user notice (fighter and
+   coach) issued at the same time.
+7. **Emergency withdrawal** of a version (e.g. a defect in the text): only
+   under an approved notification and revocation policy that states what
+   stops, who is told, and whether the relationships end or continue under a
+   narrower version. Silent removal from `COACHING_DISCLOSURES` (F-11) is
+   not permitted as a procedure.
+8. **Temporary shutdown** uses the gate, not version removal (checklist §3).
+
+### 4.3 Availability
+
+| Question | Proposal |
+|---|---|
+| Documents unavailable | Fail closed: no current version → preview, create, accept answer `404` (implemented); boot fails if a configured version is not in the registry (SF-72) |
+| Old version silently treated as current | Prevented: current = configured; acceptance must echo it; SF-72 registry check; changing the current version is a configuration change reviewed like code |
 
 ## 5. Document version contract (L-10)
 
@@ -116,12 +163,30 @@ product copy variant), `fr`.
 * **One version id covers all language variants** of the same approved
   meaning; each language has its own content hash and approval record. A
   language variant without approval is not published.
-* **Missing translation:** show the canonical English text with a notice in
-  the user's language that the document is available in English only; never
-  machine translation presented as approved. Counsel decides whether a
-  market may launch without its language (proposal: no activation in a
-  market without an approved variant in its official language).
+* **Missing translation:** the canonical English text may be shown **for
+  reading**, with a notice in the user's language that the document is
+  available in English only; never machine translation presented as
+  approved. Counsel decides whether a market may launch without its language
+  (proposal: no activation in a market without an approved variant in its
+  official language).
 * **Ownership:** product owns drafting; counsel approves; professional
   translation with legal review; engineering only publishes approved files.
+### 7.1 Acceptance only with an understood approved text
+
+English fallback for reading never authorises acceptance by itself.
+
+* Acceptance (fighter) or acknowledgement (coach) is offered only when an
+  approved variant of the current version exists in (a) the user's app
+  language, or (b) a language the user explicitly chose for legal documents
+  from the approved variants (for example English), after a plain statement
+  in the app language that the document is available only in that language.
+* Otherwise the flow ends in a safe **"not available in your language"**
+  outcome: nothing is shared, the invitation stays pending until it expires,
+  the coach sees only "pending", and the fighter is told why.
+* The acceptance evidence records the language of the text accepted (§3,
+  L-08).
+* Whether option (b) yields informed acceptance in a given market is a
+  counsel question (Q-17); until answered, only (a) is enabled.
+
 * Accessibility: the text is HTML (not images or PDF only), readable by
   screen readers, plain language (GDPR Art. 12(1)).

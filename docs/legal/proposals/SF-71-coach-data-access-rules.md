@@ -7,7 +7,10 @@
 * Canonical language: English. Translations: none approved.
 * Applies to the implementation audited on 2026-10-19; inviting is not
   available on SimpleFit Boxing today.
-* `[…]` = facts SimpleFit must supply.
+* `[…]` = facts SimpleFit must supply or counsel must confirm.
+* Approval: separate, versioned rules with explicit acknowledgement
+  **PRODUCT_APPROVED** 2026-10-19 (L-04); the text is
+  **PROPOSED_PENDING_LEGAL_REVIEW**; nothing here is legally approved.
 
 ---
 
@@ -28,9 +31,10 @@ You see a fighter's information only while you have an active connection
 that the fighter accepted, and only the information that fighter agreed to
 share. Under the current disclosure this is: display name, username,
 country, city, experience level, stance and number of amateur bouts (some may
-be empty). You never see a fighter's goals, next fight, weight, height or
-other body measurements, account name, date of birth, email address, or
-other coaches.
+be empty). You never see a fighter's goals, next fight, weight, weight
+class, height or other body measurements, account name, date of birth, email
+address, or other coaches. Only fighters aged 18 or older can connect with
+coaches.
 
 The fighter can end the connection at any time. When a connection ends, you
 immediately stop seeing the fighter's information. SimpleFit keeps, and shows
@@ -40,9 +44,9 @@ name at the end.
 ### 3. Using fighter information
 
 You may use fighter information only to coach that fighter and to manage your
-coaching relationship with them ("coaching purposes"). [Counsel: confirm
-whether the coach is a separate controller for any use outside the platform
-and what that requires of the coach, L-01.]
+coaching relationship with them ("coaching purposes"). [Counsel: confirm the
+coach's role for each operation (invitation, viewing, use outside the
+platform) and what that requires of the coach, L-01, Q-15.]
 
 ### 4. Keeping it confidential
 
@@ -79,8 +83,10 @@ responsible for complying with these rules and the law.
 
 * SimpleFit removes your access to the fighter's profile information
   immediately.
-* You keep seeing the short record described in section 2 for [period after
-  L-05 approval].
+* You keep seeing the short record described in section 2 for [period:
+  12 months is the product-approved proposal, PROPOSED_PENDING_LEGAL_REVIEW
+  (L-05)]. The fighter's name may be removed from it earlier if the fighter
+  deletes their account or objects.
 * Information you copied, noted or stored outside SimpleFit Boxing while
   connected: you must delete it or stop using it once you no longer need it
   for coaching purposes, unless the law requires you to keep it. [Counsel:
@@ -156,6 +162,8 @@ Button: **Acknowledge** (disabled until ticked). Secondary: **Not now**.
 
 ## Part 5 — Backend contract requirements for SF-72
 
+Canonical specification: [SF-72](../../architecture/proposals/SF-72-legal-document-integration-spec.md).
+
 1. `COACHING_DATA_RULES_VERSION` may only name a version present in the
    approved document registry; boot fails otherwise (fail closed).
 2. `GET /me/coach/data-rules` additionally returns the document reference
@@ -163,5 +171,8 @@ Button: **Acknowledge** (disabled until ticked). Secondary: **Not now**.
 3. Acknowledgement stays append-only, per coach profile and version, server
    timestamped, never inferred from registration, never preselected.
 4. Web gains the acknowledgement step (mobile has it, SF-61).
-5. Evidence retention per L-08 (acknowledgements currently disappear with the
-   coach profile).
+5. Evidence per L-08: a separate acknowledgement evidence record written in
+   the same transaction (acknowledgements currently disappear with the coach
+   profile); retention period pending counsel.
+6. Acknowledgement only with an approved variant in the coach's app
+   language (L-11).

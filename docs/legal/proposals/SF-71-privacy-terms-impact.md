@@ -3,7 +3,9 @@
 **STATUS: DRAFT — REQUIRES PRODUCT AND LEGAL APPROVAL**
 
 Ticket SF-71 (brief §2, §9, §12). This is research for counsel, not legal
-advice and not a compliance statement. All sources were checked on
+advice and not a compliance statement. Product policy L-01 – L-16 is
+PRODUCT_APPROVED (2026-10-19); every legal interpretation below is
+PROPOSED_PENDING_LEGAL_REVIEW. All sources were checked on
 **2026-10-19**. "Law" = established legislation; "Guidance" = regulator
 guidance; "Recommendation" = this proposal.
 
@@ -36,37 +38,49 @@ law (C-210/16 *Wirtschaftsakademie*, C-25/17 *Jehovan todistajat*, C-40/17
 
 ## 2. Analysis and questions for counsel
 
-### 2.1 Roles (L-01)
+### 2.1 Roles (L-01) — operation-by-operation assessment
 
-* **SimpleFit** determines why and how fighter data is shown to coaches
-  (fields, gate, versions, retention): **controller** for the platform
-  processing (GDPR Art. 4(7); S2). Recommendation, high confidence.
-* **Coach** decides to invite and uses what they see for their own coaching
-  business; coaching is a professional activity, so the household exemption
-  (Art. 2(2)(c), "no connection to a professional or commercial activity")
-  does not apply. For use **outside the platform** (notes, own records) the
-  coach is plausibly a **separate controller**. Whether coach and SimpleFit
-  are **joint controllers** (Art. 26) for the invitation and roster display is
-  open: the coach co-determines the purpose of a specific disclosure.
-  → **Q-01 (counsel, mandatory).**
-* **Email and hosting providers**: processors (Art. 28): DPAs and
-  sub-processor list required (→ privacy notice).
+No classification below is final; counsel decides (Q-01, Q-15). Indicators
+follow S2 (who determines purposes and essential means) and the CJEU cases
+named in §1.
 
-### 2.2 Legal basis (L-02)
+* **Coach** acts in a professional activity, so the household exemption
+  (Art. 2(2)(c)) does not apply to anything the coach does.
+* **Email and hosting providers** are processors (Art. 28): DPAs and a
+  sub-processor list are required (→ privacy notice).
 
-| Option | Fit | Risk |
-|---|---|---|
-| Consent, Art. 6(1)(a) | The product already collects an explicit, specific, informed, unticked, version-specific, freely given choice per coach, revocable by ending (Art. 7(3) satisfied) | Consent must be freely given and as easy to withdraw; evidence obligations (Art. 7(1)); children rule Art. 8 applies to ISS offered to a child |
-| Contract, Art. 6(1)(b) | Connecting with a chosen coach could be the core of the service the fighter requests | EDPB reads "necessary" narrowly (S4); the stub after the end is not necessary for the contract |
-| Legitimate interests, Art. 6(1)(f) | Good fit for the stub, invitations to non-users, abuse limits | Balancing test (S5); objection right (Art. 21) |
+| # | Operation | What happens | Who determines purpose / means | Candidate roles | Open question |
+|---|---|---|---|---|---|
+| R1 | Invitation creation | Coach enters a recipient's email and an optional note; SimpleFit stores a digest and a sealed copy | Coach chooses whom and why; SimpleFit fixes fields, limits, storage | (a) joint controllers for collection; (b) coach controller of the choice, SimpleFit controller of storage | Is the coach's choice of recipient a co-determination of purpose (Fashion ID logic)? |
+| R2 | Invitation delivery (E08) | SimpleFit sends the email to a possibly non-registered person | SimpleFit (template, sender, timing); coach triggers | SimpleFit controller; possibly joint with the coach for the triggering | Who owes the Art. 14 notice; is E08 commercial information (Q-06)? |
+| R3 | Preview and acceptance | Recipient sees coach identity and the disclosure; accepts or declines | SimpleFit | SimpleFit controller | — |
+| R4 | Roster access (live C1/C2) | Coach views the 7 fields of accepted fighters | SimpleFit decides fields and conditions; coach decides to look and why | (a) SimpleFit controller, coach recipient; (b) joint controllers for display; (c) SimpleFit controller, coach separate controller from the moment of viewing | Does the coach become a controller on receipt, and of which processing? |
+| R5 | In-platform coaching processing (future features) | Not implemented; no Training domain | — | To assess per feature | Each feature needs its own row before release |
+| R6 | Off-platform processing by the coach | Notes, own records, communication outside SimpleFit | Coach | Coach controller (separate) | Coach's own Art. 13/14 duties; contractual limits via Data Rules |
+| R7 | Ended stubs | Each side sees dates, `ended_by`, the other side's name at end | SimpleFit | SimpleFit controller | Basis and period (L-05, Q-08) |
+| R8 | Retention and deletion | Retention jobs, account deletion | SimpleFit | SimpleFit controller | — |
+| R9 | Consent and acknowledgement evidence | Minimal evidence records | SimpleFit | SimpleFit controller | Basis and period (L-08, Q-09) |
 
-**Recommendation:** consent (Art. 6(1)(a)) for showing C1/C2 to a coach, as
-the in-product acceptance already meets the consent conditions; legitimate
-interests (Art. 6(1)(f)) for the ended stub, invitation handling and abuse
-limits; legal obligation / legitimate interests for evidence retention.
-→ **Q-02 (counsel, mandatory).** Note: the in-product acceptance can be
-*both* the product decision and GDPR consent only if counsel confirms consent
-is the basis; otherwise the checkbox wording changes (disclosure Part 3).
+If counsel finds joint controllership for any row, the Privacy Notice needs an
+Art. 26 arrangement summary and a single contact point for rights (T-1).
+
+### 2.2 Legal basis (L-02) — per processing purpose
+
+All bases below are **proposals** for counsel (Q-02); none is established.
+
+| Purpose | Proposed basis | Alternatives | Consequence of withdrawal / objection |
+|---|---|---|---|
+| Live display of C1/C2 to an accepted coach | Consent, Art. 6(1)(a) (explicit, specific, unticked, version-specific, per coach) | Contract, 6(1)(b) (EDPB reads "necessary" narrowly, S4); legitimate interests, 6(1)(f) | Ending the relationship withdraws consent and ends live access at once (implemented); withdrawal must be as easy as giving (Art. 7(3)) |
+| Invitation handling (digest, sealed address, E08, resend) | Legitimate interests, 6(1)(f), of the coach and SimpleFit; Art. 14 notice | Consent of the recipient is impossible before contact | Objection → delete the pending invitation and its address; "this isn't me" route proposed |
+| Abuse limits (send caps, re-invite after decline) | Legitimate interests, 6(1)(f) | — | Objection weighed against abuse prevention; data kept only for the PROPOSED invitation period |
+| Ended stubs with name snapshots | Legitimate interests, 6(1)(f) | Contract for the period of the relationship only | Not retained automatically after withdrawal: kept only for the approved period; erasure or upheld objection removes the name earlier |
+| Security records (rate-limit windows, outcome-only telemetry) | Legitimate interests, 6(1)(f) | Legal obligation where a security duty applies (Art. 32) | Short windows (implemented, hourly cleanup) |
+| Consent and acknowledgement evidence | Legal obligation, 6(1)(c), with Art. 5(2) / 7(1) accountability, or legitimate interests, 6(1)(f) (defence of claims) | — | Kept only while counsel's approved period runs (Q-09); erasure exception Art. 17(3)(b)/(e) to be confirmed |
+
+Note: the in-product acceptance is GDPR consent only if counsel confirms
+consent as the basis for live display; otherwise the checkbox wording changes
+(disclosure Part 3). Withdrawal never implies that historical records may be
+kept: each retained record needs the basis and period in its own row.
 
 ### 2.3 Special categories (Art. 9)
 
@@ -92,8 +106,11 @@ Art. 9 analysis and DPIA (Art. 35).
 * US: COPPA applies to under-13s (S14); the 16+ rule keeps the product out of
   COPPA's direct scope if age gating is effective; state laws may treat
   13–17 as minors.
-* **16–17-year-old fighters can be coached by adult strangers** through this
-  feature. Safeguarding (contact-sport coaching of minors, possible
+* **Product decision (L-14, PRODUCT_APPROVED):** coach–fighter connections
+  are limited to fighters aged 18+ at the initial launch, enforced by the
+  backend at acceptance (SF-72 §5); accounts stay 16+. Without that check,
+  16–17-year-old fighters could be connected with adult strangers through
+  this feature (F-15). Safeguarding (contact-sport coaching of minors, possible
   national safeguarding rules for sports instructors) is not covered by data
   protection law alone. → **Q-04 (counsel + safeguarding policy owner).**
   Options in the decision register (L-14).

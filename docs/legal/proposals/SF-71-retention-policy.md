@@ -3,9 +3,13 @@
 **STATUS: DRAFT — REQUIRES PRODUCT AND LEGAL APPROVAL**
 
 Ticket SF-71 (brief §7, §8). **Every period below is PROPOSED**, with its
-rationale; none is a legal requirement unless counsel confirms it. No
-deletion job may be implemented before this policy is approved (L-06, L-07,
-L-08, L-09).
+rationale; none is a legal requirement unless counsel confirms it.
+
+Approval: the periods and the evidence domain are **PRODUCT_APPROVED**
+(2026-10-19) as proposals; every period, basis and erasure exception is
+**PROPOSED_PENDING_LEGAL_REVIEW**. Deletion jobs (T-2) may be built disabled
+by default; they are enabled in production only after counsel confirms the
+periods (L-05 – L-09).
 
 ## 1. Principles
 
@@ -29,25 +33,43 @@ owning the deletion. Periods are PROPOSED.
 | # | Data category | Purpose | Proposed legal basis | Retention trigger | Period (PROPOSED) | Deletion method | Owner |
 |---|---|---|---|---|---|---|---|
 | 1 | Pending invitations | Let the recipient respond | Art. 6(1)(f) (coach's and SimpleFit's interest in delivering a requested invitation) | Creation; status stays pending until expiry (14 days, implemented) | Until resolved or expired | Transition to expired (implemented, derived) | Coaching |
-| 2 | Accepted invitations | Consent evidence; idempotent acceptance | Art. 7(1) evidence / 6(1)(c) or (f) | `responded_at` | Keep the evidence fields per row 12; reduce the row (drop `recipient_sealed`, `message`) **30 days** after acceptance | Scheduled job: null sealed address and note | Coaching (retention job) |
+| 2 | Accepted invitations | Idempotent acceptance; coach's history | 6(1)(f) | `responded_at` | Sealed address, note and token hash removed **30 days** after the trigger; row deleted **90 days** after it. Evidence lives in the separate record (row 12, §7), not on this row | Retention job: null columns, then hard delete | Coaching (retention job) |
 | 3 | Declined invitations | Prevent re-invite abuse; show outcome to coach | 6(1)(f) | `responded_at` | **90 days** | Hard delete | Coaching (retention job) |
-| 4 | Cancelled invitations | Coach's history | 6(1)(f) | `responded_at`/cancel time | **90 days** | Hard delete | Coaching |
+| 4 | Cancelled invitations | Coach's history | 6(1)(f) | `responded_at` (set on cancel) | **90 days** | Hard delete | Coaching |
 | 5 | Expired invitations | Coach's history, abuse limits | 6(1)(f) | `expires_at` | **90 days** after expiry | Hard delete | Coaching |
 | 6 | Token hashes | Single-use verification | 6(1)(f) | Resolution / expiry | Same row as 1–5; for resolved rows null the hash at resolution + 30 days | Null / delete with row | Coaching |
 | 7 | Recipient email digests (HMAC) | One pending per coach+recipient; per-recipient rate limit | 6(1)(f) | Row lifetime | With the row (rows 1–5) | Delete with row | Coaching |
 | 8 | Encrypted recipient address | Resend; masked display | 6(1)(f) | Resolution | Pending: until resolved/expired; then **≤ 30 days** (rows 2–5) | Null the column, then row deletion | Coaching |
 | 9 | Resend counters, `last_sent_at` | Abuse limits | 6(1)(f) | Row lifetime | With the row | Delete with row | Coaching |
 | 10 | Delivery metadata | Send email | 6(1)(f) | Job completion | Oban job incl. encrypted payload: **1 day** (implemented); email provider logs: per the processor agreement **[to confirm with provider]** | Oban Pruner; provider retention | Email / Ops |
-| 11 | Coach Data Rules acknowledgements | Prove the coach accepted the rules (Art. 5(2) accountability) | 6(1)(c)/(f) | Acknowledgement; account deletion | Account lifetime **+ 3 years** (claims connected with business activity, art. 118 KC), counsel to confirm | Retention job after account deletion (requires detaching from the profile, L-08) | Coaching |
-| 12 | Fighter acceptance records | Prove the fighter accepted a specific version (Art. 7(1) if consent) | 6(1)(c)/(f) | Relationship end or account deletion | End of relationship **+ 3 years** (counsel: 6 years?), minimal fields only (no address, no note) | Retention job | Coaching |
+| 11 | Coach Data Rules acknowledgements | Prove the coach accepted the rules (Art. 5(2) accountability) | 6(1)(c)/(f) | Account deletion | Account lifetime + a period **pending counsel** (3 years after deletion is a reference point only: business-related claims, art. 118 KC) | Retention job on the separate evidence record (§7) | Coaching |
+| 12 | Fighter acceptance records | Prove the fighter accepted a specific version (Art. 7(1) if consent) | 6(1)(c)/(f) | Relationship end or account deletion, whichever is first | A period **pending counsel** (3 or 6 years are reference points only); minimal fields per §7 | Retention job on the separate evidence record (§7) | Coaching |
 | 13 | Active relationships | Provide the connection | per L-02 | Activation | While active | — | Coaching |
-| 14 | Ended relationship records | Both sides see their history; disputes | 6(1)(f) | `ended_at` | **12 months** after end (L-05 recommendation), then delete the row (evidence kept per row 12) | Retention job | Coaching |
+| 14 | Ended relationship records | Both sides see their history; disputes | 6(1)(f) | `ended_at` | **12 months** after end (L-05 recommendation), then delete the row (evidence kept separately, row 12, §7) | Retention job | Coaching |
 | 15 | Fighter display-name snapshot | Coach's history | 6(1)(f) | `ended_at` | **12 months** with the stub (row 14); erasure on request earlier (§4) | Null/delete with row | Coaching |
 | 16 | Coach display-name snapshot | Fighter's history | 6(1)(f) | `ended_at` | **12 months** with the stub | Null/delete with row | Coaching |
 | 17 | Training relationships referenced by future sessions | — | — | — | **Not applicable today** (no Training domain); the Training task must define its own retention and must not extend relationship retention silently | — | Training (future) |
 | 18 | Security/audit metadata | Abuse prevention, incident response | 6(1)(f) | Event | Rate-limit windows: removed hourly after expiry (implemented); application logs carry outcomes only, no personal data: **[log retention to confirm with hosting]** | Window cleanup; log retention | Ops |
 | 19 | Transactional email jobs (E08) | Delivery | 6(1)(f) | Completion | **1 day** (implemented, Oban Pruner) | Pruner | Email |
 | 20 | Deleted-account records and backups | — | — | Account deletion | Primary DB: cascade at deletion (implemented, but see §3); backups: roll off with backup rotation **[period to confirm with hosting, proposal ≤ 35 days]**; restored backups re-apply deletions | Backup rotation + deletion log | Ops |
+
+### 2.1 Retention triggers (L-06)
+
+Defined on the implemented columns of `coach_invitations` (verified
+2026-10-19); the retention job (T-2) uses exactly these:
+
+| Status | Trigger timestamp | Note |
+|---|---|---|
+| `pending` | none (no deletion while pending) | Ends at `expires_at` (14 days after the last send; a resend rotates it) |
+| `accepted` | `responded_at` | Set in the acceptance transaction |
+| `declined` | `responded_at` | Set at decline |
+| `cancelled` | `responded_at` | Set at cancel |
+| `expired` (derived or stored) | `expires_at` | Status may still read `pending` in storage; expiry is derived at read time |
+
+"Resolution" in the matrix means the trigger timestamp above. The 30-day step
+nulls `recipient_sealed`, `message` and `token_hash`; the 90-day step deletes
+the row (digest, counters and `last_sent_at` go with it). Both steps are
+PROPOSED and run only after approval.
 
 ## 3. Account deletion today (verified)
 
@@ -70,7 +92,8 @@ address on invitation rows. Proposal (L-09): a dedicated account-deletion task
 that (a) deletes the user's profile data, (b) keeps only the minimal evidence
 rows required by rows 11–12, detached from profiles (no names), (c) removes the
 fighter's address from invitations, (d) leaves the counterparty a stub without
-the deleted person's name ("Deleted user"), and (e) documents backup handling.
+the deleted person's name ("Deleted user"), (e) never deletes another user's
+records through a database cascade, and (f) documents backup handling.
 
 ## 4. Data subject rights
 
@@ -114,3 +137,30 @@ location are hosting facts to be supplied ([to confirm]).
 Implementing the period, the erasure behaviour or "Deleted user" labels
 **changes SF-56 behaviour** and needs its own approved follow-up (proposed:
 retention-engineering task after SF-72).
+
+## 7. Evidence lifecycle (L-08)
+
+Goal: prove that a specific coach acknowledged a specific Data Rules version
+and that a specific fighter accepted a specific disclosure version, without
+keeping more personal data than that proof needs, and independently of
+invitation, relationship or counterparty deletion.
+
+| Aspect | Proposal |
+|---|---|
+| Records | Two append-only record types: *coach acknowledgement evidence* and *fighter acceptance evidence*. Written in the **same transaction** as the acknowledgement / acceptance, never later and never inferred |
+| Fields (acceptance) | evidence id; fighter user id; coach user id; relationship id and invitation id as **plain identifiers without foreign keys**; document id, version, language and content SHA-256; server timestamp |
+| Fields (acknowledgement) | evidence id; coach user id; document id, version, language, content SHA-256; server timestamp |
+| Not stored | names, email addresses (plain or sealed), notes, IP, device, user agent, profile data |
+| Identity references | User ids (UUIDs), which identify a person only together with the account. After account deletion they remain as the only link; whether to keep them as-is or replace them by a keyed digest of the id is a counsel question (Q-16) |
+| Immutability | No update path in the domain API; database-level protection (e.g. a trigger rejecting `UPDATE`) evaluated in SF-72; corrections are new records, never edits |
+| Survives | Invitation deletion (retention job), relationship deletion, the counterparty's account deletion, and the subject's own account deletion until the period ends |
+| Access | No user-facing endpoint; read only by authorised staff for a data subject request, dispute or regulator, through an audited internal path; never shown to the other party |
+| Data subject access | Included in an access/export response to the subject (Art. 15) |
+| Erasure | Not deleted on request while the approved period runs, under an exception counsel confirms (Art. 17(3)(b) or (e)); the subject is told so. Deleted on request when no exception applies |
+| Retention enforcement | The retention job (T-2) deletes records whose period (from relationship end or account deletion, whichever first) has expired; idempotent, counts-only telemetry |
+| Backups | Follow §5 |
+| Period | **Pending counsel (Q-09)**; reference points only, no period is a legal requirement |
+
+The existing evidence columns (`coach_invitations.accepted_disclosure_version`,
+`coach_fighter_relationships.disclosure_version`) stay for operations; they
+are no longer the evidence of record once the separate records exist (SF-72).

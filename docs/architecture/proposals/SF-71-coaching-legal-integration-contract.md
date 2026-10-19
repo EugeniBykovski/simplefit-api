@@ -9,6 +9,8 @@
 
 This document records what the software does today, field by field, and
 what SF-72 must change so the approved legal texts and the product match.
+Product policy L-01 – L-16: **PRODUCT_APPROVED** 2026-10-19; legal approval
+pending ([decision register](../../legal/proposals/SF-71-decision-register.md)).
 It changes nothing: no code, configuration, schema or OpenAPI change is part
 of SF-71.
 
@@ -28,7 +30,8 @@ of SF-71.
 | Invitation lifetime | 14 days; resend rotates token and expiry; ≤ 4 sends; expiry derived at read | `Invitations` |
 | Retention | **No deletion job** for invitations, acknowledgements or relationships; Oban jobs (incl. encrypted E08 payload) pruned after 1 day; rate-limit windows removed hourly | `config/config.exs`, ADR 0021 |
 | Account deletion | **No product operation exists** (web/mobile deletion screens are placeholders, SF-32/SF-33). Deleting a `users` row cascades: profiles → relationships (both sides) → acknowledgements; consents; a coach's invitations; invitations of a deleted fighter keep `recipient_sealed` and `accepted_disclosure_version` (`relationship_id` → NULL) | migrations |
-| Minimum age | 16 by calendar date at registration (`too_young`); no guardian flow; date of birth immutable after completion | ADR 0016 |
+| Minimum age | 16 by calendar date at registration (`too_young`); no guardian flow; date of birth immutable after completion. **No age check at coach invitation acceptance** (L-14 requires 18+, SF-72 §5) | ADR 0016 |
+| Web message fallback | Web message catalogs fall back along `es-MX → es → en`; every missing key renders English silently (`src/shared/i18n/routing.ts`, `messages.ts`) | platform `c426249` |
 | Account consents | `terms` + `privacy` versions `terms-v1` / `privacy-v1` (identifiers only, no published texts or URLs exist) | ADR 0016, `config/config.exs` |
 
 ## 2. Field-by-field classification (reconciled with the code)
@@ -88,33 +91,51 @@ broadened without a separate approved architecture decision.
 | F-11 | A version removed from `COACHING_DISCLOSURES` silently discloses nothing for relationships accepted under it; fighters and coaches are not told. | **Medium** (product) | L-13 / SF-72 |
 | F-12 | Coach Data Rules acknowledgement and Fighter acceptance are separate, version-checked, never inferred from registration, never preselected (web/mobile checkboxes start unticked). | Accepted (correct) | — |
 | F-13 | Token secrecy (fragment, hash only, `sfi_` redaction), verified-email binding, single use, one transaction, `no-store` responses, outcome-only telemetry. | Accepted (correct) | — |
+| F-14 | Legal copy kept in web message catalogs would silently fall back to English for a missing translation, so a user could accept text in a language they did not choose (conflicts with L-11). | **Medium** | SF-72 (render legal text from the registry, not message catalogs) |
+| F-15 | No age check exists at acceptance; 16–17-year-old fighters can be connected with coaches once the gate is on (conflicts with L-14). | **High** (activation blocker) | SF-72 §5 |
 
-## 5. Contract for SF-72 (to implement only after approval)
+### 4.1 Traceability (finding → decision → work)
 
-1. **Document registry (L-10).** A code-reviewed registry of approved
-   documents (id, version, language, effective date, content hash,
-   canonical URL), from which the configuration may only *select*; boot fails
-   if a configured version is not in the registry or lacks the required
-   language variants. No version is invented in code.
-2. **References in the API.** Preview `disclosure` and
-   `GET /me/coach/data-rules` gain a document reference (`url`,
-   `effective_at`; optionally `content_sha256`), additive OpenAPI change.
-3. **Evidence (L-08).** Keep the existing evidence columns; add a
-   fighter-owned acceptance record (or move evidence) so evidence follows
-   the retention policy instead of the counterparty's account lifetime.
-4. **Re-acknowledgement (L-13).** Material Data Rules change: invites stop
-   until re-acknowledged (already enforced by version check). Material
-   disclosure change: existing relationships keep their version; a version
-   is withdrawn only together with a user-facing notice.
-5. **Copy fixes** F-02, F-09, F-10; E08 links the invitation privacy
-   statement (F-06).
-6. **Web acknowledgement step** (F-07) mirroring mobile.
-7. **Retention and deletion jobs** only after the retention policy is
-   approved (L-06, L-07): separate task, Oban cron, idempotent, telemetry
-   with counts only.
-8. **Gate-off termination** (F-08): optional minimal list of active
-   relationship ids and names for coaches while the gate is off, if L-16
-   approves it.
+| Finding | Decision | Resolved by | Launch-blocking |
+|---|---|---|---|
+| F-01 no legal texts, versions, URLs | L-10, L-12, L-15 | SF-72 A2/B1/B2, T-1, counsel | Yes |
+| F-02 stub not disclosed before acceptance; E08 wording | L-03, L-05 | Disclosure draft §7 and Part 2 (done in draft); SF-72 B1 (approved text), B3 (E08) | Yes |
+| F-03 no retention | L-05 – L-07 | T-2 | Yes |
+| F-04 evidence on counterparty rows | L-08 | SF-72 A5; T-2/T-3 for deletion | Yes |
+| F-05 no account deletion; cross-user cascade | L-09 | T-3 | Yes |
+| F-06 E08 to non-users | L-15, Q-06 | SF-72 B3, T-1 | Yes |
+| F-07 no web acknowledgement step; no document reference | L-04, L-10 | SF-72 A9/A10/A11 | Yes |
+| F-08 coach cannot end while gate off | L-16 | T-4 | Yes |
+| F-09 "dates only" copy | L-03 | SF-72 A12 | Yes (accuracy) |
+| F-10 `weight_class` not named | L-03 | Disclosure and Data Rules drafts (done); SF-72 B1; never-shared category list kept as is (`weight` covers it), text names it | Yes (text) |
+| F-11 silent version withdrawal | L-13 | SF-72 §6 guard; Q-18 policy | Yes |
+| F-12 separate acknowledgement and acceptance | — | Accepted; preserved by SF-72 | — |
+| F-13 token security | — | Accepted; preserved by SF-72 | — |
+| F-14 English message fallback | L-11 | SF-72 A8/A10, T-1 | Yes |
+| F-15 no 18+ check | L-14 | SF-72 A6 | Yes |
+
+## 5. Contract for SF-72
+
+Superseded by the canonical
+[SF-72 implementation-readiness specification](SF-72-legal-document-integration-spec.md):
+registry and fail-closed configuration (L-10), API document references and
+language fields, evidence domain (L-08), server-side 18+ at acceptance
+(L-14), scope-widening and withdrawal guards (L-13), language rule (L-11),
+web acknowledgement step (F-07), copy fix F-09. Retention, deletion,
+gate-off management, legal pages and renewal are **not** SF-72 (§6).
+
+## 6. Separate tasks
+
+[Follow-up task specifications](SF-71-follow-up-task-specs.md), with the
+dependency graph:
+
+| Task | Content | Launch-blocking |
+|---|---|---|
+| T-1 | Public legal pages and global Terms / Privacy Notice | Yes |
+| T-2 | Retention and deletion enforcement | Yes |
+| T-3 | Account deletion and erasure workflow | Yes |
+| T-4 | Gate-off coach relationship management | Yes |
+| T-5 | Disclosure renewal | Only before any wider sharing scope |
 
 Activation remains forbidden until every item of the activation checklist
 (`docs/legal/proposals/SF-71-legal-review-checklist.md` §2) is satisfied.

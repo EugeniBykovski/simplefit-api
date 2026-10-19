@@ -11,7 +11,10 @@
   ([integration contract](../../architecture/proposals/SF-71-coaching-legal-integration-contract.md)).
   Coach–Fighter sharing is **not active** on SimpleFit Boxing today.
 * Bracketed items `[…]` are facts SimpleFit must supply (operator identity,
-  contact details); they are not invented here.
+  contact details) or counsel must confirm; they are not invented here.
+* Approval: scope and structure **PRODUCT_APPROVED** 2026-10-19 (L-03, L-05,
+  L-13, L-14); the text is **PROPOSED_PENDING_LEGAL_REVIEW**; nothing here is
+  legally approved.
 
 ---
 
@@ -57,9 +60,10 @@ they see the change):
 Some of these may be empty if you have not filled them in. The coach sees
 only what is filled in.
 
-This list is the whole of what this version of the disclosure shares. If
-SimpleFit ever wants to share more with coaches, it will ask you again; a
-new version never widens what an existing connection shares.
+This list is the whole of what this version of the disclosure shares. Your
+connection stays limited to this list. If SimpleFit ever wants coaches to see
+more, nothing changes for your connection unless you explicitly agree to the
+new version; if you do not, the connection continues as it is.
 
 ### 4. What the coach will not see
 
@@ -93,12 +97,14 @@ coaching you and forbid, among other things, selling or publishing it.
 
 ### 6. When access starts and ends
 
+* You must be 18 or older to connect with a coach on SimpleFit Boxing.
 * Access starts when you accept the invitation, not when you open it, sign
   in or create an account.
 * Access continues until you or the coach end the connection, or until one of
   you deletes their account.
 * You can end the connection at any time in Coaches. You do not need to give
-  a reason. The coach can end it too.
+  a reason. The coach can end it too. Ending stops the coach's access to the
+  information in section 3 immediately.
 
 ### 7. What happens when the connection ends
 
@@ -107,14 +113,17 @@ coaching you and forbid, among other things, selling or publishing it.
 * The coach keeps a short record that the connection existed: the dates it
   started and ended, who ended it, and **your display name as it was when the
   connection ended**. You keep the same kind of record about the coach.
-  [Retention period to be inserted after approval of L-05; until then: "We
-  keep this record for [period] and then delete it."]
+  We keep this record for [period: 12 months is the product-approved
+  proposal, PROPOSED_PENDING_LEGAL_REVIEW (L-05)] and then delete it. If you
+  ask us to delete your account or object to this record, we remove your name
+  from the coach's record earlier, unless the law allows us to keep it.
+  [Counsel: confirm basis and wording, Q-08.]
 * An ended connection cannot be restarted. To work together again, the coach
   must send a new invitation and you must accept it again.
 * Anything the coach wrote down or saved outside SimpleFit Boxing while you
   were connected is outside SimpleFit's control; the Coach Data Rules require
   the coach to handle it responsibly. [Counsel: confirm wording and the
-  coach's role as a separate controller, L-01.]
+  coach's role for each operation, L-01, Q-15.]
 
 ### 8. Your rights
 
@@ -132,7 +141,9 @@ Protection Office (UODO), or the authority where you live or work. Contact:
 
 ### 9. Your decision
 
-You choose whether to accept or decline. Opening the invitation, signing in,
+You choose whether to accept or decline. You can accept only this document in
+a language in which it is approved and which you use in the app; if it is not
+available in your language, you cannot accept yet and nothing is shared. Opening the invitation, signing in,
 creating an account or reading this document does not accept it. If you
 decline, nothing is shared and the invitation link stops working.
 
@@ -153,8 +164,9 @@ you again before it applies to you.
 > and height · account name, date of birth and email · other coaches.
 >
 > {coach} is an independent coach, not checked by SimpleFit. You can end the
-> connection any time in Coaches; {coach} then stops seeing your profile but
-> keeps the dates and your name at the end. [Full disclosure (link)]
+> connection any time in Coaches; {coach} then stops seeing your profile at
+> once but keeps the dates and your name at the end for a limited time.
+> [Full disclosure (link)]
 
 ## Part 3 — Confirmation checkbox (unticked by default)
 
@@ -189,7 +201,9 @@ Secondary: **Decline**.
 | Approvers | Product owner; external counsel |
 | Content hash | SHA-256 of the canonical text at approval |
 | Canonical URL | to be assigned (L-12); none exists |
-| Runtime configuration | `COACHING_DISCLOSURES=<version>=basic_profile` (SF-72 only, after approval) |
+| Language rule | Acceptance only with an approved variant in the user's app language (L-11, SF-72 §7) |
+| Eligibility | Fighters 18+ only, enforced by the backend at acceptance (L-14, SF-72 §5) |
+| Runtime configuration | `COACHING_DISCLOSURES=<version>=basic_profile`, selectable only when the version is in the approved registry (SF-72 §3); never a `DRAFT` id in production |
 
 The UI and the API must refer to the same immutable version: the preview
 returns `disclosure.version`, the client renders the text of exactly that
