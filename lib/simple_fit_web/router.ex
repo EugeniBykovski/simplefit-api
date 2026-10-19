@@ -99,6 +99,8 @@ defmodule SimpleFitWeb.Router do
     get "/me/coach/invitations", CoachInvitationController, :index
     post "/me/coach/invitations/:invitation_id/resend", CoachInvitationController, :resend
     post "/me/coach/invitations/:invitation_id/cancel", CoachInvitationController, :cancel
+    # SF-73: the invitations addressed to the viewer's verified email identities.
+    get "/me/coach-invitations", CoachInvitationResponseController, :index
     post "/me/coach-invitations/accept", CoachInvitationResponseController, :accept
     post "/me/coach-invitations/decline", CoachInvitationResponseController, :decline
 

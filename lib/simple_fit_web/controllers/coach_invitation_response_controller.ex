@@ -1,8 +1,8 @@
 defmodule SimpleFitWeb.CoachInvitationResponseController do
   @moduledoc """
   The recipient's side of coach invitations (SF-57; ADR 0021 amendment):
-  the anonymous preview of a link, and the signed-in recipient's explicit
-  acceptance or decline. The token travels only in request bodies (the E08
+  the anonymous preview of a link, the signed-in recipient's explicit
+  acceptance or decline, and the recipient's inbox (SF-73). The token travels only in request bodies (the E08
   link carries it in the URL fragment, which browsers never send). The rules
   live in `SimpleFit.Coaching`.
   """
@@ -10,7 +10,7 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
   use SimpleFitWeb, :controller
   use OpenApiSpex.ControllerSpecs
 
-  alias OpenApiSpex.{Header, Schema}
+  alias OpenApiSpex.{Header, Parameter, Schema}
   alias SimpleFit.Coaching
   alias SimpleFitWeb.{ApiSpec, ClientIP, Schemas}
 
@@ -26,6 +26,64 @@ defmodule SimpleFitWeb.CoachInvitationResponseController do
                      schema: %Schema{type: :integer}
                    }
                  }}
+
+  operation :index,
+    operation_id: "listMyIncomingCoachInvitations",
+    summary: "Invitations addressed to me",
+    description: """
+    The invitations sent to any email identity the viewer verified with a code, newest first, with the coach's
+    public identity and note and the effective status. Matched on the server from the session's user: no
+    address, user id or provider email is accepted, and Google or Apple sign-ins without an email identity have
+    an empty inbox. Nothing here is a relationship (see `listMyCoaches`); responding still uses the invitation
+    link (`acceptCoachInvitation`, `declineCoachInvitation`). Other query parameters are ignored.
+
+    * `not_found` - Coach–Fighter sharing is not enabled (distinct from an empty inbox).
+    * `validation_error` - `account_registration` `required`, or `limit`, `cursor` or `status` invalid.
+    """,
+    security: @security,
+    parameters: [
+      %Parameter{
+        name: :status,
+        in: :query,
+        required: false,
+        description: "Only invitations with this effective status.",
+        schema: %Schema{
+          type: :string,
+          enum: ["pending", "accepted", "declined", "cancelled", "expired"]
+        }
+      },
+      %Parameter{
+        name: :limit,
+        in: :query,
+        required: false,
+        description: "Page size, 1-100 (default 50).",
+        schema: %Schema{type: :integer, minimum: 1, maximum: 100, default: 50}
+      },
+      %Parameter{
+        name: :cursor,
+        in: :query,
+        required: false,
+        description: "`next_cursor` of the previous page (same `status`).",
+        schema: %Schema{type: :string}
+      }
+    ],
+    responses: [
+      ok: {"One page of invitations", "application/json", Schemas.IncomingCoachInvitationList},
+      unauthorized: ApiSpec.error_response("unauthorized"),
+      not_found: ApiSpec.error_response("not_found"),
+      unprocessable_entity: ApiSpec.error_response("validation_error"),
+      internal_server_error: ApiSpec.error_response("internal_error")
+    ]
+
+  def index(conn, params) do
+    with {:ok, page} <-
+           Coaching.list_incoming_invitations(
+             conn.assigns.current_user,
+             Map.take(params, ["limit", "cursor", "status"])
+           ) do
+      conn |> no_store() |> render(:index, page: page)
+    end
+  end
 
   operation :preview,
     operation_id: "previewCoachInvitation",

@@ -2645,6 +2645,113 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "IncomingCoachInvitation": {
+        "additionalProperties": false,
+        "description": "An invitation addressed to one of the viewer's verified email identities. Shows the inviting coach's\npublic identity and note; never the token, the address it was sent to or anything about other accounts.\nAppearing here is not a relationship. `expired` is derived from `expires_at`.\n",
+        "example": {
+          "coach": {
+            "brand_name": "Marek Boxing",
+            "display_name": "Coach Marek"
+          },
+          "created_at": "2026-10-15T09:00:00.000000Z",
+          "expires_at": "2026-10-29T09:00:00.000000Z",
+          "invitation_id": "7d1e7c52-1d0b-4a1e-9e3c-2f4f5b1a9c10",
+          "message": null,
+          "responded_at": null,
+          "status": "pending"
+        },
+        "properties": {
+          "coach": {
+            "additionalProperties": false,
+            "description": "The inviting coach's public identity.",
+            "properties": {
+              "brand_name": {
+                "example": "Marek Boxing",
+                "nullable": true,
+                "type": "string"
+              },
+              "display_name": {
+                "example": "Coach Marek",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "brand_name",
+              "display_name"
+            ],
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expires_at": {
+            "description": "A resend moves it; past it a pending invitation is `expired`.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "message": {
+            "description": "The coach's note.",
+            "nullable": true,
+            "type": "string"
+          },
+          "responded_at": {
+            "description": "When it was accepted, declined or cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "coach",
+          "created_at",
+          "expires_at",
+          "invitation_id",
+          "message",
+          "responded_at",
+          "status"
+        ],
+        "title": "IncomingCoachInvitation",
+        "type": "object"
+      },
+      "IncomingCoachInvitationList": {
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/IncomingCoachInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor"
+        ],
+        "title": "IncomingCoachInvitationList",
+        "type": "object"
+      },
       "MyCoachRelationship": {
         "additionalProperties": false,
         "description": "One of the viewer's coaching relationships, seen by the fighter: the coach's public identity and the\nfields of the viewer's profile it discloses while `active`; the coach's name at the end once `ended`.\n",
@@ -3932,6 +4039,85 @@
         "summary": "Complete account registration",
         "tags": [
           "Account"
+        ]
+      }
+    },
+    "/api/v1/me/coach-invitations": {
+      "get": {
+        "callbacks": {},
+        "description": "The invitations sent to any email identity the viewer verified with a code, newest first, with the coach's\npublic identity and note and the effective status. Matched on the server from the session's user: no\naddress, user id or provider email is accepted, and Google or Apple sign-ins without an email identity have\nan empty inbox. Nothing here is a relationship (see `listMyCoaches`); responding still uses the invitation\nlink (`acceptCoachInvitation`, `declineCoachInvitation`). Other query parameters are ignored.\n\n* `not_found` - Coach–Fighter sharing is not enabled (distinct from an empty inbox).\n* `validation_error` - `account_registration` `required`, or `limit`, `cursor` or `status` invalid.\n",
+        "operationId": "listMyIncomingCoachInvitations",
+        "parameters": [
+          {
+            "description": "Only invitations with this effective status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "accepted",
+                "declined",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1-100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same `status`).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncomingCoachInvitationList"
+                }
+              }
+            },
+            "description": "One page of invitations"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Invitations addressed to me",
+        "tags": [
+          "Coaching"
         ]
       }
     },

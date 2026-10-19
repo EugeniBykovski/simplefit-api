@@ -36,6 +36,15 @@ defmodule SimpleFit.Coaching.Invitations do
   data-rules version. Until then they answer `:not_found`. Cancelling and
   declining stay available: they never grant access.
 
+  ## Incoming invitations (SF-73)
+
+  A signed-in user reads the invitations addressed to them: those whose
+  recipient digest is the digest of one of their email identities (verified
+  by a code, ADR 0012), derived on the server from the session's user. No
+  address, user id or provider claim is taken from the request; a user
+  without an email identity has an empty inbox. Reading never responds,
+  activates or links anything.
+
   ## Abuse limits (PostgreSQL windows, ADR 0019 conventions)
 
   Per coach 10/hour and 30/day, per recipient (any coach) 3/day, per client
@@ -61,6 +70,7 @@ defmodule SimpleFit.Coaching.Invitations do
   @max_pending 50
   @default_limit 50
   @max_limit 100
+  @statuses ~w(pending accepted declined cancelled expired)
 
   @field_labels %{
     display_name: "Display name",
@@ -258,6 +268,51 @@ defmodule SimpleFit.Coaching.Invitations do
   ## Recipient side
 
   @doc """
+  The invitations addressed to `user`'s verified email identities, newest
+  first, with their effective status (params: `limit`, `cursor`, optional
+  `status`). `:not_found` while sharing is disabled; account registration
+  must be complete. Never a token, digest or address.
+  """
+  @spec list_incoming(User.t(), map()) ::
+          {:ok, %{entries: [map()], next_cursor: String.t() | nil}} | {:error, error()}
+  def list_incoming(%User{} = user, params) when is_map(params) do
+    with :ok <- incoming_available(),
+         :ok <- registered(user),
+         {:ok, %{limit: limit, cursor: cursor, status: status}} <- incoming_params(params) do
+      now = DateTime.utc_now()
+
+      rows =
+        case recipient_digests(user) do
+          [] ->
+            []
+
+          digests ->
+            from(i in Invitation,
+              where: i.recipient_digest in ^digests,
+              order_by: [desc: i.inserted_at, desc: i.id],
+              limit: ^(limit + 1)
+            )
+            |> with_status(status, now)
+            |> seek(cursor)
+            |> Repo.all(@unlogged)
+        end
+
+      {rows, rest} = Enum.split(rows, limit)
+
+      coaches =
+        rows |> Enum.map(& &1.coach_profile_id) |> Enum.uniq() |> Coaches.public_projection()
+
+      emit(:incoming_listed, %{})
+
+      {:ok,
+       %{
+         entries: Enum.map(rows, &recipient_view(&1, Map.get(coaches, &1.coach_profile_id), now)),
+         next_cursor: if(rest == [], do: nil, else: encode_cursor(List.last(rows)))
+       }}
+    end
+  end
+
+  @doc """
   What the holder of `token` may see before signing in: the coach's public
   identity, the coach's note, the expiry and the current disclosure. No
   recipient or account information.
@@ -349,6 +404,17 @@ defmodule SimpleFit.Coaching.Invitations do
 
   defp completed(%{onboarding_completed_at: %DateTime{}} = profile), do: {:ok, profile}
   defp completed(_profile), do: {:error, :not_found}
+
+  # Like the coach's own list: only while sharing is enabled.
+  defp incoming_available do
+    if Coaching.access_enabled?(), do: :ok, else: {:error, :not_found}
+  end
+
+  defp registered(user) do
+    if Accounts.registration_complete?(user),
+      do: :ok,
+      else: {:error, prerequisite_error(:account_registration)}
+  end
 
   # New sharing needs the gate and a disclosure a fighter can accept now.
   defp inviting_available do
@@ -862,6 +928,22 @@ defmodule SimpleFit.Coaching.Invitations do
     }
   end
 
+  # An invitation as its recipient sees it: the coach's public identity (nil
+  # fields if the profile is gone mid-read), never the address it was sent to.
+  defp recipient_view(%Invitation{} = invitation, coach, now) do
+    coach = coach || %{display_name: nil, brand_name: nil}
+
+    %{
+      invitation_id: invitation.id,
+      status: Invitation.effective_status(invitation, now),
+      coach: %{display_name: coach.display_name, brand_name: coach.brand_name},
+      message: invitation.message,
+      created_at: invitation.inserted_at,
+      expires_at: invitation.expires_at,
+      responded_at: invitation.responded_at
+    }
+  end
+
   # The coach sees the address they typed, masked: "a•••@example.com".
   defp masked(sealed) do
     case InvitationSecrets.open(sealed) do
@@ -897,6 +979,39 @@ defmodule SimpleFit.Coaching.Invitations do
         {:error, Changeset.add_error(changeset, :cursor, "is invalid", validation: :format)}
     end
   end
+
+  defp incoming_params(params) do
+    with {:ok, page} <- page_params(Map.take(params, ["limit", "cursor"])) do
+      case params["status"] do
+        nil ->
+          {:ok, Map.put(page, :status, nil)}
+
+        status when status in @statuses ->
+          {:ok, Map.put(page, :status, String.to_existing_atom(status))}
+
+        _other ->
+          {:error,
+           {%{}, %{status: :string}}
+           |> Changeset.change()
+           |> Changeset.add_error(:status, "is invalid", validation: :inclusion)}
+      end
+    end
+  end
+
+  # Filters by the effective status: a stored `pending` past its expiry is
+  # `expired`, never both.
+  defp with_status(query, nil, _now), do: query
+
+  defp with_status(query, :pending, now),
+    do: from(i in query, where: i.status == :pending and i.expires_at > ^now)
+
+  defp with_status(query, :expired, now),
+    do:
+      from(i in query,
+        where: i.status == :expired or (i.status == :pending and i.expires_at <= ^now)
+      )
+
+  defp with_status(query, status, _now), do: from(i in query, where: i.status == ^status)
 
   defp seek(query, nil), do: query
 

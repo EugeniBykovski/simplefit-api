@@ -386,3 +386,103 @@ defmodule SimpleFitWeb.Schemas.CoachInvitationAcceptResponse do
     struct?: false
   )
 end
+
+defmodule SimpleFitWeb.Schemas.IncomingCoachInvitation do
+  @moduledoc "OpenAPI schema: one invitation as its recipient sees it (SF-73)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "IncomingCoachInvitation",
+      description: """
+      An invitation addressed to one of the viewer's verified email identities. Shows the inviting coach's
+      public identity and note; never the token, the address it was sent to or anything about other accounts.
+      Appearing here is not a relationship. `expired` is derived from `expires_at`.
+      """,
+      type: :object,
+      additionalProperties: false,
+      required: [
+        :coach,
+        :created_at,
+        :expires_at,
+        :invitation_id,
+        :message,
+        :responded_at,
+        :status
+      ],
+      properties: %{
+        invitation_id: %Schema{type: :string, format: :uuid},
+        status: %Schema{
+          type: :string,
+          enum: ["pending", "accepted", "declined", "cancelled", "expired"]
+        },
+        coach: %Schema{
+          type: :object,
+          additionalProperties: false,
+          required: [:brand_name, :display_name],
+          description: "The inviting coach's public identity.",
+          properties: %{
+            display_name: %Schema{type: :string, nullable: true, example: "Coach Marek"},
+            brand_name: %Schema{type: :string, nullable: true, example: "Marek Boxing"}
+          }
+        },
+        message: %Schema{type: :string, nullable: true, description: "The coach's note."},
+        created_at: %Schema{type: :string, format: :"date-time"},
+        expires_at: %Schema{
+          type: :string,
+          format: :"date-time",
+          description: "A resend moves it; past it a pending invitation is `expired`."
+        },
+        responded_at: %Schema{
+          type: :string,
+          format: :"date-time",
+          nullable: true,
+          description: "When it was accepted, declined or cancelled."
+        }
+      },
+      example: %{
+        invitation_id: "7d1e7c52-1d0b-4a1e-9e3c-2f4f5b1a9c10",
+        status: "pending",
+        coach: %{display_name: "Coach Marek", brand_name: "Marek Boxing"},
+        message: nil,
+        created_at: "2026-10-15T09:00:00.000000Z",
+        expires_at: "2026-10-29T09:00:00.000000Z",
+        responded_at: nil
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.IncomingCoachInvitationList do
+  @moduledoc "OpenAPI schema: one page of the invitations addressed to the viewer (SF-73)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "IncomingCoachInvitationList",
+      type: :object,
+      additionalProperties: false,
+      required: [:invitations, :next_cursor],
+      properties: %{
+        invitations: %Schema{
+          type: :array,
+          items: SimpleFitWeb.Schemas.IncomingCoachInvitation,
+          description: "Newest first."
+        },
+        next_cursor: %Schema{
+          type: :string,
+          nullable: true,
+          description: "Pass as `cursor` to read the next page; `null` on the last page. Opaque."
+        }
+      }
+    },
+    struct?: false
+  )
+end

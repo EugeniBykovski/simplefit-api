@@ -303,3 +303,78 @@ The legal ticket, the fighter disclosure text and version, the coach data
 rules text and version, and the retention of invitations and ended
 relationships (rows are kept; no deletion job) are still open (SF-49 B-1,
 B-2). E08's copy is interim until design CR-12 and the legal texts.
+
+## Amendment — SF-73 (2026-10-20): the recipient's invitation inbox
+
+**Status:** accepted for the read-only inbox; ID-based responses **not
+decided** (below).
+
+### Inbox
+
+`listMyIncomingCoachInvitations` (`GET /api/v1/me/coach-invitations`) is a
+read projection over the SF-57 `coach_invitations`; there is no second
+table or lifecycle. The server derives the viewer's recipient digests from
+their email identities (`Accounts.verified_email_addresses/1`: an email
+identity exists only after a code, ADR 0012) with the SF-57
+`InvitationSecrets.recipient_digest/1` and selects `recipient_digest IN
+(…)`. No address, user id, digest or provider claim is read from the
+request (other query parameters are ignored); Google and Apple identities
+carry no email and never match; several email identities give the union.
+Nothing is decrypted to filter.
+
+* **Projection (allow-list):** `invitation_id`, effective `status`, the
+  coach's public identity (`display_name`, `brand_name`, the projection the
+  preview uses), the coach's note, `created_at`, `expires_at`,
+  `responded_at`. Never the token, its hash, the digest, the sealed or plain
+  address, profile data or relationship details.
+* **Lifecycle:** the effective SF-57 status (`expired` derived from
+  `expires_at`, so a stored `pending` past expiry is reported, and filtered,
+  only as `expired`). Reading writes nothing.
+* **Paging:** the SF-57 keyset (`inserted_at DESC, id DESC`, opaque
+  cursor), `limit` 1–100 (default 50), optional `status`. A cursor is a
+  position only; every page is filtered by the caller's digests.
+* **Gate and prerequisites:** `404 not_found` while sharing is disabled
+  (as `listMyCoachInvitations`; distinct from an empty page); account
+  registration must be complete (`422`, `account_registration: required`);
+  a fighter profile is not required to read (it is to respond).
+* **Index:** `coach_invitations_recipient_index` on `(recipient_digest,
+  inserted_at DESC, id DESC)`; the existing indexes lead with the coach or
+  the token.
+* **Limits and observability:** like the other authenticated lists
+  (`listMyCoaches`, `listMyCoachInvitations`) there is no rate-limit window:
+  the result is the caller's own data, bounded, indexed and without an
+  oracle about other accounts. Telemetry `[:simple_fit, :coaching,
+  :invitation, :incoming_listed]` carries no metadata.
+* **Key rotation:** digests are HMACs under a key derived from
+  `SECRET_KEY_BASE`. Rotating it makes every stored digest unmatchable (for
+  the inbox, acceptance and per-recipient limits alike); a rotation must
+  re-digest stored invitations from their sealed addresses, or accept that
+  open invitations stop matching. Unchanged by SF-73.
+
+### ID-based accept / decline (not implemented; decision needed)
+
+SF-73 permits accept/decline by invitation id only if it keeps the SF-57
+guarantees. The SF-57 contract above says acceptance "locks and verifies
+the invitation by token hash", and the router records `acceptCoachInvitation`
+as the only public way a relationship comes to exist. Responding by id
+changes that invariant, so it is documented here and not implemented.
+
+| Guarantee | Token (SF-57) | By id (proposed) |
+|---|---|---|
+| Who may respond | Holder of a verified email identity for the address **and** the link | Holder of a verified email identity for the address |
+| One-time | Token consumed with the invitation | Invitation is terminal after the response (same row, same trigger) |
+| Retry after an end is harmless | Consumed token → `410` | Terminal invitation → `410` |
+| Rotation/resend invalidates old links | Yes | Not applicable (no link); the id is stable across resends |
+| Prerequisites, disclosure echo, gate, `Activation`, one transaction | Yes | Same code path, locked by id instead of token hash |
+
+Assessment: binding to a verified email identity, not the token, is the
+authorization (a forwarded link is already useless). Dropping the token
+removes "proof of receiving this email" as a second factor, so a session
+holder (for example a stolen access token) could accept without the email;
+the same session can already do everything else for that account.
+Recommendation: approve, implemented as `POST
+/api/v1/me/coach-invitations/{invitation_id}/accept|decline`, locking the row
+`FOR UPDATE` by id **and** digest set (foreign or unknown ids → the same
+`410 invitation_unavailable`, no existence oracle), reusing the SF-57
+acceptance transaction and `Activation.activate/3` unchanged, with SF-72's
+18+ and language checks once merged. Requires product/security approval.
