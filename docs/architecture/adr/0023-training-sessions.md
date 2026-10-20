@@ -1,7 +1,7 @@
 # ADR 0023 — Training sessions: assignment, scheduling and lifecycle
 
-* Status: Accepted (SF-62, 2026-10-20). Completion (SF-63) is specified here
-  as a contract and **not implemented**.
+* Status: Accepted (SF-62, 2026-10-20). Amended by SF-63 (2026-10-20):
+  completion and read projections, see the amendment at the end.
 * Context: SF-49 revision 3 §6.3, §6.4.4, §8, §10, §11 (decisions O-5, O-6,
   O-7, O-8, O-15); ADR 0021 (relationships, the end hook); ADR 0022
   (sharing readiness, withdrawn disclosures). Product decisions of
@@ -149,14 +149,9 @@ timestamps `invalid_type`), `unauthorized`. No new error code. Lists are
 keyset pages by `starts_at` then `id` (ascending), opaque cursors that grant
 nothing. Responses are `no-store`.
 
-## Future SF-63 completion contract
+## SF-63 completion contract
 
-`POST /api/v1/me/training-sessions/{session_id}/complete`, no body: the
-assigned fighter (completed fighter profile; gate-independent) completes a
-planned session; the server sets `completed_at` under the session row lock;
-repeated → `200` same; cancelled → `409 conflict {status: "cancelled"}`. No
-metrics, RPE or feedback. The database already allows exactly
-`planned → completed`.
+Implemented as specified; see the amendment below.
 
 ## Observability
 
@@ -171,3 +166,99 @@ canary probe covers the endpoints.
   is enabled (ADR 0022); fighters can always read what exists.
 * Deleting an account deletes the sessions of its relationships (T-3).
 * Web and mobile regenerate their clients; no UI uses the operations yet.
+
+## Amendment — SF-63 (2026-10-20): completion and read projections
+
+### Decisions of 2026-10-20
+
+| # | Question | Decision |
+|---|---|---|
+| C-1 | Completion before the scheduled start | Not allowed: `409 conflict {starts_at: "not_started"}` |
+| C-2 | Completion long after the planned date | Allowed, no deadline (preserved sessions stay completable) |
+| C-3 | Upcoming / history | An optional `view=upcoming\|history` on the existing lists, computed with server time; no new endpoints |
+
+### Completion
+
+`completeMyTrainingSession` (`POST /api/v1/me/training-sessions/{session_id}/complete`,
+no request body; any field → `422`, `invalid`). Only the fighter the session
+is assigned to (identity from the session's user; a dual-role user acts as
+fighter) and only for their completed fighter profile. In one transaction the
+session row is locked `FOR UPDATE` (scoped to the fighter's profile), its
+state checked and `planned → completed` written with `completed_at = now()`
+(server clock, UTC, microseconds). The outcome is **status-only**: no
+duration, RPE, metrics, notes or ratings (SF-49 A-11); no outcome table.
+
+| Session | Answer |
+|---|---|
+| planned, started (`starts_at ≤ now`) | `200`, completed now |
+| planned, not started | `409 conflict {starts_at: "not_started"}` |
+| completed | `200`, unchanged (first `completed_at` kept; nothing else written) |
+| cancelled | `409 conflict {status: "cancelled"}` |
+| foreign, unknown, malformed id; no completed fighter profile | `404 not_found` |
+| no / revoked session | `401 unauthorized` |
+
+Completion is independent of the relationship's status and of the sharing
+gate: it never reads or locks the relationship, never reactivates it, and
+grants nothing to the coach. `completed_at` may be any time after the planned
+start (late is fine); it is never client supplied. The database allows only
+`planned → completed` and freezes a completed row (direct SQL could still set
+an arbitrary `completed_at` in that one transition; only this operation
+writes it).
+
+### Termination and history (T-2 applied to completion)
+
+Planned sessions that had started before an end stay planned and remain
+completable by the fighter. The former coach reads nothing after an end, so
+a completion recorded afterwards is never visible to them; no projection
+widens when a row changes status. Future sessions were cancelled at the end
+and stay non-completable.
+
+### Visibility matrix
+
+| Actor | List / detail | Complete | Update / cancel |
+|---|---|---|---|
+| Assigned fighter | ✓ own, any relationship state, gate-independent | ✓ (planned, started) | ✗ |
+| Authoring coach, active relationship, sharing ready | ✓ incl. `status`, `completed_at` | ✗ | ✓ while planned |
+| Same coach after the end | ✗ `404` | ✗ | ✗ |
+| Another coach of the same fighter | only their own sessions | ✗ | own only |
+| Unrelated coach or fighter | ✗ `404` | ✗ | ✗ |
+| Dual-role user | each side's own sessions only | as fighter only | as coach only |
+| Revoked session / deleted user | `401` / nothing remains (cascade) | — | — |
+| Sharing off | fighter ✓, coach `404` | ✓ | ✗ |
+
+### Read projections
+
+`view` on `listMyTrainingSessions` and `listMyCoachTrainingSessions` (both
+sides keep their scopes):
+
+* `upcoming`: `status = planned` and `starts_at + duration_minutes > now` —
+  still to do or in progress; earliest first (`starts_at`, `id` ascending).
+* `history`: completed, cancelled, and planned sessions already over (past
+  due, shown as planned, never as completed); newest first (`starts_at`,
+  `id` descending).
+* no `view`: every session, earliest first (SF-62).
+
+`upcoming` and `history` partition the sessions at the request's server
+time. `status`, `from`, `to` (and `relationship_id` for coaches) combine with
+a view; "completed" is `status=completed`. Cursors carry their view and are
+invalid in another; SF-62 cursors remain valid for the unfiltered list. Each
+page is a keyset seek, so a traversal never repeats a session; a session
+whose status or time changes between pages may leave its view and is then
+skipped, never duplicated. No counters, aggregates or adherence figures.
+
+### Concurrency
+
+Completion locks the session row only; coach update and cancel lock the
+relationship then the session; an end locks the relationship then updates
+sessions. No cycle. Completion vs cancellation: the first to lock the row
+wins, the other gets `409` with the winner's status. Completion vs the end's
+automatic cancellation: disjoint sets (completion needs a started session,
+the end cancels only those not yet started at the end). Tested on separate
+connections: ten simultaneous completions (one `completed_at`), completion vs
+coach cancel, vs relationship end, vs coach update, vs account deletion, and
+reads during completion (planned or completed, never a half state).
+
+### Observability
+
+Telemetry `[:simple_fit, :training, :session, :completed]` with `outcome:
+completed | already_completed` only.

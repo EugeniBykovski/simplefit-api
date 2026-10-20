@@ -71,10 +71,16 @@ defmodule SimpleFitWeb.Schemas.TrainingFields do
         enum: ["planned", "completed", "cancelled"],
         description: """
         `planned` until it ends: `cancelled` (by the coach, or by the system when the relationship ends) or
-        `completed` (confirmed by the fighter, a later operation). Both are final.
+        `completed` (confirmed by the fighter, `completeMyTrainingSession`). Both are final.
         """
       },
-      completed_at: %Schema{type: :string, format: :"date-time", nullable: true},
+      completed_at: %Schema{
+        type: :string,
+        format: :"date-time",
+        nullable: true,
+        description:
+          "When the fighter confirmed the session (set by the server, UTC, never changes); `null` unless completed."
+      },
       cancelled_at: %Schema{type: :string, format: :"date-time", nullable: true},
       cancelled_by: %Schema{
         type: :string,

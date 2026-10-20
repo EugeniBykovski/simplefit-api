@@ -71,8 +71,10 @@ defmodule SimpleFitWeb.CoachTrainingSessionController do
     operation_id: "listMyCoachTrainingSessions",
     summary: "My assigned training sessions (coach)",
     description: """
-    The sessions of the viewer's active relationships, by start (earliest first, then by id). Sessions of ended
-    relationships are not listed. Filters: `status`, `from` / `to` (start instants), `relationship_id`.
+    The sessions of the viewer's active relationships, by start (earliest first, then by id), with their current
+    status and, once the fighter confirmed them, `completed_at`. Sessions of ended relationships are not listed.
+    `view=upcoming` / `view=history` select the server-computed projections. Filters: `status`, `from` / `to`
+    (start instants), `relationship_id`.
 
     * `not_found` - Coach–Fighter sharing is not enabled, or no completed coach profile.
     * `validation_error` - a filter, `limit` or `cursor` is invalid.
@@ -91,7 +93,7 @@ defmodule SimpleFitWeb.CoachTrainingSessionController do
     with {:ok, page} <-
            Training.list_coach_sessions(
              conn.assigns.current_user,
-             Map.take(params, ~w(status from to relationship_id limit cursor))
+             Map.take(params, ~w(view status from to relationship_id limit cursor))
            ) do
       conn |> no_store() |> render(:coach_index, page: page)
     end

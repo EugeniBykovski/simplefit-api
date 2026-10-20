@@ -63,7 +63,8 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       [:simple_fit, :coaching, :invitation, :data_rules_acknowledged],
       [:simple_fit, :training, :session, :created],
       [:simple_fit, :training, :session, :updated],
-      [:simple_fit, :training, :session, :cancelled]
+      [:simple_fit, :training, :session, :cancelled],
+      [:simple_fit, :training, :session, :completed]
     ]
 
     :telemetry.attach_many(id, events, &__MODULE__.forward_event/4, parent)
@@ -103,7 +104,7 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
                refresh_token_transport display_name brand_name city bio country_code languages
                coaching_formats competition_levels context message disclosure_version
                document_version relationship_id client_request_id title training_type starts_at
-               time_zone duration_minutes notes status)
+               time_zone duration_minutes notes status completed_at view)
 
     @endpoints [
       {:post, "/api/auth/session/refresh", :anonymous},
@@ -147,7 +148,9 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       {:patch, "/api/v1/me/coach/training-sessions/#{@marker}", :signed_in},
       {:post, "/api/v1/me/coach/training-sessions/#{@marker}/cancel", :signed_in},
       {:get, "/api/v1/me/training-sessions?from=#{@marker}", :signed_in},
-      {:get, "/api/v1/me/training-sessions/#{@marker}", :signed_in}
+      {:get, "/api/v1/me/training-sessions/#{@marker}", :signed_in},
+      {:get, "/api/v1/me/training-sessions?view=#{@marker}", :signed_in},
+      {:post, "/api/v1/me/training-sessions/#{@marker}/complete", :signed_in}
     ]
 
     defp shapes do

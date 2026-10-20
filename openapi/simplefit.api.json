@@ -1625,6 +1625,7 @@
             "type": "string"
           },
           "completed_at": {
+            "description": "When the fighter confirmed the session (set by the server, UTC, never changes); `null` unless completed.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -1683,7 +1684,7 @@
             "type": "string"
           },
           "status": {
-            "description": "`planned` until it ends: `cancelled` (by the coach, or by the system when the relationship ends) or\n`completed` (confirmed by the fighter, a later operation). Both are final.\n",
+            "description": "`planned` until it ends: `cancelled` (by the coach, or by the system when the relationship ends) or\n`completed` (confirmed by the fighter, `completeMyTrainingSession`). Both are final.\n",
             "enum": [
               "planned",
               "completed",
@@ -3387,6 +3388,7 @@
             "type": "string"
           },
           "completed_at": {
+            "description": "When the fighter confirmed the session (set by the server, UTC, never changes); `null` unless completed.",
             "format": "date-time",
             "nullable": true,
             "type": "string"
@@ -3425,7 +3427,7 @@
             "type": "string"
           },
           "status": {
-            "description": "`planned` until it ends: `cancelled` (by the coach, or by the system when the relationship ends) or\n`completed` (confirmed by the fighter, a later operation). Both are final.\n",
+            "description": "`planned` until it ends: `cancelled` (by the coach, or by the system when the relationship ends) or\n`completed` (confirmed by the fighter, `completeMyTrainingSession`). Both are final.\n",
             "enum": [
               "planned",
               "completed",
@@ -6023,9 +6025,22 @@
     "/api/v1/me/coach/training-sessions": {
       "get": {
         "callbacks": {},
-        "description": "The sessions of the viewer's active relationships, by start (earliest first, then by id). Sessions of ended\nrelationships are not listed. Filters: `status`, `from` / `to` (start instants), `relationship_id`.\n\n* `not_found` - Coach–Fighter sharing is not enabled, or no completed coach profile.\n* `validation_error` - a filter, `limit` or `cursor` is invalid.\n",
+        "description": "The sessions of the viewer's active relationships, by start (earliest first, then by id), with their current\nstatus and, once the fighter confirmed them, `completed_at`. Sessions of ended relationships are not listed.\n`view=upcoming` / `view=history` select the server-computed projections. Filters: `status`, `from` / `to`\n(start instants), `relationship_id`.\n\n* `not_found` - Coach–Fighter sharing is not enabled, or no completed coach profile.\n* `validation_error` - a filter, `limit` or `cursor` is invalid.\n",
         "operationId": "listMyCoachTrainingSessions",
         "parameters": [
+          {
+            "description": "A projection computed with the server's clock: `upcoming` - planned sessions not yet over\n(`starts_at` + `duration_minutes` after now), earliest first; `history` - completed, cancelled and past-due\nplanned sessions, newest first. Without it: every session, earliest first.\n",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "enum": [
+                "upcoming",
+                "history"
+              ],
+              "type": "string"
+            }
+          },
           {
             "description": "Only sessions in this status.",
             "in": "query",
@@ -6083,7 +6098,7 @@
             }
           },
           {
-            "description": "`next_cursor` of the previous page, with the same filters.",
+            "description": "`next_cursor` of the previous page, with the same `view` and filters.",
             "in": "query",
             "name": "cursor",
             "required": false,
@@ -6862,9 +6877,22 @@
     "/api/v1/me/training-sessions": {
       "get": {
         "callbacks": {},
-        "description": "The sessions assigned to the viewer, by start (earliest first, then by id), including those of ended\nrelationships (with the coach's name at the end) and cancelled ones. Filters: `status`, `from` / `to`.\n\n* `not_found` - the viewer has no completed fighter profile.\n* `validation_error` - a filter, `limit` or `cursor` is invalid.\n",
+        "description": "The sessions assigned to the viewer, by start (earliest first, then by id), including those of ended\nrelationships (with the coach's name at the end) and cancelled ones. `view=upcoming` / `view=history` select\nthe server-computed projections. Filters: `status`, `from` / `to`.\n\n* `not_found` - the viewer has no completed fighter profile.\n* `validation_error` - a filter, `limit` or `cursor` is invalid.\n",
         "operationId": "listMyTrainingSessions",
         "parameters": [
+          {
+            "description": "A projection computed with the server's clock: `upcoming` - planned sessions not yet over\n(`starts_at` + `duration_minutes` after now), earliest first; `history` - completed, cancelled and past-due\nplanned sessions, newest first. Without it: every session, earliest first.\n",
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "enum": [
+                "upcoming",
+                "history"
+              ],
+              "type": "string"
+            }
+          },
           {
             "description": "Only sessions in this status.",
             "in": "query",
@@ -6912,7 +6940,7 @@
             }
           },
           {
-            "description": "`next_cursor` of the previous page, with the same filters.",
+            "description": "`next_cursor` of the previous page, with the same `view` and filters.",
             "in": "query",
             "name": "cursor",
             "required": false,
@@ -7000,6 +7028,61 @@
           }
         ],
         "summary": "One of my training sessions",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/v1/me/training-sessions/{session_id}/complete": {
+      "post": {
+        "callbacks": {},
+        "description": "Confirms that the viewer did one of their planned sessions. No request body: the server records the\ncompletion time (`completed_at`, UTC); a client cannot choose it. Allowed from the session's start onwards with\nno deadline, also after the coaching relationship has ended (a session that had already started then stays\nplanned) and whatever the Coach–Fighter sharing gate says. Repeating it returns the completed session unchanged.\n\n* `not_found` - someone else's session, an unknown or malformed id, or no completed fighter profile.\n* `conflict` - the session is cancelled (`details.status: \"cancelled\"`) or has not started yet\n  (`details.starts_at: \"not_started\"`).\n* `validation_error` - the request sent a field (none is accepted).\n",
+        "operationId": "completeMyTrainingSession",
+        "parameters": [
+          {
+            "description": "The training session.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyTrainingSessionResponse"
+                }
+              }
+            },
+            "description": "The completed session"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Complete one of my training sessions",
         "tags": [
           "Training"
         ]

@@ -12,8 +12,10 @@ defmodule SimpleFit.Training do
       relationships. A former coach reads nothing (product decision
       2026-10-20). Relationships are authorized only by `SimpleFit.Coaching`.
     * **Fighter** (completed fighter profile): reads every session assigned to
-      them, whatever the relationship or the sharing gate (their own training
-      history). Completion is SF-63's: no operation completes a session yet.
+      them and completes their planned ones from their start onwards
+      (`complete_session/3`, SF-63), whatever the relationship (an ended one
+      included) or the sharing gate: it is their own training history. The
+      former coach learns nothing of it (they read nothing after an end).
 
   Foreign, unknown, malformed and no-longer-authorized ids all answer
   `:not_found` (no existence oracle).
@@ -21,7 +23,7 @@ defmodule SimpleFit.Training do
   ## Lifecycle
 
   `:planned` → `:cancelled` (coach, or the system when the relationship ends)
-  or `:completed` (SF-63). Terminal states never change; the database rejects
+  or `:completed` (the fighter, `complete_session/3`). Terminal states never change; the database rejects
   any other transition and any change to owners or the request key.
 
   ## Scheduling
@@ -252,9 +254,10 @@ defmodule SimpleFit.Training do
 
   @doc """
   The sessions of the coach's active relationships, by start (then id).
-  Params (string keys): `status`, `from`, `to` (instants; `from` ≤
-  `starts_at` < `to`), `relationship_id`, `limit` (1..100, default 50),
-  `cursor`.
+  Params (string keys): `view` (`upcoming` | `history`, server time; see
+  `page/3`), `status`, `from`, `to` (instants; `from` ≤ `starts_at` < `to`),
+  `relationship_id`, `limit` (1..100, default 50), `cursor` (valid only for
+  the same `view`).
   """
   @spec list_coach_sessions(User.t(), map()) ::
           {:ok, page()} | {:error, :not_found | Changeset.t()}
@@ -314,6 +317,72 @@ defmodule SimpleFit.Training do
       {:ok, view}
     else
       _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Completes one of the fighter's own planned sessions (SF-63; ADR 0023): the
+  fighter confirms they did the training. The server sets `completed_at`
+  (UTC) under the session's row lock; the request carries nothing else
+  (`attrs` must be empty). Allowed from the session's start onwards, with no
+  deadline, whatever the relationship (an ended one included) or the sharing
+  gate: the session is the fighter's own training.
+
+    * Repeated: the completed session, unchanged (its first `completed_at`).
+    * Cancelled: `409 conflict` `status: cancelled`.
+    * Not started yet: `409 conflict` `starts_at: not_started`.
+    * Someone else's, unknown or malformed id, or no completed fighter
+      profile: `:not_found`.
+
+  Locks the session row only (never the relationship): an end or a coach's
+  change waits for it or commits first, and exactly one terminal transition
+  wins.
+  """
+  @spec complete_session(User.t(), term(), map()) :: {:ok, view()} | {:error, error()}
+  def complete_session(%User{} = user, id, attrs \\ %{}) when is_map(attrs) do
+    with {:ok, fighter} <- completed(Fighters.get_profile(user)),
+         {:ok, id} <- uuid(id),
+         :ok <- only_keys(attrs, []) do
+      Repo.transaction(fn -> complete_locked(fighter.id, id) end, @unlogged)
+      |> fighter_result()
+    end
+  end
+
+  defp fighter_result({:ok, session}) do
+    case fighter_views([session]) do
+      [view] -> {:ok, view}
+      [] -> {:error, :not_found}
+    end
+  end
+
+  defp fighter_result({:error, reason}), do: {:error, reason}
+
+  defp complete_locked(fighter_id, id) do
+    from(s in fighter_scope(fighter_id), where: s.id == ^id, lock: "FOR UPDATE")
+    |> Repo.one(@unlogged)
+    |> case do
+      nil ->
+        Repo.rollback(:not_found)
+
+      %TrainingSession{status: :completed} = session ->
+        emit(:completed, %{outcome: :already_completed})
+        session
+
+      %TrainingSession{status: :cancelled} ->
+        Repo.rollback({:conflict, %{status: "cancelled"}})
+
+      %TrainingSession{status: :planned} = session ->
+        now = now()
+
+        if DateTime.compare(session.starts_at, now) == :gt do
+          Repo.rollback({:conflict, %{starts_at: "not_started"}})
+        else
+          emit(:completed, %{outcome: :completed})
+
+          session
+          |> Changeset.change(status: :completed, completed_at: now)
+          |> Repo.update!(@unlogged)
+        end
     end
   end
 
@@ -552,6 +621,7 @@ defmodule SimpleFit.Training do
       from: :utc_datetime_usec,
       to: :utc_datetime_usec,
       relationship_id: Ecto.UUID,
+      view: :string,
       limit: :integer,
       cursor: :string
     }
@@ -562,6 +632,7 @@ defmodule SimpleFit.Training do
       {%{limit: @default_limit}, types}
       |> Changeset.cast(params, keys)
       |> Changeset.validate_inclusion(:status, ~w(planned completed cancelled))
+      |> Changeset.validate_inclusion(:view, ~w(upcoming history))
       |> Changeset.validate_number(:limit,
         greater_than_or_equal_to: 1,
         less_than_or_equal_to: @max_limit
@@ -569,8 +640,18 @@ defmodule SimpleFit.Training do
       |> validate_range()
       |> validate_cursor()
 
-    if changeset.valid?, do: {:ok, Changeset.apply_changes(changeset)}, else: {:error, changeset}
+    if changeset.valid? do
+      query = Changeset.apply_changes(changeset)
+      {:ok, Map.merge(query, %{view: view(query[:view]), now: now()})}
+    else
+      {:error, changeset}
+    end
   end
+
+  # Total: an unknown name is already a validation error (inclusion).
+  defp view("upcoming"), do: :upcoming
+  defp view("history"), do: :history
+  defp view(_name), do: :all
 
   defp validate_range(changeset) do
     with %DateTime{} = from <- Changeset.get_field(changeset, :from),
@@ -583,33 +664,69 @@ defmodule SimpleFit.Training do
   end
 
   defp validate_cursor(changeset) do
+    view = view(Changeset.get_field(changeset, :view))
+
     case Changeset.get_change(changeset, :cursor) do
       nil ->
         changeset
 
       cursor ->
-        case decode_cursor(cursor) do
+        case decode_cursor(cursor, view) do
           {:ok, position} -> Changeset.put_change(changeset, :cursor, position)
           :error -> Changeset.add_error(changeset, :cursor, "is invalid", validation: :format)
         end
     end
   end
 
+  # Views (SF-63), computed with the server's clock at the request:
+  #   * `:all` (no `view`): every session, by start (earliest first);
+  #   * `:upcoming`: planned and not yet over (`starts_at + duration > now`),
+  #     earliest first: what the fighter can still do or is doing;
+  #   * `:history`: completed, cancelled, and planned sessions already over
+  #     (past due, never completed), newest first.
+  # Ties are broken by id in the same direction. Each page is a keyset seek
+  # from the cursor, so a traversal never repeats a session; a session whose
+  # status or time changes between pages may move out of a view (it is then
+  # skipped, never duplicated).
   defp page(scope, query, to_views) do
     rows =
-      from(s in scope, order_by: [asc: s.starts_at, asc: s.id], limit: ^(query.limit + 1))
+      from(s in scope, limit: ^(query.limit + 1))
+      |> order(query.view)
+      |> within(query.view, query.now)
       |> filter(query)
       |> Repo.all(@unlogged)
 
     {rows, rest} = Enum.split(rows, query.limit)
-    next = if rest == [], do: nil, else: encode_cursor(List.last(rows))
+    next = if rest == [], do: nil, else: encode_cursor(List.last(rows), query.view)
     %{entries: to_views.(rows), next_cursor: next}
   end
 
+  defp order(q, :history), do: from(s in q, order_by: [desc: s.starts_at, desc: s.id])
+  defp order(q, _view), do: from(s in q, order_by: [asc: s.starts_at, asc: s.id])
+
+  defp within(q, :all, _now), do: q
+
+  defp within(q, :upcoming, now),
+    do:
+      from(s in q,
+        where:
+          s.status == :planned and
+            fragment("? + make_interval(mins => ?)", s.starts_at, s.duration_minutes) > ^now
+      )
+
+  defp within(q, :history, now),
+    do:
+      from(s in q,
+        where:
+          s.status != :planned or
+            fragment("? + make_interval(mins => ?)", s.starts_at, s.duration_minutes) <= ^now
+      )
+
   defp filter(q, query) do
-    Enum.reduce([:status, :from, :to, :relationship_id, :cursor], q, fn key, acc ->
+    Enum.reduce([:status, :from, :to, :relationship_id], q, fn key, acc ->
       narrow(acc, key, Map.get(query, key))
     end)
+    |> seek(query.view, query[:cursor])
   end
 
   defp narrow(q, _key, nil), do: q
@@ -620,17 +737,23 @@ defmodule SimpleFit.Training do
   defp narrow(q, :relationship_id, id),
     do: from(s in q, where: s.coach_fighter_relationship_id == ^id)
 
-  defp narrow(q, :cursor, {at, id}),
+  defp seek(q, _view, nil), do: q
+
+  defp seek(q, :history, {at, id}),
+    do: from(s in q, where: s.starts_at < ^at or (s.starts_at == ^at and s.id < ^id))
+
+  defp seek(q, _view, {at, id}),
     do: from(s in q, where: s.starts_at > ^at or (s.starts_at == ^at and s.id > ^id))
 
-  # An opaque position (the start and id of the last session shown). It grants
-  # nothing: every page is still scoped to the caller's own sessions.
-  defp encode_cursor(%TrainingSession{starts_at: at, id: id}),
-    do: Base.url_encode64("#{DateTime.to_unix(at, :microsecond)}|#{id}", padding: false)
+  # An opaque position: the view it pages, then the start and id of the last
+  # session shown. It grants nothing: every page is still scoped to the
+  # caller's own sessions, and a cursor is only valid for its own view.
+  defp encode_cursor(%TrainingSession{starts_at: at, id: id}, view),
+    do: Base.url_encode64("#{view}|#{DateTime.to_unix(at, :microsecond)}|#{id}", padding: false)
 
-  defp decode_cursor(cursor) do
+  defp decode_cursor(cursor, view) do
     with {:ok, decoded} <- Base.url_decode64(cursor, padding: false),
-         [micros, id] <- String.split(decoded, "|"),
+         [micros, id] <- position(String.split(decoded, "|"), view),
          {micros, ""} <- Integer.parse(micros),
          {:ok, at} <- DateTime.from_unix(micros, :microsecond),
          {:ok, id} <- Ecto.UUID.cast(id) do
@@ -639,6 +762,13 @@ defmodule SimpleFit.Training do
       _ -> :error
     end
   end
+
+  defp position([name, micros, id], view),
+    do: if(name == Atom.to_string(view), do: [micros, id], else: :error)
+
+  # SF-62 cursors (no view) page the whole list.
+  defp position([micros, id], :all), do: [micros, id]
+  defp position(_parts, _view), do: :error
 
   ## Helpers
 
