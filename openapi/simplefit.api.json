@@ -1596,6 +1596,187 @@
         "title": "CoachProfileUpdateRequest",
         "type": "object"
       },
+      "CoachTrainingSession": {
+        "additionalProperties": false,
+        "description": "A training session the coach assigned, under one of their active relationships.",
+        "properties": {
+          "cancel_reason": {
+            "description": "`relationship_ended` for a system cancellation; `null` otherwise.",
+            "enum": [
+              "relationship_ended",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_by": {
+            "description": "`coach`, or `system` when the relationship ended; `null` unless cancelled.",
+            "enum": [
+              "coach",
+              "system",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "duration_minutes": {
+            "example": 60,
+            "maximum": 600,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "fighter": {
+            "additionalProperties": false,
+            "description": "The fighter, as the relationship discloses them: `display_name` and `username` when the accepted\ndisclosure includes them, otherwise `null`. Nothing else of the fighter. `null` only if the\nrelationship ended while the session was read.\n",
+            "nullable": true,
+            "properties": {
+              "display_name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "username": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "display_name",
+              "username"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "inserted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "notes": {
+            "description": "The coach's notes; `null` when none.",
+            "example": "Jab work and footwork.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "relationship_id": {
+            "description": "The coaching relationship the session was assigned under.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "starts_at": {
+            "description": "When the session starts: an RFC 3339 instant with an explicit offset (stored and returned in UTC).\nClients resolve the coach's wall time in `time_zone` to the instant; an ambiguous (repeated) wall time\nneeds an explicit choice of offset, and a wall time that does not exist cannot be sent. A non-UTC\noffset must be `time_zone`'s offset at that instant. When set, it lies between one day before and one\nyear after now.\n",
+            "example": "2026-10-24T08:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`planned` until it ends: `cancelled` (by the coach, or by the system when the relationship ends) or\n`completed` (confirmed by the fighter, a later operation). Both are final.\n",
+            "enum": [
+              "planned",
+              "completed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "The IANA time zone the coach planned in (e.g. `Europe/Warsaw`; legacy aliases accepted), validated\nagainst the server's zone data. Clients show the start in this zone and in the viewer's own.\n",
+            "example": "Europe/Warsaw",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "example": "Technical boxing",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "training_type": {
+            "description": "What kind of training: one of five types (not a coaching format or level).",
+            "enum": [
+              "technical",
+              "sparring",
+              "pads",
+              "strength_conditioning",
+              "roadwork"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cancel_reason",
+          "cancelled_at",
+          "cancelled_by",
+          "completed_at",
+          "duration_minutes",
+          "fighter",
+          "id",
+          "inserted_at",
+          "notes",
+          "relationship_id",
+          "starts_at",
+          "status",
+          "time_zone",
+          "title",
+          "training_type",
+          "updated_at"
+        ],
+        "title": "CoachTrainingSession",
+        "type": "object"
+      },
+      "CoachTrainingSessionList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "training_sessions": {
+            "description": "By start, earliest first (then by id). Empty when there are none.",
+            "items": {
+              "$ref": "#/components/schemas/CoachTrainingSession"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "next_cursor",
+          "training_sessions"
+        ],
+        "title": "CoachTrainingSessionList",
+        "type": "object"
+      },
+      "CoachTrainingSessionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "training_session": {
+            "$ref": "#/components/schemas/CoachTrainingSession"
+          }
+        },
+        "required": [
+          "training_session"
+        ],
+        "title": "CoachTrainingSessionResponse",
+        "type": "object"
+      },
       "CurrentUserResponse": {
         "additionalProperties": false,
         "description": "The authenticated viewer. `user` is the one global SimpleFit user; capabilities such as profiles\nand workspace memberships will be added as sibling fields when they exist.\n",
@@ -3152,6 +3333,193 @@
         "title": "MyCoachRelationshipResponse",
         "type": "object"
       },
+      "MyTrainingSession": {
+        "additionalProperties": false,
+        "description": "A training session assigned to the viewer (their own training history).",
+        "properties": {
+          "cancel_reason": {
+            "description": "`relationship_ended` for a system cancellation; `null` otherwise.",
+            "enum": [
+              "relationship_ended",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_by": {
+            "description": "`coach`, or `system` when the relationship ended; `null` unless cancelled.",
+            "enum": [
+              "coach",
+              "system",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "coach": {
+            "additionalProperties": false,
+            "description": "The coach's public identity while the relationship is active; `null` once it has ended.",
+            "nullable": true,
+            "properties": {
+              "brand_name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "display_name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "brand_name",
+              "display_name"
+            ],
+            "type": "object"
+          },
+          "coach_display_name_at_end": {
+            "description": "The coach's display name as it was when the relationship ended; `null` while active.",
+            "nullable": true,
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "duration_minutes": {
+            "example": 60,
+            "maximum": 600,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "inserted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "notes": {
+            "description": "The coach's notes; `null` when none.",
+            "example": "Jab work and footwork.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "relationship_id": {
+            "description": "The coaching relationship the session was assigned under.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "starts_at": {
+            "description": "When the session starts: an RFC 3339 instant with an explicit offset (stored and returned in UTC).\nClients resolve the coach's wall time in `time_zone` to the instant; an ambiguous (repeated) wall time\nneeds an explicit choice of offset, and a wall time that does not exist cannot be sent. A non-UTC\noffset must be `time_zone`'s offset at that instant. When set, it lies between one day before and one\nyear after now.\n",
+            "example": "2026-10-24T08:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`planned` until it ends: `cancelled` (by the coach, or by the system when the relationship ends) or\n`completed` (confirmed by the fighter, a later operation). Both are final.\n",
+            "enum": [
+              "planned",
+              "completed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "The IANA time zone the coach planned in (e.g. `Europe/Warsaw`; legacy aliases accepted), validated\nagainst the server's zone data. Clients show the start in this zone and in the viewer's own.\n",
+            "example": "Europe/Warsaw",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "example": "Technical boxing",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "training_type": {
+            "description": "What kind of training: one of five types (not a coaching format or level).",
+            "enum": [
+              "technical",
+              "sparring",
+              "pads",
+              "strength_conditioning",
+              "roadwork"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cancel_reason",
+          "cancelled_at",
+          "cancelled_by",
+          "coach",
+          "coach_display_name_at_end",
+          "completed_at",
+          "duration_minutes",
+          "id",
+          "inserted_at",
+          "notes",
+          "relationship_id",
+          "starts_at",
+          "status",
+          "time_zone",
+          "title",
+          "training_type",
+          "updated_at"
+        ],
+        "title": "MyTrainingSession",
+        "type": "object"
+      },
+      "MyTrainingSessionList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "training_sessions": {
+            "description": "By start, earliest first (then by id). Empty when there are none.",
+            "items": {
+              "$ref": "#/components/schemas/MyTrainingSession"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "next_cursor",
+          "training_sessions"
+        ],
+        "title": "MyTrainingSessionList",
+        "type": "object"
+      },
+      "MyTrainingSessionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "training_session": {
+            "$ref": "#/components/schemas/MyTrainingSession"
+          }
+        },
+        "required": [
+          "training_session"
+        ],
+        "title": "MyTrainingSessionResponse",
+        "type": "object"
+      },
       "RefreshSessionRequest": {
         "additionalProperties": false,
         "description": "Body transport (mobile and other non-browser clients). Web clients send the refresh cookie instead and no body token.",
@@ -3224,6 +3592,128 @@
           "refresh_token_transport"
         ],
         "title": "SessionTokens",
+        "type": "object"
+      },
+      "TrainingSessionCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "description": "A new UUID the client picks for this create and repeats on a retry. Another create with the same\nkey returns that session (`200`) and creates nothing.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "example": 60,
+            "maximum": 600,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "notes": {
+            "description": "The coach's plain-text notes for the fighter.",
+            "example": "Jab work and footwork.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "relationship_id": {
+            "description": "One of the coach's active relationships; the fighter is that relationship's.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "starts_at": {
+            "description": "When the session starts: an RFC 3339 instant with an explicit offset (stored and returned in UTC).\nClients resolve the coach's wall time in `time_zone` to the instant; an ambiguous (repeated) wall time\nneeds an explicit choice of offset, and a wall time that does not exist cannot be sent. A non-UTC\noffset must be `time_zone`'s offset at that instant. When set, it lies between one day before and one\nyear after now.\n",
+            "example": "2026-10-24T08:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "The IANA time zone the coach planned in (e.g. `Europe/Warsaw`; legacy aliases accepted), validated\nagainst the server's zone data. Clients show the start in this zone and in the viewer's own.\n",
+            "example": "Europe/Warsaw",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "example": "Technical boxing",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "training_type": {
+            "description": "What kind of training: one of five types (not a coaching format or level).",
+            "enum": [
+              "technical",
+              "sparring",
+              "pads",
+              "strength_conditioning",
+              "roadwork"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "duration_minutes",
+          "relationship_id",
+          "starts_at",
+          "time_zone",
+          "title",
+          "training_type"
+        ],
+        "title": "TrainingSessionCreateRequest",
+        "type": "object"
+      },
+      "TrainingSessionUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Only the fields present change. `notes: null` clears the notes; no other field can be cleared. The status,\nowners and relationship never change here.\n",
+        "properties": {
+          "duration_minutes": {
+            "example": 60,
+            "maximum": 600,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "notes": {
+            "description": "The coach's plain-text notes for the fighter.",
+            "example": "Jab work and footwork.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "starts_at": {
+            "description": "When the session starts: an RFC 3339 instant with an explicit offset (stored and returned in UTC).\nClients resolve the coach's wall time in `time_zone` to the instant; an ambiguous (repeated) wall time\nneeds an explicit choice of offset, and a wall time that does not exist cannot be sent. A non-UTC\noffset must be `time_zone`'s offset at that instant. When set, it lies between one day before and one\nyear after now.\n",
+            "example": "2026-10-24T08:00:00Z",
+            "format": "date-time",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "The IANA time zone the coach planned in (e.g. `Europe/Warsaw`; legacy aliases accepted), validated\nagainst the server's zone data. Clients show the start in this zone and in the viewer's own.\n",
+            "example": "Europe/Warsaw",
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": {
+            "example": "Technical boxing",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "training_type": {
+            "description": "What kind of training: one of five types (not a coaching format or level).",
+            "enum": [
+              "technical",
+              "sparring",
+              "pads",
+              "strength_conditioning",
+              "roadwork"
+            ],
+            "type": "string"
+          }
+        },
+        "title": "TrainingSessionUpdateRequest",
         "type": "object"
       },
       "ValidationErrorDetails": {
@@ -5530,6 +6020,341 @@
         ]
       }
     },
+    "/api/v1/me/coach/training-sessions": {
+      "get": {
+        "callbacks": {},
+        "description": "The sessions of the viewer's active relationships, by start (earliest first, then by id). Sessions of ended\nrelationships are not listed. Filters: `status`, `from` / `to` (start instants), `relationship_id`.\n\n* `not_found` - Coach–Fighter sharing is not enabled, or no completed coach profile.\n* `validation_error` - a filter, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyCoachTrainingSessions",
+        "parameters": [
+          {
+            "description": "Only sessions in this status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "planned",
+                "completed",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only sessions starting at or after this instant (RFC 3339 with offset).",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only sessions starting before this instant (RFC 3339 with offset; not before `from`).",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only sessions of this relationship (one of the coach's active ones).",
+            "in": "query",
+            "name": "relationship_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1-100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page, with the same filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTrainingSessionList"
+                }
+              }
+            },
+            "description": "One page of sessions"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My assigned training sessions (coach)",
+        "tags": [
+          "Training"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Creates one planned training session for the fighter of one of the viewer's active relationships (one\nsession, one fighter; no group assignment). The fighter is the relationship's; no fighter or coach id is\naccepted. `client_request_id` makes the create idempotent: repeating it returns the same session with `200`\nand creates nothing.\n\n* `not_found` - unknown or someone else's session or relationship, a relationship that is not active (or whose\n  accepted disclosure no longer applies, for create and update), Coach–Fighter sharing not enabled, or no\n  completed coach profile.\n\n* `conflict` - `client_request_id` was already used for another relationship (`details.client_request_id:\n  \"reused\"`).\n* `validation_error` - a field is missing, invalid or unknown; `starts_at` outside the allowed window or with\n  an offset that is not `time_zone`'s; `time_zone` not a known IANA zone.\n",
+        "operationId": "createMyCoachTrainingSession",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingSessionCreateRequest"
+              }
+            }
+          },
+          "description": "The session to assign",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTrainingSessionResponse"
+                }
+              }
+            },
+            "description": "Already assigned with this client_request_id"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTrainingSessionResponse"
+                }
+              }
+            },
+            "description": "Assigned"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Assign a training session",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/v1/me/coach/training-sessions/{session_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One session of the viewer's active relationships.\n\n* `not_found` - unknown or someone else's session or relationship, a relationship that is not active (or whose\n  accepted disclosure no longer applies, for create and update), Coach–Fighter sharing not enabled, or no\n  completed coach profile.\n\n",
+        "operationId": "getMyCoachTrainingSession",
+        "parameters": [
+          {
+            "description": "The training session.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTrainingSessionResponse"
+                }
+              }
+            },
+            "description": "The session"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One assigned training session (coach)",
+        "tags": [
+          "Training"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Changes the plan of one of the viewer's planned sessions; only the fields sent change. The status, the\nrelationship and the fighter cannot change here.\n\n* `not_found` - unknown or someone else's session or relationship, a relationship that is not active (or whose\n  accepted disclosure no longer applies, for create and update), Coach–Fighter sharing not enabled, or no\n  completed coach profile.\n\n* `conflict` - the session is completed or cancelled (`details.status`).\n* `validation_error` - a field is invalid or unknown (as for create).\n",
+        "operationId": "updateMyCoachTrainingSession",
+        "parameters": [
+          {
+            "description": "The training session.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingSessionUpdateRequest"
+              }
+            }
+          },
+          "description": "The fields to change",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTrainingSessionResponse"
+                }
+              }
+            },
+            "description": "The changed session"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change a planned training session",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/v1/me/coach/training-sessions/{session_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "Cancels one of the viewer's planned sessions (`cancelled_by: coach`). Repeating it returns the cancelled\nsession unchanged.\n\n* `not_found` - unknown or someone else's session or relationship, a relationship that is not active (or whose\n  accepted disclosure no longer applies, for create and update), Coach–Fighter sharing not enabled, or no\n  completed coach profile.\n\n* `conflict` - the session is completed (`details.status: \"completed\"`).\n",
+        "operationId": "cancelMyCoachTrainingSession",
+        "parameters": [
+          {
+            "description": "The training session.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoachTrainingSessionResponse"
+                }
+              }
+            },
+            "description": "The cancelled session"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel a planned training session",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
     "/api/v1/me/coaches": {
       "get": {
         "callbacks": {},
@@ -6033,6 +6858,152 @@
           "First run"
         ]
       }
+    },
+    "/api/v1/me/training-sessions": {
+      "get": {
+        "callbacks": {},
+        "description": "The sessions assigned to the viewer, by start (earliest first, then by id), including those of ended\nrelationships (with the coach's name at the end) and cancelled ones. Filters: `status`, `from` / `to`.\n\n* `not_found` - the viewer has no completed fighter profile.\n* `validation_error` - a filter, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyTrainingSessions",
+        "parameters": [
+          {
+            "description": "Only sessions in this status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "planned",
+                "completed",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only sessions starting at or after this instant (RFC 3339 with offset).",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only sessions starting before this instant (RFC 3339 with offset; not before `from`).",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1-100 (default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page, with the same filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyTrainingSessionList"
+                }
+              }
+            },
+            "description": "One page of sessions"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My training sessions",
+        "tags": [
+          "Training"
+        ]
+      }
+    },
+    "/api/v1/me/training-sessions/{session_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One session assigned to the viewer. Someone else's session, an unknown or malformed id, and a viewer without\na completed fighter profile all answer `404 not_found`.\n",
+        "operationId": "getMyTrainingSession",
+        "parameters": [
+          {
+            "description": "The training session.",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyTrainingSessionResponse"
+                }
+              }
+            },
+            "description": "The session"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One of my training sessions",
+        "tags": [
+          "Training"
+        ]
+      }
     }
   },
   "security": [],
@@ -6071,6 +7042,10 @@
     {
       "description": "Coach–Fighter relationships: a coach's fighters as disclosed and a fighter's coaches (ADR 0021).",
       "name": "Coaching"
+    },
+    {
+      "description": "Training sessions a coach assigns to a fighter of an active relationship, and the fighter's own (ADR 0023).",
+      "name": "Training"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

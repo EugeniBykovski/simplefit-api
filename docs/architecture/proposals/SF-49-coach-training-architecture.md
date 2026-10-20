@@ -3,7 +3,9 @@
 **Status: PROPOSED.** Implemented and accepted since: §4.2/§20 (ADR 0020,
 SF-50), §5 (ADR 0017 amendment, SF-51), §6 relationships (ADR 0021, SF-56,
 with the gate-scope, disclosure-configuration and history decisions
-recorded there). Every other decision below still waits for explicit
+recorded there), §8 TrainingSession except completion (ADR 0023, SF-62: the
+§8.5 "no coach read after an end" rule was confirmed over §6.4.4's
+authored-session reads; `pads` kept per O-5). Every other decision below still waits for explicit
 product/architecture approval. SF-49 itself created no migration, schema,
 controller, OpenAPI operation, client or screen.
 

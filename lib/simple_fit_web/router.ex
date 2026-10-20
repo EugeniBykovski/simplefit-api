@@ -120,6 +120,16 @@ defmodule SimpleFitWeb.Router do
     post "/me/coach-invitations/accept", CoachInvitationResponseController, :accept
     post "/me/coach-invitations/decline", CoachInvitationResponseController, :decline
 
+    # SF-62: training sessions (ADR 0023). One session for one fighter of an
+    # active relationship; no completion operation yet (SF-63).
+    post "/me/coach/training-sessions", CoachTrainingSessionController, :create
+    get "/me/coach/training-sessions", CoachTrainingSessionController, :index
+    get "/me/coach/training-sessions/:session_id", CoachTrainingSessionController, :show
+    patch "/me/coach/training-sessions/:session_id", CoachTrainingSessionController, :update
+    post "/me/coach/training-sessions/:session_id/cancel", CoachTrainingSessionController, :cancel
+    get "/me/training-sessions", MyTrainingSessionController, :index
+    get "/me/training-sessions/:session_id", MyTrainingSessionController, :show
+
     # SF-40: one-time first-run experiences (ADR 0018).
     get "/me/first-run", FirstRunController, :index
     put "/me/first-run/:experience", FirstRunController, :record

@@ -28,6 +28,7 @@ as ADRs in [`adr/`](adr/).
 | [0020](adr/0020-coach-profile-onboarding.md) | Coach profile and resumable Coach onboarding (SF-50): `SimpleFit.Coaches`, one profile per user independent of account/fighter profiles and gyms, reconciled field and enum contract, explicit completion gated on account registration (`/api/v1/me/coach-profile`) |
 | [0021](adr/0021-coach-fighter-relationships.md) | Coach–Fighter relationships (SF-56): `SimpleFit.Coaching`, accepted relationships between completed coach and fighter profiles (several coaches per fighter, one active per pair, terminal end), trusted activation only, versioned disclosure (C1 + C2), fail-closed sharing gate, relationship-scoped reads and termination (`/api/v1/me/coach/fighters`, `/api/v1/me/coaches`); SF-57 amendment: coach invitations (one-time `sfi_` tokens stored as hashes, recipient bound to a verified email identity, atomic acceptance through the trusted activation, decline/cancel/expiry/resend, coach data-rules acknowledgement, abuse limits) |
 | [0022](adr/0022-legal-documents-coaching-policy.md) | Legal documents and the Coach–Fighter policy (SF-72): `SimpleFit.Legal`, a code-reviewed, hash-verified registry of versioned legal texts per language (production registry empty: nothing approved), one sharing readiness predicate, 18+ at activation, the shared token/id acceptance transaction with append-only evidence, public document endpoints (`/api/v1/legal-documents`). Engineering acceptance is not legal approval |
+| [0023](adr/0023-training-sessions.md) | Training sessions (SF-62): `SimpleFit.Training`, one planned session for one fighter of an active relationship (composite FK to the relationship's parties), five training types, UTC instant + PostgreSQL-validated IANA zone with explicit offsets (no DST normalization), `client_request_id` idempotency, planned → cancelled / completed enforced by triggers, coach operations behind the sharing gate, fighter history always readable, planned future sessions cancelled in the relationship-end transaction, relationship-then-session lock order (`/api/v1/me/coach/training-sessions`, `/api/v1/me/training-sessions`); completion (SF-63) specified, not built |
 
 ---
 
@@ -59,6 +60,7 @@ lib/
     coaches.ex, coaches/      # Coach profile and onboarding (ADR 0020)
     coaching.ex, coaching/    # Coach–Fighter relationships and their authorization (ADR 0021)
     legal.ex, legal/          # Legal document registry and acceptance evidence (ADR 0022)
+    training.ex, training/    # Training sessions: assignment, scheduling, lifecycle (ADR 0023)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
     storage.ex, storage/      # Object storage boundary + S3 / Fake adapters

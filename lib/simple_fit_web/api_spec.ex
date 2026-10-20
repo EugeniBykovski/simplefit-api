@@ -80,6 +80,11 @@ defmodule SimpleFitWeb.ApiSpec do
             "Coach–Fighter relationships: a coach's fighters as disclosed and a fighter's coaches (ADR 0021)."
         },
         %Tag{
+          name: "Training",
+          description:
+            "Training sessions a coach assigns to a fighter of an active relationship, and the fighter's own (ADR 0023)."
+        },
+        %Tag{
           name: "Legal",
           description: "Published legal documents (versioned, per language; ADR 0022)."
         },

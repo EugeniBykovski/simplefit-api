@@ -60,7 +60,10 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       [:simple_fit, :coaching, :invitation, :declined],
       [:simple_fit, :coaching, :invitation, :rejected],
       [:simple_fit, :coaching, :invitation, :rate_limited],
-      [:simple_fit, :coaching, :invitation, :data_rules_acknowledged]
+      [:simple_fit, :coaching, :invitation, :data_rules_acknowledged],
+      [:simple_fit, :training, :session, :created],
+      [:simple_fit, :training, :session, :updated],
+      [:simple_fit, :training, :session, :cancelled]
     ]
 
     :telemetry.attach_many(id, events, &__MODULE__.forward_event/4, parent)
@@ -99,7 +102,8 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
                authorization_code full_name date_of_birth consents product_news intent
                refresh_token_transport display_name brand_name city bio country_code languages
                coaching_formats competition_levels context message disclosure_version
-               document_version)
+               document_version relationship_id client_request_id title training_type starts_at
+               time_zone duration_minutes notes status)
 
     @endpoints [
       {:post, "/api/auth/session/refresh", :anonymous},
@@ -136,7 +140,14 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       {:post, "/api/v1/me/coach/invitations/#{@marker}/cancel", :signed_in},
       {:post, "/api/v1/coach-invitations/preview", :anonymous},
       {:post, "/api/v1/me/coach-invitations/accept", :signed_in},
-      {:post, "/api/v1/me/coach-invitations/decline", :signed_in}
+      {:post, "/api/v1/me/coach-invitations/decline", :signed_in},
+      {:post, "/api/v1/me/coach/training-sessions", :signed_in},
+      {:get, "/api/v1/me/coach/training-sessions?cursor=#{@marker}", :signed_in},
+      {:get, "/api/v1/me/coach/training-sessions/#{@marker}", :signed_in},
+      {:patch, "/api/v1/me/coach/training-sessions/#{@marker}", :signed_in},
+      {:post, "/api/v1/me/coach/training-sessions/#{@marker}/cancel", :signed_in},
+      {:get, "/api/v1/me/training-sessions?from=#{@marker}", :signed_in},
+      {:get, "/api/v1/me/training-sessions/#{@marker}", :signed_in}
     ]
 
     defp shapes do
