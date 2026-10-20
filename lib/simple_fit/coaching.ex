@@ -49,15 +49,22 @@ defmodule SimpleFit.Coaching do
   invitation (`accept_invitation/3`, SF-57), which calls the trusted
   activation in the same transaction that consumes the invitation.
 
-  The future TrainingSession domain hooks into the end transaction
-  (`end_relationship/3`) to cancel planned sessions with reason
-  `relationship_ended` (ADR 0021); no training data exists yet.
+  Ending also cancels the relationship's planned future training sessions
+  (`SimpleFit.Training.cancel_for_relationship/2`, reason
+  `relationship_ended`) in the same transaction (ADR 0021, ADR 0023).
+
+  ## Training (ADR 0023)
+
+  `SimpleFit.Training` authorizes every coach-side session operation through
+  this context: `training_coach/1`, `lock_training_relationship/3`,
+  `active_relationship_ids/1` and the identity projections. Lock order is
+  always the relationship row first, then session rows.
   """
 
   import Ecto.Query, only: [from: 2]
 
   alias SimpleFit.Accounts.User
-  alias SimpleFit.{Coaches, Fighters, Legal, Repo}
+  alias SimpleFit.{Coaches, Fighters, Legal, Repo, Training}
   alias SimpleFit.Coaching.{Disclosure, Invitations, Relationship}
 
   # Relationship rows and projections carry personal data; not logged.
@@ -281,6 +288,110 @@ defmodule SimpleFit.Coaching do
   defp ended({:ok, :already_ended}, _side), do: :ok
   defp ended({:error, :not_found}, _side), do: {:error, :not_found}
 
+  ## Training sessions (ADR 0023; called by `SimpleFit.Training` only)
+
+  @doc """
+  The user's completed coach profile when coach-side training is available:
+  Coach–Fighter sharing ready (`sharing_ready?/0`) and a completed coach
+  profile. Otherwise `:not_found`, like every coach read.
+  """
+  @spec training_coach(User.t()) :: {:ok, Coaches.CoachProfile.t()} | {:error, :not_found}
+  def training_coach(%User{} = user), do: coach_reader(user)
+
+  @doc """
+  Locks (`FOR SHARE`, inside the caller's transaction) and returns the
+  coach's relationship `id` when a session may be assigned or planned under
+  it: owned by `coach_profile_id`, `active`, and, with `require: :disclosing`
+  (create, update), still disclosing something under the version its fighter
+  accepted (a withdrawn or unconfigured version discloses nothing, ADR 0022).
+  An end (`FOR UPDATE`) waits for the lock, or has already committed and the
+  relationship is then not active. Anything else is `:not_found`.
+  """
+  @spec lock_training_relationship(Ecto.UUID.t(), term(), keyword()) ::
+          {:ok,
+           %{
+             id: Ecto.UUID.t(),
+             coach_profile_id: Ecto.UUID.t(),
+             fighter_profile_id: Ecto.UUID.t()
+           }}
+          | {:error, :not_found}
+  def lock_training_relationship(coach_profile_id, id, opts \\ []) do
+    with {:ok, id} <- relationship_id(id),
+         %Relationship{} = r <-
+           Repo.one(
+             from(r in owned_by(:coach, coach_profile_id),
+               where: r.id == ^id and r.status == :active,
+               lock: "FOR SHARE"
+             ),
+             @unlogged
+           ),
+         true <- opts[:require] != :disclosing or Disclosure.fields(r.disclosure_version) != [] do
+      {:ok,
+       %{id: r.id, coach_profile_id: r.coach_profile_id, fighter_profile_id: r.fighter_profile_id}}
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  A query of the ids of the coach's active relationships, for
+  `SimpleFit.Training` to scope coach reads to them (a former coach reads
+  nothing of the sessions, product decision 2026-10-20).
+  """
+  @spec active_relationship_ids(Ecto.UUID.t()) :: Ecto.Query.t()
+  def active_relationship_ids(coach_profile_id) do
+    from(r in owned_by(:coach, coach_profile_id), where: r.status == :active, select: r.id)
+  end
+
+  @doc """
+  The fighter identity a coach sees on sessions, by relationship id: the
+  fighter's `display_name` and `username` where the accepted disclosure
+  version discloses them (`nil` otherwise). Only the given relationships
+  that are active are read.
+  """
+  @spec training_fighters([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => map()}
+  def training_fighters(relationship_ids) do
+    relationships =
+      Repo.all(
+        from(r in Relationship,
+          where: r.id in ^Enum.uniq(relationship_ids) and r.status == :active
+        ),
+        @unlogged
+      )
+
+    # One projection per disclosure version, never more than it discloses.
+    relationships
+    |> Enum.group_by(& &1.disclosure_version)
+    |> Enum.flat_map(fn {version, group} ->
+      fields = Enum.filter(Disclosure.fields(version), &(&1 in [:display_name, :username]))
+      found = Fighters.coach_projection(Enum.map(group, & &1.fighter_profile_id), fields)
+
+      Enum.map(group, fn r ->
+        fighter = Map.get(found, r.fighter_profile_id, %{})
+        {r.id, %{display_name: fighter[:display_name], username: fighter[:username]}}
+      end)
+    end)
+    |> Map.new()
+  end
+
+  @doc """
+  The coach identity a fighter sees on their sessions, by relationship id:
+  the coach's live public identity while the relationship is active, the
+  coach's name as it was at the end once ended (as `list_fighter_relationships/2`).
+  """
+  @spec training_coaches([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => map()}
+  def training_coaches(relationship_ids) do
+    relationships =
+      Repo.all(from(r in Relationship, where: r.id in ^Enum.uniq(relationship_ids)), @unlogged)
+
+    relationships
+    |> fighter_entries()
+    |> Map.new(fn entry ->
+      {entry.relationship_id,
+       %{coach: entry.coach, coach_display_name_at_end: entry.coach_display_name_at_end}}
+    end)
+  end
+
   # -- Authorization -------------------------------------------------------
 
   # Coach reads need sharing to be ready and a completed coach profile.
@@ -348,6 +459,10 @@ defmodule SimpleFit.Coaching do
         ],
         @unlogged
       )
+
+    # SF-49 §6.3: planned future sessions end with the relationship, in this
+    # transaction, while its row is still locked (ADR 0023).
+    Training.cancel_for_relationship(relationship.id, now)
 
     :ended
   end

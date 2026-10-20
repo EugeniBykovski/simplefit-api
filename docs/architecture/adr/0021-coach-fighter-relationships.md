@@ -157,8 +157,9 @@ relationship_ended`) in the same transaction as the end. The hook point is
 `SimpleFit.Coaching.end_relationship/3`'s transaction, after the row is set
 to `ended`: Training exposes `cancel_for_relationship/2` and Coaching calls
 it there (or enqueues an Oban job in the same transaction if the direct
-call is rejected, SF-49 §3). No training data exists yet; nothing is
-cancelled today.
+call is rejected, SF-49 §3). Implemented by SF-62 (ADR 0023): the direct
+call, in the end transaction, for planned sessions starting at or after the
+end.
 
 ### History and retention
 
