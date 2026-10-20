@@ -8,6 +8,17 @@ defmodule SimpleFitWeb.TrainingParams do
   def list(side) do
     [
       %Parameter{
+        name: :view,
+        in: :query,
+        required: false,
+        description: """
+        A projection computed with the server's clock: `upcoming` - planned sessions not yet over
+        (`starts_at` + `duration_minutes` after now), earliest first; `history` - completed, cancelled and past-due
+        planned sessions, newest first. Without it: every session, earliest first.
+        """,
+        schema: %Schema{type: :string, enum: ["upcoming", "history"]}
+      },
+      %Parameter{
         name: :status,
         in: :query,
         required: false,
@@ -54,7 +65,7 @@ defmodule SimpleFitWeb.TrainingParams do
           name: :cursor,
           in: :query,
           required: false,
-          description: "`next_cursor` of the previous page, with the same filters.",
+          description: "`next_cursor` of the previous page, with the same `view` and filters.",
           schema: %Schema{type: :string}
         }
       ]

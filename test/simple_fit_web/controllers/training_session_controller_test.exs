@@ -10,6 +10,7 @@ defmodule SimpleFitWeb.TrainingSessionControllerTest do
   # Not async: the sharing gate is global configuration.
   use SimpleFitWeb.ConnCase, async: false
 
+  import Ecto.Query, only: [from: 2]
   import ExUnit.CaptureLog
   import OpenApiSpex.TestAssertions
   import SimpleFit.CoachingHelpers
@@ -254,6 +255,106 @@ defmodule SimpleFitWeb.TrainingSessionControllerTest do
       |> authed()
       |> post(@coach_path, Jason.encode!(session_attrs(ctx.rel)))
       |> error(404, "not_found")
+    end
+  end
+
+  describe "completion (SF-63)" do
+    defp started!(coach, rel) do
+      session = assign!(coach, rel)
+
+      {1, _} =
+        SimpleFit.Repo.update_all(
+          from(t in SimpleFit.Training.TrainingSession, where: t.id == ^session.id),
+          set: [starts_at: DateTime.add(DateTime.utc_now(), -600, :second)]
+        )
+
+      session
+    end
+
+    defp complete(user_or_token, id, body \\ %{}),
+      do:
+        user_or_token |> authed() |> post("#{@fighter_path}/#{id}/complete", Jason.encode!(body))
+
+    test "200 with the server's completion time; a repeat is 200 and unchanged", ctx do
+      session = started!(ctx.coach, ctx.rel)
+
+      first = complete(ctx.fighter, session.id) |> body(200, "MyTrainingSessionResponse")
+      again = complete(ctx.fighter, session.id) |> body(200, "MyTrainingSessionResponse")
+
+      assert %{"status" => "completed", "completed_at" => at, "cancelled_at" => nil} =
+               first["training_session"]
+
+      assert again["training_session"]["completed_at"] == at
+
+      coach_view =
+        ctx.coach
+        |> authed()
+        |> get("#{@coach_path}/#{session.id}")
+        |> body(200, "CoachTrainingSessionResponse")
+
+      assert coach_view["training_session"]["completed_at"] == at
+    end
+
+    test "409 for a cancelled or not yet started session; 422 for any body field", ctx do
+      cancelled = started!(ctx.coach, ctx.rel)
+      ctx.coach |> authed() |> post("#{@coach_path}/#{cancelled.id}/cancel") |> json_response(200)
+
+      assert complete(ctx.fighter, cancelled.id) |> error(409, "conflict") |> Map.get("details") ==
+               %{"status" => "cancelled"}
+
+      future = assign!(ctx.coach, ctx.rel)
+
+      assert complete(ctx.fighter, future.id) |> error(409, "conflict") |> Map.get("details") ==
+               %{"starts_at" => "not_started"}
+
+      started = started!(ctx.coach, ctx.rel)
+
+      conn =
+        complete(ctx.fighter, started.id, %{"completed_at" => "2020-01-01T00:00:00Z#{@canary}"})
+
+      assert error(conn, 422, "validation_error")["details"]["field_codes"] == %{
+               "completed_at" => ["invalid"]
+             }
+
+      refute conn.resp_body =~ @canary
+    end
+
+    test "404 for the coach, other users, unknown and malformed ids; 401 without a valid session",
+         ctx do
+      session = started!(ctx.coach, ctx.rel)
+
+      for user <- [ctx.coach, fighter_user!(), coach_user!("Coach Ola")] do
+        complete(user, session.id) |> error(404, "not_found")
+      end
+
+      complete(ctx.fighter, Ecto.UUID.generate()) |> error(404, "not_found")
+      complete(ctx.fighter, "not-a-uuid") |> error(404, "not_found")
+
+      bearer = token(ctx.fighter)
+      _ = Accounts.revoke_session({:access, bearer})
+      complete(bearer, session.id) |> error(401, "unauthorized")
+
+      build_conn()
+      |> post("#{@fighter_path}/#{session.id}/complete")
+      |> error(401, "unauthorized")
+    end
+
+    test "view=upcoming and view=history on both lists", ctx do
+      done = started!(ctx.coach, ctx.rel)
+      complete(ctx.fighter, done.id) |> json_response(200)
+      upcoming = assign!(ctx.coach, ctx.rel)
+
+      for {path, schema} <- [
+            {@fighter_path, "MyTrainingSessionList"},
+            {@coach_path, "CoachTrainingSessionList"}
+          ],
+          user = if(path == @fighter_path, do: ctx.fighter, else: ctx.coach) do
+        up = user |> authed() |> get(path <> "?view=upcoming") |> body(200, schema)
+        assert Enum.map(up["training_sessions"], & &1["id"]) == [upcoming.id]
+        hist = user |> authed() |> get(path <> "?view=history") |> body(200, schema)
+        assert Enum.map(hist["training_sessions"], & &1["id"]) == [done.id]
+        user |> authed() |> get(path <> "?view=everything") |> error(422, "validation_error")
+      end
     end
   end
 

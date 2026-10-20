@@ -194,4 +194,142 @@ defmodule SimpleFit.TrainingRaceTest do
       assert Repo.get!(TrainingSession, session.id).status == :completed
     end
   end
+
+  ## SF-63 completion
+
+  # A session that has already started (completable): assigned, then moved a
+  # few minutes into the past.
+  defp started!(coach, rel) do
+    session = assign!(coach, rel)
+
+    {1, _} =
+      Repo.update_all(from(s in TrainingSession, where: s.id == ^session.id),
+        set: [starts_at: DateTime.add(DateTime.utc_now(), -300, :second)]
+      )
+
+    session
+  end
+
+  defp consistent!(id) do
+    s = Repo.get!(TrainingSession, id)
+
+    case s.status do
+      :completed -> assert s.completed_at && is_nil(s.cancelled_at) && is_nil(s.cancelled_by)
+      :cancelled -> assert s.cancelled_at && is_nil(s.completed_at)
+      :planned -> assert is_nil(s.completed_at) && is_nil(s.cancelled_at)
+    end
+
+    s
+  end
+
+  test "ten simultaneous completions record one completion time", ctx do
+    session = started!(ctx.coach, ctx.rel)
+
+    results =
+      concurrently(
+        for _ <- 1..10, do: fn -> Training.complete_session(ctx.fighter, session.id) end
+      )
+
+    times = results |> Enum.map(fn {:ok, v} -> v.completed_at end) |> Enum.uniq()
+    assert length(times) == 1
+    assert consistent!(session.id).completed_at == hd(times)
+  end
+
+  test "completion versus the coach's cancellation: exactly one terminal state wins", ctx do
+    for _ <- 1..8 do
+      session = started!(ctx.coach, ctx.rel)
+
+      [complete, cancel] =
+        concurrently([
+          fn -> Training.complete_session(ctx.fighter, session.id) end,
+          fn -> Training.cancel_session(ctx.coach, session.id) end
+        ])
+
+      stored = consistent!(session.id)
+
+      case stored.status do
+        :completed ->
+          assert {:ok, _} = complete
+          assert cancel == {:error, {:conflict, %{status: "completed"}}}
+
+        :cancelled ->
+          assert {:ok, _} = cancel
+          assert complete == {:error, {:conflict, %{status: "cancelled"}}}
+      end
+    end
+  end
+
+  test "completion versus the relationship end: disjoint sets, every row consistent", ctx do
+    coach = coach_user!() |> track(ctx.users)
+    rel = activate!(coach, ctx.fighter).id
+    started = for _ <- 1..4, do: started!(coach, rel)
+    future = for _ <- 1..4, do: assign!(coach, rel, %{"starts_at" => in_days(2)})
+
+    results =
+      concurrently(
+        [fn -> Coaching.end_relationship(ctx.fighter, :fighter, rel) end] ++
+          Enum.map(started ++ future, fn s ->
+            fn -> Training.complete_session(ctx.fighter, s.id) end
+          end)
+      )
+
+    assert hd(results) == :ok
+    for s <- started, do: assert(consistent!(s.id).status == :completed)
+
+    for s <- future do
+      stored = consistent!(s.id)
+      assert stored.status == :cancelled and stored.cancelled_by == :system
+    end
+  end
+
+  test "completion versus a coach update serializes on the session row", ctx do
+    for _ <- 1..5 do
+      session = started!(ctx.coach, ctx.rel)
+
+      [update, complete] =
+        concurrently([
+          fn -> Training.update_session(ctx.coach, session.id, %{"title" => "Changed"}) end,
+          fn -> Training.complete_session(ctx.fighter, session.id) end
+        ])
+
+      assert {:ok, %{status: :completed}} = complete
+      assert match?({:ok, _}, update) or update == {:error, {:conflict, %{status: "completed"}}}
+      assert consistent!(session.id).status == :completed
+    end
+  end
+
+  test "completion versus deleting the fighter's account leaves nothing half done", ctx do
+    fighter = fighter_user!()
+    rel = activate!(ctx.coach, fighter).id
+    session = started!(ctx.coach, rel)
+
+    [deleted, complete] =
+      concurrently([
+        fn -> Repo.delete(Repo.get!(User, fighter.id)) end,
+        fn -> Training.complete_session(fighter, session.id) end
+      ])
+
+    assert {:ok, _} = deleted
+    assert match?({:ok, _}, complete) or complete == {:error, :not_found}
+    refute Repo.get(TrainingSession, session.id)
+  end
+
+  test "reads during completion see planned or completed, never a half state", ctx do
+    session = started!(ctx.coach, ctx.rel)
+
+    results =
+      concurrently(
+        [fn -> Training.complete_session(ctx.fighter, session.id) end] ++
+          for(_ <- 1..8, do: fn -> Training.get_fighter_session(ctx.fighter, session.id) end) ++
+          for(
+            _ <- 1..8,
+            do: fn -> Training.list_coach_sessions(ctx.coach, %{"view" => "history"}) end
+          )
+      )
+
+    for {:ok, view} <- results, Map.has_key?(view, :status) do
+      assert (view.status == :planned and is_nil(view.completed_at)) or
+               (view.status == :completed and view.completed_at)
+    end
+  end
 end
