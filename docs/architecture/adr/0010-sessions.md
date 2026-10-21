@@ -279,14 +279,17 @@ no role field.
 * `token_hash` is a redacted field, so it never appears in `inspect/2`.
 * Tests exercise every flow at debug log level and assert that no secret or
   hash appears in logs, traces, Sentry or error bodies.
-* Every response that carries new credentials (email, Google and Apple
-  sign-in, registration verification, refresh; both transports) is
-  `Cache-Control: no-store` (SF-70): Phoenix's default `private` still lets
-  a client's HTTP cache write the access token to disk. The header is
-  necessary, not sufficient: on iOS, React Native's networking stored such a
-  response in `NSURLCache` regardless (SF-70 report, simplefit-platform
-  `docs/investigations/sf70-coach-fighter-e2e-hardening.md`), so the mobile
-  client needs its own fix.
+* Nothing personal is left to HTTP caches (SF-70). Every response that
+  carries new credentials (email, Google and Apple sign-in, registration
+  verification, refresh; both transports) and every answer of the
+  `:authenticated` pipeline is `Cache-Control: no-store`; Phoenix's default
+  `private` still lets a client's own cache write it to disk. The header is
+  necessary, not sufficient: on iOS `expo/fetch` used the shared `URLCache`,
+  and in debug dev-client builds Expo's network inspector stores every
+  response, `no-store` included. The mobile app therefore also gives its
+  `fetch` session no cache and purges what earlier builds stored
+  (simplefit-mobile `modules/sensitive-http-cache`; SF-70 report in
+  simplefit-platform `docs/investigations/sf70-coach-fighter-e2e-hardening.md`).
 
 ### Rate limiting
 

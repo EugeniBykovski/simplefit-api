@@ -16,7 +16,11 @@ defmodule SimpleFitWeb.Router do
   end
 
   # Requires a valid SimpleFit access token (Authorization: Bearer sfa_...).
+  # Every answer is personal data: `no-store` keeps it out of HTTP caches,
+  # which Phoenix's default `private` still allows (OkHttp on Android, the iOS
+  # dev-client network inspector, browsers; SF-70, ADR 0010).
   pipeline :authenticated do
+    plug :no_store
     plug SimpleFitWeb.Plugs.Authenticate
   end
 
@@ -174,6 +178,8 @@ defmodule SimpleFitWeb.Router do
 
   # Docs routes answer exactly like an unknown route when disabled, so a
   # production deployment does not reveal that they exist.
+  defp no_store(conn, _opts), do: put_resp_header(conn, "cache-control", "no-store")
+
   defp require_api_docs_enabled(conn, _opts) do
     if Application.get_env(:simple_fit, :api_docs, [])[:enabled] do
       conn
