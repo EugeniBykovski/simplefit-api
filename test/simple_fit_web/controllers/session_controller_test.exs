@@ -43,6 +43,8 @@ defmodule SimpleFitWeb.SessionControllerTest do
       assert "sfr_" <> _ = body["refresh_token"]
       refute body["refresh_token"] == c.refresh_token
       assert get_resp_header(conn, "set-cookie") == []
+      # Credentials never land in a client's HTTP cache (SF-70).
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
       assert {:ok, _viewer} = Accounts.authenticate_access_token(body["access_token"])
     end
 
@@ -124,6 +126,7 @@ defmodule SimpleFitWeb.SessionControllerTest do
       assert "sfr_" <> _ = cookie.value
       refute cookie.value == c.refresh_token
       refute conn.resp_body =~ cookie.value
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
     end
 
     test "sets a Secure, HttpOnly, SameSite=Strict cookie scoped to /api/auth", %{

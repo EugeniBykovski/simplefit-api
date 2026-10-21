@@ -103,6 +103,8 @@ defmodule SimpleFitWeb.EmailAuthControllerTest do
       assert_schema(body, "SessionTokens", ApiSpec.spec())
       assert %{"refresh_token_transport" => "body", "refresh_token" => "sfr_" <> _} = body
       assert {:ok, _viewer} = Accounts.authenticate_access_token(body["access_token"])
+      # Credentials never land in a client's HTTP cache (SF-70).
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
     end
 
     test "cookie transport sets the refresh cookie and requires the CSRF proof" do
@@ -246,6 +248,7 @@ defmodule SimpleFitWeb.EmailAuthControllerTest do
       assert %{"refresh_token_transport" => "cookie"} = json_response(conn, 200)
       assert conn.resp_cookies[SessionTransport.cookie_name()]
       assert get_resp_header(conn, "access-control-allow-credentials") == ["true"]
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
 
       replay =
         json_post(~p"/api/auth/email/sign-in/verify", %{email: "member@example.com", code: code})
