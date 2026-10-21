@@ -37,6 +37,7 @@ defmodule SimpleFitWeb.GoogleAuthControllerTest do
 
     assert {:ok, _viewer} = Accounts.authenticate_access_token(body["access_token"])
     refute Map.has_key?(body, "email")
+    assert get_resp_header(conn, "cache-control") == ["no-store"]
 
     again = post_google(%{id_token: valid_token("314")})
     assert %{"account" => "existing"} = json_response(again, 200)

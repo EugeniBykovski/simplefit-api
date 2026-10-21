@@ -279,6 +279,14 @@ no role field.
 * `token_hash` is a redacted field, so it never appears in `inspect/2`.
 * Tests exercise every flow at debug log level and assert that no secret or
   hash appears in logs, traces, Sentry or error bodies.
+* Every response that carries new credentials (email, Google and Apple
+  sign-in, registration verification, refresh; both transports) is
+  `Cache-Control: no-store` (SF-70): Phoenix's default `private` still lets
+  a client's HTTP cache write the access token to disk. The header is
+  necessary, not sufficient: on iOS, React Native's networking stored such a
+  response in `NSURLCache` regardless (SF-70 report, simplefit-platform
+  `docs/investigations/sf70-coach-fighter-e2e-hardening.md`), so the mobile
+  client needs its own fix.
 
 ### Rate limiting
 

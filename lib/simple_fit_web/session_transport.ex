@@ -83,14 +83,26 @@ defmodule SimpleFitWeb.SessionTransport do
     end
   end
 
-  @doc "Sets the refresh cookie for cookie-transport responses (no-op for body)."
+  @doc """
+  Prepares a response that carries new session credentials: sets the refresh
+  cookie for cookie transport, and for both transports marks the response
+  `Cache-Control: no-store`. The access token (and, for body transport, the
+  refresh token) is in the body, and Phoenix's default `private` still lets
+  a client's HTTP cache (iOS `NSURLCache`) write it to disk, outside secure
+  storage (SF-70).
+  """
   @spec put_refresh_token(Conn.t(), transport(), String.t(), DateTime.t()) :: Conn.t()
-  def put_refresh_token(conn, :body, _token, _expires_at), do: conn
+  def put_refresh_token(conn, :body, _token, _expires_at), do: no_store(conn)
 
   def put_refresh_token(conn, :cookie, token, expires_at) do
     max_age = max(DateTime.diff(expires_at, DateTime.utc_now()), 0)
-    Conn.put_resp_cookie(conn, cookie_name(), token, cookie_options(max_age: max_age))
+
+    conn
+    |> Conn.put_resp_cookie(cookie_name(), token, cookie_options(max_age: max_age))
+    |> no_store()
   end
+
+  defp no_store(conn), do: Conn.put_resp_header(conn, "cache-control", "no-store")
 
   @doc "Expires the refresh cookie in the browser."
   @spec clear_refresh_cookie(Conn.t()) :: Conn.t()
