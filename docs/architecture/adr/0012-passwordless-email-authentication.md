@@ -295,3 +295,15 @@ reputation, CAPTCHA or adaptive risk (SF-29).
 * Rotating `SECRET_KEY_BASE` invalidates open codes (10 minutes at most)
   and resets rate-limit keys.
 * Rate limiting costs one indexed upsert per rule on auth endpoints.
+
+## Amendment (SF-77): third challenge purpose `identity_link`
+
+ADR 0024 adds `identity_link` to `email_auth_challenges`: a challenge bound
+to a user and the session that requested it (`user_id`, `session_id`, both
+cascading), answered by its 6-digit code in that session only, and closed
+`code_verified` (never with a session), `conflict`, `exhausted` or
+`superseded`. Its one-open rule is per user
+(`email_auth_challenges_one_open_link_index`); the per-address one-open
+index now excludes `identity_link`. Verifiers, expiry, attempts, cleanup,
+redaction and telemetry are those of this ADR, with `purpose:
+:identity_link`. This is the account linking listed as out of scope above.

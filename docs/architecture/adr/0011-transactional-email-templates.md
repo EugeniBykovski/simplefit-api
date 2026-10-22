@@ -295,3 +295,14 @@ never-shared list, the expiry and a "Review invitation" button; no team,
 sessions or other features are promised. Design CR-12 and the legal texts
 replace it.
 
+## Amendment (SF-77): the email identity link code (undesigned)
+
+`Templates.email_link_code/1` (`EmailLinkCode`) sends the code of ADR 0024
+when a signed-in user adds an address to their account. Claude Design has no
+artboard for it, so it is **not** an inventory entry (the inventory traces
+designed emails E01–E17 only) and is not listed in `/dev/emails`. It reuses
+the shared layout and E17's composition, with truthful copy only: someone
+signed in to an existing account asked to add this address, the code and
+expiry, never share it, and that without the code the address is not added
+to any account. No link, token or account data. A design request replaces
+the copy and adds the inventory entry.

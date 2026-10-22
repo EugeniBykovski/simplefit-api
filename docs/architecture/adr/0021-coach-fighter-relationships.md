@@ -450,3 +450,13 @@ relationship.
 * **Follow-up:** `listMyCoaches` builds the same projection in two
   statements and keeps the pre-existing window in which a coach deleted
   between them yields an active entry without `coach`; unchanged by SF-74.
+
+## Amendment — SF-77 (2026-10-22): linked email identities
+
+A Google or Apple user can now add an email identity to their own account
+by proving the mailbox (ADR 0024). The inbox, both acceptance paths and the
+token recipient check already derive recipients from
+`Accounts.verified_email_addresses/1`, so a linked address reaches the
+invitations sent to it with no change here. Linking never accepts, declines
+or creates anything; every prerequisite, the disclosure, 18+ and the
+sharing gate still apply.

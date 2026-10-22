@@ -29,6 +29,7 @@ as ADRs in [`adr/`](adr/).
 | [0021](adr/0021-coach-fighter-relationships.md) | Coach–Fighter relationships (SF-56): `SimpleFit.Coaching`, accepted relationships between completed coach and fighter profiles (several coaches per fighter, one active per pair, terminal end), trusted activation only, versioned disclosure (C1 + C2), fail-closed sharing gate, relationship-scoped reads and termination (`/api/v1/me/coach/fighters`, `/api/v1/me/coaches`); SF-57 amendment: coach invitations (one-time `sfi_` tokens stored as hashes, recipient bound to a verified email identity, atomic acceptance through the trusted activation, decline/cancel/expiry/resend, coach data-rules acknowledgement, abuse limits) |
 | [0022](adr/0022-legal-documents-coaching-policy.md) | Legal documents and the Coach–Fighter policy (SF-72): `SimpleFit.Legal`, a code-reviewed, hash-verified registry of versioned legal texts per language (production registry empty: nothing approved), one sharing readiness predicate, 18+ at activation, the shared token/id acceptance transaction with append-only evidence, public document endpoints (`/api/v1/legal-documents`). Engineering acceptance is not legal approval |
 | [0023](adr/0023-training-sessions.md) | Training sessions (SF-62): `SimpleFit.Training`, one planned session for one fighter of an active relationship (composite FK to the relationship's parties), five training types, UTC instant + PostgreSQL-validated IANA zone with explicit offsets (no DST normalization), `client_request_id` idempotency, planned → cancelled / completed enforced by triggers, coach operations behind the sharing gate, fighter history always readable, planned future sessions cancelled in the relationship-end transaction, relationship-then-session lock order (`/api/v1/me/coach/training-sessions`, `/api/v1/me/training-sessions`); SF-63 amendment: fighter-owned completion from the start (status-only, server `completed_at`, idempotent, gate- and relationship-independent, never visible to a former coach) and `view=upcoming\|history` projections |
+| [0024](adr/0024-email-identity-linking.md) | Verified email identity linking (SF-77): a signed-in Google/Apple (or email) user adds an email identity to their own user after entering a code sent to the address in the same session; third `email_auth_challenges` purpose `identity_link` bound to user and session, per-user and per-address limits, identical `202` for every address, `conflict` only after mailbox proof, never a new user, merge, transfer or session; linked addresses reach SF-57/SF-73 invitations with every gate intact (`/api/v1/me/email-identities`) |
 
 ---
 
@@ -52,8 +53,9 @@ lib/
   simple_fit/                 # Domain: contexts, schemas, business rules
     application.ex            # OTP supervision tree (Repo, Oban, Endpoint)
     repo.ex                   # Ecto repo (the only DB entry point)
-    accounts.ex, accounts/    # Users, sign-in identities (ADR 0009), sessions (ADR 0010) and
-                              # passwordless email authentication (ADR 0012)
+    accounts.ex, accounts/    # Users, sign-in identities (ADR 0009), sessions (ADR 0010),
+                              # passwordless email authentication (ADR 0012) and verified
+                              # email identity linking (ADR 0024)
     identity.ex, identity/    # Provider identity verification: Google (ADR 0013) and Apple (ADR 0014) tokens + shared signing-key cache
     rate_limit.ex             # PostgreSQL fixed-window limits for abuse-sensitive endpoints (ADR 0012)
     fighters.ex, fighters/    # Fighter profile and onboarding (ADR 0015)
