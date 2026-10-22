@@ -1834,6 +1834,195 @@
         "title": "EmailCodeRequest",
         "type": "object"
       },
+      "EmailIdentity": {
+        "additionalProperties": false,
+        "description": "An email identity of the viewer: an address whose ownership was proven with a code sent to it.",
+        "properties": {
+          "email": {
+            "description": "The canonical address (ADR 0009: trimmed, lowercased, nothing else rewritten).",
+            "format": "email",
+            "type": "string"
+          },
+          "linked_at": {
+            "description": "When the address became an identity of this account.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "linked_at"
+        ],
+        "title": "EmailIdentity",
+        "type": "object"
+      },
+      "EmailIdentityLinkAccepted": {
+        "additionalProperties": false,
+        "description": "Always returned for a well-formed address, whoever owns it: a 6-digit code is on its way to it.",
+        "example": {
+          "expires_in_seconds": 600,
+          "resend_after_seconds": 60
+        },
+        "properties": {
+          "expires_in_seconds": {
+            "description": "Lifetime of the code (and link).",
+            "example": 600,
+            "type": "integer"
+          },
+          "resend_after_seconds": {
+            "description": "Wait at least this long before requesting another code.",
+            "example": 60,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expires_in_seconds",
+          "resend_after_seconds"
+        ],
+        "title": "EmailIdentityLinkAccepted",
+        "type": "object"
+      },
+      "EmailIdentityLinkConfirmRequest": {
+        "additionalProperties": false,
+        "example": {
+          "code": "123456",
+          "email": "fighter@example.com"
+        },
+        "properties": {
+          "code": {
+            "description": "The 6-digit code from the email.",
+            "example": "123456",
+            "pattern": "^[0-9]{6}$",
+            "type": "string"
+          },
+          "email": {
+            "description": "Email address; matched in canonical form (ADR 0009).",
+            "example": "fighter@example.com",
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "code"
+        ],
+        "title": "EmailIdentityLinkConfirmRequest",
+        "type": "object"
+      },
+      "EmailIdentityLinkRequest": {
+        "additionalProperties": false,
+        "example": {
+          "email": "fighter@example.com"
+        },
+        "properties": {
+          "email": {
+            "description": "Email address; matched in canonical form (ADR 0009).",
+            "example": "fighter@example.com",
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "EmailIdentityLinkRequest",
+        "type": "object"
+      },
+      "EmailIdentityLinkResult": {
+        "additionalProperties": false,
+        "description": "The address is an email identity of the viewer.",
+        "example": {
+          "email_identity": {
+            "email": "fighter@example.com",
+            "linked_at": "2026-10-23T09:00:00Z"
+          },
+          "outcome": "linked"
+        },
+        "properties": {
+          "email_identity": {
+            "additionalProperties": false,
+            "description": "An email identity of the viewer: an address whose ownership was proven with a code sent to it.",
+            "properties": {
+              "email": {
+                "description": "The canonical address (ADR 0009: trimmed, lowercased, nothing else rewritten).",
+                "format": "email",
+                "type": "string"
+              },
+              "linked_at": {
+                "description": "When the address became an identity of this account.",
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "email",
+              "linked_at"
+            ],
+            "title": "EmailIdentity",
+            "type": "object"
+          },
+          "outcome": {
+            "description": "`linked` - added now. `already_linked` - it already was an identity of this account (nothing changed).",
+            "enum": [
+              "linked",
+              "already_linked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "email_identity"
+        ],
+        "title": "EmailIdentityLinkResult",
+        "type": "object"
+      },
+      "EmailIdentityList": {
+        "additionalProperties": false,
+        "description": "The viewer's email identities, oldest first. Google and Apple sign-ins are not listed, and an email a provider reported is never one.",
+        "example": {
+          "email_identities": [
+            {
+              "email": "fighter@example.com",
+              "linked_at": "2026-10-23T09:00:00Z"
+            }
+          ]
+        },
+        "properties": {
+          "email_identities": {
+            "items": {
+              "additionalProperties": false,
+              "description": "An email identity of the viewer: an address whose ownership was proven with a code sent to it.",
+              "properties": {
+                "email": {
+                  "description": "The canonical address (ADR 0009: trimmed, lowercased, nothing else rewritten).",
+                  "format": "email",
+                  "type": "string"
+                },
+                "linked_at": {
+                  "description": "When the address became an identity of this account.",
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "email",
+                "linked_at"
+              ],
+              "title": "EmailIdentity",
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "email_identities"
+        ],
+        "title": "EmailIdentityList",
+        "type": "object"
+      },
       "EmailRegistrationAccepted": {
         "additionalProperties": false,
         "description": "Always returned for a well-formed address, whether or not it already has an account. Keep\n`registration_token` for this registration only (memory or secure storage); a new request replaces it.\n",
@@ -6538,6 +6727,180 @@
         ]
       }
     },
+    "/api/v1/me/email-identities": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's email identities, oldest first: addresses whose ownership was proven with a code (at email\nregistration, or linked with `requestMyEmailIdentityLink` and `confirmMyEmailIdentityLink`). Coach invitations\nsent to these addresses reach the viewer (`listMyIncomingCoachInvitations`). Google and Apple sign-ins are\nnot listed; an email a provider reported is never an identity.\n",
+        "operationId": "listMyEmailIdentities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailIdentityList"
+                }
+              }
+            },
+            "description": "The viewer's email identities"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My email identities",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
+    "/api/v1/me/email-identities/confirm-link": {
+      "post": {
+        "callbacks": {},
+        "description": "Adds `email` as an email identity of the signed-in account once the 6-digit code sent to it by\n`requestMyEmailIdentityLink` is entered, in the same session. Nothing else changes: no account is created or\nmerged, no session is issued, existing Google and Apple sign-ins stay as they are, and coach invitations to the\naddress become visible but still need an explicit response with every usual requirement.\n\n* `code_invalid` - wrong code (or a code for another address). After 5 wrong codes the code stops working.\n* `code_expired` - the code expired, was replaced, was already used, stopped working, or was requested in\n  another session: request a new one.\n* `conflict` - the address is an identity of another account. It is never moved; only reachable with the\n  correct code.\n* `unauthorized` - the session is no longer valid (signed out or revoked).\n",
+        "operationId": "confirmMyEmailIdentityLink",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailIdentityLinkConfirmRequest"
+              }
+            }
+          },
+          "description": "Email address and code",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailIdentityLinkResult"
+                }
+              }
+            },
+            "description": "The address is an identity of this account"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/CodeInvalid"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Link an email address to my account with its code",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
+    "/api/v1/me/email-identities/link-challenge": {
+      "post": {
+        "callbacks": {},
+        "description": "Starts adding `email` as an email identity of the signed-in account (for example to a Google or Apple\naccount) by sending a 6-digit code to it. The code only works in this account and this session, for this\naddress; it never signs anyone in and is not an email sign-in or registration code.\n\nThe response is the same for every well-formed address, including one that already belongs to this or\nanother account: whether the address can be linked is only answered after the code proves the mailbox\n(`confirmMyEmailIdentityLink`). Requesting again (for any address) replaces the previous code.\n\n* `rate_limited` - per address, per account and per client limits (with `retry-after`).\n",
+        "operationId": "requestMyEmailIdentityLink",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailIdentityLinkRequest"
+              }
+            }
+          },
+          "description": "Email address",
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailIdentityLinkAccepted"
+                }
+              }
+            },
+            "description": "Code requested"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Send a code to link an email address to my account",
+        "tags": [
+          "Account"
+        ]
+      }
+    },
     "/api/v1/me/entry": {
       "get": {
         "callbacks": {},
@@ -7103,7 +7466,7 @@
       "name": "Auth"
     },
     {
-      "description": "Shared account registration: basics and consents, for every user.",
+      "description": "Shared account registration (basics and consents) and the account's verified email identities, for every user.",
       "name": "Account"
     },
     {

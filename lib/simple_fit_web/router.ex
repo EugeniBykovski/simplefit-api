@@ -7,8 +7,8 @@ defmodule SimpleFitWeb.Router do
   #   /api/me, /api/auth/...                 session and viewer, unversioned (ADR 0010)
   #   /dev/emails                            email template preview, development only (ADR 0011)
   #   /api/v1/...                            product resources: /me/account-profile,
-  #                                          /me/fighter-profile, /me/coach-profile,
-  #                                          /me/entry, /me/first-run
+  #                                          /me/email-identities, /me/fighter-profile,
+  #                                          /me/coach-profile, /me/entry, /me/first-run
 
   pipeline :api do
     plug :accepts, ["json"]
@@ -72,6 +72,12 @@ defmodule SimpleFitWeb.Router do
     post "/me/account-profile/complete-registration",
          AccountProfileController,
          :complete_registration
+
+    # SF-77: the viewer's email identities and verified email identity
+    # linking (ADR 0024). The user and session come from the token only.
+    get "/me/email-identities", EmailIdentityController, :index
+    post "/me/email-identities/link-challenge", EmailIdentityController, :request_link
+    post "/me/email-identities/confirm-link", EmailIdentityController, :confirm_link
 
     get "/me/fighter-profile", FighterProfileController, :show
     patch "/me/fighter-profile", FighterProfileController, :update

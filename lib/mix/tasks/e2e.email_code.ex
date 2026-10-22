@@ -2,7 +2,7 @@ defmodule Mix.Tasks.E2e.EmailCode do
   @shortdoc "Prints the latest email sign-in/registration code queued to an address (dev/test only)"
 
   @moduledoc """
-  Prints the 6-digit code of the latest E01/E17 email queued to an address,
+  Prints the 6-digit code of the latest E01/E17 (or SF-77 link code) email queued to an address,
   for local end-to-end runs against a real API on a disposable database
   (SF-30): the browser test enters the code a person would read in their
   inbox.

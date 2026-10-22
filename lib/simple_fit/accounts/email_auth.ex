@@ -3,7 +3,7 @@ defmodule SimpleFit.Accounts.EmailAuth do
   Passwordless email authentication (ADR 0012). Called through
   `SimpleFit.Accounts`; internal to the context.
 
-  Two purposes, never interchangeable:
+  Three purposes, never interchangeable:
 
     * **Email verification** (registration, E01): proves ownership of a new
       address. A 6-digit code *or* a high-entropy link answers the same
@@ -12,6 +12,11 @@ defmodule SimpleFit.Accounts.EmailAuth do
       nothing is linked or merged).
     * **Email sign-in** (E17): proves control of the address of an existing
       email identity with a 6-digit code and starts an SF-20 session.
+    * **Identity linking** (SF-77, ADR 0024): a signed-in user proves control
+      of an address with a 6-digit code entered in the same session; the
+      address becomes an email identity of that same user
+      (`link_identity/3` rules: never moved, never merged). Never starts a
+      session and never creates a user.
 
   ## Sessions after verification (Design Version 66)
 
@@ -44,13 +49,16 @@ defmodule SimpleFit.Accounts.EmailAuth do
     * `{:error, :verified_elsewhere}` - the registration was verified through
       the link; this client must sign in
     * `{:error, :conflict}` - the address already has an identity
-      (registration code answered after it was taken)
+      (registration code answered after it was taken; identity link: it
+      belongs to another user, reachable only after mailbox proof)
+    * `{:error, :unauthorized}` - identity link: the session asking is no
+      longer valid (logged out, revoked, expired or deleted)
   """
 
   import Ecto.Changeset
   import Ecto.Query, only: [from: 2]
 
-  alias SimpleFit.Accounts.{EmailAddress, Identity, Sessions, User}
+  alias SimpleFit.Accounts.{EmailAddress, Identity, Session, Sessions, User}
   alias SimpleFit.Accounts.EmailAuth.{Challenge, Secrets}
   alias SimpleFit.{Email, RateLimit, Repo}
   alias SimpleFit.Email.Templates
@@ -63,12 +71,19 @@ defmodule SimpleFit.Accounts.EmailAuth do
   @verify_ip {"email_code_verify:ip", 60, 600}
   @status_ip {"registration_status:ip", 120, 600}
   @target_windows [{"minute", 1, 60}, {"hour", 5, 3_600}, {"day", 10, 86_400}]
+  # Identity linking: the same windows per user (any address), so a user
+  # cannot rotate addresses or sessions to request more codes.
+  @user_windows @target_windows
 
   @typedoc "An expected failure."
   @type error ::
           {:error, Ecto.Changeset.t()}
           | {:error, {:rate_limited, pos_integer()}}
           | {:error, :code_invalid | :code_expired | :verified_elsewhere | :conflict}
+          | {:error, :unauthorized}
+
+  @typedoc "A confirmed identity link: the email identity and whether it is new."
+  @type linked :: %{identity: Identity.t(), outcome: :linked | :already_linked}
 
   @typedoc "What a code request returns to the client."
   @type requested :: %{
@@ -233,6 +248,65 @@ defmodule SimpleFit.Accounts.EmailAuth do
     end
   end
 
+  ## Identity linking (SF-77)
+
+  @doc """
+  Sends a code (`Templates.email_link_code/1`) that lets `user`, in
+  `session`, add `email` as one of its email identities. Answers the same
+  for every well-formed address, whoever owns it: ownership is only checked
+  after the code proves control of the mailbox. A new request (any address)
+  supersedes the user's open link challenge.
+  """
+  @spec request_identity_link(User.t(), Session.t(), term(), String.t()) ::
+          {:ok, requested()} | error()
+  def request_identity_link(%User{id: user_id}, %Session{id: session_id}, email, client_ip)
+      when is_binary(user_id) and is_binary(session_id) do
+    with {:ok, %{email: email}} <- validate(%{email: email}, %{email: :string}),
+         {:ok, email} <- normalize(email),
+         :ok <-
+           limit([
+             ip_rule(@request_ip, client_ip)
+             | user_rules(user_id) ++ target_rules(:identity_link, email)
+           ]) do
+      config = config!()
+
+      case issue_link(user_id, session_id, email, config, 3) do
+        :ok ->
+          emit(:requested, :identity_link, %{outcome: :accepted})
+
+          {:ok,
+           %{
+             expires_in_seconds: config.challenge_ttl,
+             resend_after_seconds: config.resend_cooldown
+           }}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    end
+  end
+
+  @doc """
+  Confirms a link with the code sent to `email`, for `user` in the session
+  that requested it. On success the address is an email identity of `user`
+  (`:linked`, or `:already_linked` when it already was). Another user's
+  address is a `:conflict`: nothing is moved or merged. A session that is no
+  longer valid is `:unauthorized`, decided under a lock, so a concurrent
+  logout either happens before (no link) or after the link.
+  """
+  @spec confirm_identity_link(User.t(), Session.t(), term(), term(), String.t()) ::
+          {:ok, linked()} | error()
+  def confirm_identity_link(%User{id: user_id}, %Session{id: session_id}, email, code, client_ip)
+      when is_binary(user_id) and is_binary(session_id) do
+    with {:ok, %{email: email, code: code}} <-
+           validate(%{email: email, code: code}, %{email: :string, code: :string}),
+         {:ok, email} <- normalize(email),
+         :ok <- validate_code(code),
+         :ok <- limit([ip_rule(@verify_ip, client_ip)]) do
+      transact(fn -> answer_identity_link(user_id, session_id, email, code) end)
+    end
+  end
+
   ## Cleanup
 
   @doc """
@@ -327,6 +401,77 @@ defmodule SimpleFit.Accounts.EmailAuth do
     end
   end
 
+  # As `issue/5`, per user: supersedes the user's open link challenge and
+  # inserts the new one with its email job, atomically.
+  defp issue_link(user_id, session_id, email, config, attempts_left) do
+    result =
+      Repo.transaction(fn ->
+        now = now()
+
+        Repo.update_all(
+          from(c in Challenge,
+            where: c.purpose == :identity_link and c.user_id == ^user_id and is_nil(c.closed_at)
+          ),
+          [set: [closed_at: now, closed_reason: :superseded]],
+          @quiet
+        )
+
+        id = Ecto.UUID.generate()
+        code = Secrets.generate_code()
+
+        challenge = %Challenge{
+          id: id,
+          purpose: :identity_link,
+          user_id: user_id,
+          session_id: session_id,
+          email: email,
+          target_digest: Secrets.target_digest(email),
+          code_hash: Secrets.code_verifier(:identity_link, id, code),
+          expires_at: DateTime.add(now, config.challenge_ttl),
+          inserted_at: now
+        }
+
+        case Repo.insert(link_changeset(challenge), @quiet) do
+          {:ok, _challenge} -> :ok
+          {:error, changeset} -> Repo.rollback(insert_failure(changeset))
+        end
+
+        enqueue(:identity_link, email, %{code: code}, config)
+      end)
+
+    case result do
+      {:ok, _} ->
+        :ok
+
+      {:error, :busy} when attempts_left > 1 ->
+        issue_link(user_id, session_id, email, config, attempts_left - 1)
+
+      {:error, :busy} ->
+        {:error, {:rate_limited, config.resend_cooldown}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp link_changeset(challenge) do
+    challenge
+    |> change()
+    |> unique_constraint(:user_id, name: :email_auth_challenges_one_open_link_index)
+    |> foreign_key_constraint(:user_id, name: :email_auth_challenges_user_id_fkey)
+    |> foreign_key_constraint(:session_id, name: :email_auth_challenges_session_id_fkey)
+  end
+
+  # A concurrent request of the same user won the one-open index (retry), or
+  # the user or session was deleted meanwhile.
+  defp insert_failure(changeset) do
+    if Enum.any?(changeset.errors, fn {_field, {_message, opts}} ->
+         opts[:constraint] == :unique
+       end),
+       do: :busy,
+       else: :unauthorized
+  end
+
   defp build(purpose, email, digest, deliver?, now, config) do
     id = Ecto.UUID.generate()
     code = Secrets.generate_code()
@@ -392,6 +537,9 @@ defmodule SimpleFit.Accounts.EmailAuth do
 
         :sign_in ->
           Templates.sign_in_code(code: credentials.code, expires_in_minutes: minutes)
+
+        :identity_link ->
+          Templates.email_link_code(code: credentials.code, expires_in_minutes: minutes)
       end
 
     with {:ok, rendered} <- rendered,
@@ -493,6 +641,85 @@ defmodule SimpleFit.Accounts.EmailAuth do
     end
   end
 
+  # The user and its session are share-locked first: a concurrent logout,
+  # revocation or account deletion waits for this answer, or has already
+  # happened and the session is refused. Only then is the user's latest link
+  # challenge locked, so concurrent confirmations are answered one by one.
+  defp answer_identity_link(user_id, session_id, email, code) do
+    now = now()
+
+    if session_active?(lock_session_of(user_id, session_id), now) do
+      answer_identity_link(lock_latest_link(user_id), session_id, email, code, now)
+    else
+      reject(:identity_link, :unauthorized)
+    end
+  end
+
+  defp answer_identity_link(nil, _session_id, _email, _code, _now),
+    do: reject(:identity_link, :code_expired)
+
+  defp answer_identity_link(%Challenge{} = challenge, session_id, email, code, now) do
+    cond do
+      not Challenge.open?(challenge, now) ->
+        reject(:identity_link, :code_expired)
+
+      # Requested in another session of the same user: that session must
+      # enter it, as a registration code must be entered where it started.
+      challenge.session_id != session_id ->
+        reject(:identity_link, :code_expired)
+
+      # A code for another address counts as a wrong code: the verifier is
+      # bound to the challenge, the address to the challenge row.
+      challenge.email != email or
+          not Secrets.code_matches?(:identity_link, challenge.id, code, challenge.code_hash) ->
+        wrong_code(challenge, now)
+
+      true ->
+        attach(challenge, email, now)
+    end
+  end
+
+  # ON CONFLICT DO NOTHING keeps the transaction usable when the address is
+  # already an identity, or becomes one in a concurrent transaction (the
+  # insert waits for it): the unique index decides, and the owner is read
+  # back. Nothing is moved; no user is created.
+  defp attach(%Challenge{user_id: user_id} = challenge, email, now) do
+    stamp = DateTime.truncate(now, :second)
+
+    {count, _} =
+      Repo.insert_all(
+        Identity,
+        [
+          %{
+            id: Ecto.UUID.generate(),
+            user_id: user_id,
+            provider: :email,
+            provider_subject: email,
+            inserted_at: stamp,
+            updated_at: stamp
+          }
+        ],
+        [on_conflict: :nothing, conflict_target: [:provider, :provider_subject]] ++ @quiet
+      )
+
+    case Repo.get_by(Identity, [provider: :email, provider_subject: email], @quiet) do
+      %Identity{user_id: ^user_id} = identity ->
+        outcome = if count == 1, do: :linked, else: :already_linked
+        close(challenge, :code_verified, now)
+        emit(:verified, :identity_link, %{channel: :code, outcome: outcome})
+        {:ok, %{identity: identity, outcome: outcome}}
+
+      _other_owner ->
+        close(challenge, :conflict, now)
+        reject(:identity_link, :conflict)
+    end
+  end
+
+  defp session_active?(%Session{revoked_at: nil, expires_at: expires_at}, now),
+    do: DateTime.compare(expires_at, now) == :gt
+
+  defp session_active?(_revoked_expired_or_missing, _now), do: false
+
   defp wrong_code(challenge, now) do
     attempts = challenge.failed_attempts + 1
 
@@ -593,6 +820,36 @@ defmodule SimpleFit.Accounts.EmailAuth do
     )
   end
 
+  # The user row first (FOR KEY SHARE), then its session (FOR SHARE): the
+  # order in which deleting a user locks them (the user row, then the
+  # cascade to sessions), so a concurrent deletion waits or wins without a
+  # deadlock. A deleted user or session is nil; a logout waits for this
+  # transaction or has already committed.
+  defp lock_session_of(user_id, session_id) do
+    with %User{} <-
+           Repo.one(from(u in User, where: u.id == ^user_id, lock: "FOR KEY SHARE"), @quiet) do
+      Repo.one(
+        from(s in Session,
+          where: s.id == ^session_id and s.user_id == ^user_id,
+          lock: "FOR SHARE"
+        ),
+        @quiet
+      )
+    end
+  end
+
+  defp lock_latest_link(user_id) do
+    Repo.one(
+      from(c in Challenge,
+        where: c.purpose == :identity_link and c.user_id == ^user_id,
+        order_by: [desc: c.inserted_at],
+        limit: 1,
+        lock: "FOR UPDATE"
+      ),
+      @quiet
+    )
+  end
+
   ## Helpers
 
   # Answers in a transaction for a well-formed token; a malformed one is
@@ -631,6 +888,13 @@ defmodule SimpleFit.Accounts.EmailAuth do
 
   defp ip_rule({bucket, limit, period}, client_ip),
     do: {bucket, Secrets.rate_limit_key(bucket, client_ip), limit, period}
+
+  defp user_rules(user_id) do
+    for {window, limit, period} <- @user_windows do
+      bucket = "identity_link_user:#{window}"
+      {bucket, Secrets.rate_limit_key(bucket, user_id), limit, period}
+    end
+  end
 
   defp target_rules(purpose, email) do
     for {window, limit, period} <- @target_windows do

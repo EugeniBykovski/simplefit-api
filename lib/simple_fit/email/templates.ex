@@ -20,7 +20,8 @@ defmodule SimpleFit.Email.Templates do
 
   alias SimpleFit.Email.Message
   alias SimpleFit.Email.Templates.{AccountDeleted, AccountSuspended, CoachInvite}
-  alias SimpleFit.Email.Templates.{DataExportReady, DeletionScheduled, FirstWeekRecap, GymLive}
+  alias SimpleFit.Email.Templates.{DataExportReady, DeletionScheduled, EmailLinkCode}
+  alias SimpleFit.Email.Templates.{FirstWeekRecap, GymLive}
   alias SimpleFit.Email.Templates.{GymSetup, Input, JoinApproved, MemberInvite, NewSignIn}
   alias SimpleFit.Email.Templates.{RecoverAccount, Rendered, SignInCode}
   alias SimpleFit.Email.Templates.{StaffInvite, VerifyEmail, WelcomeCoach, WelcomeFighter}
@@ -30,6 +31,13 @@ defmodule SimpleFit.Email.Templates do
   @doc "E17 · Sign-in code. See `SimpleFit.Email.Templates.SignInCode`."
   @spec sign_in_code(map() | keyword()) :: result()
   defdelegate sign_in_code(attrs), to: SignInCode, as: :render
+
+  @doc """
+  Email identity link code (SF-77; not in the design inventory yet). See
+  `SimpleFit.Email.Templates.EmailLinkCode`.
+  """
+  @spec email_link_code(map() | keyword()) :: result()
+  defdelegate email_link_code(attrs), to: EmailLinkCode, as: :render
 
   @doc "E01 · Verify your email. See `SimpleFit.Email.Templates.VerifyEmail`."
   @spec verify_email(map() | keyword()) :: result()

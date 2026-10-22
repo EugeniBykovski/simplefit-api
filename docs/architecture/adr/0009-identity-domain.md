@@ -134,3 +134,12 @@ HTTP surface: the OpenAPI contract is unchanged.
   keeps the same uniqueness and canonical-form rules.
 * Internationalized email addresses need an explicit policy before they are
   accepted.
+
+## Amendment (SF-77): verified email identity linking
+
+The verified linking policy this ADR left open is ADR 0024: a signed-in
+user adds an email identity to their own user only after entering a code
+sent to the address, in the same session. It composes the rules above: the
+unique index decides, the caller's own address is idempotent, another
+user's is a `conflict`, nothing is transferred or merged, and no identity is
+ever linked because a provider reported a matching email.

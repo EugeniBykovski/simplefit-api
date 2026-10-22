@@ -204,3 +204,13 @@ amendment) follow this ADR's conventions: PostgreSQL fixed windows, HMAC
 keys, `429 rate_limited` with `retry-after`, clients keyed by
 `ClientIP.limit_key/1`.
 
+## Amendment (SF-77)
+
+The verified email identity linking endpoints (ADR 0024) join the control
+audit and the canary sweep. Controls: bearer token and a live session
+re-checked under a row lock at confirmation; the challenge bound to user,
+session, address and purpose; per-user and per-address request windows (1 /
+5 / 10 per minute / hour / day) plus the shared per-client code-request and
+verification limits; 5 wrong codes per challenge; identical `202` for every
+well-formed address; `conflict` only after mailbox proof. No recent
+authentication policy exists, so none is required (ADR 0024).

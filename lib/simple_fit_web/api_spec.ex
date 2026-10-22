@@ -54,7 +54,8 @@ defmodule SimpleFitWeb.ApiSpec do
         %Tag{name: "Auth", description: "SimpleFit sessions and the authenticated viewer."},
         %Tag{
           name: "Account",
-          description: "Shared account registration: basics and consents, for every user."
+          description:
+            "Shared account registration (basics and consents) and the account's verified email identities, for every user."
         },
         %Tag{
           name: "Fighter profile",
