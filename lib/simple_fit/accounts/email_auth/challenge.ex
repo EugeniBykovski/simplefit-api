@@ -9,19 +9,23 @@ defmodule SimpleFit.Accounts.EmailAuth.Challenge do
       token.
     * `:sign_in` (E17): authenticates an existing email identity. Stores only
       the target digest; answered by the 6-digit code only.
+    * `:identity_link` (SF-77, ADR 0024): proves that a signed-in user
+      controls `email` before it becomes an email identity of that same
+      user. Bound to `user_id` and the requesting `session_id`; answered by
+      the 6-digit code only, in that session. Never issues a session.
 
   A challenge is open until `closed_at`; expiry is derived from
   `expires_at`. Closed reasons:
 
     * `code_verified` - the code was entered by the client that requested
       the challenge; the only state in which a session is ever issued
-      (`session_created_at`)
+      (`session_created_at`, never for `identity_link`)
     * `link_verified` - the E01 link verified the email (any device); never a
       session
     * `superseded` - a newer challenge for the same purpose and target
     * `exhausted` - too many wrong codes
-    * `conflict` - the email identity was taken (verification) or is gone
-      (sign-in) when the challenge was answered
+    * `conflict` - the email identity was taken (verification, identity
+      link) or is gone (sign-in) when the challenge was answered
 
   Verifiers, digests and the email are redacted from `inspect/2`.
   """
@@ -30,7 +34,9 @@ defmodule SimpleFit.Accounts.EmailAuth.Challenge do
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
-          purpose: :verification | :sign_in | nil,
+          purpose: :verification | :sign_in | :identity_link | nil,
+          user_id: Ecto.UUID.t() | nil,
+          session_id: Ecto.UUID.t() | nil,
           target_digest: binary() | nil,
           email: String.t() | nil,
           code_hash: binary() | nil,
@@ -50,7 +56,9 @@ defmodule SimpleFit.Accounts.EmailAuth.Challenge do
   @timestamps_opts [type: :utc_datetime_usec, updated_at: false]
 
   schema "email_auth_challenges" do
-    field :purpose, Ecto.Enum, values: [:verification, :sign_in]
+    field :purpose, Ecto.Enum, values: [:verification, :sign_in, :identity_link]
+    field :user_id, :binary_id
+    field :session_id, :binary_id
     field :target_digest, :binary, redact: true
     field :email, :string, redact: true
     field :code_hash, :binary, redact: true

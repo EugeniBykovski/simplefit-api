@@ -19,6 +19,7 @@ defmodule SimpleFit.Email.Templates.Fixtures do
       expires_in_minutes: 10
     },
     sign_in_code: %{code: "528461", expires_in_minutes: 10},
+    email_link_code: %{code: "318064", expires_in_minutes: 10},
     recover_account: %{
       recovery_url: "#{@app}/recover?token=FIXTURE-ONE-TIME-TOKEN",
       expires_in_minutes: 15

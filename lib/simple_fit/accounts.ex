@@ -1,8 +1,9 @@
 defmodule SimpleFit.Accounts do
   @moduledoc """
   Users, the identities that sign them in (ADR 0009), their SimpleFit
-  sessions (ADR 0010), passwordless email authentication (ADR 0012) and
-  shared account registration: basics and consents (ADR 0016).
+  sessions (ADR 0010), passwordless email authentication (ADR 0012),
+  verified email identity linking (ADR 0024) and shared account
+  registration: basics and consents (ADR 0016).
 
   One person is one global `User`; a user owns any number of `Identity`
   records (email, Google, Apple). This context only stores and resolves them:
@@ -18,7 +19,9 @@ defmodule SimpleFit.Accounts do
       silent transfer.
     * An email reported by Google or Apple is not a key. Nothing here links
       identities because their emails match; linking is always an explicit
-      `link_identity/3` on a user the caller has authenticated.
+      `link_identity/3` on a user the caller has authenticated, and an email
+      identity is linked only after its owner entered a code sent to it
+      (`confirm_email_identity_link/5`).
 
   Results: `{:ok, value}`, `{:error, :not_found}`, `{:error, :conflict}`, or
   `{:error, %Ecto.Changeset{}}` for an unsupported provider or an invalid
@@ -36,6 +39,7 @@ defmodule SimpleFit.Accounts do
     GoogleAuth,
     Identity,
     Registration,
+    Session,
     Sessions,
     User
   }
@@ -97,7 +101,8 @@ defmodule SimpleFit.Accounts do
   @doc """
   The canonical addresses of the user's email identities. An email identity
   exists only after its owner entered a code sent to that address (ADR
-  0012), so each address is verified. Emails a provider reports for a
+  0012 at registration, ADR 0024 when a signed-in user links it), so each
+  address is verified. Emails a provider reports for a
   Google or Apple identity are not stored and never count. Used to bind a
   coach invitation to its recipient (SF-57); never links identities.
   """
@@ -106,6 +111,20 @@ defmodule SimpleFit.Accounts do
     from(i in Identity,
       where: i.user_id == ^user_id and i.provider == :email,
       select: i.provider_subject
+    )
+    |> Repo.all(@unlogged)
+  end
+
+  @doc """
+  The user's email identities, oldest first: each canonical address and
+  when it was added. Never another user's, never a Google or Apple identity.
+  """
+  @spec list_email_identities(User.t()) :: [%{email: String.t(), linked_at: DateTime.t()}]
+  def list_email_identities(%User{id: user_id}) when is_binary(user_id) do
+    from(i in Identity,
+      where: i.user_id == ^user_id and i.provider == :email,
+      order_by: [asc: i.inserted_at, asc: i.provider_subject],
+      select: %{email: i.provider_subject, linked_at: i.inserted_at}
     )
     |> Repo.all(@unlogged)
   end
@@ -221,6 +240,30 @@ defmodule SimpleFit.Accounts do
   defdelegate verify_email_sign_in_code(email, code, client_ip),
     to: EmailAuth,
     as: :verify_sign_in_code
+
+  ## Verified email identity linking (ADR 0024)
+
+  @doc """
+  Sends a code to `email` so that the signed-in `user` can add it as an
+  email identity, from `session`. Answers the same for every well-formed
+  address; see `SimpleFit.Accounts.EmailAuth.request_identity_link/4`.
+  """
+  @spec request_email_identity_link(User.t(), Session.t(), term(), String.t()) ::
+          {:ok, EmailAuth.requested()} | EmailAuth.error()
+  defdelegate request_email_identity_link(user, session, email, client_ip),
+    to: EmailAuth,
+    as: :request_identity_link
+
+  @doc """
+  Adds `email` as an email identity of `user` once the code sent to it is
+  entered in the session that asked. Never creates a user, a session or a
+  relationship; another user's address is a `:conflict`.
+  """
+  @spec confirm_email_identity_link(User.t(), Session.t(), term(), term(), String.t()) ::
+          {:ok, EmailAuth.linked()} | EmailAuth.error()
+  defdelegate confirm_email_identity_link(user, session, email, code, client_ip),
+    to: EmailAuth,
+    as: :confirm_identity_link
 
   ## Google sign-in (ADR 0013)
 

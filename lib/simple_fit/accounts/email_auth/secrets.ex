@@ -46,7 +46,7 @@ defmodule SimpleFit.Accounts.EmailAuth.Secrets do
   @token_prefixes %{link: "sfv_", registration: "sfg_"}
 
   @typedoc "A challenge purpose."
-  @type purpose :: :verification | :sign_in
+  @type purpose :: :verification | :sign_in | :identity_link
 
   @typedoc "A token kind."
   @type token_kind :: :link | :registration
@@ -69,7 +69,8 @@ defmodule SimpleFit.Accounts.EmailAuth.Secrets do
 
   @doc "The keyed verifier of `code` for the challenge `challenge_id` (a UUID string)."
   @spec code_verifier(purpose(), Ecto.UUID.t(), String.t()) :: binary()
-  def code_verifier(purpose, challenge_id, code) when purpose in [:verification, :sign_in] do
+  def code_verifier(purpose, challenge_id, code)
+      when purpose in [:verification, :sign_in, :identity_link] do
     {:ok, id} = Ecto.UUID.dump(challenge_id)
     hmac(@code_salt, ["sfec1", 0, Atom.to_string(purpose), 0, id, 0, code])
   end
