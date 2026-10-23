@@ -738,12 +738,21 @@
                 "description": "The coach data-rules version to acknowledge before inviting; `null` while none is configured.",
                 "nullable": true,
                 "type": "string"
+              },
+              "legal_mode": {
+                "description": "`approved`: the normal regime (approved legal texts). `local_development`: this API runs in LOCAL\nDEVELOPMENT coaching mode (ADR 0025): there is no legal text, nothing to acknowledge and nothing to\ntick; the fighter still accepts explicitly. Never served by a production API.\n",
+                "enum": [
+                  "approved",
+                  "local_development"
+                ],
+                "type": "string"
               }
             },
             "required": [
               "acknowledged_at",
               "document",
-              "document_version"
+              "document_version",
+              "legal_mode"
             ],
             "type": "object"
           }
@@ -1047,7 +1056,7 @@
             "type": "string"
           },
           "document_language": {
-            "description": "The `document.language` of the disclosure text the fighter was shown (an approved variant).",
+            "description": "The `document.language` of the disclosure text the fighter was shown (an approved variant). Required\nwhenever a text was shown (`legal_mode` `approved`); `local_development` shows none.\n",
             "enum": [
               "en",
               "pl",
@@ -1068,7 +1077,6 @@
         },
         "required": [
           "disclosure_version",
-          "document_language",
           "token"
         ],
         "title": "CoachInvitationAcceptRequest",
@@ -1247,12 +1255,21 @@
               "message"
             ],
             "type": "object"
+          },
+          "legal_mode": {
+            "description": "`approved`: the normal regime (approved legal texts). `local_development`: this API runs in LOCAL\nDEVELOPMENT coaching mode (ADR 0025): there is no legal text, nothing to acknowledge and nothing to\ntick; the fighter still accepts explicitly. Never served by a production API.\n",
+            "enum": [
+              "approved",
+              "local_development"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "disclosure",
           "document",
-          "invitation"
+          "invitation",
+          "legal_mode"
         ],
         "title": "CoachInvitationPreview",
         "type": "object"
@@ -3180,7 +3197,7 @@
             "type": "string"
           },
           "document_language": {
-            "description": "The `document.language` of the disclosure text the fighter was shown (an approved variant).",
+            "description": "The `document.language` of the disclosure text the fighter was shown (an approved variant). Required\nwhenever a text was shown (`legal_mode` `approved`); `local_development` shows none.\n",
             "enum": [
               "en",
               "pl",
@@ -3195,8 +3212,7 @@
           }
         },
         "required": [
-          "disclosure_version",
-          "document_language"
+          "disclosure_version"
         ],
         "title": "IncomingCoachInvitationAcceptRequest",
         "type": "object"

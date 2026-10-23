@@ -64,8 +64,8 @@ defmodule SimpleFit.Coaching do
   import Ecto.Query, only: [from: 2]
 
   alias SimpleFit.Accounts.User
-  alias SimpleFit.{Coaches, Fighters, Legal, Repo, Training}
-  alias SimpleFit.Coaching.{Disclosure, Invitations, Relationship}
+  alias SimpleFit.{Coaches, Fighters, Repo, Training}
+  alias SimpleFit.Coaching.{Invitations, LegalPolicy, Relationship}
 
   # Relationship rows and projections carry personal data; not logged.
   @unlogged [log: false]
@@ -164,18 +164,17 @@ defmodule SimpleFit.Coaching do
     do: Application.get_env(:simple_fit, __MODULE__, [])[:access_enabled] == true
 
   @doc """
-  Whether Coach–Fighter sharing is available at all (ADR 0022): the gate
-  flag is on **and** the legal document registry is valid **and** the
-  configured current disclosure and coach data rules are `published` there
-  (the disclosure with the configured scope). The flag alone never enables
-  anything. Global checks only; each acceptance adds its per-invitation and
-  per-user checks (recipient, versions, language, age, profiles).
+  Whether Coach–Fighter sharing is available at all: the legal regime of
+  `SimpleFit.Coaching.LegalPolicy` is not `:blocked`. Normally (ADR 0022)
+  the gate flag is on **and** the legal document registry is valid **and**
+  the configured current disclosure and coach data rules are `published`
+  there; the flag alone never enables anything. In LOCAL DEVELOPMENT mode
+  (ADR 0025) no legal document is involved. Global checks only; each
+  acceptance adds its per-invitation and per-user checks (recipient,
+  disclosure, age, profiles).
   """
   @spec sharing_ready?() :: boolean()
-  def sharing_ready? do
-    access_enabled?() and Legal.Registry.valid?() and is_binary(Disclosure.current()) and
-      is_binary(Disclosure.data_rules_version())
-  end
+  def sharing_ready?, do: LegalPolicy.available?()
 
   @doc """
   The coach's relationships, newest first: `status` `"active"` (default,
@@ -325,7 +324,9 @@ defmodule SimpleFit.Coaching do
              ),
              @unlogged
            ),
-         true <- opts[:require] != :disclosing or Disclosure.fields(r.disclosure_version) != [] do
+         true <-
+           opts[:require] != :disclosing or
+             LegalPolicy.disclosure_fields(r.disclosure_version) != [] do
       {:ok,
        %{id: r.id, coach_profile_id: r.coach_profile_id, fighter_profile_id: r.fighter_profile_id}}
     else
@@ -363,7 +364,9 @@ defmodule SimpleFit.Coaching do
     relationships
     |> Enum.group_by(& &1.disclosure_version)
     |> Enum.flat_map(fn {version, group} ->
-      fields = Enum.filter(Disclosure.fields(version), &(&1 in [:display_name, :username]))
+      fields =
+        Enum.filter(LegalPolicy.disclosure_fields(version), &(&1 in [:display_name, :username]))
+
       found = Fighters.coach_projection(Enum.map(group, & &1.fighter_profile_id), fields)
 
       Enum.map(group, fn r ->
@@ -478,13 +481,13 @@ defmodule SimpleFit.Coaching do
       |> Enum.reduce(%{}, fn {version, group}, acc ->
         group
         |> Enum.map(& &1.fighter_profile_id)
-        |> Fighters.coach_projection(Disclosure.fields(version))
+        |> Fighters.coach_projection(LegalPolicy.disclosure_fields(version))
         |> Map.merge(acc)
       end)
 
     Enum.map(relationships, fn
       %Relationship{status: :active} = r ->
-        fields = Disclosure.fields(r.disclosure_version)
+        fields = LegalPolicy.disclosure_fields(r.disclosure_version)
         found = Map.get(projections, r.fighter_profile_id, %{})
 
         base(r)
@@ -519,7 +522,8 @@ defmodule SimpleFit.Coaching do
       base(r)
       |> Map.merge(%{
         disclosure_version: r.disclosure_version,
-        disclosed_fields: if(active?, do: Disclosure.fields(r.disclosure_version), else: []),
+        disclosed_fields:
+          if(active?, do: LegalPolicy.disclosure_fields(r.disclosure_version), else: []),
         coach: if(active?, do: Map.get(coaches, r.coach_profile_id)),
         coach_display_name_at_end: r.coach_display_name_at_end
       })

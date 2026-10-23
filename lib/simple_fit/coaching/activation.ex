@@ -14,9 +14,11 @@ defmodule SimpleFit.Coaching.Activation do
   `activate/3` checks, inside one transaction (joining the caller's):
 
     1. sharing is ready (`SimpleFit.Coaching.sharing_ready?/0`: the gate,
-       a valid registry, a published current disclosure and data rules);
-    2. the disclosure version is the published current one
-       (`SimpleFit.Coaching.Disclosure`);
+       a valid registry, a published current disclosure and data rules, or
+       LOCAL DEVELOPMENT mode, ADR 0025);
+    2. the disclosure version is the one offered now
+       (`SimpleFit.Coaching.LegalPolicy.disclosure_offered?/1`: the published
+       current one, or the local-development marker in that mode only);
     3. the accepting user has a completed fighter profile;
     4. the fighter is at least 18 (SF-71 L-14; `eligible?/2`);
     5. the coach profile exists and is completed;
@@ -46,7 +48,7 @@ defmodule SimpleFit.Coaching.Activation do
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.{AccountProfile, User}
   alias SimpleFit.{Coaches, Coaching, Fighters, Repo}
-  alias SimpleFit.Coaching.{Disclosure, Relationship}
+  alias SimpleFit.Coaching.{LegalPolicy, Relationship}
 
   @unlogged [log: false]
 
@@ -64,7 +66,8 @@ defmodule SimpleFit.Coaching.Activation do
   def activate(coach_profile_id, %User{id: user_id} = fighter_user, disclosure_version)
       when is_binary(coach_profile_id) and is_binary(user_id) do
     with :ok <- check(Coaching.sharing_ready?(), :sharing_disabled),
-         :ok <- check(Disclosure.offered?(disclosure_version), :disclosure_not_offered),
+         :ok <-
+           check(LegalPolicy.disclosure_offered?(disclosure_version), :disclosure_not_offered),
          {:ok, fighter} <- completed(Fighters.get_profile(fighter_user), :fighter_not_completed),
          :ok <- check(eligible?(fighter_user, eligibility_date()), :fighter_too_young),
          {:ok, coach} <-

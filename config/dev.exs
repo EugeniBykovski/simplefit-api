@@ -55,6 +55,14 @@ config :simple_fit, SimpleFit.Email,
 config :simple_fit, SimpleFit.Email.Templates, allow_http_urls: true
 config :simple_fit, :email_previews, enabled: true
 
+# LOCAL DEVELOPMENT coaching mode (SF-81, ADR 0025): the Coach–Fighter
+# workflow without legal documents. Allowed in this build only; it turns on
+# solely when SIMPLEFIT_LOCAL_DEV_COACHING=enabled is exported AND the
+# endpoint is loopback-only AND the live database is local and one of these.
+config :simple_fit, SimpleFit.Coaching.LocalDevelopment,
+  allowed: true,
+  databases: ["simple_fit_dev"]
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message $metadata\n"
 

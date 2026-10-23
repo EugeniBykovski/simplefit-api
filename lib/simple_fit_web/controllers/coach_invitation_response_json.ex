@@ -19,7 +19,8 @@ defmodule SimpleFitWeb.CoachInvitationResponseJSON do
         fields: Enum.map(preview.disclosure.fields, &Atom.to_string/1),
         never_shared: Enum.map(preview.disclosure.never_shared, &Atom.to_string/1)
       },
-      document: SimpleFitWeb.LegalJSON.ref(preview.document)
+      document: SimpleFitWeb.LegalJSON.ref(preview.document),
+      legal_mode: preview.legal_mode
     }
   end
 

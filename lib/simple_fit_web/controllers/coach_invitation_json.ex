@@ -12,7 +12,8 @@ defmodule SimpleFitWeb.CoachInvitationJSON do
       data_rules: %{
         document_version: rules.document_version,
         acknowledged_at: rules.acknowledged_at && DateTime.to_iso8601(rules.acknowledged_at),
-        document: SimpleFitWeb.LegalJSON.ref(rules.document)
+        document: SimpleFitWeb.LegalJSON.ref(rules.document),
+        legal_mode: rules.legal_mode
       }
     }
   end
