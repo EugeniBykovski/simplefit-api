@@ -1,122 +1,112 @@
 # SF-82 · 07 — Cross-platform Gym routing
 
-**Status:** `D-G07`, `D-G15` and `D-G16` are approved; `D-G22`, `D-G23`
-and `D-G24` are open. SF-82 changes neither the route registry
+**Status:** approved (`D-G07`, `D-G15`, `D-G16`, `D-G22`, `D-G23`,
+`D-G24`). SF-82 changes neither the route registry
 (`simplefit-platform/docs/route-registry.json`, synced to mobile) nor
-`docs/route-architecture.md`. The changes below are made by the implementing
-tickets, each with its own registry PR.
+`docs/route-architecture.md`. The paths below are the target for the
+registry PRs of SF-85, SF-87 and SF-91. Exact route ids are fixed in those
+PRs.
 
 ## 1. Today
 
 * 53 registry routes have `gym` in their id or path. All are `IMPLEMENTED`
-  as SF-32/SF-33 feature placeholders ("not available yet"), so no Gym screen
-  shows fabricated data.
-* Console routes require `GYM_WORKSPACE`, which the entry projection never
-  emits yet, so they are unreachable.
-* Member-facing routes require `FIGHTER` (§5).
-* Owner onboarding: `web.app.onboarding.gym` and `mobile.onboarding.gym`
-  (account level, phase `ONBOARDING`).
-* Invitation placeholders with a token in the path: `mobile.invite.coach._token`
-  (INV2), `mobile.invite.staff._token` (OS1), `mobile.invite.staff._token.confirm`
-  (OS1b) (§6).
+  as SF-32/SF-33 feature placeholders ("not available yet").
+* Console routes are id-free (`/app/gym/**`, `/gym/**`) and require
+  `GYM_WORKSPACE`, which the entry projection never emits yet.
+* Member-facing mobile routes `/gym/:gymId/**`, `/membership`,
+  `/me/membership` and `/me/credits` require `FIGHTER`.
+* Owner onboarding: `web.app.onboarding.gym`, `mobile.onboarding.gym`.
+* Invitation placeholders with a token in the path: `/invite/coach/:token`
+  (INV2), `/invite/staff/:token` (OS1), `/invite/staff/:token/confirm` (OS1b).
 
-## 2. Route groups
+## 2. Target route groups
 
 | Group | Web | Mobile | Gate | Ticket |
 | --- | --- | --- | --- | --- |
-| Public | `/gyms` (L4), `/pricing` (PR3 stays FUTURE) | — | guest | SF-84 (copy only) |
-| Owner creation | `/app/onboarding/gym` (OG1, OG2, OG3, OG6b) | `/onboarding/gym` (OG0 handoff) | authenticated, account registration complete, **no** capability | SF-84 |
-| Staff invitation | `/invite/staff` (reads `#token=`) | `/invite/staff` (token-free app-link entry) → staff-invitation inbox | preview anonymous (web); accept needs a session | SF-87 |
-| Staff onboarding | — | `/onboarding/staff/role\|location\|tour` | `GYM_WORKSPACE` | SF-87, SF-101 |
-| Gym console | `/app/gym/**` | `/gym/**` (Gym tabs) | `GYM_WORKSPACE` + active gym; role enforced by the backend | SF-85 onward |
-| Member side | `/app/me/gyms` (new, account area) | `/gym/:gymId/**`, `/membership` (member pass) | account level (`D-G07`) + backend membership check | SF-91, SF-95, SF-97 |
-| Join | `/join/:code` (new) | `/join/:code` (A03) | preview anonymous; join needs a session | SF-89 |
+| Public | `/gyms` (L4), `/pricing` (PR3 stays FUTURE) | — | guest | SF-84 (copy) |
+| Owner creation | `/app/onboarding/gym` (new: OG1), then `/app/onboarding/gym/:gymId/…` (resume a draft: OG2, OG3, OG6b) | `/onboarding/gym` (OG0 text handoff) | account registration complete, **no** capability; the draft id is authorized like any gym id | SF-84 |
+| Gym chooser | `/app/gyms` | `/gyms` (also reachable from A04 / `/workspaces`) | `GYM_WORKSPACE` | SF-85 |
+| Gym console | `/app/gyms/:gymId` (WG1) and `/app/gyms/:gymId/<area>` (members, timetable, bookings, attendance, staff, settings, …) | `/gyms/:gymId/pulse`, `/gyms/:gymId/check-in`, `/gyms/:gymId/classes/…`, `/gyms/:gymId/members/…` (Gym tabs) | `GYM_WORKSPACE` + backend staff check on `:gymId` | SF-85 onward |
+| Staff onboarding | — | `/gyms/:gymId/onboarding/role\|location\|tour` (OS2–OS4) | as console | SF-87, SF-101 |
+| Staff invitation | `/invite/staff` (reads `#token=` once) | `/invite/staff` app-link entry (token-free) → `/me/gym-invitations` inbox → `/me/gym-invitations/:invitationId` (OS1; OS1b via SF-77) | preview anonymous on web; accept needs a session | SF-87 |
+| Member invitation | `/invite/gym` (reads `#token=` once) | same inbox, member invitations included | as staff | SF-91 |
+| Member side | `/app/me/gyms`, `/app/me/gyms/:gymId/…` | `/me/gyms`, `/me/gyms/:gymId/…` (timetable, book, pass) | account level (`D-G07`) + backend member check on `:gymId` | SF-91, SF-95, SF-97 |
+| Join by code | `/join/:code` | `/join/:code` (A03) | preview anonymous; joining needs a session and a verified identity (`D-G08`) | SF-89, SF-91 |
 
-## 3. Explicit `gym_id`: consistency across layers (`D-G15`)
+Staff and member views of the same gym use different prefixes
+(`/app/gyms/:gymId` vs `/app/me/gyms/:gymId`, mobile `/gyms/:gymId` vs
+`/me/gyms/:gymId`). A person who is both sees two clearly separate surfaces,
+and a member link never opens the console.
 
-| Layer | Where the gym id comes from | Authorization | Failure behaviour |
+## 3. ID-based navigation and authorization (`D-G15`, `D-G23`, `D-G24`)
+
+| Layer | Source of the gym id | Authorization | Failure behaviour |
 | --- | --- | --- | --- |
-| Backend | The path: `/api/v1/gyms/{gym_id}/…`, on every gym-scoped operation | `Gyms.Policy.authorize/3` re-reads the caller's active staff (or member) row for **that** gym inside the operation; child resources are checked with composite `(gym_id, id)` keys | 404 for non-staff, cross-gym and revoked access; 403 `forbidden` for a role without the permission |
-| Web console | The client store of the active gym (`sessionStorage` per tab, seeded from `/me/entry` `gym_workspaces` + `last_gym`); console URLs stay id-free (`D-G23`) | The web calls the API from the browser with the session bearer (`callWithSession`), so every request carries the id it shows | A gym 404 drops the active gym, refetches the entry and opens the switcher; a 403 shows the role state (`D-G24`) |
-| Web member side | The URL (`/app/me/gyms/:gymId/…`) | Backend member check | 404 → not found in shell |
-| Mobile console | The active-gym store (memory + secure store keyed by user); `/gym/**` is id-free | as web | as web; switching through A04 / `/workspaces` |
-| Mobile member side | The URL (`/gym/:gymId/…`, already in the registry) | Backend member check | 404 → not found |
-| Workspace switching | `PUT /me/entry/context {"context":"gym","gym_id":…}` stores the last choice (additive) | Server validates staff membership before storing; re-validates on every read | Ended membership → the stored choice is ignored; the next entry read omits it |
-| Emails and push (future) | Deep links carry the gym id in the URL (`D-G23` option B, only when needed) | as backend | the link opens the switcher if the user is not staff there |
+| Backend | The API path `/api/v1/gyms/{gym_id}/…`, on every gym-scoped operation | `Gyms.Policy.authorize/3` re-reads the caller's active staff or member row for **that** gym inside the operation; child resources use composite `(gym_id, id)` keys | Outsider, other gym, revoked or unknown → 404 `not_found`; active staff without the permission → 403 `forbidden` |
+| Web | The UI path `:gymId` (console and member side); the page passes it unchanged to the API | Browser calls with the session bearer (`callWithSession`); the route guard checks `GYM_WORKSPACE` only, and the backend decides | 404 → not found in shell (existence not revealed); 403 → role-restriction state (`D-G24`) |
+| Mobile | The route param `:gymId` | as web | as web |
+| Chooser and landing | `/app/gyms` and `/gyms` read `gym_workspaces` from `/me/entry`: one gym → redirect to it; several → list, preselecting `last_gym` | The server stores `last_gym` via `PUT /me/entry/context {"context":"gym","gym_id":…}` after validating staff membership | A stored gym that is no longer valid is ignored |
+| Switching | Navigating to another `:gymId` (in-shell switcher, A04) | Each request is authorized on its own | none |
+| Emails and push | Links carry the gym id (`/app/gyms/:gymId/…`) | as backend | Non-staff recipient → not found; signed out → sign-in with `returnTo` |
 
-Consistency rules:
+Rules:
 
-1. The backend never infers the gym from a session, header or "current
-   gym". The id in the path is the only source.
-2. A client never sends a gym id it did not receive from the API.
-3. Two tabs or devices can work on two gyms at once; a switch in one does not
-   retarget the other's requests.
-4. Responses include the gym's `id` and `name`, and the shell renders the
-   name from the response, so a stale tab shows which gym it acts on (T6).
+1. **The id is navigation, not authorization.** The backend never trusts
+   the URL beyond using it as the lookup key, and never infers a gym from
+   the session.
+2. Tabs and devices are independent: each URL names its gym (T6 is closed
+   by construction).
+3. Gym ids are UUIDs. They are not secret, and knowing one grants nothing.
+   URLs never contain tokens or personal data (member detail uses the
+   member's opaque id).
+4. The shell renders the gym name from API responses, never from the URL.
+5. `route-architecture.md` must replace `D-WORKSPACE-NOT-IN-URL` for Gym
+   and add the rule-9 exception (`D-G24`) in SF-85.
 
 ## 4. Gates and resume
 
 | Situation | Web | Mobile |
 | --- | --- | --- |
-| Not signed in, opens a gym route | `/login?returnTo=` | `/welcome` / sign-in with `returnTo` |
-| Signed in, no `GYM_WORKSPACE` | existing capability redirect | same |
-| `intent=gym`, no gym | `/app/onboarding/gym` (OG1) | `/onboarding/gym` (OG0) |
-| `intent=gym`, draft gym | `/app/onboarding/gym` at the first missing step | OG0 |
-| Completed gym, first visit | `/app/gym` + GRW1/GRW2 | `/gym/pulse` + GR1/GR2 |
-| FUTURE or BLOCKED area | registry placeholder stays; navigation item hidden | same |
+| Signed out, opens a gym URL | `/login?returnTo=<the URL>` | sign-in with `returnTo` |
+| Signed in, no `GYM_WORKSPACE`, opens a console URL | not found (no hint the gym exists) | same |
+| Staff of other gyms only, opens a console URL | not found (backend 404) | same |
+| `intent=gym`, no gym | `/app/onboarding/gym` | `/onboarding/gym` (OG0) |
+| `intent=gym`, draft gym | `/app/onboarding/gym/:gymId/<first missing step>` | OG0 |
+| Completed gym, first visit | `/app/gyms/:gymId` + GRW1/GRW2 | `/gyms/:gymId/pulse` + GR1/GR2 |
+| FUTURE or BLOCKED area | placeholder; navigation item hidden | same |
 
-## 5. Member-route capabilities (`D-G07` approved)
+## 5. Member-route capabilities (`D-G07`)
 
-The member's access is decided by the backend (`gym_members`). The route
-capability only decides whether the screen may render. Proposed registry
-change for SF-91:
-
-| Route id | Path | Today | Proposed | Why |
+| Route id (today) | Path (today) | Today | Target | Why |
 | --- | --- | --- | --- | --- |
-| `mobile.gym._gym-id.classes._class-id.book` | `/gym/:gymId/classes/:classId/book` | `FIGHTER`, ACTIVE | `null` (account level), phase `null` | Booking needs gym membership, not a FighterProfile |
-| `mobile.membership` | `/membership` | `FIGHTER`, ACTIVE | `null` | F16 member pass (`D-G19`) |
-| `mobile.gym._gym-id.community` | `/gym/:gymId/community` | `FIGHTER` | unchanged until built (FUTURE) | Decide with the social domain |
-| `mobile.gym._gym-id.store` | `/gym/:gymId/store` | `FIGHTER` | unchanged (FUTURE) | Marketplace domain |
-| `mobile.gym._gym-id.memberships`, `…._membership-id`, `mobile.me.membership`, `mobile.me.credits` | — | `FIGHTER` | unchanged (blocked by `D-G10`); account level when commerce is decided | Commerce |
-| `mobile.marketplace.gym._gym-id`, `mobile.board.node.gym._gym-id` | — | `FIGHTER` | unchanged (FUTURE) | Fighter-app discovery surfaces |
-| new `web.app.me.gyms`, `web.app.me.gyms._gym-id` | `/app/me/gyms[/:gymId]` | — | `null` | Web member view |
-| new `web.join._code` | `/join/:code` | — | `PUBLIC` | Web join (A03 equivalent) |
+| `mobile.gym._gym-id.classes._class-id.book` | `/gym/:gymId/classes/:classId/book` | `FIGHTER`, ACTIVE | `/me/gyms/:gymId/classes/:classId/book`, account level | Booking needs gym membership, not a FighterProfile |
+| `mobile.membership` | `/membership` | `FIGHTER`, ACTIVE | `/me/gyms/:gymId/pass`, account level | F16 member pass (`D-G19`, open) |
+| `mobile.gym._gym-id.community`, `mobile.gym._gym-id.store` | `/gym/:gymId/…` | `FIGHTER` | unchanged until their domains exist (FUTURE) | social and marketplace |
+| `mobile.gym._gym-id.memberships`, `…._membership-id`, `mobile.me.membership`, `mobile.me.credits` | — | `FIGHTER` | unchanged (deferred `D-G10`) | commerce |
+| `mobile.marketplace.gym._gym-id`, `mobile.board.node.gym._gym-id` | — | `FIGHTER` | unchanged (FUTURE) | fighter discovery |
+| new | `/app/me/gyms[/:gymId/…]`, `/me/gyms[/:gymId/…]` | — | account level | member views |
+| new | web `/join/:code` | — | `PUBLIC` | web join |
 
-A non-fighter member reaches these screens from the account area (web
-`/app/me/gyms`, mobile Settings → "My gyms"), and a fighter also reaches them
-from the Fighter app. The routes never expose fighter data, and a member
-without a FighterProfile is never sent to fighter onboarding.
+## 6. Invitation routes (`D-G16`, `D-G22`)
 
-## 6. Staff-invitation routes (`D-G16` approved, `D-G22` open)
+Unchanged Coach–Fighter constraints:
 
-Constraints from the existing Coach–Fighter invitations, all kept unchanged:
+* E08 link `<WEB>/invite/coach#token=sfi_…`, read once by the web page
+  (SF-60).
+* The app claims exactly `https://<app link host>/invite/coach`, discards
+  the fragment and routes to the fighter's invitation inbox (`systemPathOf`,
+  SF-80). Tokens never enter navigation state, `returnTo`, storage or logs.
+* AASA (`APP_LINKS_APPLE_TEAM_ID`) and the Android intent filter claim only
+  `/invite/coach`.
 
-* E08 link `<WEB>/invite/coach#token=sfi_…`. The web page (SF-60) reads the
-  fragment once and sends the token only in request bodies.
-* The mobile app claims exactly `https://<app link host>/invite/coach`,
-  **discards the fragment** and routes to the fighter's invitation inbox
-  (`systemPathOf`, SF-80). Tokens never enter navigation state, `returnTo`,
-  storage or logs. Putting the token into an app route was rejected in SF-80.
-* The AASA and Android intent filter claim only `/invite/coach`.
-
-Proposal:
+Changes for Gym:
 
 | Item | Change | Effect on Coach–Fighter |
 | --- | --- | --- |
-| E06 link | `<WEB>/invite/staff#token=sfs_…` | none (other path, other prefix, other table) |
-| Web | New `web.invite.staff` page: reads the fragment once, preview, accept (SF-60 pattern) | none |
-| Mobile app link | Later native build: also claim `/invite/staff`; `systemPathOf` maps it to the signed-in staff-invitation inbox and drops the fragment | `/invite/coach` mapping unchanged; tests for both |
-| Mobile inbox | New `mobile.gym-invitations` (token-free list from `GET /me/staff-invitations`, by verified email) and `mobile.gym-invitations._invitation-id` (OS1 by invitation **id**, OS1b via SF-77 add-email) | none |
-| `mobile.invite.staff._token`, `mobile.invite.staff._token.confirm` | Retire. The paths are reserved and render not found | none |
-| `mobile.invite.coach._token` (INV2) | Retire. A gym coach invitation is a staff invitation with role coach. `simplefit://invite/coach/<x>` and `/invite/coach/<x>` stop reaching a placeholder that would hold a token in a route param | the exact `/invite/coach` mapping is untouched |
+| E06 / E07 links | `<WEB>/invite/staff#token=sfs_…`, `<WEB>/invite/gym#token=sgm_…` | none (other paths, prefixes and tables) |
+| Web | `/invite/staff` and `/invite/gym` pages: read the fragment once, preview, accept | none |
+| Mobile in-app | `/me/gym-invitations` inbox (`GET /me/staff-invitations` + member invitations, by verified email); items by **id** | none |
+| Mobile app links | A later native build also claims `/invite/staff` and `/invite/gym`; `systemPathOf` maps both to the inbox and drops the fragment | the `/invite/coach` mapping and its tests stay; new tests are added next to them |
+| Retired placeholders | `/invite/staff/:token`, `/invite/staff/:token/confirm`, `/invite/coach/:token` (INV2) | `simplefit://invite/coach/<x>` stops reaching a token-shaped route; the exact `/invite/coach` path is untouched |
 
-**No live links break.** No E06 or INV2 email has ever been sent (there is no
-Gym backend), and the only link in the wild, E08 `/invite/coach#token=`, is
-unchanged.
-
-## 7. Other registry changes the tickets will propose
-
-1. `route-architecture.md` §7 wording for `D-G15`/`D-G23`, and the §8
-   rule-9 exception for gym 403s (`D-G24`) — SF-85.
-2. Design IDs of revised boards (C1–C17 in [12](12-design-reconciliation-plan.md))
-   once Claude Design is updated.
+No live links break: no E06, E07 or INV2 email has ever been sent.

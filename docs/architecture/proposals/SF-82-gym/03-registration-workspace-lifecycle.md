@@ -3,8 +3,9 @@
 **Status:**
 * **Approved:** `D-G05` (a draft at the first valid submission, idempotent
   and resumable) and `D-G04` (one owner, transactional transfer).
-* **Open:** `D-G20` (draft retention), `D-G21` (step redistribution), `D-G25`
-  (limits) and `D-G26` (owner deletion).
+* **Approved:** `D-G20` (no automatic draft deletion), `D-G21` (minimal
+  creation, optional setup, truthful checklist), `D-G22` and `D-G26`.
+* **Open:** `D-G25` (anti-abuse limits; the three-gym cap was rejected).
 
 See the [decision register](10-decision-register.md).
 
@@ -59,12 +60,12 @@ created or used.
 | First persistence | The first **valid** OG1 submission: `POST /api/v1/gyms` with name and type, plus the first location's country, city and address when OG1 and OG2 are combined. An invalid form persists nothing. Role choice and `intent=gym` persist nothing |
 | Draft → completed | `POST /gyms/{id}/complete-setup`. The backend checks name, type, ≥ 1 location with an address and an active owner. Completion is monotonic; a repeat answers 200 |
 | Idempotency | `client_request_id` per create: a retry returns the same gym; the same key with different content answers 409 |
-| Concurrency | One transaction inserts the gym, location, owner row and audit event; a per-user advisory lock guards the draft limit (`D-G25`) |
+| Concurrency | One transaction inserts the gym, location, owner row and audit event; a per-user advisory lock guards the one-open-draft rule (`D-G25`) |
 | Resume | `GET /me/gyms` returns `setup_status` and `missing_requirements`. `intent=gym` with a draft resumes at the first missing step on any device |
-| Already owns a completed gym | `intent=gym` opens it. "Create another gym" is explicit and subject to `D-G25` |
+| Already owns a completed gym | `intent=gym` opens it. "Create another gym" is explicit. Rate limits apply; there is no cap on owned gyms (`D-G25`) |
 | Authentication method | Irrelevant after phase 1. The `intent`/`returnTo` continuation survives email, Google and Apple (SF-45) |
 
-## 3. Keeping the 14-step design as a product journey (`D-G21`)
+## 3. Keeping the 14-step design as a product journey (`D-G21` approved)
 
 The 14 designed steps stay visible as the gym's **journey**. Each step is
 placed in a phase and has a truthful state. None is required unless it is in
@@ -105,7 +106,7 @@ a new sign-in credential, which ADR 0012 forbids. E04 is an optional
 reminder without credentials. Its frequency and consent follow the existing
 transactional-email rules (ADR 0011).
 
-## 5. Staff onboarding (OS1–OS4, `D-G16` approved, `D-G22` open)
+## 5. Staff onboarding (OS1–OS4, `D-G16` and `D-G22` approved)
 
 ```mermaid
 sequenceDiagram
@@ -149,9 +150,9 @@ stateDiagram-v2
 
 | Topic | Rule | Status |
 | --- | --- | --- |
-| Abandoned drafts | Kept. Visible only to their owner. No automatic deletion until a retention period is approved. The owner can discard a draft explicitly; it has no members, staff or schedule, so the delete is safe | `D-G20` open (30-day auto-deletion **not approved**) |
-| Account deletion with a draft | The draft (and its owner row) is deleted with the account | `D-G20`/`D-G26` open |
-| Account deletion while owning a completed gym | Refused until ownership is transferred. Closure is future | `D-G26` open; the account-deletion API does not exist yet |
+| Abandoned drafts | Kept. Visible only to their owner. No automatic deletion until a retention period is approved. The owner can discard a draft explicitly; it has no members, staff or schedule, so the delete is safe | `D-G20` approved (30-day auto-deletion **not approved**) |
+| Account deletion with a draft | The draft (and its owner row) is deleted with the account | `D-G20` approved |
+| Account deletion while owning a completed gym | Refused until ownership is transferred. Closure is future | `D-G26` approved; the account-deletion API does not exist yet |
 | Account deletion as staff or member | Staff and member rows are ended (`account_deleted`); personal fields are removed per retention; future bookings are cancelled | depends on the account-deletion feature |
 | Staff ownership | Exactly one active owner, enforced by a partial unique index. The owner cannot leave or be removed. A manager cannot promote anyone to owner | `D-G04` approved |
 | Transfer | Owner → an **existing active staff member**; the target accepts within 7 days. One transaction under a gym-row lock ends the old owner row (`transferred`), activates the new one and optionally keeps the old owner as manager. A pending transfer blocks a second transfer | `D-G04` approved; SF-100 |

@@ -1,6 +1,6 @@
 # SF-82 · 06 — Claude Design Gym inventory and reconciliation
 
-**Status: PROPOSED.** Source: Claude Design project canvas version
+**Status: inventory of record for SF-82; design changes not applied.** Source: Claude Design project canvas version
 `1792675284-1046` (494 artboards; unchanged since SF-79). 116 boards are
 Gym-related (Gym sections, Gym commerce, gym-facing emails, entry points
 and member-side gym screens). Routes come from `docs/route-registry.json`
@@ -29,7 +29,7 @@ correction) and the proposed design changes C1–C17 are in
 
 | # | Board(s) | Problem | Proposed resolution (needs approval) |
 | --- | --- | --- | --- |
-| R1 | GymSetupSteps, OG1–OG14, OG6b | The 14-step wizard makes plan, KYB, payments, import and publishing part of creating a gym | Four phases; only OG1+OG2 required; unavailable steps "coming later" (`D-G21`, open; [03 §3](03-registration-workspace-lifecycle.md)) |
+| R1 | GymSetupSteps, OG1–OG14, OG6b | The 14-step wizard makes plan, KYB, payments, import and publishing part of creating a gym | Four phases; only OG1+OG2 required; unavailable steps "coming later" (`D-G21`, approved; [03 §3](03-registration-workspace-lifecycle.md)) |
 | R2 | OG4–OG7, OG6b, WG25, PR3, PR6m, L4, OG3, OG1, WG26 | Prices, plans, "Pro trial", verification, public handle/URL | Remove until the deferred product decisions `D-G09`/`D-G11` |
 | R3 | OG0 | "Secure setup link valid 24 h · code" = a new cross-device credential | URL only; owner signs in on web (ADR 0012) |
 | R4 | INV2 (`mobile.invite.coach._token`) vs OS1 (`mobile.invite.staff._token`) | Two entries for one staff-invitation flow; "invite/coach" already means SF-57 coach→fighter; tokens in app paths | Web `/invite/staff#token=`, token-free mobile inbox (`D-G16` approved, `D-G22`) |

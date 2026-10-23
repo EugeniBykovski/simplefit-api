@@ -1,6 +1,6 @@
 # SF-82 · 01 — Gym domain model and ERD
 
-**Status: PROPOSED** (SF-82, 2026-10-23). Part of the
+**Status: ACCEPTED (ADR 0026)** (SF-82, 2026-10-23). Part of the
 [SF-82 package](README.md); decisions referenced as `D-Gnn` are in the
 [decision register](10-decision-register.md).
 
@@ -123,7 +123,7 @@ erDiagram
       uuid gym_id FK
       uuid user_id FK
       uuid home_location_id FK "nullable"
-      text status "active|suspended|ended"
+      text status "requested|active|suspended|ended"
       text joined_via "invitation|join_code"
       timestamptz ended_at
     }
@@ -268,7 +268,7 @@ deliberately:
 ### 4.5 `gym_members` — training at a gym (`D-G07`)
 
 * **Fields.** `gym_id`, `user_id`, `home_location_id`, `status`
-  (`active` ⇄ `suspended`, → `ended` terminal), `joined_via`, `ended_at`,
+  (`requested` → `active` or `ended`; `active` ⇄ `suspended`; `ended` terminal), `joined_via`, `ended_at`,
   `ended_reason` (`left`, `removed`, `account_deleted`, `gym_closed`).
 * **Who can be a member.** A user with **completed account registration**
   (ADR 0016) — the 16+ shared account. **No FighterProfile required**
@@ -278,8 +278,11 @@ deliberately:
   A staff member may also be a member (separate row, separate meaning).
 * **How one becomes a member (MVP).** (a) accepting an email-bound member
   invitation (E07, without CSV import), or (b) entering a gym **join code**
-  (A03) which creates the membership `active` only if the gym allows code
-  joins, otherwise a *pending request* (`D-G08`). CSV import (OG12) is
+  (A03), which creates a `requested` membership that staff approve. It becomes
+  `active` immediately only when the gym has explicitly enabled
+  auto-approval, and never without the joiner's verified identity (`D-G08`,
+  approved). Invitations use one-time `sgm_` tokens, hashed and bound to a
+  verified email exactly like staff invitations. CSV import (OG12) is
   FUTURE: it would store third parties' personal data before they have an
   account and needs a legal basis (`D-G08`).
 * **What it is not.** A membership plan, a subscription, a payment status or
@@ -324,7 +327,7 @@ deliberately:
 
 | Event | Effect |
 | --- | --- |
-| User deletes account | Refused while active owner of a **completed** gym (`D-G26`, open; the account-deletion feature does not exist yet). Their **draft** gyms are deleted with the account (`D-G20`). Otherwise: staff rows ended (`account_deleted`), member rows ended, pending bookings cancelled, invitations to them left to expire; historical check-ins keep `gym_member_id` (the member row persists in `ended` state without personal fields beyond what retention allows — SF-100 decides). |
+| User deletes account | Refused while active owner of a **completed** gym (`D-G26`, approved; the account-deletion feature does not exist yet). Their **draft** gyms are deleted with the account (`D-G20`). Otherwise: staff rows ended (`account_deleted`), member rows ended, pending bookings cancelled, invitations to them left to expire; historical check-ins keep `gym_member_id` (the member row persists in `ended` state without personal fields beyond what retention allows — SF-100 decides). |
 | Staff member removed / leaves | Row ended; occurrences they coach keep running with coach unset (staff sees "needs coach"). |
 | Member removed / leaves | Row ended; future bookings cancelled in the same transaction. |
 | Location archived | Refused while future occurrences exist there. |

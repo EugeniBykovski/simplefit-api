@@ -1,22 +1,20 @@
 # SF-82 — Gym domain architecture, authorization and Claude Design reconciliation
 
-**Status: APPROVED IN PRINCIPLE (2026-10-23) — SF-83 not authorized.** Epic SF-81 Gym & Club
-Management. Summary decision: [ADR 0026](../../adr/0026-gym-domain-architecture.md).
+**Status: ACCEPTED (final SF-82 approval, 2026-10-23); SF-83 not started.**
+Epic SF-81 Gym & Club Management. Summary decision:
+[ADR 0026](../../adr/0026-gym-domain-architecture.md).
 
 SF-82 is architecture and documentation only:
 
 * no Gym API, migration, OpenAPI change or production UI;
-* no route-registry or Claude Design change;
-* SF-83 does not start until the decisions are approved.
+* no route-registry or Claude Design change.
 
-**Review outcome:**
+**Decisions:**
 
-* **Approved:** `D-G04` (one owner, transactional transfer), `D-G05`
-  (draft at the first valid submission, idempotent and resumable), `D-G07`,
-  `D-G14`, `D-G15` and `D-G16`.
-* **Deferred product decisions:** `D-G09`, `D-G10` and `D-G11`.
-* **Not approved:** automatic draft deletion and the exact step
-  redistribution. These are now the open decisions `D-G20` and `D-G21`.
+* **Approved:** D-G01–D-G08, D-G12–D-G16, D-G18, D-G20–D-G24 and D-G26.
+* **Deferred product decisions:** D-G09, D-G10 and D-G11.
+* **Open:** D-G17, D-G19 and D-G25 (rate limits; the three-gym cap was
+  rejected). See the [register](10-decision-register.md).
 
 | Doc | Content |
 | --- | --- |
@@ -28,10 +26,10 @@ SF-82 is architecture and documentation only:
 | [06 Claude Design inventory](06-claude-design-inventory.md) | 116 boards, classification, routes, truthfulness, design findings R1–R11 |
 | [07 Routing](07-routing.md) | Route groups, `gym_id` consistency, member-route capabilities, staff-invite routes |
 | [08 Security threat model](08-security-threat-model.md) | Threats T1–T22 and controls |
-| [09 Dependency matrix](09-dependency-matrix.md) | Proposed SF-83–SF-104 split, entry conditions, critical path |
-| [10 Decision register](10-decision-register.md) | Approved, deferred and open decisions D-G01–D-G26; conflicts with approved documents |
+| [09 Dependency matrix](09-dependency-matrix.md) | SF-83–SF-104 reconciled with the final architecture, missing dependencies (account deletion, native app links), SF-83 independence |
+| [10 Decision register](10-decision-register.md) | Approved, deferred and remaining decisions D-G01–D-G26; conflicts with approved documents |
 | [11 API contract matrix](11-api-contract-matrix.md) | Proposed `/api/v1` operations (not in OpenAPI) |
-| [12 Design reconciliation plan](12-design-reconciliation-plan.md) | R1–R11 with exact artboards, and proposed Claude Design changes C1–C17 (not applied) |
+| [12 Design reconciliation plan](12-design-reconciliation-plan.md) | R1–R11 with exact artboards, proposed changes C1–C17 and the final per-screen checklist (not applied) |
 
 ## Invariants
 
@@ -44,9 +42,11 @@ SF-82 is architecture and documentation only:
    affected screens stay as placeholders.
 5. The ADR 0025 coaching bypass (SF-105) does not apply to Gyms.
 
-## Approval needed
+## Still needed
 
-* The open decisions in [10 §3](10-decision-register.md). For SF-83
-  specifically: `D-G01`, `D-G02`, `D-G13`, `D-G18`, `D-G20` and `D-G25`.
-* Claude Design changes C1–C17 ([12](12-design-reconciliation-plan.md)).
-* The Jira reconciliation of SF-83–SF-104 ([09](09-dependency-matrix.md)).
+* Decisions `D-G25` (needed by SF-83), `D-G19` (SF-96/SF-97) and `D-G17`.
+* A separate approval of the Claude Design changes C1–C17
+  ([12 §3](12-design-reconciliation-plan.md)).
+* The Jira alignment of SF-83–SF-104, plus new tickets for account deletion
+  and the native invitation app links ([09 §3](09-dependency-matrix.md)).
+* An explicit authorization to start SF-83.

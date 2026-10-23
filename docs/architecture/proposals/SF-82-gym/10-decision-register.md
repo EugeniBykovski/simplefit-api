@@ -1,54 +1,54 @@
 # SF-82 · 10 — Decision register
 
-**Review status (2026-10-23):** the architecture is approved in principle;
-**SF-83 is not authorized yet**. Statuses:
+**Review status (final SF-82 approval, 2026-10-23).** The architecture is
+approved. SF-83 is not started and needs its own start authorization.
 
-* **APPROVED**: approved by the product owner in the SF-82 review.
-* **OPEN**: engineering proposal awaiting a decision.
+* **APPROVED**: approved by the product owner.
+* **OPEN**: awaiting a decision; nothing that depends on it may be built.
 * **DEFERRED PRODUCT DECISION**: a business, legal or vendor decision. It is
-  not an engineering fact, and nothing that depends on it is designed further
-  or built.
+  not an engineering fact; nothing that depends on it is designed further or
+  built, and no stub or mock stands in for it.
 
 ## 1. Approved decisions
 
-| ID | Decision approved | Notes for implementation |
+| ID | Decision | Binding details |
 | --- | --- | --- |
-| D-G04 | One canonical gym owner in MVP; ownership moves only by a safe, transactional transfer | Partial unique index "one active owner per gym"; transfer locks the gym row; the owner cannot leave or be removed ([03 §6](03-registration-workspace-lifecycle.md)) |
-| D-G05 | A gym is created as a **draft** at the first valid onboarding submission, with idempotency and resumability | `POST /gyms` with `client_request_id`; `GET /me/gyms` resumes. **Not covered by the approval:** draft retention (`D-G20`), creation limits (`D-G25`) and the step redistribution (`D-G21`) |
-| D-G07 | Gym membership does not require a FighterProfile. Gym members and Coach–Fighter relationships stay independent | Member-side routes move to account level ([07 §5](07-routing.md)) |
-| D-G14 | Gym classes and occurrences are separate from private, coach-assigned TrainingSessions | Shared `SimpleFit.Scheduling` time rules, extracted without changing ADR 0023's behaviour |
-| D-G15 | Explicit path-scoped Gym APIs `/api/v1/gyms/{gym_id}/…`, with backend membership and permission checks on every request | UI URL shape is `D-G23`; UI treatment of 403 is `D-G24` |
-| D-G16 | A canonical Gym staff-invitation domain, separate from Coach–Fighter invitations; conflicting token routes are not reused | Entry design is `D-G22`; the SF-57/SF-80 `/invite/coach` link and its security stay untouched |
+| D-G01 | `gyms` is the tenant root, owned by `SimpleFit.Gyms` | No polymorphic `workspaces` table. No `gym_id`, role or type on `users` |
+| D-G02 | A separate `gym_locations` table (address only), ≥ 1 per gym | The first UI manages one location. Rooms and opening hours are future |
+| D-G03 | Fixed MVP roles: `owner`, `manager`, `coach`, `front_desk` | Authorization is one `Gyms.Policy` matrix in code. "Head coach" is a display title on a coach. Custom roles are future |
+| D-G04 | One canonical owner per gym; ownership moves only by a safe, transactional transfer | Partial unique index "one active owner"; the transfer locks the gym row; the target is an existing active staff member and accepts within 7 days |
+| D-G05 | A gym is created as a **draft** at the first valid onboarding submission, with idempotency and resume | `client_request_id`; `GET /me/gyms` resumes. Creation limits are `D-G25` |
+| D-G06 | Gym permissions **never** imply access to a fighter's private training data | No gym role reads training logs, RPE, weight, notes, videos or messages. The only path is an ADR 0021 Coach–Fighter relationship. A future gym-scoped consent would be a separate decision |
+| D-G07 | Gym membership does not require a FighterProfile; gym members and Coach–Fighter relationships are independent | Member-side routes move to account level |
+| D-G08 | Request-based member enrollment | A join code creates a **request** that staff approve. Auto-approval only applies when the gym explicitly enables it in its configuration, and it **never bypasses identity verification**: the joiner must be signed in with a completed account and must have proved control of their sign-in identity (email code, or a verified Google/Apple identity). An E07 invitation is accepted only by an account holding a **verified** identity for the invited address. CSV import is future |
+| D-G12 | Staff invitations expire after **7 days** | Single use, hashed `sfs_` tokens, bound to a verified email identity, revocable; resending rotates the token |
+| D-G13 | Six canonical gym types | Validated against the design (OG1 `WebSetupGym`, canvas `1792675284-1046`). The design defines six **single-select display labels** and no machine values. The keys map 1:1: Boxing Gym → `boxing_gym`, Boxing Club → `boxing_club`, Amateur Club → `amateur_club`, Professional Team → `professional_team`, Combat Sports Gym → `combat_sports_gym`, Fitness Boxing Studio → `fitness_boxing_studio`. The OG1 preview line "Boxing · Fitness boxing" shows disciplines, which are future and not types |
+| D-G14 | Gym classes and occurrences are separate from coach-assigned TrainingSessions | Shared `SimpleFit.Scheduling` time rules; ADR 0023's behaviour stays unchanged |
+| D-G15 | Explicit path-scoped Gym APIs `/api/v1/gyms/{gym_id}/…`, with backend membership and permission checks on every request | The backend never infers a gym from a session or header |
+| D-G16 | A canonical Gym staff-invitation domain, separate from Coach–Fighter invitations | No reuse of conflicting token routes. The SF-57/SF-80 `/invite/coach` link and its security stay unchanged |
+| D-G18 | Audit events from the initial Gym domain (SF-83) | Append-only `gym_audit_events`: actor, action, target id, time; no free text |
+| D-G20 | No automatic deletion of draft gyms until a retention policy is approved | Drafts are visible only to their owner; the owner may discard one; account deletion removes the user's drafts |
+| D-G21 | Minimal required gym creation, followed by optional setup and a truthful first-run checklist | Required: name, type and one location (OG1, OG2). The 14 steps stay as a product journey; unavailable steps are "coming later" and never required |
+| D-G22 | Native invitation entry is a token-free inbox matched by verified email | Web reads `#token=` once (SF-60 pattern). The app never receives a token (SF-80 rule). The same pattern applies to staff (E06) and member (E07) invitations |
+| D-G23 | **ID-based Gym navigation** and explicit `gymId` authorization | Gym UI routes carry the gym id ([07 §3](07-routing.md)). This supersedes `D-WORKSPACE-NOT-IN-URL` for Gym. The id is never authorization: every request is checked by the backend |
+| D-G24 | 403 for insufficient permissions **inside a gym the caller is authorized for**; outsiders never learn that a private gym exists | Non-staff, cross-gym and revoked access get 404. Active staff whose role lacks the permission get 403 `forbidden`, and the console shows a role-restriction state. This is an exception to route-architecture rule 9 for Gym |
+| D-G26 | The sole owner's account cannot be deleted before a successful ownership transfer | Enforced inside account deletion, which asks `Gyms`. The account-deletion feature does not exist yet ([09 §3](09-dependency-matrix.md)) |
 
 ## 2. Deferred product decisions
 
 | ID | Decision | What is blocked | Engineering position |
 | --- | --- | --- | --- |
-| D-G09 | Pricing, Gym SaaS subscriptions, trials and SimpleFit billing | OG4–OG6, OG6b trial copy, WG25, PR3, PR6m, L4 prices, plan tiles | No plan, price or trial is stored or shown. Gym creation never depends on a plan |
-| D-G10 | Payment provider and payment architecture activation (member commerce, payouts, refunds, dunning) | OG8, OG9, WG6, WG7, GC1–GC12, F16 renewals, credits | No provider is selected or stubbed. No mock payment grants an entitlement |
+| D-G09 | Pricing, gym SaaS subscriptions, trials, SimpleFit billing, and any **commercial ownership limits** (e.g. gyms per plan) | OG4–OG6, OG6b trial copy, WG25, PR3, PR6m, L4 prices, plan tiles | No plan, price, trial or plan-based limit is stored or shown. Gym creation never depends on a plan |
+| D-G10 | Payment provider and payment architecture (member commerce, payouts, refunds, dunning) | OG8, OG9, WG6, WG7, GC1–GC12, F16 renewals, credits | No provider is selected or stubbed. No mock payment grants an entitlement |
 | D-G11 | Business verification (KYB) and public publishing policy | OG7, OG14, E05, Discover, MK4/MK5, "verified" badges | Gyms stay private. Nothing shows "verified" or "published" |
 
-## 3. Open decisions
+## 3. Remaining decisions
 
-| ID | Decision | Proposed choice | Alternatives | Recommendation and trade-off |
+| ID | Full definition | Proposed choice | Alternatives | Recommendation |
 | --- | --- | --- | --- | --- |
-| D-G01 | What is the tenant? | `gyms` table owned by `SimpleFit.Gyms` | B: generic polymorphic `workspaces` table shared with sponsors | **Proposed choice.** B forces a lowest-common-denominator model; sponsors get their own table later |
-| D-G02 | Locations | ≥ 1 address-only `gym_locations`, one in the first UI | B: address columns on `gyms` | **Proposed choice.** One join more; no migration when the second location arrives (WG23 already shows several) |
-| D-G03 | Staff roles | Fixed `owner`, `manager`, `coach`, `front_desk` in code; "head coach" is a display title | B: custom roles with permission JSON (WG17 "Add custom role"); C: add a `head_coach` role now | **Proposed choice.** B is speculative and hard to audit; C can be added later without migrating data |
-| D-G06 | Gym access to members' training data | Never via the gym; only via ADR 0021 relationships | B: a future gym-scoped consent (WG16/WG17/OS2/INV2 "fighter notes with consent") | **Proposed choice now.** B only as a separate future decision with its own legal text |
-| D-G08 | How members join | Email invitation (E07) plus a join code that creates a request; the owner may turn on auto-approve | B: also CSV import (OG12); C: open joining without approval | **Proposed choice.** Import stores third parties' data before they have an account and needs a legal basis |
-| D-G12 | Staff invitation lifetime and binding | 7 days; bound to a verified email identity (ADR 0021/SF-73 pattern) | B: 24 h; C: link-only possession | **Proposed choice.** Matches the E06 and OS1 copy; C would let a forwarded email be accepted |
-| D-G13 | Gym types | OG1's six values as a code-level enum in a text column | B: free text | **Proposed choice.** New values need a code change only |
-| D-G17 | Local development for Gym | No bypass. The Gym MVP needs no legal or vendor gate, and ADR 0025 (SF-105) is not extended | B: extend the ADR 0025 bypass | **Proposed choice.** Future gates use provider sandboxes |
-| D-G18 | Audit history | Append-only `gym_audit_events` from SF-83 | B: logs only | **Proposed choice.** Logs cannot keep reliable, PII-free history (ADR 0008) |
-| D-G19 | Member pass without commerce | F16 as a non-commercial "member pass" (rotating QR, gym name, status) | B: no pass until commerce exists | **Proposed choice.** Needs the R6 design change |
-| D-G20 | Abandoned draft gyms | Keep drafts indefinitely in MVP. Show them only to their owner; the owner can discard a draft explicitly. Account deletion removes the user's drafts. Automatic expiry waits for a retention policy | B: automatic deletion after N days (SF-82's original "30 days", **not approved**); C: reminder e-mails (E04) followed by deletion | **Proposed choice.** No automatic deletion until a retention period is approved. A draft has no members, staff or schedule, so keeping it costs little |
-| D-G21 | Onboarding step redistribution | Four phases: account → **create gym** (required: name, type, first location) → **optional setup** (branding and other available items) → **post-registration checklist**. Unavailable steps are shown as "coming later", never required ([03 §3](03-registration-workspace-lifecycle.md)) | B: keep the 14-step wizard and skip unavailable steps; C: create-gym only, with no setup or checklist | **Proposed choice.** It keeps the 14 steps as the product journey without blocking creation |
-| D-G22 | Staff-invitation entry on web and mobile | Web `/invite/staff#token=sfs_…` (fragment, like SF-60). On mobile, a **token-free** `/invite/staff` link mapped to a signed-in "staff invitations" inbox matched by verified email (SF-73/SF-80 pattern). Retire the `/invite/staff/:token`, `/invite/staff/:token/confirm` and `/invite/coach/:token` path-token routes | B: token in the mobile path (current placeholders); C: token in the mobile fragment (rejected by SF-80: Expo Router copies it into navigation state) | **Proposed choice.** Same security as SF-80. No live links break, because no staff or INV2 link has ever been sent ([07 §6](07-routing.md)) |
-| D-G23 | Console UI URLs | Keep `D-WORKSPACE-NOT-IN-URL`: id-free console paths, a client-held active gym and the last choice remembered on the server | B: gym id in console URLs (`/app/gyms/:gymId/members`) | **Proposed choice now**, with B kept open for deep links from emails and push. Either option is safe because the API always carries the id |
-| D-G24 | UI treatment of a 403 in the gym console | The backend keeps 403 for staff who lack a permission. The console shows a "your role can't do this" state instead of route-architecture rule 9's not-found | B: follow rule 9 (403 rendered as not found) | **Proposed choice.** The staff member already knows the gym exists; rule 9 would mislead. Needs a route-architecture amendment |
-| D-G25 | Creation limits | At most 1 draft and 3 owned gyms per user, plus a rate limit | B: no limits; C: limits by plan (needs `D-G09`) | **Proposed choice.** Anti-abuse without depending on a plan |
-| D-G26 | Owner account deletion and gym retention | Account deletion is refused while the user is an active owner; they must transfer first. Closure and retention periods are a future product/legal decision | B: deleting the owner closes the gym automatically | **Proposed choice.** B would end every member's and staff member's access as a side effect. The account-deletion API itself does not exist yet ([09 §3](09-dependency-matrix.md)) |
+| D-G17 | **Local development for Gym.** Should the Gym domain get a local-development mode like ADR 0025 (SF-105, the LOCAL DEVELOPMENT coaching mode that bypasses unpublished legal documents)? | No Gym bypass. The Gym MVP has no legal, verification or payment gate, so it runs locally with the normal stack: Log email adapter, `mix e2e.email_code` and real draft/complete flows. ADR 0025 stays limited to coaching. Future gates (KYB, payments) use the provider's own sandbox and never a "verified" or "paid" flag in `simple_fit_dev` | B: extend ADR 0025's `LegalPolicy` bypass to Gyms; C: a separate Gym dev-mode flag that marks gyms verified or published | **Approve A.** B and C would create a second fail-open path with nothing to bypass today. Does not block SF-83 |
+| D-G19 | **Member pass without commerce.** What F16 ("Membership pass") shows before gym commerce exists (`D-G10` deferred) | A non-commercial **member pass**: gym name, home location, member status (active / suspended) and a rotating, server-signed QR used for check-in (T11). No plan, renewal date, credits, visits-left or price. Route `mobile.membership` becomes account level (`D-G07`) | B: no pass until commerce exists, so check-in is manual only; C: show the designed plan card with placeholder values (violates invariant 4) | **Approve A.** It makes the approved check-in flow work without fabricated commerce and needs design change C9. Needed by SF-96/SF-97, not SF-83 |
+| D-G25 | **Gym creation anti-abuse** (revised; the hard cap of three owned gyms was **not approved**) | Rate limits only, keyed by user and by a digest of the client IP, as in ADR 0012: at most **5 gym creations per user per 24 h** and **20 per IP digest per 24 h**, answered with 429 `rate_limited` and `Retry-After`. **One open draft per user** at a time: a second create returns the existing draft, which keeps resume unambiguous (it is not an ownership cap). No limit on the number of completed gyms owned | B: no limits; C: hard cap of owned gyms (rejected); D: plan-based ownership limits (deferred with `D-G09`) | **Approve the rate limits and the one-open-draft rule.** The values are configuration and can be tuned without a migration. Needed by SF-83 |
 
 ## 4. Conflicts with approved documents
 
@@ -57,8 +57,9 @@ them.
 
 | Document | Current text | Required change | Ticket |
 | --- | --- | --- | --- |
-| `route-architecture.md` §7 | The active workspace is "session context held by the backend session" | Client-held active gym; the last choice is remembered by the backend; every Gym API request carries `gym_id` (`D-G15`, `D-G23`) | SF-85 |
-| `route-architecture.md` §8 rule 9 | 403 and 404 both render not found | Gym console exception for 403 (`D-G24`) | SF-85 |
-| Route registry | Member gym routes require `FIGHTER` | Account level (`D-G07`) | SF-91 |
+| `route-architecture.md` §7 | Workspace paths carry no workspace id; the active workspace is "session context held by the backend session" (`D-WORKSPACE-NOT-IN-URL`) | For Gym: the id is in the UI path (`D-G23`) and in every API path (`D-G15`). The backend remembers only the last chosen gym for landing | SF-85 |
+| `route-architecture.md` §8 rule 9 | 403 and 404 both render not found | Gym exception: 403 inside an authorized gym renders the role-restriction state (`D-G24`) | SF-85 |
+| Route registry | Gym console routes are id-free (`/app/gym/**`, `/gym/**`) | Id-based console routes ([07 §3](07-routing.md)) | SF-85 |
+| Route registry | Member gym routes require `FIGHTER`; mobile member paths `/gym/:gymId/**` | Account level (`D-G07`); member paths moved under `/me/gyms/:gymId` ([07 §5](07-routing.md)) | SF-91 |
 | Route registry | `/invite/coach/:token` (INV2), `/invite/staff/:token`, `/invite/staff/:token/confirm` | Token-free entries (`D-G22`) | SF-87 |
-| Claude Design | R1–R11 | [12](12-design-reconciliation-plan.md) | per screen |
+| Claude Design | R1–R11 | Checklist in [12 §3](12-design-reconciliation-plan.md) | per screen |

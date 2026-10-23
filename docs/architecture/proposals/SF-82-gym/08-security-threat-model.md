@@ -1,6 +1,6 @@
 # SF-82 · 08 — Gym security and lifecycle threat model
 
-**Status: PROPOSED.** Controls are requirements for SF-83 onwards; each
+**Status: ACCEPTED (ADR 0026) as requirements.** Controls are requirements for SF-83 onwards; each
 needs a test in the ticket that introduces the surface.
 
 | # | Threat | Example | Control |
@@ -10,11 +10,11 @@ needs a test in the ticket that introduces the surface.
 | T3 | Privilege escalation | Manager makes self owner; coach edits timetable | `Gyms.Policy` matrix; owner role only through transfer; role changes re-check actor's role in the same transaction |
 | T4 | Last-owner removal / orphan gym | Owner removes self, two transfers race | Partial unique index "one active owner per gym"; owner cannot leave; transfer locks the gym row |
 | T5 | Stale permissions after revocation | Removed front desk keeps checking people in | Membership re-read per request inside the transaction (`FOR SHARE`); no role in tokens or client |
-| T6 | Workspace switching confusion | Tab 1 acts on gym A while UI shows gym B | Gym id in every API path (`D-G15`); client renders the gym name returned by the API, not a cached one |
+| T6 | Workspace switching confusion | Tab 1 acts on gym A while UI shows gym B | Gym id in every API path (`D-G15`) and every UI route (`D-G23`), so each tab names its gym; the shell renders the gym name from API responses |
 | T7 | Concurrent bookings over capacity | 30 members book the last place | Occurrence row `FOR UPDATE`; count + insert in one transaction; unique `(occurrence_id, member_id)` |
-| T8 | Duplicate gym creation | Double click, two tabs, retries | `client_request_id` unique per creator; ≤ 1 draft (advisory lock/partial unique); rate limit |
+| T8 | Duplicate gym creation | Double click, two tabs, retries | `client_request_id` unique per creator; one open draft per user (a second create returns it); rate limits 5/user and 20/IP digest per 24 h (`D-G25`); no ownership cap |
 | T9 | Invitation replay / forwarding | Forwarded E06 accepted by another account | Hashed `sfs_` tokens only in the web fragment and request bodies, never in app routes (SF-80 rule; mobile uses a token-free inbox by verified email, `D-G22`), single use, 7-day expiry, bound to a **verified** email identity of the accepter (ADR 0021/SF-73 pattern); revocation; preview reveals only gym name, role, inviter first name |
-| T10 | Member invitation / join-code abuse | Brute-forcing join codes | Codes ≥ 8 chars from a 32-symbol alphabet, per-IP + per-user limits (digests only), owner can rotate/disable; join creates a pending request unless invited (`D-G08`) |
+| T10 | Member invitation / join-code abuse | Brute-forcing join codes | Codes ≥ 8 chars from a 32-symbol alphabet, per-IP + per-user limits (digests only), owner can rotate/disable; a code join creates a `requested` membership unless the gym explicitly enabled auto-approval, and never without a verified identity (`D-G08`) |
 | T11 | Check-in pass replay | Screenshot of a member QR | Rotating pass token (short TTL, HMAC over member id + window), single check-in per occurrence, server-side verification only |
 | T12 | Financial data access | Front desk reads revenue | No financial data exists in MVP; when it does, owner-only by default |
 | T13 | Member privacy (training data) | Gym coach reads RPE via gym | No gym permission reads training data ([04](04-gym-vs-coaching-contract.md)); contract tests |

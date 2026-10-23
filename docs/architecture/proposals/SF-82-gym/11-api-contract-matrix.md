@@ -1,6 +1,6 @@
 # SF-82 · 11 — Proposed `/api/v1` contract matrix
 
-**Status: PROPOSED (path scoping approved, `D-G15`). Not in OpenAPI.** `openapi/simplefit.api.json` is
+**Status: PROPOSED contract; path scoping approved (`D-G15`). Not in OpenAPI.** `openapi/simplefit.api.json` is
 unchanged by SF-82; each ticket adds its operations with schemas and tests
 (CLAUDE.md rules 8–11). All gym-scoped paths carry `{gym_id}` (`D-G15`) and
 follow the 401/403/404 rules of [02 §5](02-identity-roles-permissions.md).
@@ -8,7 +8,7 @@ Errors use the existing envelope; new codes are listed per row.
 
 | Method & path | Purpose | Actor / permission | Idempotency & concurrency | Notable errors | Ticket |
 | --- | --- | --- | --- | --- | --- |
-| `POST /gyms` | Create draft gym + first location + owner row | registered user | `client_request_id`; per-user advisory lock | 409 `gym_draft_exists`, 409 `gym_limit_reached`, 409 `client_request_id` reused, 422 | SF-83 |
+| `POST /gyms` | Create draft gym + first location + owner row | registered user | `client_request_id`; per-user advisory lock; an existing open draft is returned (200), one open draft per user (`D-G25`) | 429 `rate_limited` (5 per user, 20 per IP digest per 24 h; `D-G25`), 409 `client_request_id` reused, 422 | SF-83 |
 | `GET /me/gyms` | Gyms where caller is staff, with `setup_status`, `missing_requirements` | registered user | — | — | SF-83 |
 | `GET /gyms/{gym_id}` | Gym details | staff | — | 404 | SF-83 |
 | `PATCH /gyms/{gym_id}` | Edit name, type, contact, branding fields | owner, manager | `lock_version` | 409 `stale`, 422 | SF-83/SF-98/SF-99 |
@@ -29,7 +29,10 @@ Errors use the existing envelope; new codes are listed per row.
 | `PATCH /gyms/{gym_id}/members/{member_id}` | Suspend / resume / end | owner, manager | member row lock | 409 `invalid_transition` | SF-89 |
 | `POST /gyms/{gym_id}/member-invitations` | Invite by email (E07) | owner, manager, front desk | one pending per recipient | 409 `already_member`, 429 | SF-89 |
 | `PUT /gyms/{gym_id}/join-code` | Rotate / disable code, auto-approve flag | owner, manager | — | — | SF-89 |
-| `POST /gym-join/preview`, `POST /me/gym-memberships/join` | Preview, join by code or invitation | anyone / registered user | unique `(gym_id, user_id)` | 409 `already_member`, 404, 429 | SF-89 |
+| `POST /gym-join/preview`, `POST /me/gym-memberships/join` | Preview, join by code (creates a `requested` membership; `active` only with the gym's explicit auto-approval) | anyone / registered user with a verified identity | unique `(gym_id, user_id)` | 409 `already_member`, 404, 429 | SF-89 |
+| `POST /gym-invitations/preview`, `POST /me/gym-invitations/accept` | Web member-invitation preview and accept (`sgm_` token in body) | anyone / session with verified invited email | invitation `FOR UPDATE` | 404 `invitation_invalid`, 409 `invitation_email_mismatch` | SF-89 |
+| `GET /me/gym-invitations`, `POST …/{invitation_id}/accept`, `POST …/{invitation_id}/decline` | Token-free member-invitation inbox by verified email (`D-G22`) | registered user | invitation `FOR UPDATE` | 404 | SF-89 |
+| `GET /gyms/{gym_id}/join-requests`, `POST …/{member_id}/approve`, `POST …/{member_id}/decline` | Review join requests | owner, manager, front desk | member row lock | 409 `invalid_transition` | SF-89 |
 | `GET /me/gym-memberships` | Member's gyms | registered user | — | — | SF-91 |
 | `GET/POST /gyms/{gym_id}/classes`, `PATCH/DELETE …/{class_id}` | Class definitions | read: staff; write: owner, manager | `client_request_id`, `lock_version` | 422 time zone/recurrence | SF-92 |
 | `GET /gyms/{gym_id}/occurrences?from&to` | Timetable window | staff; members (member view) | — | 422 window > 31 d | SF-92 |

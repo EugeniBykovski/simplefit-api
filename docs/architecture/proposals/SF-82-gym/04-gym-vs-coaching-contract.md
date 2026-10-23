@@ -1,6 +1,6 @@
 # SF-82 · 04 — Gym membership vs Coach–Fighter relationship contract
 
-**Status: PROPOSED.** This contract is the most important boundary of the Gym
+**Status: ACCEPTED (ADR 0026; `D-G06`, `D-G07` approved).** This contract is the most important boundary of the Gym
 epic. It restates and extends SF-49 §9 and ADR 0021.
 
 ## 1. The rule

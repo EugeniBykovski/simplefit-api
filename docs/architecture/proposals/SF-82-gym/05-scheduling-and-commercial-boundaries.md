@@ -1,6 +1,6 @@
 # SF-82 · 05 — Scheduling boundary and commercial architecture
 
-**Status: PROPOSED.** See the [package index](README.md).
+**Status: ACCEPTED (ADR 0026; `D-G14` approved; `D-G09`–`D-G11` deferred; `D-G17` open).** See the [package index](README.md).
 
 ## 1. Private training vs group classes (`D-G14`)
 
@@ -44,10 +44,10 @@ the coaching side. Neither is designed here beyond this boundary.
 | # | Concept | Example in design | Owner | Status |
 | --- | --- | --- | --- | --- |
 | A | **Member enrollment** — being a member of a gym | WG3, G09, A03, E07 | `Gyms.Members` (`gym_members`) | **MVP**, no money |
-| B | **Membership products / subscriptions** a gym sells to members | WG6, GC1–GC8, GC2 create membership, F16 pass | `Gyms.Commerce` (plans) + `Payments` | FUTURE, blocked on `D-G10` |
-| C | **SimpleFit platform subscription** the gym business pays SimpleFit | OG6 plan/trial, WG25, PR3/PR6m | `Billing` (new) | BLOCKED on `D-G09` |
+| B | **Membership products / subscriptions** a gym sells to members | WG6, GC1–GC8, GC2 create membership, F16 pass | `Gyms.Commerce` (plans) + `Payments` | DEFERRED PRODUCT DECISION `D-G10` |
+| C | **SimpleFit platform subscription** the gym business pays SimpleFit | OG6 plan/trial, WG25, PR3/PR6m | `Billing` (new) | DEFERRED PRODUCT DECISION `D-G09` |
 | D | **Class bookings and attendance** | WG18, WG19, F13, G02, G03 | `Gyms.Bookings`, `Gyms.Attendance` | **MVP**, no money |
-| E | **Payment transactions, invoices, payouts, dunning** | WG7, GC9–GC12, OG9 | `Payments` provider boundary (ADR 0005) | BLOCKED on `D-G10` |
+| E | **Payment transactions, invoices, payouts, dunning** | WG7, GC9–GC12, OG9 | `Payments` provider boundary (ADR 0005) | DEFERRED PRODUCT DECISION `D-G10` |
 
 Rules that follow:
 
