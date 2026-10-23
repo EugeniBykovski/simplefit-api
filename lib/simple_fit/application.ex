@@ -28,6 +28,9 @@ defmodule SimpleFit.Application do
     children = [
       SimpleFitWeb.Telemetry,
       SimpleFit.Repo,
+      # LOCAL DEVELOPMENT coaching mode (ADR 0025): decided once, here, after
+      # the repo (it checks the live database) and before the endpoint.
+      SimpleFit.Coaching.LocalDevelopment,
       {Oban, Application.fetch_env!(:simple_fit, Oban)},
       # Google ID-token signing keys (ADR 0013).
       Google.Keys,

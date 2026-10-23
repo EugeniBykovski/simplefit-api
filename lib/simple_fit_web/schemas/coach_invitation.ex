@@ -66,8 +66,17 @@ defmodule SimpleFitWeb.Schemas.CoachDataRulesResponse do
         data_rules: %Schema{
           type: :object,
           additionalProperties: false,
-          required: [:acknowledged_at, :document, :document_version],
+          required: [:acknowledged_at, :document, :document_version, :legal_mode],
           properties: %{
+            legal_mode: %Schema{
+              type: :string,
+              enum: ["approved", "local_development"],
+              description: """
+              `approved`: the normal regime (approved legal texts). `local_development`: this API runs in LOCAL
+              DEVELOPMENT coaching mode (ADR 0025): there is no legal text, nothing to acknowledge and nothing to
+              tick; the fighter still accepts explicitly. Never served by a production API.
+              """
+            },
             document: %Schema{
               type: :object,
               allOf: [SimpleFitWeb.Schemas.LegalDocumentRef],
@@ -341,8 +350,17 @@ defmodule SimpleFitWeb.Schemas.CoachInvitationPreview do
       """,
       type: :object,
       additionalProperties: false,
-      required: [:disclosure, :document, :invitation],
+      required: [:disclosure, :document, :invitation, :legal_mode],
       properties: %{
+        legal_mode: %Schema{
+          type: :string,
+          enum: ["approved", "local_development"],
+          description: """
+          `approved`: the normal regime (approved legal texts). `local_development`: this API runs in LOCAL
+          DEVELOPMENT coaching mode (ADR 0025): there is no legal text, nothing to acknowledge and nothing to
+          tick; the fighter still accepts explicitly. Never served by a production API.
+          """
+        },
         document: %Schema{
           type: :object,
           allOf: [SimpleFitWeb.Schemas.LegalDocumentRef],
@@ -389,14 +407,16 @@ defmodule SimpleFitWeb.Schemas.CoachInvitationAcceptRequest do
     %{
       title: "CoachInvitationAcceptRequest",
       type: :object,
-      required: [:disclosure_version, :document_language, :token],
+      required: [:disclosure_version, :token],
       properties: %{
         token: CoachInvitationFields.token(),
         document_language: %Schema{
           type: :string,
           enum: SimpleFit.Legal.Registry.languages(),
-          description:
-            "The `document.language` of the disclosure text the fighter was shown (an approved variant)."
+          description: """
+          The `document.language` of the disclosure text the fighter was shown (an approved variant). Required
+          whenever a text was shown (`legal_mode` `approved`); `local_development` shows none.
+          """
         },
         disclosure_version: %Schema{
           type: :string,
@@ -555,7 +575,7 @@ defmodule SimpleFitWeb.Schemas.IncomingCoachInvitationAcceptRequest do
     %{
       title: "IncomingCoachInvitationAcceptRequest",
       type: :object,
-      required: [:disclosure_version, :document_language],
+      required: [:disclosure_version],
       properties: %{
         disclosure_version: %Schema{
           type: :string,
@@ -567,8 +587,10 @@ defmodule SimpleFitWeb.Schemas.IncomingCoachInvitationAcceptRequest do
         document_language: %Schema{
           type: :string,
           enum: SimpleFit.Legal.Registry.languages(),
-          description:
-            "The `document.language` of the disclosure text the fighter was shown (an approved variant)."
+          description: """
+          The `document.language` of the disclosure text the fighter was shown (an approved variant). Required
+          whenever a text was shown (`legal_mode` `approved`); `local_development` shows none.
+          """
         }
       }
     },

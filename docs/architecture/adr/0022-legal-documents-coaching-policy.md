@@ -165,6 +165,10 @@ only after those clients ship (SF-71 activation checklist).
 
 ## Consequences
 
+* LOCAL DEVELOPMENT coaching mode (ADR 0025) is the only regime without
+  these documents. `SimpleFit.Coaching.LegalPolicy` decides which regime
+  applies; a production build cannot enter that mode.
+
 * Publishing (Part B) and activation (Part C) are reviewed code and
   configuration changes after counsel's approval; this ADR does not perform
   them.

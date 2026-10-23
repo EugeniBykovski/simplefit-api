@@ -68,6 +68,10 @@ defmodule SimpleFit.Coaching.Disclosure do
     end
   end
 
+  @doc "The fighter profile fields of the scope `scope` (contract order)."
+  @spec scope_fields(atom()) :: [atom()]
+  def scope_fields(scope), do: Map.get(@scopes, scope, [])
+
   @doc "The fields `current/0` discloses (empty when there is none)."
   @spec current_fields() :: [atom()]
   def current_fields, do: if(version = current(), do: fields(version), else: [])

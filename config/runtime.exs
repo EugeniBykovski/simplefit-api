@@ -168,6 +168,12 @@ end
 
 case config_env() do
   :dev ->
+    # LOCAL DEVELOPMENT coaching mode opt-in (ADR 0025). Only an opt-in:
+    # SimpleFit.Coaching.LocalDevelopment also requires a loopback endpoint and
+    # a local, approved development database (config/dev.exs).
+    config :simple_fit, SimpleFit.Coaching.LocalDevelopment,
+      opt_in: System.get_env("SIMPLEFIT_LOCAL_DEV_COACHING") == "enabled"
+
     # Loopback by default; PHX_BIND_ALL=true listens on every IPv4 interface
     # so a physical device on the LAN can reach the API (development only).
     config :simple_fit, SimpleFitWeb.Endpoint,

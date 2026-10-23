@@ -70,6 +70,13 @@ defmodule SimpleFit.Coaching.Invitations do
   the consumed invitation, or nothing does. The coach acknowledges the data
   rules the same way, with its own evidence.
 
+  Which legal regime applies is `SimpleFit.Coaching.LegalPolicy`'s decision
+  alone. In its LOCAL DEVELOPMENT mode (ADR 0025) there is no legal document:
+  no data rules to acknowledge, no text to show or language to echo, and no
+  evidence. The fighter still accepts explicitly, echoing the disclosure the
+  preview showed (the local-development marker), and every other check
+  above still applies.
+
   ## Abuse limits (PostgreSQL windows, ADR 0019 conventions)
 
   Per coach 10/hour and 30/day, per recipient (any coach) 3/day, per client
@@ -83,7 +90,7 @@ defmodule SimpleFit.Coaching.Invitations do
   alias Ecto.Changeset
   alias SimpleFit.{Accounts, Coaches, Coaching, Email, Fighters, Legal, RateLimit, Repo}
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Coaching.{Activation, DataRulesAcknowledgement, Disclosure}
+  alias SimpleFit.Coaching.{Activation, DataRulesAcknowledgement, LegalPolicy}
   alias SimpleFit.Coaching.{Invitation, InvitationSecrets}
   alias SimpleFit.Email.Templates
 
@@ -135,12 +142,19 @@ defmodule SimpleFit.Coaching.Invitations do
            %{
              document_version: String.t() | nil,
              acknowledged_at: DateTime.t() | nil,
-             document: Legal.ref() | nil
+             document: Legal.ref() | nil,
+             legal_mode: String.t()
            }}
           | {:error, :not_found}
   def data_rules(%User{} = user, language \\ nil) do
     with {:ok, coach} <- coach(user) do
-      {:ok, rules_of(coach, Disclosure.data_rules_version(), language)}
+      rules =
+        case LegalPolicy.data_rules() do
+          {:required, version} -> rules_of(coach, version, language)
+          _none -> rules_of(coach, nil, language)
+        end
+
+      {:ok, Map.put(rules, :legal_mode, LegalPolicy.client_mode())}
     end
   end
 
@@ -176,7 +190,8 @@ defmodule SimpleFit.Coaching.Invitations do
            %{
              document_version: String.t(),
              acknowledged_at: DateTime.t() | nil,
-             document: Legal.ref()
+             document: Legal.ref(),
+             legal_mode: String.t()
            }}
           | {:error, error()}
   def acknowledge_data_rules(%User{} = user, attrs) when is_map(attrs) do
@@ -196,7 +211,8 @@ defmodule SimpleFit.Coaching.Invitations do
        %{
          document_version: version,
          acknowledged_at: acknowledged_at(coach, version),
-         document: document
+         document: document,
+         legal_mode: LegalPolicy.client_mode()
        }}
     end
   end
@@ -230,10 +246,11 @@ defmodule SimpleFit.Coaching.Invitations do
     :ok
   end
 
+  # Nothing to acknowledge in LOCAL DEVELOPMENT mode either (ADR 0025).
   defp configured_data_rules do
-    case Disclosure.data_rules_version() do
-      nil -> {:error, :not_found}
-      version -> {:ok, version}
+    case LegalPolicy.data_rules() do
+      {:required, version} -> {:ok, version}
+      _none -> {:error, :not_found}
     end
   end
 
@@ -410,7 +427,7 @@ defmodule SimpleFit.Coaching.Invitations do
   # no approved variant).
   defp preview_of(invitation, language) do
     coach = Coaches.public_projection([invitation.coach_profile_id])
-    version = Disclosure.current()
+    version = LegalPolicy.current_disclosure()
 
     %{
       coach: Map.get(coach, invitation.coach_profile_id),
@@ -418,14 +435,17 @@ defmodule SimpleFit.Coaching.Invitations do
       expires_at: invitation.expires_at,
       disclosure: %{
         version: version,
-        fields: Disclosure.fields(version),
+        fields: LegalPolicy.disclosure_fields(version),
         never_shared: @never_shared
       },
       document:
-        case Legal.ref("fighter-coach-disclosure", version, language) do
-          {:ok, ref} -> ref
+        with true <- LegalPolicy.legal_text_required?(),
+             {:ok, ref} <- Legal.ref("fighter-coach-disclosure", version, language) do
+          ref
+        else
           _ -> nil
-        end
+        end,
+      legal_mode: LegalPolicy.client_mode()
     }
   end
 
@@ -448,7 +468,7 @@ defmodule SimpleFit.Coaching.Invitations do
          :ok <- response_limit(client_ip),
          {:ok, hash} <- token_param(params),
          {:ok, version} <- version_param(params, "disclosure_version"),
-         {:ok, language} <- language_param(params) do
+         {:ok, language} <- acceptance_language(params) do
       Repo.transaction(
         fn -> accept_locked(user, {:token, hash}, version, language) end,
         @unlogged
@@ -530,7 +550,7 @@ defmodule SimpleFit.Coaching.Invitations do
          :ok <- response_limit(client_ip),
          {:ok, id} <- invitation_id(id),
          {:ok, version} <- version_param(params, "disclosure_version"),
-         {:ok, language} <- language_param(params) do
+         {:ok, language} <- acceptance_language(params) do
       Repo.transaction(fn -> accept_locked(user, {:id, id}, version, language) end, @unlogged)
       |> accepted()
     end
@@ -582,12 +602,16 @@ defmodule SimpleFit.Coaching.Invitations do
 
   # No configured data-rules version: inviting is unavailable (nothing to
   # acknowledge). A configured one must have been acknowledged by the coach.
+  # LOCAL DEVELOPMENT mode has none to acknowledge (ADR 0025).
   defp data_rules_acknowledged(coach) do
-    case Disclosure.data_rules_version() do
-      nil ->
+    case LegalPolicy.data_rules() do
+      :not_required ->
+        :ok
+
+      :unavailable ->
         {:error, :not_found}
 
-      version ->
+      {:required, version} ->
         if acknowledged_at(coach, version),
           do: :ok,
           else: {:error, {:conflict, %{data_rules_acknowledgement: "required"}}}
@@ -718,6 +742,18 @@ defmodule SimpleFit.Coaching.Invitations do
          |> Changeset.change()
          |> Changeset.add_error(:document_language, "is invalid", validation: :required)}
     end
+  end
+
+  # Acceptance: the language of the text shown, required whenever a legal
+  # text is (LegalPolicy); LOCAL DEVELOPMENT mode shows none (ADR 0025).
+  defp acceptance_language(params) do
+    if LegalPolicy.legal_text_required?(), do: language_param(params), else: {:ok, nil}
+  end
+
+  defp acceptance_variant(version, language) do
+    if LegalPolicy.legal_text_required?(),
+      do: presented("fighter-coach-disclosure", version, language),
+      else: {:ok, :no_legal_text}
   end
 
   # The approved variant actually presented, or `document_language:
@@ -984,8 +1020,8 @@ defmodule SimpleFit.Coaching.Invitations do
     require_fighter!(user)
 
     variant =
-      with :ok <- same_version(version, Disclosure.current(), :disclosure_version),
-           {:ok, variant} <- presented("fighter-coach-disclosure", version, language) do
+      with :ok <- same_version(version, LegalPolicy.current_disclosure(), :disclosure_version),
+           {:ok, variant} <- acceptance_variant(version, language) do
         variant
       else
         {:error, reason} -> Repo.rollback(reason)
@@ -1003,14 +1039,17 @@ defmodule SimpleFit.Coaching.Invitations do
           ]
         )
 
-        Legal.record_acceptance!(%{
-          fighter_user_id: user.id,
-          coach_user_id: Coaches.get_profile_by_id(invitation.coach_profile_id).user_id,
-          invitation_id: invitation.id,
-          relationship_id: relationship.id,
-          version: version,
-          variant: variant
-        })
+        # No legal text was shown in LOCAL DEVELOPMENT mode: no evidence.
+        if variant != :no_legal_text,
+          do:
+            Legal.record_acceptance!(%{
+              fighter_user_id: user.id,
+              coach_user_id: Coaches.get_profile_by_id(invitation.coach_profile_id).user_id,
+              invitation_id: invitation.id,
+              relationship_id: relationship.id,
+              version: version,
+              variant: variant
+            })
 
         %{
           relationship_id: relationship.id,
@@ -1106,7 +1145,7 @@ defmodule SimpleFit.Coaching.Invitations do
         coach_name: name,
         coach_initials: initials(name),
         coaching_name: profile.brand_name || name,
-        shared_fields: Enum.map(Disclosure.current_fields(), &Map.fetch!(@field_labels, &1)),
+        shared_fields: Enum.map(LegalPolicy.current_fields(), &Map.fetch!(@field_labels, &1)),
         expires_on: DateTime.to_date(invitation.expires_at),
         message: invitation.message,
         review_url: "#{config[:web_app_url]}/invite/coach#token=#{token}"

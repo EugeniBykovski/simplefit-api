@@ -103,3 +103,8 @@ config :simple_fit, :e2e_tools, enabled: true
 config :simple_fit, SimpleFit.Legal,
   registry_path: Path.expand("../test/support/legal", __DIR__),
   allow_test_fixtures: true
+
+# SF-81 (ADR 0025): the test build may run the coaching domain under LOCAL
+# DEVELOPMENT mode through `LocalDevelopment.put_active_for_test/1` only. The
+# real activation refuses every non-:dev build, and no opt-in is read here.
+config :simple_fit, SimpleFit.Coaching.LocalDevelopment, allowed: true
