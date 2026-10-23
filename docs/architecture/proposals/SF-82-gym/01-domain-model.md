@@ -200,7 +200,8 @@ at the database level, not just in code (threat T-1,
   (members, bookings, check-ins); closing is a state (SF-100).
 * **Lifecycle.** Created `draft` with its owner membership and first
   location in one transaction (SF-83). `completed` when the backend's setup
-  checks pass ([03](03-registration-workspace-lifecycle.md)).
+  checks pass ([03](03-registration-workspace-lifecycle.md)). A draft has no
+  history and may be discarded by its owner (`D-G20`).
 * **Indexes.** unique `(created_by_user_id, client_request_id)`; unique
   `lower(handle)` where not null.
 * **Projections.** *Staff view* (all fields, own gym only). *Public view*
@@ -323,11 +324,12 @@ deliberately:
 
 | Event | Effect |
 | --- | --- |
-| User deletes account | Refused while active owner of any gym. Otherwise: staff rows ended (`account_deleted`), member rows ended, pending bookings cancelled, invitations to them left to expire; historical check-ins keep `gym_member_id` (the member row persists in `ended` state without personal fields beyond what retention allows — SF-100 decides). |
+| User deletes account | Refused while active owner of a **completed** gym (`D-G26`, open; the account-deletion feature does not exist yet). Their **draft** gyms are deleted with the account (`D-G20`). Otherwise: staff rows ended (`account_deleted`), member rows ended, pending bookings cancelled, invitations to them left to expire; historical check-ins keep `gym_member_id` (the member row persists in `ended` state without personal fields beyond what retention allows — SF-100 decides). |
 | Staff member removed / leaves | Row ended; occurrences they coach keep running with coach unset (staff sees "needs coach"). |
 | Member removed / leaves | Row ended; future bookings cancelled in the same transaction. |
 | Location archived | Refused while future occurrences exist there. |
-| Gym closed (SF-100) | All memberships ended, future occurrences cancelled, record kept for the retention period, then purged by a job. |
+| Draft abandoned | Kept and visible only to its owner; the owner may discard it (`DELETE /gyms/{id}`, draft only). No automatic deletion until a retention period is approved (`D-G20`). |
+| Gym closed (FUTURE) | All memberships ended, future occurrences cancelled, record kept for a retention period that needs product/legal approval, then purged by a job. |
 
 ## 6. What is deliberately absent
 

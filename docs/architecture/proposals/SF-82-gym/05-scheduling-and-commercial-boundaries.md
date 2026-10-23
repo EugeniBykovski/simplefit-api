@@ -70,7 +70,7 @@ Rules that follow:
 
 ## 3. Local development (`D-G17`)
 
-ADR 0025's coaching legal bypass is **not** extended to Gyms. Nothing in the
+ADR 0025's coaching legal bypass (the LOCAL DEVELOPMENT coaching mode, SF-105) is **not** extended to Gyms. Nothing in the
 Gym MVP needs a legal gate, an external verification or a payment provider:
 gym creation, staff and member invitations, classes, bookings and check-ins
 all run locally with the Log email adapter and the dev email-code tools

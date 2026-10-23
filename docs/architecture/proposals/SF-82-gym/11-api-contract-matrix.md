@@ -1,6 +1,6 @@
 # SF-82 · 11 — Proposed `/api/v1` contract matrix
 
-**Status: PROPOSED. Not in OpenAPI.** `openapi/simplefit.api.json` is
+**Status: PROPOSED (path scoping approved, `D-G15`). Not in OpenAPI.** `openapi/simplefit.api.json` is
 unchanged by SF-82; each ticket adds its operations with schemas and tests
 (CLAUDE.md rules 8–11). All gym-scoped paths carry `{gym_id}` (`D-G15`) and
 follow the 401/403/404 rules of [02 §5](02-identity-roles-permissions.md).
@@ -12,6 +12,7 @@ Errors use the existing envelope; new codes are listed per row.
 | `GET /me/gyms` | Gyms where caller is staff, with `setup_status`, `missing_requirements` | registered user | — | — | SF-83 |
 | `GET /gyms/{gym_id}` | Gym details | staff | — | 404 | SF-83 |
 | `PATCH /gyms/{gym_id}` | Edit name, type, contact, branding fields | owner, manager | `lock_version` | 409 `stale`, 422 | SF-83/SF-98/SF-99 |
+| `DELETE /gyms/{gym_id}` | Discard a **draft** gym (no automatic deletion, `D-G20`) | owner | gym row lock | 409 `gym_not_draft` | SF-83 |
 | `POST /gyms/{gym_id}/complete-setup` | Backend-checked completion | owner | monotonic; repeat → 200 | 422 `setup_incomplete` with `missing_requirements` | SF-83 |
 | `GET/POST /gyms/{gym_id}/locations`, `PATCH …/{location_id}` | Locations | read: staff; write: owner, manager | `lock_version` | 422 address | SF-83/SF-99 |
 | `PUT /me/entry/context` (additive `gym_id`) | Remember last active gym | staff of that gym | — | 404 (not staff) | SF-85 |
@@ -19,7 +20,8 @@ Errors use the existing envelope; new codes are listed per row.
 | `POST /gyms/{gym_id}/staff-invitations` | Invite by email + role | owner (any role but owner), manager (coach, front desk) | one pending per recipient digest; resend rotates | 403, 409 `already_staff`, 429 | SF-86 |
 | `DELETE /gyms/{gym_id}/staff-invitations/{id}` | Revoke | inviter's roles | — | 404 | SF-86 |
 | `POST /staff-invitations/preview` | Anonymous preview (token in body) | anyone | — | 404 `invitation_invalid` (uniform) | SF-86 |
-| `POST /me/staff-invitations/accept` | Accept (token in body) | session with verified invited email | invitation `FOR UPDATE` | 409 `invitation_email_mismatch`, 404 | SF-86 |
+| `POST /me/staff-invitations/accept` | Accept (token in body, web) | session with verified invited email | invitation `FOR UPDATE` | 409 `invitation_email_mismatch`, 404 | SF-86 |
+| `GET /me/staff-invitations`, `GET …/{invitation_id}/preview`, `POST …/{invitation_id}/accept`, `POST …/{invitation_id}/decline` | Token-free staff-invitation inbox matched by the caller's verified email identities (SF-73 pattern; mobile entry, `D-G22`) | registered user | invitation `FOR UPDATE` | 404 (not addressed to a verified identity) | SF-86 |
 | `PATCH /gyms/{gym_id}/staff/{staff_id}` | Change role / home location | per matrix | staff row lock | 403, 409 `owner_role_immutable` | SF-88 |
 | `DELETE /gyms/{gym_id}/staff/{staff_id}` | Remove staff / leave | per matrix; self (not owner) | — | 409 `owner_cannot_leave` | SF-88 |
 | `POST /gyms/{gym_id}/ownership-transfers`, `POST /me/ownership-transfers/{id}/accept` | Transfer ownership | owner → active staff; target accepts within 7 d | gym row `FOR UPDATE` | 409 `transfer_pending`, 404 | SF-100 |

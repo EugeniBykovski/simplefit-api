@@ -23,16 +23,20 @@ with sample numbers; registry placeholders stay "not available yet".
 
 ## 2. Findings that need a design decision (no change made)
 
+The full reconciliation (exact artboards, current text, conflict and
+correction) and the proposed design changes C1–C17 are in
+[12](12-design-reconciliation-plan.md). Summary:
+
 | # | Board(s) | Problem | Proposed resolution (needs approval) |
 | --- | --- | --- | --- |
-| R1 | GymSetupSteps, OG4–OG9, OG12–OG14 | The 14-step wizard gates "open" on plan, KYB, payments, import and publishing | MVP wizard OG1→OG2→OG3→OG6b; OG10/OG11 become GRW1 checklist items ([03 §3](03-registration-workspace-lifecycle.md)) |
-| R2 | OG6, OG6b, PR3, PR6m, WG25, L4 | Prices, "Pro trial", plan names | Remove price/trial copy until `D-G09` |
+| R1 | GymSetupSteps, OG1–OG14, OG6b | The 14-step wizard makes plan, KYB, payments, import and publishing part of creating a gym | Four phases; only OG1+OG2 required; unavailable steps "coming later" (`D-G21`, open; [03 §3](03-registration-workspace-lifecycle.md)) |
+| R2 | OG4–OG7, OG6b, WG25, PR3, PR6m, L4, OG3, OG1, WG26 | Prices, plans, "Pro trial", verification, public handle/URL | Remove until the deferred product decisions `D-G09`/`D-G11` |
 | R3 | OG0 | "Secure setup link valid 24 h · code" = a new cross-device credential | URL only; owner signs in on web (ADR 0012) |
-| R4 | INV2 (`mobile.invite.coach._token`) vs OS1 (`mobile.invite.staff._token`) | Two entries for one staff-invitation flow; "invite/coach" already means SF-57 coach→fighter | One `/invite/staff#token=` (`D-G16`) |
+| R4 | INV2 (`mobile.invite.coach._token`) vs OS1 (`mobile.invite.staff._token`) | Two entries for one staff-invitation flow; "invite/coach" already means SF-57 coach→fighter; tokens in app paths | Web `/invite/staff#token=`, token-free mobile inbox (`D-G16` approved, `D-G22`) |
 | R5 | WG1, G01, GRW1, GR1 | KPI tiles for revenue, MRR, failed payments, leads, trials | Hide until their domain exists (never zero) |
 | R6 | WG3, WG14, G04, F16 | Plan, balance, renewal, credits columns | Remove in MVP; F16 becomes a non-commercial member pass |
 | R7 | WG16, WG17, OS2 | "Fighter notes (with consent)" permission | FUTURE gym-scoped consent (`D-G06`); not shown in MVP |
-| R8 | F13, F16, GC1, GC3, GC5, GC7, GC12, S15, SH1, MK4, MK5, B25 | Member-side gym routes require `FIGHTER` | Member routes become account-level (`D-G07`, [07](07-routing.md)) |
+| R8 | F13, F16, GC1, GC3, GC5, GC7, GC12, S15, SH1, MK4, MK5, B25; A03 "Join as fighter" | Member-side gym routes require `FIGHTER` | Member routes become account-level (`D-G07` approved, [07 §5](07-routing.md)) |
 | R9 | WG15 | "Ban across all locations", refunds | Suspend/end only in MVP |
 | R10 | E04–E07 | Gym emails are not in the route registry (emails are not routes) | Templates added with their tickets (ADR 0011); E06/E07 links use fragment tokens |
 | R11 | OS3, G05 | Shifts | FUTURE; MVP stores home location only |

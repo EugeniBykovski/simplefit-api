@@ -49,12 +49,12 @@ context (Fighter app today, account area for non-fighters, `D-G07`).
 The approved route architecture keeps workspace ids out of UI URLs
 (`D-WORKSPACE-NOT-IN-URL`: `/app/gym/members`, `/gym/pulse`). It also states
 that the active workspace is "session context held by the backend session".
-SF-82 recommends keeping the first rule and **changing the second**:
+SF-82 keeps the first rule and **changes the second**. Option B is **approved** (`D-G15`); the UI URL shape stays open (`D-G23`).
 
 | Option | Description | Assessment |
 | --- | --- | --- |
 | A. Backend session holds `active_gym_id` | `sessions` gains a column; gym endpoints are implicit (`/api/v1/gym/members`) | Two tabs on two gyms fight over one value; a refresh-token rotation must carry it; every request depends on hidden state; IDOR checks become indirect. |
-| **B. Path-scoped API, client-held selection (recommended)** | Every gym API path carries the id: `/api/v1/gyms/{gym_id}/…`; the client keeps the active gym (memory + per-tab storage) and the server remembers the **last explicit choice** like the SF-51 context choice | Stateless per request; each request is authorized on its own; tabs are independent; deep links can add the id later without an API change. |
+| **B. Path-scoped API, client-held selection (approved)** | Every gym API path carries the id: `/api/v1/gyms/{gym_id}/…`; the client keeps the active gym (memory + per-tab storage) and the server remembers the **last explicit choice** like the SF-51 context choice | Stateless per request; each request is authorized on its own; tabs are independent; deep links can add the id later without an API change. |
 | C. Header `X-Gym-Id` | Implicit tenant header | Same authorization as B but invisible in logs/traces and easy to forget in clients; no advantage over B. |
 
 Under B, the UI routes stay id-free; the web shell and mobile gym stack read
@@ -70,7 +70,7 @@ shows gym rows; a revoked membership disappears on the next entry read and
 any gym request answers 404 (§5), which the client treats as "workspace no
 longer available" and returns to the chooser.
 
-## 4. Roles and the permission matrix (`D-G03`, `D-G04`, `D-G05`)
+## 4. Roles and the permission matrix (`D-G03`, `D-G04`)
 
 MVP roles are `owner`, `manager`, `coach`, `front_desk`. "Head coach" (WG16,
 WG17) is a display title on a `coach` row in MVP; a distinct permission set
@@ -122,7 +122,7 @@ never branch on roles (CLAUDE.md rule 5).
 | No or invalid access token | 401 | `unauthorized` | ADR 0010 |
 | Gym id unknown, malformed, or the caller has **no active staff membership** there | 404 | `not_found` | Existence of a gym's private resources is never confirmed to outsiders (forged ids, enumeration) |
 | Resource id of another gym used with your gym id (`/gyms/A/members/{id of B}`) | 404 | `not_found` | Composite tenancy check; cross-gym IDOR is indistinguishable from "does not exist" |
-| Caller is active staff of this gym, role lacks the permission | 403 | `forbidden` (details `{"permission": "<action>"}`) | They already know the gym exists; the UI can explain the restriction |
+| Caller is active staff of this gym, role lacks the permission | 403 | `forbidden` (details `{"permission": "<action>"}`) | They already know the gym exists; the console shows a role-restriction state (`D-G24`, open: route-architecture rule 9 currently renders 403 as not found) |
 | Ended / suspended staff | 404 (as outsider) | `not_found` | Access ends immediately on revocation |
 | Member-facing resources of a gym the user is not a member of | 404 | `not_found` | Same rule for participants |
 | State conflict (capacity, already booked, invitation used) | 409 | `conflict` with `details` | ADR 0003 |
@@ -135,7 +135,7 @@ never branch on roles (CLAUDE.md rule 5).
   gate the brief warns about).
 * `intent=gym` only routes to setup; it never creates or grants anything.
 * Limits instead of gates: at most **1 gym in `draft`** per creator and at
-  most **3 owned gyms** in total in MVP (configurable; `D-G05`), plus a
+  most **3 owned gyms** in total in MVP (configurable; `D-G25`, open), plus a
   per-user creation rate limit. The second create with the same
   `client_request_id` returns the first gym (idempotency).
 
