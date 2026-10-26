@@ -84,6 +84,31 @@ defmodule SimpleFit.GymHelpers do
     Repo.insert!(%StaffMembership{gym_id: gym_id, user_id: user_id, role: role, status: :active})
   end
 
+  @doc """
+  The current setup revision as `user` reads it, or 1 when they cannot read
+  it (the write is then refused for its own reason).
+  """
+  @spec current_revision(User.t(), Ecto.UUID.t()) :: pos_integer()
+  def current_revision(%User{} = user, gym_id) do
+    case Gyms.get_setup(user, gym_id) do
+      {:ok, %{revision: revision}} -> revision
+      {:error, _reason} -> 1
+    end
+  end
+
+  @doc "`Gyms.update_setup/3` with the current revision unless `attrs` names one."
+  @spec save_setup(User.t(), Ecto.UUID.t(), map()) :: term()
+  def save_setup(%User{} = user, gym_id, attrs),
+    do: Gyms.update_setup(user, gym_id, with_revision(user, gym_id, attrs))
+
+  @doc "`Gyms.put_primary_location/3` with the current revision unless `attrs` names one."
+  @spec set_location(User.t(), Ecto.UUID.t(), map()) :: term()
+  def set_location(%User{} = user, gym_id, attrs),
+    do: Gyms.put_primary_location(user, gym_id, with_revision(user, gym_id, attrs))
+
+  defp with_revision(user, gym_id, attrs),
+    do: Map.put_new_lazy(attrs, "expected_revision", fn -> current_revision(user, gym_id) end)
+
   @doc "The active owners of a gym."
   @spec active_owners(Ecto.UUID.t()) :: [StaffMembership.t()]
   def active_owners(gym_id) do

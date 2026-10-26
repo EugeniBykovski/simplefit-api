@@ -52,7 +52,7 @@ defmodule SimpleFit.GymSetupTest do
       %{owner: owner, gym: gym} = draft_with_owner()
 
       {:ok, s1} =
-        Gyms.update_setup(owner, gym.id, %{
+        save_setup(owner, gym.id, %{
           "name" => "  Praga Boxing  ",
           "phone" => "+48 22 000 00 00",
           "website" => "https://simpleboxing.pl",
@@ -66,7 +66,7 @@ defmodule SimpleFit.GymSetupTest do
 
       assert s1.revision == 2
 
-      {:ok, s2} = Gyms.update_setup(owner, gym.id, %{"gym_type" => "fitness_boxing_studio"})
+      {:ok, s2} = save_setup(owner, gym.id, %{"gym_type" => "fitness_boxing_studio"})
 
       assert s2.gym_type == :fitness_boxing_studio and s2.name == "Praga Boxing" and
                s2.revision == 3
@@ -74,20 +74,20 @@ defmodule SimpleFit.GymSetupTest do
 
     test "null or blank clears optional fields; name and type cannot be cleared" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:ok, _} = Gyms.update_setup(owner, gym.id, %{"phone" => "+48 1234567", "tagline" => "Hi"})
+      {:ok, _} = save_setup(owner, gym.id, %{"phone" => "+48 1234567", "tagline" => "Hi"})
 
-      {:ok, cleared} = Gyms.update_setup(owner, gym.id, %{"phone" => nil, "tagline" => "   "})
+      {:ok, cleared} = save_setup(owner, gym.id, %{"phone" => nil, "tagline" => "   "})
       assert cleared.phone == nil and cleared.tagline == nil
 
       for field <- ["name", "gym_type"], value <- [nil, ""] do
-        assert {:error, changeset} = Gyms.update_setup(owner, gym.id, %{field => value})
+        assert {:error, changeset} = save_setup(owner, gym.id, %{field => value})
         assert errors_on(changeset)[String.to_existing_atom(field)]
       end
     end
 
     test "an empty update changes nothing and creates nothing" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:ok, setup} = Gyms.update_setup(owner, gym.id, %{})
+      {:ok, setup} = save_setup(owner, gym.id, %{})
       assert setup.revision == 1
       assert gyms_created_by(owner) == 1
     end
@@ -108,7 +108,7 @@ defmodule SimpleFit.GymSetupTest do
             {%{"accent_color" => "#123456"}, :accent_color},
             {%{"name" => 42}, :name}
           ] do
-        assert {:error, changeset} = Gyms.update_setup(owner, gym.id, attrs)
+        assert {:error, changeset} = save_setup(owner, gym.id, attrs)
         assert errors_on(changeset)[field], inspect(attrs)
       end
 
@@ -119,20 +119,20 @@ defmodule SimpleFit.GymSetupTest do
       %{owner: owner, gym: gym} = draft_with_owner()
 
       for key <- ~w(setup_status revision owner_user_id created_by_user_id id primary_location) do
-        assert {:error, changeset} = Gyms.update_setup(owner, gym.id, %{key => "x"})
+        assert {:error, changeset} = save_setup(owner, gym.id, %{key => "x"})
         assert errors_on(changeset)[key] == ["is not a setup field"]
       end
     end
 
     test "a stale expected_revision changes nothing; the current one applies" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:ok, _} = Gyms.update_setup(owner, gym.id, %{"tagline" => "First"})
+      {:ok, _} = save_setup(owner, gym.id, %{"tagline" => "First"})
 
       assert {:error, {:conflict, %{revision: "stale"}}} =
-               Gyms.update_setup(owner, gym.id, %{"tagline" => "Lost", "expected_revision" => 1})
+               save_setup(owner, gym.id, %{"tagline" => "Lost", "expected_revision" => 1})
 
       assert {:ok, %{tagline: "Second", revision: 3}} =
-               Gyms.update_setup(owner, gym.id, %{"tagline" => "Second", "expected_revision" => 2})
+               save_setup(owner, gym.id, %{"tagline" => "Second", "expected_revision" => 2})
     end
 
     test "a completed gym's profile stays editable; its status never returns to draft" do
@@ -140,7 +140,90 @@ defmodule SimpleFit.GymSetupTest do
       gym = completed_gym!(owner)
 
       assert {:ok, %{name: "Renamed", setup_status: :completed}} =
-               Gyms.update_setup(owner, gym.id, %{"name" => "Renamed"})
+               save_setup(owner, gym.id, %{"name" => "Renamed"})
+    end
+  end
+
+  describe "conditional writes (expected_revision)" do
+    test "both setup writes require it; nothing changes without it" do
+      %{owner: owner, gym: gym} = draft_with_owner()
+
+      assert {:error, c1} = Gyms.update_setup(owner, gym.id, %{"tagline" => "x"})
+      assert %{expected_revision: ["can't be blank"]} = errors_on(c1)
+      assert {:error, c2} = Gyms.put_primary_location(owner, gym.id, @address)
+      assert %{expected_revision: ["can't be blank"]} = errors_on(c2)
+
+      assert {:ok, %{tagline: nil, primary_location: nil, revision: 1}} =
+               Gyms.get_setup(owner, gym.id)
+    end
+
+    test "a revision-only body is a no-op; a stale one is still a conflict" do
+      %{owner: owner, gym: gym} = draft_with_owner()
+
+      assert {:ok, %{revision: 1}} = Gyms.update_setup(owner, gym.id, %{"expected_revision" => 1})
+      {:ok, _} = save_setup(owner, gym.id, %{"tagline" => "Now 2"})
+
+      assert {:error, {:conflict, %{revision: "stale"}}} =
+               Gyms.update_setup(owner, gym.id, %{"expected_revision" => 1})
+
+      assert {:error, {:conflict, %{revision: "stale"}}} =
+               Gyms.put_primary_location(owner, gym.id, Map.put(@address, "expected_revision", 1))
+
+      assert {:ok, %{revision: 2, primary_location: nil}} = Gyms.get_setup(owner, gym.id)
+    end
+
+    test "a stale device cannot overwrite another device's change" do
+      %{owner: owner, gym: gym} = draft_with_owner()
+      device_a = Gyms.get_setup(owner, gym.id) |> elem(1)
+      device_b = Gyms.get_setup(owner, gym.id) |> elem(1)
+
+      {:ok, _} =
+        Gyms.update_setup(owner, gym.id, %{
+          "name" => "From A",
+          "expected_revision" => device_a.revision
+        })
+
+      assert {:error, {:conflict, %{revision: "stale"}}} =
+               Gyms.update_setup(owner, gym.id, %{
+                 "name" => "From B",
+                 "expected_revision" => device_b.revision
+               })
+
+      assert {:ok, %{name: "From A"}} = Gyms.get_setup(owner, gym.id)
+    end
+  end
+
+  describe "create idempotency after discard" do
+    test "the key of a discarded draft never creates a gym again; a new key does" do
+      owner = registered!()
+      attrs = gym_attrs()
+      {:ok, gym, :created} = Gyms.create_gym(owner, attrs, client_ip())
+      :ok = Gyms.discard_draft(owner, gym.id)
+
+      for _ <- 1..3 do
+        assert {:error, {:conflict, %{client_request_id: "discarded"}}} =
+                 Gyms.create_gym(owner, attrs, client_ip())
+      end
+
+      assert gyms_created_by(owner) == 0
+      assert {:ok, _new, :created} = Gyms.create_gym(owner, gym_attrs(), client_ip())
+    end
+
+    test "a key that resumed a draft is spent too" do
+      owner = registered!()
+      {:ok, draft, :created} = Gyms.create_gym(owner, gym_attrs(), client_ip())
+      resume_attrs = gym_attrs()
+      {:ok, %{id: id}, :resumed} = Gyms.create_gym(owner, resume_attrs, client_ip())
+      assert id == draft.id
+
+      # The resume key replays to the same draft, and never creates after a discard.
+      {:ok, %{id: ^id}, :existing} = Gyms.create_gym(owner, resume_attrs, client_ip())
+      :ok = Gyms.discard_draft(owner, draft.id)
+
+      assert {:error, {:conflict, %{client_request_id: "discarded"}}} =
+               Gyms.create_gym(owner, resume_attrs, client_ip())
+
+      assert gyms_created_by(owner) == 0
     end
   end
 
@@ -154,14 +237,14 @@ defmodule SimpleFit.GymSetupTest do
     end
 
     test "owner and manager edit; coach and front desk read but get forbidden", ctx do
-      assert {:ok, _} = Gyms.update_setup(ctx.users.manager, ctx.gym.id, %{"tagline" => "Mgr"})
-      assert {:ok, _} = Gyms.put_primary_location(ctx.users.manager, ctx.gym.id, @address)
+      assert {:ok, _} = save_setup(ctx.users.manager, ctx.gym.id, %{"tagline" => "Mgr"})
+      assert {:ok, _} = set_location(ctx.users.manager, ctx.gym.id, @address)
 
       for role <- [:coach, :front_desk] do
         user = ctx.users[role]
         assert {:ok, _} = Gyms.get_setup(user, ctx.gym.id)
-        assert {:error, :forbidden} = Gyms.update_setup(user, ctx.gym.id, %{"tagline" => "x"})
-        assert {:error, :forbidden} = Gyms.put_primary_location(user, ctx.gym.id, @address)
+        assert {:error, :forbidden} = save_setup(user, ctx.gym.id, %{"tagline" => "x"})
+        assert {:error, :forbidden} = set_location(user, ctx.gym.id, @address)
       end
     end
 
@@ -183,8 +266,8 @@ defmodule SimpleFit.GymSetupTest do
 
       for user <- [outsider, revoked] do
         assert {:error, :not_found} = Gyms.get_setup(user, ctx.gym.id)
-        assert {:error, :not_found} = Gyms.update_setup(user, ctx.gym.id, %{"tagline" => "x"})
-        assert {:error, :not_found} = Gyms.put_primary_location(user, ctx.gym.id, @address)
+        assert {:error, :not_found} = save_setup(user, ctx.gym.id, %{"tagline" => "x"})
+        assert {:error, :not_found} = set_location(user, ctx.gym.id, @address)
         assert {:error, :not_found} = Gyms.complete_setup(user, ctx.gym.id)
         assert {:error, :not_found} = Gyms.discard_draft(user, ctx.gym.id)
       end
@@ -196,7 +279,7 @@ defmodule SimpleFit.GymSetupTest do
       %{owner: owner, gym: gym} = draft_with_owner()
 
       {:ok, s1} =
-        Gyms.put_primary_location(owner, gym.id, Map.put(@address, "entrance_note", "Courtyard"))
+        set_location(owner, gym.id, Map.put(@address, "entrance_note", "Courtyard"))
 
       loc = s1.primary_location
 
@@ -206,7 +289,7 @@ defmodule SimpleFit.GymSetupTest do
       assert s1.missing_requirements == [] and s1.revision == 2
 
       {:ok, s2} =
-        Gyms.put_primary_location(owner, gym.id, %{
+        set_location(owner, gym.id, %{
           "country_code" => "PL",
           "city" => "Warsaw",
           "address_line" => "ul. Wolska 50",
@@ -220,8 +303,8 @@ defmodule SimpleFit.GymSetupTest do
 
     test "an identical address changes nothing and records no event" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:ok, s1} = Gyms.put_primary_location(owner, gym.id, @address)
-      {:ok, s2} = Gyms.put_primary_location(owner, gym.id, @address)
+      {:ok, s1} = set_location(owner, gym.id, @address)
+      {:ok, s2} = set_location(owner, gym.id, @address)
 
       assert s2.revision == s1.revision
       assert length(events(gym.id, :primary_location_set)) == 1
@@ -237,12 +320,12 @@ defmodule SimpleFit.GymSetupTest do
             {%{@address | "country_code" => "Poland"}, :country_code},
             {Map.put(@address, "entrance_note", String.duplicate("n", 201)), :entrance_note}
           ] do
-        assert {:error, changeset} = Gyms.put_primary_location(owner, gym.id, attrs)
+        assert {:error, changeset} = set_location(owner, gym.id, attrs)
         assert errors_on(changeset)[field], inspect(field)
       end
 
       assert {:error, changeset} =
-               Gyms.put_primary_location(owner, gym.id, Map.put(@address, "lat", 1))
+               set_location(owner, gym.id, Map.put(@address, "lat", 1))
 
       assert errors_on(changeset)["lat"] == ["is not a setup field"]
       assert Repo.aggregate(from(l in GymLocation, where: l.gym_id == ^gym.id), :count) == 0
@@ -250,7 +333,7 @@ defmodule SimpleFit.GymSetupTest do
 
     test "the audit event carries no address" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:ok, _} = Gyms.put_primary_location(owner, gym.id, @address)
+      {:ok, _} = set_location(owner, gym.id, @address)
 
       [event] = events(gym.id, :primary_location_set)
       refute inspect(Map.from_struct(event)) =~ "Ząbkowska"
@@ -270,8 +353,8 @@ defmodule SimpleFit.GymSetupTest do
 
     test "invalid input followed by a valid retry completes" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:error, _} = Gyms.put_primary_location(owner, gym.id, Map.delete(@address, "city"))
-      {:ok, _} = Gyms.put_primary_location(owner, gym.id, @address)
+      {:error, _} = set_location(owner, gym.id, Map.delete(@address, "city"))
+      {:ok, _} = set_location(owner, gym.id, @address)
 
       assert {:ok, %{setup_status: :completed, missing_requirements: []}, :completed} =
                Gyms.complete_setup(owner, gym.id)
@@ -279,7 +362,7 @@ defmodule SimpleFit.GymSetupTest do
 
     test "completion is recorded once; repeating it is a safe no-op" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:ok, _} = Gyms.put_primary_location(owner, gym.id, @address)
+      {:ok, _} = set_location(owner, gym.id, @address)
 
       {:ok, first, :completed} = Gyms.complete_setup(owner, gym.id)
       {:ok, again, :already_completed} = Gyms.complete_setup(owner, gym.id)
@@ -299,7 +382,7 @@ defmodule SimpleFit.GymSetupTest do
       assert {before.destination, before.gym_id} == {:gym_onboarding, gym.id}
       assert before.capabilities == [:fighter, :coach]
 
-      {:ok, _} = Gyms.put_primary_location(owner, gym.id, @address)
+      {:ok, _} = set_location(owner, gym.id, @address)
       {:ok, _, :completed} = Gyms.complete_setup(owner, gym.id)
 
       {:ok, after_completion} = Entry.resolve(owner, %{"intent" => "gym"})
@@ -311,7 +394,7 @@ defmodule SimpleFit.GymSetupTest do
   describe "discard_draft/2" do
     test "deletes the draft and what belongs to it; keeps a minimal audit event" do
       %{owner: owner, gym: gym} = draft_with_owner()
-      {:ok, _} = Gyms.put_primary_location(owner, gym.id, @address)
+      {:ok, _} = set_location(owner, gym.id, @address)
 
       assert :ok = Gyms.discard_draft(owner, gym.id)
 
@@ -346,13 +429,13 @@ defmodule SimpleFit.GymSetupTest do
     test "an owner completes one gym, then creates and keeps a second draft independent" do
       owner = registered!()
       first = draft_gym!(owner)
-      {:ok, _} = Gyms.put_primary_location(owner, first.id, @address)
+      {:ok, _} = set_location(owner, first.id, @address)
       {:ok, _, :completed} = Gyms.complete_setup(owner, first.id)
 
       {:ok, second, :created} =
         Gyms.create_gym(owner, gym_attrs(%{"name" => "Second"}), client_ip())
 
-      {:ok, _} = Gyms.update_setup(owner, second.id, %{"tagline" => "Only here"})
+      {:ok, _} = save_setup(owner, second.id, %{"tagline" => "Only here"})
 
       assert {:ok, %{tagline: nil}} = Gyms.get_setup(owner, first.id)
       {:ok, entry} = Entry.resolve(owner, %{"intent" => "gym"})

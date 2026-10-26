@@ -6,11 +6,15 @@ defmodule SimpleFit.Gyms.Creation do
   One transaction, serialized per creator by a transaction-scoped advisory
   lock, in this order:
 
-    1. **Replay.** A `client_request_id` the creator already used returns
-       that gym unchanged (`:existing`), while the creator is still active
-       staff there; otherwise `409 conflict` (`client_request_id: reused`).
-    2. **Open draft.** While the creator has an open draft, any create
-       resolves to it (`:resumed`); the request's fields are ignored.
+    1. **Replay.** Every key is recorded in `gym_creation_requests` with the
+       gym it created or resumed. A replayed key returns that gym unchanged
+       (`:existing`) while the creator is still active staff there,
+       otherwise `409 conflict` (`client_request_id: reused`); when that gym
+       was discarded, `409 conflict` (`client_request_id: discarded`). A
+       spent key never creates a gym, however late the replay (SF-85).
+    2. **Open draft.** While the creator has an open draft, any create with
+       a new key resolves to it (`:resumed`, and the key is recorded for
+       that draft); the request's fields are ignored.
     3. **Abuse limits (D-G25).** At most 5 creations per user and 20 per
        client in any rolling 24 hours (`SimpleFit.RateLimit.hit_rolling/2`,
        exact). Only steps that reach this point count, and a count commits
@@ -33,7 +37,7 @@ defmodule SimpleFit.Gyms.Creation do
   alias Plug.Crypto.KeyGenerator
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Audit, Gym, StaffMembership}
+  alias SimpleFit.Gyms.{Audit, CreationRequest, Gym, StaffMembership}
   alias SimpleFit.{RateLimit, Repo}
 
   @create_keys ~w(client_request_id name gym_type)
@@ -75,22 +79,48 @@ defmodule SimpleFit.Gyms.Creation do
     lock_creator!(user_id)
 
     case by_request(user_id, request.client_request_id) do
-      %Gym{} = gym ->
-        replay(gym, user_id)
+      %CreationRequest{gym_id: nil} ->
+        Repo.rollback({:conflict, %{client_request_id: "discarded"}})
+
+      %CreationRequest{gym_id: gym_id} ->
+        replay(gym_id, user_id)
 
       nil ->
         case open_draft(user_id) do
-          {%Gym{} = gym, %StaffMembership{} = membership} -> {gym, membership, :resumed}
-          nil -> limit_then_insert(user_id, request, client_ip)
+          {%Gym{} = gym, %StaffMembership{} = membership} ->
+            record!(user_id, request.client_request_id, gym.id, :resumed)
+            {gym, membership, :resumed}
+
+          nil ->
+            limit_then_insert(user_id, request, client_ip)
         end
     end
   end
 
-  defp replay(gym, user_id) do
-    case active_membership(gym.id, user_id) do
-      %StaffMembership{} = membership -> {gym, membership, :existing}
-      nil -> Repo.rollback({:conflict, %{client_request_id: "reused"}})
+  # The gym may have been discarded after the key row was read (its FK then
+  # becomes NULL): never create, answer as discarded.
+  defp replay(gym_id, user_id) do
+    with %Gym{} = gym <- Repo.get(Gym, gym_id, log: false),
+         %StaffMembership{} = membership <- active_membership(gym.id, user_id) do
+      {gym, membership, :existing}
+    else
+      nil ->
+        if Repo.exists?(from(g in Gym, where: g.id == ^gym_id)),
+          do: Repo.rollback({:conflict, %{client_request_id: "reused"}}),
+          else: Repo.rollback({:conflict, %{client_request_id: "discarded"}})
     end
+  end
+
+  defp record!(user_id, client_request_id, gym_id, outcome) do
+    %CreationRequest{} =
+      Repo.insert!(%CreationRequest{
+        user_id: user_id,
+        client_request_id: client_request_id,
+        gym_id: gym_id,
+        outcome: outcome
+      })
+
+    :ok
   end
 
   defp limit_then_insert(user_id, request, client_ip) do
@@ -111,6 +141,8 @@ defmodule SimpleFit.Gyms.Creation do
         {:ok, gym} -> gym
         {:error, changeset} -> Repo.rollback(changeset)
       end
+
+    :ok = record!(user_id, request.client_request_id, gym.id, :created)
 
     membership =
       Repo.insert!(%StaffMembership{
@@ -198,10 +230,9 @@ defmodule SimpleFit.Gyms.Creation do
 
   defp by_request(user_id, client_request_id) do
     Repo.one(
-      from(g in Gym,
-        where: g.created_by_user_id == ^user_id and g.client_request_id == ^client_request_id
-      ),
-      log: false
+      from(r in CreationRequest,
+        where: r.user_id == ^user_id and r.client_request_id == ^client_request_id
+      )
     )
   end
 

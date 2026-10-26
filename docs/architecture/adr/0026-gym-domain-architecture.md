@@ -348,11 +348,21 @@ operations:
 
 * **Errors:** 401 / 403 / 404 / 409 / 422 follow ADR 0003 and D-G24.
 * **No capability gate:** a draft's owner needs no `GYM_WORKSPACE` (SF-84).
-* **Optimistic concurrency:** `gyms.revision` increases with every setup
-  change, including the primary location. A write may send
-  `expected_revision`; if it is stale, the write gets `409` (`revision:
-  stale`) and changes nothing. Without it, partial updates touch only the
-  fields they name.
+* **Conditional writes (final contract):** `gyms.revision` increases with
+  every setup change, including the primary location.
+  * `updateGymSetup` and `setGymPrimaryLocation` **require**
+    `expected_revision`. It is compared under the gym-row lock: missing gets
+    `422` (`required`), stale gets `409` (`details: {revision: "stale"}`,
+    nothing more) and changes nothing.
+  * A stale device therefore never overwrites another device's change, and
+    of two writers on one revision exactly one applies; the other rereads and
+    retries.
+  * A body with only `expected_revision`, or with identical values, is a
+    no-op after the same check, and the revision does not move.
+  * `completeGymSetup` and `discardGymDraft` take no revision. Completion
+    changes no setup field, re-validates the persisted state and is
+    idempotent. Discard is the owner's explicit removal of their own draft.
+    Both serialize with every write on the gym-row lock.
 * **Locks:** every write locks the gym row, then the membership, then the
   primary location. This is the SF-83/SF-84 order, so completion, discard,
   transfer, revocation and entry choice serialize.
@@ -370,9 +380,20 @@ operations:
   * a draft resolves to `gym_onboarding` with its `gym_id`;
   * completion adds `GYM_WORKSPACE` and `gym_home`;
   * a discarded draft disappears, and its choices cascade away.
-* **Replay after discard:** the `client_request_id` only named a gym that no
-  longer exists, so replaying it creates a new draft. That still counts
-  against the rolling creation limit.
+* **Durable creation keys:** `gym_creation_requests` (migration
+  `20261028100000`, backfilled from existing gyms) records every
+  `client_request_id` with the gym it created or resumed.
+  * Discarding the gym only sets `gym_id` to NULL, so the key stays spent: a
+    replay, however late and even racing the discard, answers `409`
+    (`client_request_id: discarded`) and never creates a gym.
+  * A lost-response retry before the discard returns the same gym, and a new
+    key still creates normally.
+  * Rows go with their user and carry no personal data; no retention period
+    is invented.
+* **Entry snapshot fix (SF-84 defect found here):**
+  `Gyms.workspace_overview/2` now reads its counts, the single completed gym
+  and the owned draft in one statement. Separate statements could straddle a
+  concurrent completion and answer `gym_onboarding` without `gym_id`.
 
 ### Logo and cover: the storage blocker
 
@@ -400,12 +421,18 @@ The smallest extension, proposed and not built:
 This adds new adapter capabilities (HEAD and DELETE), so it needs its own
 ticket. Branding never blocks completion.
 
+### Deliberate deferrals (none blocks completion)
+
+| Item | Status | Exact future dependency |
+| --- | --- | --- |
+| OG4 gym size | FUTURE (SF-82 D-G21, C1/R2) | It exists only to suggest a SimpleFit plan; it waits for the deferred product decision D-G09. No plan, price or payment is implied before then |
+| OG5 features | FUTURE (SF-82 D-G21, C1/R2) | It maps plan entitlements; same dependency on D-G09 |
+| Logo and cover | BLOCKED | A controlled media-asset lifecycle in `SimpleFit.Storage`: an upload record per gym and purpose, a server-side existence check (presigned `HEAD`) on attach, orphan cleanup (presigned `DELETE` via Oban), and an image type allowlist (SVG excluded). This is its own ticket |
+| Tagline, accent colour | DONE, optional | — |
+
 ### Deviations
 
-* Gym size (OG4) and features (OG5) are not stored, although the SF-85 brief
-  listed them. The authoritative SF-82 register (D-G21, C1/R2) marks them
-  "coming later": they exist only to suggest a plan and to map plan
-  entitlements, which wait for the deferred D-G09.
-* Logo and cover are deferred for the storage blocker above.
+* OG4/OG5 and logo/cover are not built, as in the table above. The SF-82
+  register outranks the SF-85 brief for OG4/OG5.
 * The location `name` defaults to the city, because OG2 has no name field
   and the column is required.

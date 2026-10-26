@@ -3416,7 +3416,7 @@
             "type": "string"
           },
           "expected_revision": {
-            "description": "Optional: the `revision` the client last read. When it is no longer current the write changes nothing and\nanswers `409 conflict` (`details.revision: \"stale\"`).\n",
+            "description": "Required: the `revision` the client last read (from `getGymSetup` or the previous write). When it is no longer\ncurrent the write changes nothing and answers `409 conflict` (`details.revision: \"stale\"`).\n",
             "minimum": 1,
             "type": "integer"
           },
@@ -3429,7 +3429,8 @@
         "required": [
           "address_line",
           "city",
-          "country_code"
+          "country_code",
+          "expected_revision"
         ],
         "title": "GymPrimaryLocationRequest",
         "type": "object"
@@ -3665,7 +3666,7 @@
       },
       "GymSetupUpdateRequest": {
         "additionalProperties": false,
-        "description": "Any subset of the setup fields. An omitted field is unchanged; `null` or a blank string clears an optional\nfield; `name` and `gym_type` cannot be cleared. Read-only fields (`setup_status`, `revision`, owners, ids)\nare rejected.\n",
+        "description": "`expected_revision` and any subset of the setup fields. An omitted field is unchanged; `null` or a blank\nstring clears an optional field; `name` and `gym_type` cannot be cleared. Read-only fields (`setup_status`,\n`revision`, owners, ids) are rejected. Only `expected_revision` (or identical values) changes nothing.\n",
         "properties": {
           "accent_color": {
             "description": "Optional accent colour: one of OG3's six contrast-checked swatches, lowercase hex.",
@@ -3682,7 +3683,7 @@
             "type": "string"
           },
           "expected_revision": {
-            "description": "Optional: the `revision` the client last read. When it is no longer current the write changes nothing and\nanswers `409 conflict` (`details.revision: \"stale\"`).\n",
+            "description": "Required: the `revision` the client last read (from `getGymSetup` or the previous write). When it is no longer\ncurrent the write changes nothing and answers `409 conflict` (`details.revision: \"stale\"`).\n",
             "minimum": 1,
             "type": "integer"
           },
@@ -3727,6 +3728,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "expected_revision"
+        ],
         "title": "GymSetupUpdateRequest",
         "type": "object"
       },
@@ -5645,7 +5649,7 @@
     "/api/v1/gyms": {
       "post": {
         "callbacks": {},
-        "description": "Creates a draft gym with the viewer as its owner, atomically (the gym and the owner's staff membership commit\ntogether). Requires completed account registration; no other profile or capability. Nothing is public and\nno plan, payment or verification is involved.\n\n`client_request_id` makes the create idempotent: repeating it returns the same gym with `200` and creates\nnothing. While the viewer has an open draft, any create returns that draft with `200` (the request's fields\nare ignored): one open draft per user. There is no limit on completed gyms.\n\n* `validation_error` - a field is missing, invalid or unknown (owners, roles and statuses are never\n  accepted), or account registration is incomplete (`account_registration: required`).\n* `conflict` - `client_request_id` names a gym where the viewer is no longer staff\n  (`details.client_request_id: \"reused\"`).\n* `rate_limited` - more than 5 gym creations per user, or 20 per client, in any rolling 24 hours;\n  `retry-after` is when the oldest counted creation leaves the window. Replays, resumed drafts and refused\n  attempts are not counted.\n",
+        "description": "Creates a draft gym with the viewer as its owner, atomically (the gym and the owner's staff membership commit\ntogether). Requires completed account registration; no other profile or capability. Nothing is public and\nno plan, payment or verification is involved.\n\n`client_request_id` makes the create idempotent: repeating it returns the same gym with `200` and creates\nnothing. While the viewer has an open draft, any create returns that draft with `200` (the request's fields\nare ignored): one open draft per user. There is no limit on completed gyms.\n\n* `validation_error` - a field is missing, invalid or unknown (owners, roles and statuses are never\n  accepted), or account registration is incomplete (`account_registration: required`).\n* `conflict` - `client_request_id` names a gym where the viewer is no longer staff\n  (`details.client_request_id: \"reused\"`), or a gym that was discarded (`\"discarded\"`): a key, once used,\n  never creates a gym.\n* `rate_limited` - more than 5 gym creations per user, or 20 per client, in any rolling 24 hours;\n  `retry-after` is when the oldest counted creation leaves the window. Replays, resumed drafts and refused\n  attempts are not counted.\n",
         "operationId": "createGym",
         "parameters": [],
         "requestBody": {
@@ -5726,7 +5730,7 @@
     "/api/v1/gyms/{gym_id}": {
       "delete": {
         "callbacks": {},
-        "description": "Deletes a draft gym (owner only) with its owner membership, locations and any remembered entry choice naming\nit; a minimal audit event is kept. A completed gym is never deleted here. Discarding frees the owner's draft\nslot but does not refund the creation rate limit.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - only the owner discards the draft.\n* `conflict` - the gym's setup is completed (`details.setup_status: \"completed\"`).\n",
+        "description": "Deletes a draft gym (owner only) with its owner membership, locations and any remembered entry choice naming\nit; a minimal audit event is kept. A completed gym is never deleted here. Discarding frees the owner's draft\nslot but does not refund the creation rate limit, and the `client_request_id` that created the draft stays\nspent (`createGym` answers `409`, `client_request_id: discarded`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - only the owner discards the draft.\n* `conflict` - the gym's setup is completed (`details.setup_status: \"completed\"`).\n",
         "operationId": "discardGymDraft",
         "parameters": [
           {
@@ -5821,7 +5825,7 @@
     "/api/v1/gyms/{gym_id}/complete-setup": {
       "post": {
         "callbacks": {},
-        "description": "Completes the setup of a draft (owner only), after re-validating the persisted state: a valid name and type,\nan active primary location with a complete address, and exactly one active owner. The gym then becomes an\noperational workspace (`GYM_WORKSPACE`, `gym_home` in `resolveMyEntry`). Completion is final and requires\nnothing commercial (no plan, trial, payment, verification or publication). Completing a completed gym returns\nit unchanged.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - only the owner completes setup.\n* `validation_error` - requirements are missing; each is named under `details.fields` with `required`.\n",
+        "description": "Completes the setup of a draft (owner only), after re-validating the persisted state: a valid name and type,\nan active primary location with a complete address, and exactly one active owner. The gym then becomes an\noperational workspace (`GYM_WORKSPACE`, `gym_home` in `resolveMyEntry`). Completion is final and requires\nnothing commercial (no plan, trial, payment, verification or publication). Completing a completed gym returns\nit unchanged. Takes no revision: it changes no setup field and re-validates the persisted state.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - only the owner completes setup.\n* `validation_error` - requirements are missing; each is named under `details.fields` with `required`.\n",
         "operationId": "completeGymSetup",
         "parameters": [
           {
@@ -5926,7 +5930,7 @@
       },
       "patch": {
         "callbacks": {},
-        "description": "Saves any subset of the profile (`name`, `gym_type`, `phone`, `website`) and text branding (`tagline`,\n`accent_color`), in a draft or a completed gym. An omitted field is unchanged; `null` or a blank string clears\nan optional field; nothing is rounded or truncated. An empty body changes nothing (and creates nothing).\nRequires the `edit_gym` permission (owner, manager).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - the viewer's role cannot edit the gym.\n* `conflict` - `expected_revision` is stale (`details.revision: \"stale\"`); nothing is saved.\n* `validation_error` - a field is invalid or cannot be cleared, or the body names an unknown or read-only\n  field.\n",
+        "description": "Saves any subset of the profile (`name`, `gym_type`, `phone`, `website`) and text branding (`tagline`,\n`accent_color`), in a draft or a completed gym. A conditional write: `expected_revision` is required and must\nbe the current `revision`. An omitted field is unchanged; `null` or a blank string clears an optional field;\nnothing is rounded or truncated. A body with only `expected_revision` changes nothing (and creates nothing).\nRequires the `edit_gym` permission (owner, manager).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - the viewer's role cannot edit the gym.\n* `conflict` - `expected_revision` is stale (`details.revision: \"stale\"`); nothing is saved.\n* `validation_error` - `expected_revision` is missing, a field is invalid or cannot be cleared, or the body\n  names an unknown or read-only field.\n",
         "operationId": "updateGymSetup",
         "parameters": [
           {
@@ -5995,7 +5999,7 @@
     "/api/v1/gyms/{gym_id}/setup/primary-location": {
       "put": {
         "callbacks": {},
-        "description": "Sets the gym's primary address (OG2: address only). The first call creates the primary location; later calls\nreplace its fields in place, so there is never a second primary location. An identical address changes\nnothing. Requires the `manage_locations` permission (owner, manager).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - the viewer's role cannot manage locations.\n* `conflict` - `expected_revision` is stale (`details.revision: \"stale\"`); nothing is saved.\n* `validation_error` - a field is missing or invalid (`country_code` must be an ISO 3166-1 alpha-2 code), or\n  an unknown field is sent.\n",
+        "description": "Sets the gym's primary address (OG2: address only). The first call creates the primary location; later calls\nreplace its fields in place, so there is never a second primary location. A conditional write:\n`expected_revision` is required and must be the current `revision`. An identical address changes nothing.\nRequires the `manage_locations` permission (owner, manager).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - the viewer's role cannot manage locations.\n* `conflict` - `expected_revision` is stale (`details.revision: \"stale\"`); nothing is saved.\n* `validation_error` - a field (including `expected_revision`) is missing or invalid (`country_code` must be\n  an ISO 3166-1 alpha-2 code), or an unknown field is sent.\n",
         "operationId": "setGymPrimaryLocation",
         "parameters": [
           {

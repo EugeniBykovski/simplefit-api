@@ -64,15 +64,16 @@ defmodule SimpleFitWeb.GymSetupController do
     summary: "Save part of a gym's setup",
     description: """
     Saves any subset of the profile (`name`, `gym_type`, `phone`, `website`) and text branding (`tagline`,
-    `accent_color`), in a draft or a completed gym. An omitted field is unchanged; `null` or a blank string clears
-    an optional field; nothing is rounded or truncated. An empty body changes nothing (and creates nothing).
+    `accent_color`), in a draft or a completed gym. A conditional write: `expected_revision` is required and must
+    be the current `revision`. An omitted field is unchanged; `null` or a blank string clears an optional field;
+    nothing is rounded or truncated. A body with only `expected_revision` changes nothing (and creates nothing).
     Requires the `edit_gym` permission (owner, manager).
 
     #{@access}
     * `forbidden` - the viewer's role cannot edit the gym.
     * `conflict` - `expected_revision` is stale (`details.revision: "stale"`); nothing is saved.
-    * `validation_error` - a field is invalid or cannot be cleared, or the body names an unknown or read-only
-      field.
+    * `validation_error` - `expected_revision` is missing, a field is invalid or cannot be cleared, or the body
+      names an unknown or read-only field.
     """,
     security: @security,
     parameters: [@gym_id],
@@ -99,14 +100,15 @@ defmodule SimpleFitWeb.GymSetupController do
     summary: "Set a gym's primary location",
     description: """
     Sets the gym's primary address (OG2: address only). The first call creates the primary location; later calls
-    replace its fields in place, so there is never a second primary location. An identical address changes
-    nothing. Requires the `manage_locations` permission (owner, manager).
+    replace its fields in place, so there is never a second primary location. A conditional write:
+    `expected_revision` is required and must be the current `revision`. An identical address changes nothing.
+    Requires the `manage_locations` permission (owner, manager).
 
     #{@access}
     * `forbidden` - the viewer's role cannot manage locations.
     * `conflict` - `expected_revision` is stale (`details.revision: "stale"`); nothing is saved.
-    * `validation_error` - a field is missing or invalid (`country_code` must be an ISO 3166-1 alpha-2 code), or
-      an unknown field is sent.
+    * `validation_error` - a field (including `expected_revision`) is missing or invalid (`country_code` must be
+      an ISO 3166-1 alpha-2 code), or an unknown field is sent.
     """,
     security: @security,
     parameters: [@gym_id],
@@ -138,7 +140,7 @@ defmodule SimpleFitWeb.GymSetupController do
     an active primary location with a complete address, and exactly one active owner. The gym then becomes an
     operational workspace (`GYM_WORKSPACE`, `gym_home` in `resolveMyEntry`). Completion is final and requires
     nothing commercial (no plan, trial, payment, verification or publication). Completing a completed gym returns
-    it unchanged.
+    it unchanged. Takes no revision: it changes no setup field and re-validates the persisted state.
 
     #{@access}
     * `forbidden` - only the owner completes setup.
@@ -168,7 +170,8 @@ defmodule SimpleFitWeb.GymSetupController do
     description: """
     Deletes a draft gym (owner only) with its owner membership, locations and any remembered entry choice naming
     it; a minimal audit event is kept. A completed gym is never deleted here. Discarding frees the owner's draft
-    slot but does not refund the creation rate limit.
+    slot but does not refund the creation rate limit, and the `client_request_id` that created the draft stays
+    spent (`createGym` answers `409`, `client_request_id: discarded`).
 
     #{@access}
     * `forbidden` - only the owner discards the draft.

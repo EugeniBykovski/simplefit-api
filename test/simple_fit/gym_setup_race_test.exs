@@ -61,7 +61,7 @@ defmodule SimpleFit.GymSetupRaceTest do
     owner = user!(ctx)
     gym = draft_gym!(owner)
     Agent.update(ctx.gyms, &[gym.id | &1])
-    {:ok, _} = Gyms.put_primary_location(owner, gym.id, @address)
+    {:ok, _} = set_location(owner, gym.id, @address)
     {owner, gym}
   end
 
@@ -111,7 +111,7 @@ defmodule SimpleFit.GymSetupRaceTest do
     end
   end
 
-  test "concurrent primary-location writes keep exactly one primary row", ctx do
+  test "concurrent primary-location writes on one revision: one applies, one primary row", ctx do
     for _ <- 1..6 do
       owner = user!(ctx)
       gym = draft_gym!(owner)
@@ -120,29 +120,46 @@ defmodule SimpleFit.GymSetupRaceTest do
         concurrently(
           for street <- ["ul. A 1", "ul. B 2", "ul. C 3", "ul. D 4"] do
             fn ->
-              Gyms.put_primary_location(owner, gym.id, %{@address | "address_line" => street})
+              Gyms.put_primary_location(
+                owner,
+                gym.id,
+                Map.merge(@address, %{"address_line" => street, "expected_revision" => 1})
+              )
             end
           end
         )
 
-      assert Enum.all?(results, &match?({:ok, _}, &1))
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+      assert Enum.count(results, &(&1 == {:error, {:conflict, %{revision: "stale"}}})) == 3
       assert Repo.aggregate(from(l in GymLocation, where: l.gym_id == ^gym.id), :count) == 1
     end
   end
 
-  test "two sessions editing different fields keep both changes", ctx do
+  test "two stale sessions never overwrite each other: the loser rereads and retries", ctx do
     owner = user!(ctx)
     gym = draft_gym!(owner)
 
-    [_, _] =
+    results =
       concurrently([
-        fn -> Gyms.update_setup(owner, gym.id, %{"tagline" => "From tab one"}) end,
-        fn -> Gyms.update_setup(owner, gym.id, %{"phone" => "+48 600 000 000"}) end
+        fn ->
+          Gyms.update_setup(owner, gym.id, %{"tagline" => "Tab one", "expected_revision" => 1})
+        end,
+        fn ->
+          Gyms.update_setup(owner, gym.id, %{
+            "phone" => "+48 600 000 000",
+            "expected_revision" => 1
+          })
+        end
       ])
 
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    assert Enum.count(results, &(&1 == {:error, {:conflict, %{revision: "stale"}}})) == 1
+
+    # The loser rereads the revision and retries: both changes are kept.
+    {:ok, _} = save_setup(owner, gym.id, %{"tagline" => "Tab one"})
+    {:ok, _} = save_setup(owner, gym.id, %{"phone" => "+48 600 000 000"})
     {:ok, setup} = Gyms.get_setup(owner, gym.id)
-    assert {setup.tagline, setup.phone} == {"From tab one", "+48 600 000 000"}
-    assert setup.revision == 3
+    assert {setup.tagline, setup.phone} == {"Tab one", "+48 600 000 000"}
   end
 
   test "two writes on one revision: one applies, the other is stale and changes nothing", ctx do
@@ -154,7 +171,7 @@ defmodule SimpleFit.GymSetupRaceTest do
         concurrently(
           for name <- ["Name A", "Name B"] do
             fn ->
-              Gyms.update_setup(owner, gym.id, %{"name" => name, "expected_revision" => 1})
+              save_setup(owner, gym.id, %{"name" => name, "expected_revision" => 1})
             end
           end
         )
@@ -165,19 +182,33 @@ defmodule SimpleFit.GymSetupRaceTest do
     end
   end
 
-  test "completion racing a profile update: both apply in some order, still completed", ctx do
+  test "completion racing an update on the pre-completion revision", ctx do
     for _ <- 1..6 do
       {owner, gym} = ready_draft!(ctx)
+      revision = current_revision(owner, gym.id)
 
       [completed, updated] =
         concurrently([
           fn -> Gyms.complete_setup(owner, gym.id) end,
-          fn -> Gyms.update_setup(owner, gym.id, %{"tagline" => "Racing"}) end
+          fn ->
+            Gyms.update_setup(owner, gym.id, %{
+              "tagline" => "Racing",
+              "expected_revision" => revision
+            })
+          end
         ])
 
       assert {:ok, _, :completed} = completed
-      assert {:ok, _} = updated
-      assert %Gym{setup_status: :completed, tagline: "Racing"} = Repo.get!(Gym, gym.id)
+
+      case updated do
+        # The update locked first: applied, then completion.
+        {:ok, _} ->
+          assert %Gym{setup_status: :completed, tagline: "Racing"} = Repo.get!(Gym, gym.id)
+
+        # Completion locked first and moved the revision: the update is stale.
+        {:error, {:conflict, %{revision: "stale"}}} ->
+          assert Repo.get!(Gym, gym.id).tagline == nil
+      end
     end
   end
 
@@ -190,7 +221,7 @@ defmodule SimpleFit.GymSetupRaceTest do
 
       [edited, revoked] =
         concurrently([
-          fn -> Gyms.update_setup(manager, gym.id, %{"tagline" => "Manager"}) end,
+          fn -> save_setup(manager, gym.id, %{"tagline" => "Manager"}) end,
           fn -> Gyms.revoke_staff_membership(owner, gym.id, m.id) end
         ])
 
@@ -201,7 +232,7 @@ defmodule SimpleFit.GymSetupRaceTest do
         {:error, :not_found} -> assert Repo.get!(Gym, gym.id).tagline == nil
       end
 
-      assert {:error, :not_found} = Gyms.update_setup(manager, gym.id, %{"tagline" => "Late"})
+      assert {:error, :not_found} = save_setup(manager, gym.id, %{"tagline" => "Late"})
     end
   end
 
@@ -214,7 +245,7 @@ defmodule SimpleFit.GymSetupRaceTest do
       [transferred, updated] =
         concurrently([
           fn -> Gyms.transfer_ownership(owner, gym.id, target.id, :leave) end,
-          fn -> Gyms.update_setup(owner, gym.id, %{"tagline" => "Old owner"}) end
+          fn -> save_setup(owner, gym.id, %{"tagline" => "Old owner"}) end
         ])
 
       assert {:ok, _} = transferred
@@ -256,7 +287,7 @@ defmodule SimpleFit.GymSetupRaceTest do
     end
   end
 
-  test "a replayed discard and a replayed create after discard", ctx do
+  test "a replayed discard, and a replayed create after discard, change nothing", ctx do
     owner = user!(ctx)
     attrs = gym_attrs()
     {:ok, gym, :created} = Gyms.create_gym(owner, attrs, client_ip())
@@ -264,9 +295,50 @@ defmodule SimpleFit.GymSetupRaceTest do
     assert :ok = Gyms.discard_draft(owner, gym.id)
     assert {:error, :not_found} = Gyms.discard_draft(owner, gym.id)
 
-    # The key named a gym that no longer exists: a replay starts a new draft.
-    assert {:ok, again, :created} = Gyms.create_gym(owner, attrs, client_ip())
-    refute again.id == gym.id
-    assert gyms_created_by(owner) == 1
+    assert {:error, {:conflict, %{client_request_id: "discarded"}}} =
+             Gyms.create_gym(owner, attrs, client_ip())
+
+    assert gyms_created_by(owner) == 0
+  end
+
+  test "a lost-response retry returns the same gym; after discard it creates nothing", ctx do
+    owner = user!(ctx)
+    attrs = gym_attrs()
+
+    # The first response is lost; the client retries the same key several times.
+    {:ok, gym, :created} = Gyms.create_gym(owner, attrs, client_ip())
+
+    retries =
+      concurrently(for _ <- 1..5, do: fn -> Gyms.create_gym(owner, attrs, client_ip()) end)
+
+    assert Enum.all?(retries, &match?({:ok, %{id: id}, :existing} when id == gym.id, &1))
+
+    :ok = Gyms.discard_draft(owner, gym.id)
+    late = concurrently(for _ <- 1..5, do: fn -> Gyms.create_gym(owner, attrs, client_ip()) end)
+    assert Enum.all?(late, &(&1 == {:error, {:conflict, %{client_request_id: "discarded"}}}))
+    assert gyms_created_by(owner) == 0
+  end
+
+  test "replays racing the discard never create a gym", ctx do
+    for _ <- 1..8 do
+      owner = user!(ctx)
+      attrs = gym_attrs()
+      {:ok, gym, :created} = Gyms.create_gym(owner, attrs, client_ip())
+
+      [discarded | replays] =
+        concurrently(
+          [fn -> Gyms.discard_draft(owner, gym.id) end] ++
+            for(_ <- 1..4, do: fn -> Gyms.create_gym(owner, attrs, client_ip()) end)
+        )
+
+      assert discarded == :ok
+
+      for replay <- replays do
+        assert match?({:ok, %{id: id}, :existing} when id == gym.id, replay) or
+                 replay == {:error, {:conflict, %{client_request_id: "discarded"}}}
+      end
+
+      assert gyms_created_by(owner) == 0
+    end
   end
 end

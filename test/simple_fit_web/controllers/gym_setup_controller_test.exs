@@ -60,7 +60,11 @@ defmodule SimpleFitWeb.GymSetupControllerTest do
       |> authed()
       |> patch(
         gym_path(gym.id, "/setup"),
-        Jason.encode!(%{tagline: "Boxing for everyone.", accent_color: "#E07A5F"})
+        Jason.encode!(%{
+          tagline: "Boxing for everyone.",
+          accent_color: "#E07A5F",
+          expected_revision: 1
+        })
       )
       |> setup_body()
 
@@ -70,7 +74,10 @@ defmodule SimpleFitWeb.GymSetupControllerTest do
     located =
       t
       |> authed()
-      |> put(gym_path(gym.id, "/setup/primary-location"), Jason.encode!(@address))
+      |> put(
+        gym_path(gym.id, "/setup/primary-location"),
+        Jason.encode!(Map.put(@address, :expected_revision, 2))
+      )
       |> setup_body()
 
     assert located["primary_location"]["city"] == "Warsaw" and
@@ -94,7 +101,10 @@ defmodule SimpleFitWeb.GymSetupControllerTest do
     error =
       t
       |> authed()
-      |> patch(gym_path(gym.id, "/setup"), Jason.encode!(%{website: "javascript:x"}))
+      |> patch(
+        gym_path(gym.id, "/setup"),
+        Jason.encode!(%{website: "javascript:x", expected_revision: 1})
+      )
       |> error(422, "validation_error")
 
     assert Map.has_key?(error["details"]["fields"], "website")
@@ -116,6 +126,43 @@ defmodule SimpleFitWeb.GymSetupControllerTest do
       |> error(409, "conflict")
 
     assert conflict["details"] == %{"revision" => "stale"}
+  end
+
+  test "conditional writes: a missing revision is 422, a stale one 409; discarded keys stay spent" do
+    owner = registered!()
+    gym = draft_gym!(owner)
+    t = token(owner)
+
+    missing =
+      t
+      |> authed()
+      |> patch(gym_path(gym.id, "/setup"), Jason.encode!(%{tagline: "x"}))
+      |> error(422, "validation_error")
+
+    assert missing["details"]["field_codes"]["expected_revision"] == ["required"]
+
+    t
+    |> authed()
+    |> put(gym_path(gym.id, "/setup/primary-location"), Jason.encode!(@address))
+    |> error(422, "validation_error")
+
+    noop =
+      t
+      |> authed()
+      |> patch(gym_path(gym.id, "/setup"), Jason.encode!(%{expected_revision: 1}))
+      |> setup_body()
+
+    assert noop["revision"] == 1
+
+    key = Ecto.UUID.generate()
+    body = Jason.encode!(%{client_request_id: key, name: "Spent", gym_type: "boxing_gym"})
+    other = registered!()
+    ot = token(other)
+    %{"gym" => %{"id" => id}} = ot |> authed() |> post("/api/v1/gyms", body) |> json_response(201)
+    204 = (ot |> authed() |> delete(gym_path(id))).status
+
+    conflict = ot |> authed() |> post("/api/v1/gyms", body) |> error(409, "conflict")
+    assert conflict["details"] == %{"client_request_id" => "discarded"}
   end
 
   test "role-limited staff get 403, outsiders 404, no session 401" do
@@ -143,7 +190,7 @@ defmodule SimpleFitWeb.GymSetupControllerTest do
 
     manager_token
     |> authed()
-    |> patch(gym_path(gym.id, "/setup"), Jason.encode!(%{tagline: "ok"}))
+    |> patch(gym_path(gym.id, "/setup"), Jason.encode!(%{tagline: "ok", expected_revision: 1}))
     |> setup_body()
 
     manager_token

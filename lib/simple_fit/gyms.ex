@@ -225,26 +225,34 @@ defmodule SimpleFit.Gyms do
         where: m.user_id == ^user_id and m.status == :active
       )
 
-    {total, completed_count} =
+    # One statement, one snapshot: the counts, the single completed gym and
+    # the owned draft always describe the same moment (separate statements
+    # could straddle a concurrent completion, SF-85).
+    {total, completed_count, first_completed_gym_id, open_draft_gym_id} =
       Repo.one(
         from([m, g] in active,
-          select: {count(m.id), filter(count(m.id), g.setup_status == :completed)}
+          select: {
+            count(m.id),
+            filter(count(m.id), g.setup_status == :completed),
+            fragment(
+              "(array_agg(?) FILTER (WHERE ? = 'completed'))[1]",
+              g.id,
+              g.setup_status
+            ),
+            fragment(
+              "(array_agg(? ORDER BY ? DESC, ? DESC) FILTER (WHERE ? = 'draft' AND ? = 'owner'))[1]",
+              g.id,
+              m.inserted_at,
+              m.id,
+              g.setup_status,
+              m.role
+            )
+          }
         )
       )
 
-    single_completed_gym_id =
-      if completed_count == 1,
-        do: Repo.one(from([m, g] in active, where: g.setup_status == :completed, select: g.id))
-
-    open_draft_gym_id =
-      Repo.one(
-        from([m, g] in active,
-          where: g.setup_status == :draft and m.role == :owner,
-          order_by: [desc: m.inserted_at, desc: m.id],
-          limit: 1,
-          select: g.id
-        )
-      )
+    single_completed_gym_id = if completed_count == 1, do: cast_uuid(first_completed_gym_id)
+    open_draft_gym_id = cast_uuid(open_draft_gym_id)
 
     entries =
       from([m, g] in active,
@@ -293,6 +301,10 @@ defmodule SimpleFit.Gyms do
       {:ok, workspace_summary(gym, membership)}
     end
   end
+
+  defp cast_uuid(nil), do: nil
+  defp cast_uuid(<<_::128>> = raw), do: Ecto.UUID.load!(raw)
+  defp cast_uuid(id) when is_binary(id), do: id
 
   defp workspace_summary(%Gym{} = gym, %StaffMembership{} = membership) do
     %{

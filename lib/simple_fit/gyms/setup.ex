@@ -27,13 +27,22 @@ defmodule SimpleFit.Gyms.Setup do
   discard `discard_draft` (owner only). A draft's owner needs no
   `GYM_WORKSPACE` capability (SF-84): access is the membership.
 
-  ## Concurrency
+  ## Concurrency (conditional writes)
 
-  Each setup change bumps the gym's `revision`. A write may carry
-  `expected_revision`; when it is stale the write is refused with `409
-  conflict` (`revision: stale`) and changes nothing. Without it, a partial
-  update changes only the fields it names, so concurrent edits of different
-  fields never overwrite each other.
+  Each setup change bumps the gym's `revision`. The two writes that change
+  setup fields (`update/3`, `put_primary_location/3`) **require**
+  `expected_revision`: the revision the client last read. It is compared
+  under the gym-row lock; a stale value refuses the write with `409
+  conflict` (`revision: stale`, nothing else revealed) and changes nothing,
+  so a stale device can never overwrite another device's changes, and of
+  two writers on one revision exactly one applies. A write that changes
+  nothing (only `expected_revision`, or identical values) returns the
+  current state without bumping the revision, after the same check.
+
+  `complete/2` and `discard/2` take no revision: completion changes no
+  setup field, re-validates the persisted state and is idempotent; discard
+  is the owner's explicit removal of their own draft. Both serialize on the
+  gym-row lock with every write.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -63,8 +72,8 @@ defmodule SimpleFit.Gyms.Setup do
   end
 
   @doc """
-  A partial setup update (`attrs`, string keys: any of `Gym.setup_fields/0`
-  and optional `expected_revision`; nothing else). An omitted field is
+  A partial setup update (`attrs`, string keys: the required
+  `expected_revision` and any of `Gym.setup_fields/0`; nothing else). An omitted field is
   unchanged; `null` or a blank string clears an optional field; `name` and
   `gym_type` cannot be cleared. An update that changes nothing returns the
   current state without bumping the revision.
@@ -86,7 +95,7 @@ defmodule SimpleFit.Gyms.Setup do
 
   @doc """
   Sets the primary location (`attrs`, string keys: `country_code`, `city`,
-  `address_line`, optional `entrance_note`, `name`, and optional
+  `address_line`, optional `entrance_note`, `name`, and the required
   `expected_revision`). The first call creates it; later calls replace its
   fields in place (one row, never a second primary). An identical address
   changes nothing.
@@ -309,6 +318,7 @@ defmodule SimpleFit.Gyms.Setup do
     changeset =
       {%{}, %{expected_revision: :integer}}
       |> Changeset.cast(attrs, [:expected_revision])
+      |> Changeset.validate_required([:expected_revision])
       |> Changeset.validate_number(:expected_revision, greater_than: 0)
 
     changeset =
@@ -321,7 +331,6 @@ defmodule SimpleFit.Gyms.Setup do
       else: {:error, changeset}
   end
 
-  defp fresh(_gym, nil), do: :ok
   defp fresh(%Gym{revision: revision}, revision), do: :ok
   defp fresh(%Gym{}, _stale), do: {:error, {:conflict, %{revision: "stale"}}}
 

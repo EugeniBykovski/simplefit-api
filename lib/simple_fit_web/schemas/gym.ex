@@ -284,8 +284,8 @@ defmodule SimpleFitWeb.Schemas.GymSetupFields do
       type: :integer,
       minimum: 1,
       description: """
-      Optional: the `revision` the client last read. When it is no longer current the write changes nothing and
-      answers `409 conflict` (`details.revision: "stale"`).
+      Required: the `revision` the client last read (from `getGymSetup` or the previous write). When it is no longer
+      current the write changes nothing and answers `409 conflict` (`details.revision: "stale"`).
       """
     }
   end
@@ -371,12 +371,13 @@ defmodule SimpleFitWeb.Schemas.GymSetupUpdateRequest do
     %{
       title: "GymSetupUpdateRequest",
       description: """
-      Any subset of the setup fields. An omitted field is unchanged; `null` or a blank string clears an optional
-      field; `name` and `gym_type` cannot be cleared. Read-only fields (`setup_status`, `revision`, owners, ids)
-      are rejected.
+      `expected_revision` and any subset of the setup fields. An omitted field is unchanged; `null` or a blank
+      string clears an optional field; `name` and `gym_type` cannot be cleared. Read-only fields (`setup_status`,
+      `revision`, owners, ids) are rejected. Only `expected_revision` (or identical values) changes nothing.
       """,
       type: :object,
       additionalProperties: false,
+      required: [:expected_revision],
       properties:
         Map.merge(GymSetupFields.optional(), %{
           name: GymFields.name(),
@@ -405,7 +406,7 @@ defmodule SimpleFitWeb.Schemas.GymPrimaryLocationRequest do
       """,
       type: :object,
       additionalProperties: false,
-      required: [:address_line, :city, :country_code],
+      required: [:address_line, :city, :country_code, :expected_revision],
       properties: %{
         country_code: %Schema{
           type: :string,
