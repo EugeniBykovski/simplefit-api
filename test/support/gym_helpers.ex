@@ -16,9 +16,9 @@ defmodule SimpleFit.GymHelpers do
   @spec registered!(String.t()) :: User.t()
   def registered!(prefix \\ "gym"), do: CoachingHelpers.registered_user!(prefix)
 
-  @doc "A unique client rate-limit key, so tests never share a client window."
+  @doc "A globally unique client rate-limit key, so tests (and earlier runs) never share a window."
   @spec client_ip() :: String.t()
-  def client_ip, do: "client-#{System.unique_integer([:positive])}"
+  def client_ip, do: "client-#{Ecto.UUID.generate()}"
 
   @doc "Creation attributes with a fresh idempotency key."
   @spec gym_attrs(map()) :: map()

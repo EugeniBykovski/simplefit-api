@@ -218,6 +218,9 @@ attempts. Try again shortly.").
 
 ### Client IP (`SimpleFitWeb.ClientIP`, `TRUSTED_PROXY_HOPS`)
 
+> SF-83: production requires `TRUSTED_PROXY_HOPS` to be set explicitly (see
+> ADR 0019, SF-83 amendment).
+
 * **Default `0`:** the direct peer address. `X-Forwarded-For` is ignored,
   so no client can choose its IP. Behind a proxy all clients share the
   proxy's IP bucket. That is coarse but safe, and per-target and

@@ -190,46 +190,108 @@ is no `gyms.owner_user_id`.
 All three answer `no-store`. `SECRET_KEY_BASE` also derives the
 rate-limit key, with its own salt; no new environment variable is needed.
 
-### Deviations from the SF-82 package
+### Rate limiting (D-G25, as approved)
 
-1. **Lifecycle names.** The SF-83 brief says "draft and active". The approved
+* **Rolling windows.** Gym creation allows at most 5 creations per user and
+  20 per client in **any rolling 24 hours**. `SimpleFit.RateLimit.hit_rolling/2`
+  is an exact sliding log:
+  * one `rate_limit_events` row (bucket, HMAC key digest, time) per counted
+    event;
+  * migration `20261026100000_create_rate_limit_events`;
+  * the window is `(now - 24 h, now]`.
+* **Locking.** A transaction-scoped advisory lock per bucket and key runs as
+  its own statement before the count, so concurrent hits are counted
+  exactly. A count inside the same statement would use a snapshot taken
+  before the lock wait.
+* **What is recorded.** A refused hit is not recorded. The rules of one
+  call commit only with the caller's transaction, so replays, resumed drafts,
+  invalid requests and rolled-back creations are never counted.
+* **Retention.** Rows are deleted by the existing hourly cleanup after two
+  days. Rolling periods are capped at 24 hours.
+* **Client attribution.** Production refuses to boot without an explicit
+  `TRUSTED_PROXY_HOPS` (`ClientIP.parse_required_hops!/1`; `0` is valid but
+  must be stated). An undeclared proxy can therefore never make every client
+  share one IP limit. Development keeps the default of 0. This applies to
+  every IP-based limit.
+
+### Ownership, lifecycle and authorization audit
+
+* **Ownership.**
+  * `gym_staff_memberships` is the only ownership source.
+  * Exactly one active owner on every committed gym: a partial unique index
+    plus the deferred commit-time trigger. Real-commit tests show an
+    ownerless commit is rejected and a second owner is refused.
+  * Transfer and revocation lock the gym row first. The race tests show
+    concurrent transfers leave one owner, and a transfer racing a revocation
+    always ends consistent.
+  * A user with any active membership cannot be deleted; the database
+    refuses. Ended memberships keep their history.
+  * No transfer HTTP operation exists.
+* **Lifecycle.**
+  * `setup_status` (`draft` / `completed`) is only the setup state. There is
+    no publication, plan, payment or verification column. Publication will be
+    a separate state that requires a completed setup and D-G11.
+  * No endpoint shows a gym to anyone but its active staff.
+  * SF-85 must refuse `complete-setup` until the gym has a non-archived
+    primary location (with name and type).
+* **Authorization.**
+  * 401 for no, invalid or revoked session.
+  * 404 for unknown or malformed gym ids, and for gyms where the caller has
+    no active membership.
+  * 403 `forbidden` for active staff whose role lacks the permission.
+  * The three SF-83 operations allow every staff role, so none returns 403
+    yet. Every future role-specific operation must call
+    `Gyms.authorize/3` (reads) or the locking variant (writes) with its
+    specific permission.
+  * No permission reads private training data, and a test asserts that the
+    Gyms context references no Coaching, Training, Fighters or Coaches module
+    or table. A CoachProfile, a FighterProfile or a Coach–Fighter relationship
+    grants nothing at a gym.
+
+### Ticket ownership (actual Jira)
+
+| Jira | Scope | What it takes over from SF-83 |
+| --- | --- | --- |
+| SF-84 | Gym Registration Intent & Workspace Entry Resolution | `GYM_WORKSPACE` and the gym workspaces in `/me/entry`; the remembered last gym |
+| SF-85 | Gym Owner Registration & Gym Setup API | Locations, setup fields, `complete-setup` (requires a primary location), discarding a draft |
+| SF-92 | Gym Staff Roles, Coach Affiliation & Invitations API | Staff invitations; role change and the revocation HTTP operation (on top of `Gyms.revoke_staff_membership/3`) |
+| SF-100 | Gym Member Booking & Attendance UI | Nothing from SF-83. An earlier SF-83 report wrongly gave it ownership transfer |
+
+**Ownership transfer (recommendation): a dedicated backend Jira task,
+sequenced after SF-92.** It reuses SF-92's invitation and acceptance machinery
+(7-day expiry, verified identity). It is kept separate for these reasons:
+
+* it changes who controls the tenant, and later payouts and closure;
+* it needs its own threat review: pending-transfer state, cancellation, a
+  concurrent revocation of the target, and the account-deletion guard;
+* SF-92 is already large.
+
+It depends on SF-92, because only SF-92 creates non-owner staff. The commit
+step (`Gyms.transfer_ownership/4`) is ready for it.
+
+The ticket numbers in this ADR's Consequences section come from the SF-82
+proposal. Where they differ, this table wins.
+
+### Remaining deviations from the SF-82 package
+
+1. **Lifecycle names.** The SF-83 brief said "draft and active". The approved
    vocabulary `draft` / `completed` is used.
 2. **Naming.** The brief's "GymWorkspaceMembership" is
    `gym_staff_memberships` / `SimpleFit.Gyms.StaffMembership`, as in ADR 0026.
-3. **First location.** SF-82 (`01` §4.1, `11`) had creation insert the
-   first location. The SF-83 brief gives the location API to SF-85, so
-   creation takes only `name` and `gym_type`. A draft may have no location;
-   the "at least one location" rule becomes a completion check for SF-85.
-4. **Ticket mapping.** The SF-83 brief gives entry resolution to SF-84, setup
-   and location APIs to SF-85, participant memberships to SF-95 and classes to
-   SF-97. That supersedes the proposed mapping in
-   `proposals/SF-82-gym/09-dependency-matrix.md`.
-5. **Fixed windows.** The brief asked for rolling 24 hours. The existing
-   `SimpleFit.RateLimit` uses fixed windows aligned to UTC, and the brief said
-   to reuse it rather than build a new subsystem.
-6. **What counts toward the limit.** Only requests that pass validation and
-   are neither replays nor resumed drafts count, and a count commits only with
-   the gym it allowed. Invalid requests create nothing and consume no
-   allowance.
-7. **Client key behind proxies.** With unconfigured proxies
-   (`TRUSTED_PROXY_HOPS` = 0 behind a proxy), all clients share one key.
-   The 20-per-client limit then becomes global, as it already is for
-   coach invitations. The per-user limit is unaffected.
-8. **Transfer is a domain function only.** There is no HTTP operation and no
-   request/acceptance step (D-G04's 7-day acceptance is SF-100's).
-9. **Drafts cannot be transferred.** Transfer is limited to completed gyms;
-   a draft answers `conflict`, `setup_status: draft`. This is a new rule: a
-   draft has no other staff (D-G20) and holds the creator's single draft slot.
-10. **Revocation is a domain function only.** Its HTTP operation comes with
-    staff management.
-11. **No HTTP 403 yet.** Every SF-83 HTTP operation is allowed to every staff
-    role, so 403 is exercised at the domain level; the error contract already
-    exists.
-12. **Deferred columns.** `phone`, `website`, `handle`, `home_location_id`,
-    `display_title` and `completed_at` arrive with the tickets that use them.
-13. **Entry projection.** `GYM_WORKSPACE` and the remembered last gym are
-    SF-84's.
-14. **Account deletion.** It has a read-only guard
-    (`Gyms.check_account_deletion/1`) plus the database refusal. The release
-    step (delete the user's drafts, end other memberships with
-    `account_deleted`) waits for the account-deletion feature.
+3. **First location.** Creation inserts no location; location writes are
+   SF-85's. A draft may have none, and "at least one primary location" is
+   SF-85's completion check.
+4. **Transfer and revocation are domain functions only.** They have no HTTP
+   operations yet (see the ownership table above).
+5. **Drafts cannot be transferred.** A draft answers `conflict`,
+   `setup_status: draft`. This is a new rule: a draft has no other staff
+   (D-G20) and holds the creator's single draft slot.
+6. **Deferred columns.** `phone`, `website`, `handle`, `home_location_id`,
+   `display_title` and `completed_at` arrive with the tickets that use them.
+7. **Account deletion.** It has a read-only guard
+   (`Gyms.check_account_deletion/1`) plus the database refusal. The release
+   step (delete drafts, end other memberships with `account_deleted`) comes
+   with the account-deletion feature.
+
+The fixed-window deviation of the first SF-83 report is withdrawn: rolling
+windows are implemented as approved.

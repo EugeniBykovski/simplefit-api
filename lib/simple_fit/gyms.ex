@@ -27,12 +27,13 @@ defmodule SimpleFit.Gyms do
 
   ## Boundaries
 
-  Creating a gym creates a draft and its owner membership only (D-G05); the
-  setup steps, locations and completion are SF-85's, entry projection
-  (`GYM_WORKSPACE`) is SF-84's, staff invitations and participant
-  memberships are later tickets. Ownership transfer and revocation exist here
-  as domain operations; their HTTP flows (request and acceptance of a
-  transfer, D-G04) come with the staff-management tickets.
+  Creating a gym creates a draft and its owner membership only (D-G05). The
+  setup steps, locations and completion (which requires a primary location)
+  are SF-85's; entry projection (`GYM_WORKSPACE`) is SF-84's; staff roles,
+  coach affiliation and invitations are SF-92's; participant memberships are
+  later tickets. Ownership transfer and revocation exist here as domain
+  operations only: the transfer request and acceptance (D-G04) need a
+  dedicated backend ticket, and revocation's HTTP operation comes with SF-92.
   """
 
   import Ecto.Query, only: [from: 2]

@@ -1,5 +1,12 @@
 # SF-82 · 09 — Dependency matrix (SF-83 – SF-104)
 
+> **Superseded for ticket ownership (2026-10-26).** The ticket numbers
+> below were a proposal made without Jira access. The actual Jira scopes
+> (SF-84 entry resolution, SF-85 owner registration and setup API, SF-92
+> staff roles and invitations, SF-100 member booking and attendance UI)
+> and the recommendation of a dedicated ownership-transfer task are in
+> ADR 0026, SF-83 amendment, "Ticket ownership".
+
 **Status: reconciled with the final SF-82 approval (2026-10-23).** The Jira
 contents of SF-83–SF-104 were **not available** to this work (no Jira access
 from the session). The table is the architecture's split. Before SF-83

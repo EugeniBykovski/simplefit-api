@@ -19,7 +19,7 @@ defmodule SimpleFit.GymsRaceTest do
 
   setup do
     Sandbox.mode(Repo, :auto)
-    Repo.delete_all("auth_rate_limits")
+    reset_limits()
     {:ok, users} = Agent.start(fn -> [] end)
 
     on_exit(fn ->
@@ -40,7 +40,7 @@ defmodule SimpleFit.GymsRaceTest do
       Repo.delete_all(from(e in AuditEvent, where: e.gym_id in ^gym_ids))
       Repo.delete_all(from(g in Gym, where: g.id in ^gym_ids))
       Repo.delete_all(from(u in User, where: u.id in ^ids))
-      Repo.delete_all("auth_rate_limits")
+      reset_limits()
       Agent.stop(users)
       Sandbox.mode(Repo, :manual)
     end)
@@ -52,6 +52,12 @@ defmodule SimpleFit.GymsRaceTest do
     user = registered!("gym-race")
     Agent.update(users, &[user.id | &1])
     user
+  end
+
+  # Committed counters from this or an earlier run must not leak into a test.
+  defp reset_limits do
+    Repo.delete_all("auth_rate_limits")
+    Repo.delete_all("rate_limit_events")
   end
 
   defp concurrently(funs), do: funs |> Enum.map(&Task.async/1) |> Task.await_many(30_000)

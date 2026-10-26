@@ -11,20 +11,20 @@ defmodule SimpleFit.Gyms.Creation do
        staff there; otherwise `409 conflict` (`client_request_id: reused`).
     2. **Open draft.** While the creator has an open draft, any create
        resolves to it (`:resumed`); the request's fields are ignored.
-    3. **Abuse limits.** At most 5 creations per user and 20 per client per
-       24-hour window, in the shared PostgreSQL windows (`SimpleFit.RateLimit`).
-       Only steps that reach this point count, and a count commits only with
-       the gym it allowed, so a replay or a resumed draft is never counted.
+    3. **Abuse limits (D-G25).** At most 5 creations per user and 20 per
+       client in any rolling 24 hours (`SimpleFit.RateLimit.hit_rolling/2`,
+       exact). Only steps that reach this point count, and a count commits
+       only with the gym it allowed, so a replay, a resumed draft or a
+       refused attempt is never counted.
     4. **Insert.** The draft gym, its owner's staff membership and the audit
        events `gym_created` and `staff_membership_created` commit together;
        the database checks at commit that the gym has exactly one active
        owner.
 
-  The windows are fixed 24-hour windows (the existing rate-limit store),
-  not rolling ones. The client key is `SimpleFitWeb.ClientIP.limit_key/1`:
-  behind proxies that are not configured (`TRUSTED_PROXY_HOPS`), every
-  client shares the proxy's key and the per-client limit becomes coarse; the
-  per-user limit is unaffected.
+  The client key is `SimpleFitWeb.ClientIP.limit_key/1`. Production refuses
+  to boot without an explicit `TRUSTED_PROXY_HOPS`, so the proxy topology is
+  always declared and the per-client limit is never silently shared by every
+  client behind an unconfigured proxy.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -94,7 +94,7 @@ defmodule SimpleFit.Gyms.Creation do
   end
 
   defp limit_then_insert(user_id, request, client_ip) do
-    case RateLimit.hit([
+    case RateLimit.hit_rolling([
            {"gym_create_user", key("user", user_id), @user_limit, @window},
            {"gym_create_client", key("client", client_ip), @client_limit, @window}
          ]) do

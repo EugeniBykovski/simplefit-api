@@ -300,11 +300,14 @@ case config_env() do
     # secret with a dedicated salt.
     config :simple_fit, SimpleFit.Gyms, secret_key_base: secret_key_base
 
-    # Client IP for auth rate limits (ADR 0012). Default 0: the direct peer
-    # address; set it only to the number of trusted proxies in front of the
-    # app after the deployment topology is verified.
+    # Client IP for rate limits (ADR 0012). Required in production (SF-83):
+    # 0 when clients connect directly (the peer address), otherwise the number
+    # of trusted proxies in front of the app, set after the deployment
+    # topology is verified. Unset fails the boot, so an undeclared proxy never
+    # makes every client share one IP limit.
     config :simple_fit, SimpleFitWeb.ClientIP,
-      trusted_proxy_hops: SimpleFitWeb.ClientIP.parse_hops!(System.get_env("TRUSTED_PROXY_HOPS"))
+      trusted_proxy_hops:
+        SimpleFitWeb.ClientIP.parse_required_hops!(System.get_env("TRUSTED_PROXY_HOPS"))
 
     # Google sign-in audiences (ADR 0013): the web, iOS and Android OAuth
     # client ids. Unset does not block boot; Google sign-in then answers 503.

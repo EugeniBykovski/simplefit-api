@@ -161,6 +161,28 @@ defmodule SimpleFit.GymsTest do
   end
 
   describe "creation limits (D-G25)" do
+    test "the user limit is rolling: it frees up only when the oldest creation is 24 h old" do
+      owner = registered!()
+
+      for _ <- 1..5 do
+        {:ok, view, :created} = Gyms.create_gym(owner, gym_attrs(), client_ip())
+        complete!(view.id)
+      end
+
+      assert {:error, {:rate_limited, retry_after}} =
+               Gyms.create_gym(owner, gym_attrs(), client_ip())
+
+      assert retry_after > 86_000
+
+      # Age the counted events by 24 hours (as time would).
+      Repo.update_all(
+        from(e in "rate_limit_events", where: e.bucket == "gym_create_user"),
+        set: [occurred_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -86_401)]
+      )
+
+      assert {:ok, _, :created} = Gyms.create_gym(owner, gym_attrs(), client_ip())
+    end
+
     test "5 creations per user per window; the 6th is rate limited; replays are free" do
       owner = registered!()
 
@@ -266,6 +288,18 @@ defmodule SimpleFit.GymsTest do
       assert {:ok, %{scope: :own_classes}} = Gyms.authorize(users.coach, gym.id, :view_members)
       assert {:ok, %{scope: :today}} = Gyms.authorize(users.front_desk, gym.id, :view_attendance)
       assert {:ok, %{scope: :all}} = Gyms.authorize(users.owner, gym.id, :remove_staff)
+    end
+
+    test "the Gyms context never reads coaching, training or fighter data (D-G06)" do
+      sources = ["lib/simple_fit/gyms.ex" | Path.wildcard("lib/simple_fit/gyms/**/*.ex")]
+      assert length(sources) >= 8
+
+      for path <- sources,
+          forbidden <- ~w(SimpleFit.Coaching SimpleFit.Training SimpleFit.Fighters
+                                            SimpleFit.Coaches coach_fighter_relationships training_sessions
+                                            fighter_profiles coach_profiles) do
+        refute File.read!(path) =~ forbidden, "#{path} references #{forbidden}"
+      end
     end
 
     test "no permission reads private fighter training data, for any role" do

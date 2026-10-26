@@ -27,8 +27,9 @@ defmodule SimpleFit.Gyms.Ownership do
   `:stay_as_manager` they get a new `manager` membership.
 
   This is the commit step of D-G04. Requesting a transfer and the target's
-  acceptance within 7 days are SF-100's; this function never runs without
-  that acceptance in production code.
+  acceptance within 7 days belong to a dedicated ownership-transfer backend
+  ticket, after SF-92 (ADR 0026, SF-83 amendment); no HTTP operation calls
+  this yet, and production code must never call it without that acceptance.
   """
   @spec transfer(User.t(), term(), term(), previous_owner()) ::
           {:ok, %{owner: StaffMembership.t(), previous_owner: StaffMembership.t() | nil}}

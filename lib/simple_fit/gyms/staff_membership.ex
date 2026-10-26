@@ -3,7 +3,7 @@ defmodule SimpleFit.Gyms.StaffMembership do
   A user's staff (workspace) membership at one gym, with one fixed role
   (ADR 0026, D-G03): `:owner`, `:manager`, `:coach` or `:front_desk`. It is
   the only source of gym permissions (`SimpleFit.Gyms.Policy`) and is not a
-  gym *participant* membership (a member who trains there, SF-89) nor a
+  gym *participant* membership (a member who trains there, SF-95) nor a
   Coach–Fighter relationship.
 
   `:active` until it ends (`:ended`, final) with a reason. The database

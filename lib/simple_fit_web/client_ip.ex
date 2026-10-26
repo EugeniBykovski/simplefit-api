@@ -64,6 +64,22 @@ defmodule SimpleFitWeb.ClientIP do
   end
 
   @doc """
+  Parses `TRUSTED_PROXY_HOPS` for production (SF-83, D-G25): the value must be
+  set explicitly (`0` included), so the proxy topology is always declared.
+  Unset or empty raises, and so does anything `parse_hops!/1` rejects; the
+  deployment then fails at boot instead of letting every client behind an
+  undeclared proxy share one IP limit.
+  """
+  @spec parse_required_hops!(String.t() | nil) :: non_neg_integer()
+  def parse_required_hops!(value) when value in [nil, ""] do
+    raise ArgumentError,
+          "TRUSTED_PROXY_HOPS must be set in production: 0 when clients connect directly, " <>
+            "otherwise the number of trusted proxies in front of the API"
+  end
+
+  def parse_required_hops!(value) when is_binary(value), do: parse_hops!(value)
+
+  @doc """
   Parses `TRUSTED_PROXY_HOPS`: unset or empty means `0`; otherwise an integer
   in `0..#{@max_hops}`. Anything else raises, so a deployment fails at boot.
   """
