@@ -308,3 +308,131 @@ windows are implemented as approved.
   entry answer carries `gym_id`, and the id-based gym routes come with the
   gym UI tickets.
 
+
+## Amendment — SF-85 (2026-10-28): gym owner registration and setup API
+
+Claude Design source: canvas version `1792675284-1046` (unchanged since
+SF-82). The SF-82 reconciliation register (`12-design-reconciliation-plan.md`)
+is authoritative for its discrepancies.
+
+### Field matrix
+
+| Field | Artboard | Stored in | Draft | Completion | After completion |
+| --- | --- | --- | --- | --- | --- |
+| `name` | OG1 | `gyms.name` | required at create | required | editable (owner, manager) |
+| `gym_type` | OG1 | `gyms.gym_type` (six D-G13 values) | required at create | required | editable |
+| `phone` | OG1 | `gyms.phone` | optional | — | editable |
+| `website` | OG1 | `gyms.website` (`http(s)` only) | optional | — | editable |
+| public handle / URL | OG1, OG3 | not stored | — | — | future: publishing (D-G11, C2/C4) |
+| primary location: `country_code`, `city`, `address_line` | OG2 | `gym_locations` (one active primary) | optional | required | replaceable in place, never removable |
+| `entrance_note`, location `name` | OG2 | `gym_locations` | optional (`name` defaults to the city) | — | replaceable |
+| additional locations | OG2 | — | — | — | future (WG23) |
+| `tagline` | OG3 | `gyms.tagline` | optional | — | editable |
+| `accent_color` | OG3 | `gyms.accent_color` (the six OG3 swatches, lowercase hex) | optional | — | editable |
+| logo, cover | OG3 | not stored | — | — | deferred: storage attachment (below) |
+| gym size | OG4 | not stored | — | — | future: plan suggestion (D-G09, C1/R2) |
+| features | OG5 | not stored | — | — | future: plan entitlements (D-G09, C1/R2) |
+
+### Lifecycle and API
+
+The existing `createGym` is the only create. Setup then uses five
+operations:
+
+| Operation | Behaviour | Permission |
+| --- | --- | --- |
+| `getGymSetup` (`GET /api/v1/gyms/{gym_id}/setup`) | The setup, `revision` and `missing_requirements` | any active staff |
+| `updateGymSetup` (`PATCH …/setup`) | Partial update: omitted means unchanged; `null` or blank clears an optional field; `name` and `gym_type` cannot be cleared; read-only and unknown fields are rejected; nothing is truncated | `edit_gym`: owner, manager |
+| `setGymPrimaryLocation` (`PUT …/setup/primary-location`) | Full replacement of the one primary location, created on first use and replaced in place afterwards | `manage_locations`: owner, manager |
+| `completeGymSetup` (`POST …/complete-setup`) | Re-validates the persisted state (name, type, a complete primary address, exactly one active owner) and completes once; a repeat is a no-op without a second audit event; missing requirements are a `422 validation_error` with each requirement as `required` | `complete_setup`: owner |
+| `discardGymDraft` (`DELETE /api/v1/gyms/{gym_id}`) | Hard-deletes a draft and its membership, locations and entry choices (cascades), keeping a `draft_discarded` audit event; a completed gym answers `409`, and a repeat answers `404` | `discard_draft`, new in the matrix: owner |
+
+* **Errors:** 401 / 403 / 404 / 409 / 422 follow ADR 0003 and D-G24.
+* **No capability gate:** a draft's owner needs no `GYM_WORKSPACE` (SF-84).
+* **Conditional writes (final contract):** `gyms.revision` increases with
+  every setup change, including the primary location.
+  * `updateGymSetup` and `setGymPrimaryLocation` **require**
+    `expected_revision`. It is compared under the gym-row lock: missing gets
+    `422` (`required`), stale gets `409` (`details: {revision: "stale"}`,
+    nothing more) and changes nothing.
+  * A stale device therefore never overwrites another device's change, and
+    of two writers on one revision exactly one applies; the other rereads and
+    retries.
+  * A body with only `expected_revision`, or with identical values, is a
+    no-op after the same check, and the revision does not move.
+  * `completeGymSetup` and `discardGymDraft` take no revision. Completion
+    changes no setup field, re-validates the persisted state and is
+    idempotent. Discard is the owner's explicit removal of their own draft.
+    Both serialize with every write on the gym-row lock.
+* **Locks:** every write locks the gym row, then the membership, then the
+  primary location. This is the SF-83/SF-84 order, so completion, discard,
+  transfer, revocation and entry choice serialize.
+* **Database invariants** (migration `20261028090000`, explicit up/down):
+  * completion requires an active primary location
+    (`gyms_completion_requirements`);
+  * a completed gym can never archive, demote or delete its last active
+    primary location (`gym_locations_keep_primary`);
+  * the existing triggers keep `completed` final and exactly one active
+    owner;
+  * format checks on `phone`, `website`, `tagline` and `accent_color`.
+* **Audit** (in the same transaction, no address or personal data):
+  `primary_location_set`, `setup_completed`, `draft_discarded`.
+* **Entry (SF-84, unchanged):**
+  * a draft resolves to `gym_onboarding` with its `gym_id`;
+  * completion adds `GYM_WORKSPACE` and `gym_home`;
+  * a discarded draft disappears, and its choices cascade away.
+* **Durable creation keys:** `gym_creation_requests` (migration
+  `20261028100000`, backfilled from existing gyms) records every
+  `client_request_id` with the gym it created or resumed.
+  * Discarding the gym only sets `gym_id` to NULL, so the key stays spent: a
+    replay, however late and even racing the discard, answers `409`
+    (`client_request_id: discarded`) and never creates a gym.
+  * A lost-response retry before the discard returns the same gym, and a new
+    key still creates normally.
+  * Rows go with their user and carry no personal data; no retention period
+    is invented.
+* **Entry snapshot fix (SF-84 defect found here):**
+  `Gyms.workspace_overview/2` now reads its counts, the single completed gym
+  and the owned draft in one statement. Separate statements could straddle a
+  concurrent completion and answer `gym_onboarding` without `gym_id`.
+
+### Logo and cover: the storage blocker
+
+`SimpleFit.Storage` (SF-15) can only presign uploads and downloads. A safe
+attachment also needs three things it lacks:
+
+* **Ownership:** a record binding an upload to its gym and purpose.
+* **Existence:** a way to verify the uploaded object exists before
+  attaching it.
+* **Orphans:** cleanup of uploads that are never attached ("avoid orphaned
+  uploads").
+
+The smallest extension, proposed and not built:
+
+1. A `gym_branding_uploads` table: gym, purpose (`logo` / `cover`), a
+   server-generated key under `gyms/{gym_id}/branding/{uuid}`, content type,
+   size and expiry.
+2. A presign endpoint for owners and managers. Allowed types are
+   `image/png`, `image/jpeg` and `image/webp`, within size limits. SVG is
+   deferred: it is active content.
+3. An attach step that verifies the object with a presigned `HEAD` through
+   `SimpleFit.HTTP`.
+4. An Oban job that deletes unattached uploads with a presigned `DELETE`.
+
+This adds new adapter capabilities (HEAD and DELETE), so it needs its own
+ticket. Branding never blocks completion.
+
+### Deliberate deferrals (none blocks completion)
+
+| Item | Status | Exact future dependency |
+| --- | --- | --- |
+| OG4 gym size | FUTURE (SF-82 D-G21, C1/R2) | It exists only to suggest a SimpleFit plan; it waits for the deferred product decision D-G09. No plan, price or payment is implied before then |
+| OG5 features | FUTURE (SF-82 D-G21, C1/R2) | It maps plan entitlements; same dependency on D-G09 |
+| Logo and cover | BLOCKED | A controlled media-asset lifecycle in `SimpleFit.Storage`: an upload record per gym and purpose, a server-side existence check (presigned `HEAD`) on attach, orphan cleanup (presigned `DELETE` via Oban), and an image type allowlist (SVG excluded). This is its own ticket |
+| Tagline, accent colour | DONE, optional | — |
+
+### Deviations
+
+* OG4/OG5 and logo/cover are not built, as in the table above. The SF-82
+  register outranks the SF-85 brief for OG4/OG5.
+* The location `name` defaults to the city, because OG2 has no name field
+  and the column is required.

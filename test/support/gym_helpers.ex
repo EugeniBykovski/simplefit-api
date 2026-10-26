@@ -10,7 +10,7 @@ defmodule SimpleFit.GymHelpers do
 
   alias SimpleFit.Accounts.User
   alias SimpleFit.{CoachingHelpers, Gyms, Repo}
-  alias SimpleFit.Gyms.{AuditEvent, Gym, StaffMembership}
+  alias SimpleFit.Gyms.{AuditEvent, Gym, GymLocation, StaffMembership}
 
   @doc "A user with completed account registration."
   @spec registered!(String.t()) :: User.t()
@@ -48,9 +48,30 @@ defmodule SimpleFit.GymHelpers do
     %{view | setup_status: :completed}
   end
 
-  @doc "Marks a gym's setup completed (fixture for SF-85's completion)."
+  @doc """
+  Marks a gym's setup completed directly, after giving it a primary location
+  when it has none (the database refuses completion without one, SF-85). A
+  fixture for tests that need a completed gym; the real path is
+  `SimpleFit.Gyms.complete_setup/2`.
+  """
   @spec complete!(Ecto.UUID.t()) :: :ok
   def complete!(gym_id) do
+    unless Repo.exists?(
+             from(l in GymLocation,
+               where: l.gym_id == ^gym_id and l.is_primary and is_nil(l.archived_at)
+             )
+           ) do
+      Repo.insert!(%GymLocation{
+        gym_id: gym_id,
+        # Not "Warsaw": privacy tests use the coach profile's city as a canary.
+        name: "Kazimierz",
+        country_code: "PL",
+        city: "Kraków",
+        address_line: "ul. Józefa 12",
+        is_primary: true
+      })
+    end
+
     {1, _} =
       Repo.update_all(from(g in Gym, where: g.id == ^gym_id), set: [setup_status: :completed])
 
@@ -62,6 +83,31 @@ defmodule SimpleFit.GymHelpers do
   def staff!(gym_id, %User{id: user_id}, role) when role != :owner do
     Repo.insert!(%StaffMembership{gym_id: gym_id, user_id: user_id, role: role, status: :active})
   end
+
+  @doc """
+  The current setup revision as `user` reads it, or 1 when they cannot read
+  it (the write is then refused for its own reason).
+  """
+  @spec current_revision(User.t(), Ecto.UUID.t()) :: pos_integer()
+  def current_revision(%User{} = user, gym_id) do
+    case Gyms.get_setup(user, gym_id) do
+      {:ok, %{revision: revision}} -> revision
+      {:error, _reason} -> 1
+    end
+  end
+
+  @doc "`Gyms.update_setup/3` with the current revision unless `attrs` names one."
+  @spec save_setup(User.t(), Ecto.UUID.t(), map()) :: term()
+  def save_setup(%User{} = user, gym_id, attrs),
+    do: Gyms.update_setup(user, gym_id, with_revision(user, gym_id, attrs))
+
+  @doc "`Gyms.put_primary_location/3` with the current revision unless `attrs` names one."
+  @spec set_location(User.t(), Ecto.UUID.t(), map()) :: term()
+  def set_location(%User{} = user, gym_id, attrs),
+    do: Gyms.put_primary_location(user, gym_id, with_revision(user, gym_id, attrs))
+
+  defp with_revision(user, gym_id, attrs),
+    do: Map.put_new_lazy(attrs, "expected_revision", fn -> current_revision(user, gym_id) end)
 
   @doc "The active owners of a gym."
   @spec active_owners(Ecto.UUID.t()) :: [StaffMembership.t()]

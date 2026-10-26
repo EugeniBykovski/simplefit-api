@@ -40,7 +40,18 @@ defmodule SimpleFit.Gyms do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Creation, Gym, GymLocation, Ownership, Policy, StaffMembership}
+
+  alias SimpleFit.Gyms.{
+    Access,
+    Creation,
+    Gym,
+    GymLocation,
+    Ownership,
+    Policy,
+    Setup,
+    StaffMembership
+  }
+
   alias SimpleFit.Repo
 
   @default_limit 50
@@ -69,6 +80,66 @@ defmodule SimpleFit.Gyms do
     with {:ok, gym, membership, outcome} <- Creation.create(user, attrs, client_ip) do
       {:ok, view(gym, membership, locations(gym.id)), outcome}
     end
+  end
+
+  ## Setup (SF-85)
+
+  @typedoc "A gym's setup as one of its staff sees it, with readiness."
+  @type setup_view :: map()
+
+  @doc "The setup of a gym for one of its active staff (`:not_found` otherwise)."
+  @spec get_setup(User.t(), term()) :: {:ok, setup_view()} | {:error, :not_found}
+  def get_setup(%User{} = user, gym_id) do
+    with {:ok, state} <- Setup.get(user, gym_id), do: {:ok, setup_view(state)}
+  end
+
+  @doc "A partial setup update (see `SimpleFit.Gyms.Setup.update/3`)."
+  @spec update_setup(User.t(), term(), map()) :: {:ok, setup_view()} | {:error, Setup.error()}
+  def update_setup(%User{} = user, gym_id, attrs) do
+    with {:ok, state} <- Setup.update(user, gym_id, attrs), do: {:ok, setup_view(state)}
+  end
+
+  @doc "Sets or replaces the primary location (see `SimpleFit.Gyms.Setup.put_primary_location/3`)."
+  @spec put_primary_location(User.t(), term(), map()) ::
+          {:ok, setup_view()} | {:error, Setup.error()}
+  def put_primary_location(%User{} = user, gym_id, attrs) do
+    with {:ok, state} <- Setup.put_primary_location(user, gym_id, attrs),
+         do: {:ok, setup_view(state)}
+  end
+
+  @doc "Completes a draft's setup, owner only (see `SimpleFit.Gyms.Setup.complete/2`)."
+  @spec complete_setup(User.t(), term()) ::
+          {:ok, setup_view(), :completed | :already_completed} | {:error, Setup.error()}
+  def complete_setup(%User{} = user, gym_id) do
+    with {:ok, state, outcome} <- Setup.complete(user, gym_id),
+         do: {:ok, setup_view(state), outcome}
+  end
+
+  @doc "Discards a draft, owner only (see `SimpleFit.Gyms.Setup.discard/2`)."
+  @spec discard_draft(User.t(), term()) ::
+          :ok | {:error, :not_found | :forbidden | {:conflict, map()}}
+  defdelegate discard_draft(user, gym_id), to: Setup, as: :discard
+
+  defp setup_view(%{gym: gym, membership: membership, primary_location: location}) do
+    %{
+      gym_id: gym.id,
+      setup_status: gym.setup_status,
+      revision: gym.revision,
+      name: gym.name,
+      gym_type: gym.gym_type,
+      phone: gym.phone,
+      website: gym.website,
+      tagline: gym.tagline,
+      accent_color: gym.accent_color,
+      primary_location: location && location_view(location),
+      missing_requirements:
+        if(gym.setup_status == :draft, do: Setup.missing_requirements(gym, location), else: []),
+      viewer: %{
+        staff_membership_id: membership.id,
+        role: membership.role,
+        permissions: Policy.permissions_of(membership.role)
+      }
+    }
   end
 
   ## Reads
@@ -154,26 +225,34 @@ defmodule SimpleFit.Gyms do
         where: m.user_id == ^user_id and m.status == :active
       )
 
-    {total, completed_count} =
+    # One statement, one snapshot: the counts, the single completed gym and
+    # the owned draft always describe the same moment (separate statements
+    # could straddle a concurrent completion, SF-85).
+    {total, completed_count, first_completed_gym_id, open_draft_gym_id} =
       Repo.one(
         from([m, g] in active,
-          select: {count(m.id), filter(count(m.id), g.setup_status == :completed)}
+          select: {
+            count(m.id),
+            filter(count(m.id), g.setup_status == :completed),
+            fragment(
+              "(array_agg(?) FILTER (WHERE ? = 'completed'))[1]",
+              g.id,
+              g.setup_status
+            ),
+            fragment(
+              "(array_agg(? ORDER BY ? DESC, ? DESC) FILTER (WHERE ? = 'draft' AND ? = 'owner'))[1]",
+              g.id,
+              m.inserted_at,
+              m.id,
+              g.setup_status,
+              m.role
+            )
+          }
         )
       )
 
-    single_completed_gym_id =
-      if completed_count == 1,
-        do: Repo.one(from([m, g] in active, where: g.setup_status == :completed, select: g.id))
-
-    open_draft_gym_id =
-      Repo.one(
-        from([m, g] in active,
-          where: g.setup_status == :draft and m.role == :owner,
-          order_by: [desc: m.inserted_at, desc: m.id],
-          limit: 1,
-          select: g.id
-        )
-      )
+    single_completed_gym_id = if completed_count == 1, do: cast_uuid(first_completed_gym_id)
+    open_draft_gym_id = cast_uuid(open_draft_gym_id)
 
     entries =
       from([m, g] in active,
@@ -222,6 +301,10 @@ defmodule SimpleFit.Gyms do
       {:ok, workspace_summary(gym, membership)}
     end
   end
+
+  defp cast_uuid(nil), do: nil
+  defp cast_uuid(<<_::128>> = raw), do: Ecto.UUID.load!(raw)
+  defp cast_uuid(id) when is_binary(id), do: id
 
   defp workspace_summary(%Gym{} = gym, %StaffMembership{} = membership) do
     %{

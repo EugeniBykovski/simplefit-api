@@ -68,7 +68,11 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       [:simple_fit, :gyms, :gym, :create],
       [:simple_fit, :gyms, :access, :denied],
       [:simple_fit, :gyms, :staff, :transferred],
-      [:simple_fit, :gyms, :staff, :revoked]
+      [:simple_fit, :gyms, :staff, :revoked],
+      [:simple_fit, :gyms, :setup, :updated],
+      [:simple_fit, :gyms, :setup, :primary_location_set],
+      [:simple_fit, :gyms, :setup, :completed],
+      [:simple_fit, :gyms, :setup, :discarded]
     ]
 
     :telemetry.attach_many(id, events, &__MODULE__.forward_event/4, parent)
@@ -109,7 +113,8 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
                coaching_formats competition_levels context message disclosure_version
                document_version relationship_id client_request_id title training_type starts_at
                time_zone duration_minutes notes status completed_at view name gym_type owner_user_id
-               role gym_id)
+               role gym_id phone website tagline accent_color expected_revision address_line
+               entrance_note)
 
     @endpoints [
       {:post, "/api/auth/session/refresh", :anonymous},
@@ -163,7 +168,12 @@ defmodule SimpleFitWeb.SecurityObservabilityTest do
       {:post, "/api/v1/gyms", :signed_in},
       {:get, "/api/v1/me/gyms?cursor=#{@marker}", :signed_in},
       {:get, "/api/v1/gyms/#{@marker}", :signed_in},
-      {:get, "/api/v1/gyms/#{@marker}", :canary_bearer}
+      {:get, "/api/v1/gyms/#{@marker}", :canary_bearer},
+      {:get, "/api/v1/gyms/#{@marker}/setup", :signed_in},
+      {:patch, "/api/v1/gyms/#{@marker}/setup", :signed_in},
+      {:put, "/api/v1/gyms/#{@marker}/setup/primary-location", :signed_in},
+      {:post, "/api/v1/gyms/#{@marker}/complete-setup", :signed_in},
+      {:delete, "/api/v1/gyms/#{@marker}", :signed_in}
     ]
 
     defp shapes do

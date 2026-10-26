@@ -27,6 +27,7 @@ defmodule SimpleFit.Gyms.Policy do
           | :edit_gym
           | :manage_locations
           | :complete_setup
+          | :discard_draft
           | :invite_manager
           | :invite_staff
           | :change_staff_role
@@ -64,6 +65,8 @@ defmodule SimpleFit.Gyms.Policy do
     edit_gym: @admins,
     manage_locations: @admins,
     complete_setup: @owner,
+    # SF-85: only the owner discards their own draft (never a completed gym).
+    discard_draft: @owner,
     invite_manager: @owner,
     invite_staff: @admins,
     change_staff_role: %{owner: :all, manager: :coach_and_front_desk},

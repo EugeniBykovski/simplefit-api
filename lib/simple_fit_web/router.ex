@@ -143,6 +143,12 @@ defmodule SimpleFitWeb.Router do
     post "/gyms", GymController, :create
     get "/me/gyms", GymController, :index
     get "/gyms/:gym_id", GymController, :show
+    # SF-85: gym owner registration and setup (draft -> completed).
+    get "/gyms/:gym_id/setup", GymSetupController, :show
+    patch "/gyms/:gym_id/setup", GymSetupController, :update
+    put "/gyms/:gym_id/setup/primary-location", GymSetupController, :put_primary_location
+    post "/gyms/:gym_id/complete-setup", GymSetupController, :complete
+    delete "/gyms/:gym_id", GymSetupController, :discard
 
     get "/me/training-sessions", MyTrainingSessionController, :index
     get "/me/training-sessions/:session_id", MyTrainingSessionController, :show

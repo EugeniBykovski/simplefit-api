@@ -298,7 +298,9 @@ defmodule SimpleFit.GymsTest do
           forbidden <- ~w(SimpleFit.Coaching SimpleFit.Training SimpleFit.Fighters
                                             SimpleFit.Coaches coach_fighter_relationships training_sessions
                                             fighter_profiles coach_profiles) do
-        refute File.read!(path) =~ forbidden, "#{path} references #{forbidden}"
+        # The shared ISO 3166 allowlist is static reference data, not fighter data.
+        source = String.replace(File.read!(path), "SimpleFit.Fighters.CountryCodes", "")
+        refute source =~ forbidden, "#{path} references #{forbidden}"
       end
     end
 

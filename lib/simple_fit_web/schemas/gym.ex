@@ -236,3 +236,190 @@ defmodule SimpleFitWeb.Schemas.GymList do
     struct?: false
   )
 end
+
+defmodule SimpleFitWeb.Schemas.GymSetupFields do
+  @moduledoc "Shared OpenAPI definitions of gym setup (SF-85)."
+
+  alias OpenApiSpex.Schema
+  alias SimpleFit.Gyms.Gym
+
+  @doc "The optional profile and branding fields, writable and readable."
+  def optional do
+    %{
+      phone: %Schema{
+        type: :string,
+        nullable: true,
+        description:
+          "Optional contact phone: digits, spaces, `( ) -`, an optional leading `+`; 5-31 characters.",
+        example: "+48 22 000 00 00"
+      },
+      website: %Schema{
+        type: :string,
+        nullable: true,
+        maxLength: 200,
+        description: "Optional `http(s)` address with a host and no credentials.",
+        example: "https://simpleboxing.pl"
+      },
+      tagline: %Schema{
+        type: :string,
+        nullable: true,
+        minLength: 1,
+        maxLength: 120,
+        description: "Optional one-line tagline (OG3).",
+        example: "Boxing for everyone. Fighters welcome."
+      },
+      accent_color: %Schema{
+        type: :string,
+        nullable: true,
+        enum: Gym.accent_colors() ++ [nil],
+        description:
+          "Optional accent colour: one of OG3's six contrast-checked swatches, lowercase hex."
+      }
+    }
+  end
+
+  @doc "The optimistic-concurrency token of a write."
+  def expected_revision do
+    %Schema{
+      type: :integer,
+      minimum: 1,
+      description: """
+      Required: the `revision` the client last read (from `getGymSetup` or the previous write). When it is no longer
+      current the write changes nothing and answers `409 conflict` (`details.revision: "stale"`).
+      """
+    }
+  end
+end
+
+defmodule SimpleFitWeb.Schemas.GymSetup do
+  @moduledoc "OpenAPI schema: a gym's setup (SF-85)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+  alias SimpleFitWeb.Schemas.{GymFields, GymLocation, GymSetupFields}
+
+  @properties GymSetupFields.optional()
+              |> Map.merge(%{
+                gym_id: %Schema{type: :string, format: :uuid},
+                setup_status: Map.fetch!(GymFields.gym(), :setup_status),
+                revision: %Schema{
+                  type: :integer,
+                  minimum: 1,
+                  description:
+                    "Changes with every setup change; send it back as `expected_revision`."
+                },
+                name: GymFields.name(),
+                gym_type: GymFields.gym_type(),
+                primary_location: %{
+                  GymLocation.schema()
+                  | title: nil,
+                    nullable: true,
+                    description: "The active primary location, or `null` until setup sets one."
+                },
+                missing_requirements: %Schema{
+                  type: :array,
+                  items: %Schema{type: :string, enum: ["name", "gym_type", "primary_location"]},
+                  description: """
+                  What a draft still needs before `completeGymSetup` succeeds; empty when it can complete, and always
+                  empty once completed. Nothing commercial is ever required.
+                  """
+                },
+                viewer: GymFields.viewer()
+              })
+
+  OpenApiSpex.schema(
+    %{
+      title: "GymSetup",
+      description: "A gym's setup as one of its active staff sees it.",
+      type: :object,
+      additionalProperties: false,
+      required: @properties |> Map.keys() |> Enum.sort(),
+      properties: @properties
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.GymSetupResponse do
+  @moduledoc "OpenAPI schema: one gym setup."
+
+  require OpenApiSpex
+
+  alias SimpleFitWeb.Schemas.GymSetup
+
+  OpenApiSpex.schema(
+    %{
+      title: "GymSetupResponse",
+      type: :object,
+      additionalProperties: false,
+      required: [:setup],
+      properties: %{setup: GymSetup}
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.GymSetupUpdateRequest do
+  @moduledoc "OpenAPI schema: a partial gym setup update (SF-85)."
+
+  require OpenApiSpex
+
+  alias SimpleFitWeb.Schemas.{GymFields, GymSetupFields}
+
+  OpenApiSpex.schema(
+    %{
+      title: "GymSetupUpdateRequest",
+      description: """
+      `expected_revision` and any subset of the setup fields. An omitted field is unchanged; `null` or a blank
+      string clears an optional field; `name` and `gym_type` cannot be cleared. Read-only fields (`setup_status`,
+      `revision`, owners, ids) are rejected. Only `expected_revision` (or identical values) changes nothing.
+      """,
+      type: :object,
+      additionalProperties: false,
+      required: [:expected_revision],
+      properties:
+        Map.merge(GymSetupFields.optional(), %{
+          name: GymFields.name(),
+          gym_type: GymFields.gym_type(),
+          expected_revision: GymSetupFields.expected_revision()
+        })
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.GymPrimaryLocationRequest do
+  @moduledoc "OpenAPI schema: the primary location of a gym (SF-85, OG2)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+  alias SimpleFitWeb.Schemas.GymSetupFields
+
+  OpenApiSpex.schema(
+    %{
+      title: "GymPrimaryLocationRequest",
+      description: """
+      The whole primary address (address only: no map, geocoding or tracking). Replaces every field; an omitted
+      optional field is cleared. `name` defaults to the city.
+      """,
+      type: :object,
+      additionalProperties: false,
+      required: [:address_line, :city, :country_code, :expected_revision],
+      properties: %{
+        country_code: %Schema{
+          type: :string,
+          pattern: "^[A-Za-z]{2}$",
+          description: "ISO 3166-1 alpha-2."
+        },
+        city: %Schema{type: :string, minLength: 1, maxLength: 80},
+        address_line: %Schema{type: :string, minLength: 1, maxLength: 200},
+        entrance_note: %Schema{type: :string, nullable: true, maxLength: 200},
+        name: %Schema{type: :string, nullable: true, maxLength: 80},
+        expected_revision: GymSetupFields.expected_revision()
+      }
+    },
+    struct?: false
+  )
+end
