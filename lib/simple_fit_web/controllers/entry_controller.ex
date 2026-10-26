@@ -25,14 +25,20 @@ defmodule SimpleFitWeb.EntryController do
 
     Order (ADR 0017 as amended by SF-51): mandatory account registration first; then an explicit `intent`
     (`fighter` / `coach` lead to that profile's home when completed, otherwise to its onboarding, whatever the
-    other profile's state; `gym` / `sponsor` to their entry points); then a requested `context` that names a
-    completed profile; otherwise the default by completed profiles: none - resume the one onboarding in progress
-    or choose (`role_selection`, or `context_selection` when both are in progress); one - its home; both - the
-    last context chosen with `chooseMyEntryContext`, or `context_selection`. `intent` and `context` are navigation
-    only and grant nothing; `capabilities` projects completed profiles for routing and is not an authorization
-    grant.
+    other profile's state; `gym` by the viewer's real gym workspaces (SF-84): none - `gym_onboarding` to start
+    setup (nothing is created); only the draft they own - `gym_onboarding` resuming it; one completed gym -
+    `gym_home`; several - the remembered gym, or `gym_selection`; `sponsor` to its entry point); then a requested
+    `context` that names a completed profile, or `context=gym&gym_id=` naming a completed gym where the viewer is
+    active staff; otherwise the default by completed contexts (completed profiles and completed gyms): none -
+    resume the one journey in progress (an onboarding, or the viewer's draft gym) or choose (`role_selection`, or
+    `context_selection` when several are in progress); one - its home; several - the last context chosen with
+    `chooseMyEntryContext` while still valid, or `context_selection`. `intent`, `context` and `gym_id` are
+    navigation only and grant nothing; `capabilities` (`GYM_WORKSPACE` from an active staff membership at a
+    completed gym) is a routing projection, and every gym operation authorizes the gym in its own path. A gym id
+    the viewer cannot use is ignored, never reported.
 
-    * `validation_error` - `intent` or `context` is not one of the allowed values (`invalid_choice`).
+    * `validation_error` - `intent` or `context` is not an allowed value (`invalid_choice`); `gym_id` is not a
+      UUID, missing with `context=gym` (`required`) or sent without it.
     """,
     security: [%{"bearerAuth" => []}],
     parameters: [
@@ -52,6 +58,14 @@ defmodule SimpleFitWeb.EntryController do
         starts onboarding); ignored when `intent` is present. Never stored: see `chooseMyEntryContext`.
         """,
         schema: %Schema{type: :string, enum: Enum.map(Entry.contexts(), &Atom.to_string/1)}
+      },
+      %Parameter{
+        name: :gym_id,
+        in: :query,
+        required: false,
+        description:
+          "With `context=gym`: the gym workspace to open. Ignored unless the viewer is active staff there.",
+        schema: %Schema{type: :string, format: :uuid}
       }
     ],
     responses: [
@@ -63,7 +77,10 @@ defmodule SimpleFitWeb.EntryController do
 
   def show(conn, params) do
     with {:ok, entry} <-
-           Entry.resolve(conn.assigns.current_user, Map.take(params, ["intent", "context"])) do
+           Entry.resolve(
+             conn.assigns.current_user,
+             Map.take(params, ["intent", "context", "gym_id"])
+           ) do
       conn
       |> put_resp_header("cache-control", "no-store")
       |> render(:show, entry: entry)
@@ -74,15 +91,22 @@ defmodule SimpleFitWeb.EntryController do
     operation_id: "chooseMyEntryContext",
     summary: "Remember the application context I chose",
     description: """
-    Records an explicit choice between the viewer's completed profile contexts (a context switcher or the
-    context-selection screen). With both Fighter and Coach completed and no `intent` or `context`, the entry then
-    resolves to this context's home. Only a completed context can be chosen; the latest choice replaces the
-    previous one, from any device. A navigation preference, never an authorization grant: it is re-checked on
-    every resolution. Resolving the entry never records a choice.
+    Records an explicit choice among the viewer's completed contexts (a context switcher or the context-selection
+    screen): a completed profile, or (`context: gym` with `gym_id`, SF-84) a gym with a completed setup where the
+    viewer is active staff. With several completed contexts and no `intent` or `context`, the entry then resolves
+    to this context's home. The latest choice replaces the previous one, for the viewer's account on every device
+    and session; it is a navigation preference, never an authorization grant: it is re-checked on every
+    resolution (a revoked membership or an unavailable gym is ignored), and each request still names its own gym
+    in its path, so tabs and devices on different gyms never interfere. Resolving the entry never records a
+    choice.
 
-    * `conflict` - that profile context is not completed; nothing is recorded.
-    * `validation_error` - `context` is missing (`required`) or not an allowed value (`invalid_choice`); any
-      other field is rejected with `invalid` under its name.
+    * `not_found` - no gym `gym_id` where the viewer is active staff (existence is never revealed); nothing is
+      recorded.
+    * `conflict` - that profile context is not completed, or the gym's setup is a draft
+      (`details.setup_status: "draft"`); nothing is recorded.
+    * `validation_error` - `context` is missing (`required`) or not an allowed value (`invalid_choice`); `gym_id`
+      missing with `context: gym`, sent without it, or not a UUID; any other field is rejected with `invalid`
+      under its name.
     """,
     security: [%{"bearerAuth" => []}],
     request_body:
@@ -91,6 +115,7 @@ defmodule SimpleFitWeb.EntryController do
     responses: [
       no_content: "Recorded",
       unauthorized: ApiSpec.error_response("unauthorized"),
+      not_found: ApiSpec.error_response("not_found"),
       conflict: ApiSpec.error_response("conflict"),
       unprocessable_entity: ApiSpec.error_response("validation_error"),
       internal_server_error: ApiSpec.error_response("internal_error")

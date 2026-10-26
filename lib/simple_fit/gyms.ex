@@ -112,6 +112,134 @@ defmodule SimpleFit.Gyms do
     end
   end
 
+  ## Entry (SF-84)
+
+  @typedoc """
+  A gym workspace as the entry resolver and a workspace chooser see it: only
+  the viewer's own facts (role, setup state) and the gym's name.
+  """
+  @type workspace_summary :: %{
+          gym_id: Ecto.UUID.t(),
+          name: String.t(),
+          role: StaffMembership.role(),
+          setup_status: Gym.setup_status(),
+          available_actions: [:enter | :continue_setup]
+        }
+
+  @typedoc "The viewer's gym workspaces, for entry resolution."
+  @type workspace_overview :: %{
+          total: non_neg_integer(),
+          completed_count: non_neg_integer(),
+          single_completed_gym_id: Ecto.UUID.t() | nil,
+          open_draft_gym_id: Ecto.UUID.t() | nil,
+          entries: [workspace_summary()]
+        }
+
+  @doc """
+  The viewer's gym workspaces for entry resolution (ADR 0026, SF-84): every
+  active staff membership, counted, and at most `limit` summaries (the
+  viewer's own open draft first, then newest membership first; the complete
+  paginated list is `list_my_gyms/2`). `completed_count` counts gyms with a
+  completed setup, which alone make an operational workspace;
+  `open_draft_gym_id` is the draft the viewer owns (at most one, D-G25).
+  Read-only, and only the viewer's own memberships are read.
+  """
+  @spec workspace_overview(User.t(), pos_integer()) :: workspace_overview()
+  def workspace_overview(%User{id: user_id}, limit)
+      when is_binary(user_id) and is_integer(limit) and limit > 0 do
+    active =
+      from(m in StaffMembership,
+        join: g in Gym,
+        on: g.id == m.gym_id,
+        where: m.user_id == ^user_id and m.status == :active
+      )
+
+    {total, completed_count} =
+      Repo.one(
+        from([m, g] in active,
+          select: {count(m.id), filter(count(m.id), g.setup_status == :completed)}
+        )
+      )
+
+    single_completed_gym_id =
+      if completed_count == 1,
+        do: Repo.one(from([m, g] in active, where: g.setup_status == :completed, select: g.id))
+
+    open_draft_gym_id =
+      Repo.one(
+        from([m, g] in active,
+          where: g.setup_status == :draft and m.role == :owner,
+          order_by: [desc: m.inserted_at, desc: m.id],
+          limit: 1,
+          select: g.id
+        )
+      )
+
+    entries =
+      from([m, g] in active,
+        order_by: [
+          desc: g.setup_status == :draft and m.role == :owner,
+          desc: m.inserted_at,
+          desc: m.id
+        ],
+        limit: ^limit,
+        select: {g, m}
+      )
+      |> Repo.all(log: false)
+      |> Enum.map(fn {gym, membership} -> workspace_summary(gym, membership) end)
+
+    %{
+      total: total,
+      completed_count: completed_count,
+      single_completed_gym_id: single_completed_gym_id,
+      open_draft_gym_id: open_draft_gym_id,
+      entries: entries
+    }
+  end
+
+  @doc """
+  The viewer's workspace at one gym, if they hold an active staff membership
+  there: `{:ok, summary}`, otherwise `{:error, :not_found}` (an unknown,
+  malformed or foreign id is never distinguished). Read-only.
+  """
+  @spec workspace(User.t(), term()) :: {:ok, workspace_summary()} | {:error, :not_found}
+  def workspace(%User{} = user, gym_id) do
+    with {:ok, %{gym: gym, membership: membership}} <-
+           Access.authorize(user, gym_id, :view_workspace) do
+      {:ok, workspace_summary(gym, membership)}
+    end
+  end
+
+  @doc """
+  Like `workspace/2`, inside the caller's transaction, holding a share lock
+  on the viewer's membership until the transaction ends: a concurrent
+  revocation (which locks the membership for update) commits either before,
+  and this answers `:not_found`, or after the caller's transaction.
+  """
+  @spec lock_workspace(User.t(), term()) :: {:ok, workspace_summary()} | {:error, :not_found}
+  def lock_workspace(%User{} = user, gym_id) do
+    with {:ok, %{gym: gym, membership: membership}} <- Access.lock_shared(user, gym_id) do
+      {:ok, workspace_summary(gym, membership)}
+    end
+  end
+
+  defp workspace_summary(%Gym{} = gym, %StaffMembership{} = membership) do
+    %{
+      gym_id: gym.id,
+      name: gym.name,
+      role: membership.role,
+      setup_status: gym.setup_status,
+      available_actions: available_actions(gym.setup_status, membership.role)
+    }
+  end
+
+  # Truthful entry actions: an operational (completed) gym can be entered;
+  # a draft only continues setup, for the role that completes setup.
+  defp available_actions(:completed, _role), do: [:enter]
+
+  defp available_actions(:draft, role),
+    do: if(Policy.grant(role, :complete_setup), do: [:continue_setup], else: [])
+
   ## Authorization
 
   @doc """

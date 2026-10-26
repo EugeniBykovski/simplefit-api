@@ -295,3 +295,16 @@ proposal. Where they differ, this table wins.
 
 The fixed-window deviation of the first SF-83 report is withdrawn: rolling
 windows are implemented as approved.
+
+## Amendment — SF-84 (2026-10-27): gym entry resolution
+
+* **Where it lives:** gym intent, `GYM_WORKSPACE`, the gym chooser and the
+  remembered gym are part of the SF-45 resolver (ADR 0017, SF-84
+  amendment). There is no Gym-only resolver.
+* **Public reads in `Gyms`:** `workspace_overview/2`, `workspace/2` and
+  `lock_workspace/2`, the last of which takes the gym row first, then the
+  membership.
+* **D-G23:** gym UI routes are still the id-free registry placeholders. The
+  entry answer carries `gym_id`, and the id-based gym routes come with the
+  gym UI tickets.
+

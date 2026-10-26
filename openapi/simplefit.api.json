@@ -2259,17 +2259,24 @@
       },
       "EntryContextChoiceRequest": {
         "additionalProperties": false,
-        "description": "The profile context the viewer chose. Must be a completed profile.",
+        "description": "The context the viewer chose: a completed profile, or a gym workspace (with `gym_id`) with a completed setup\nwhere the viewer is active staff.\n",
         "example": {
-          "context": "coach"
+          "context": "gym",
+          "gym_id": "4b2c1a7e-1f0a-4c8e-9a52-0d6f3c1b9e21"
         },
         "properties": {
           "context": {
-            "description": "`fighter` or `coach`. Profile contexts only; gym workspaces are chosen elsewhere.",
+            "description": "`fighter`, `coach` or `gym` (with `gym_id`).",
             "enum": [
               "fighter",
-              "coach"
+              "coach",
+              "gym"
             ],
+            "type": "string"
+          },
+          "gym_id": {
+            "description": "Required with `context: gym`, rejected otherwise.",
+            "format": "uuid",
             "type": "string"
           }
         },
@@ -2277,6 +2284,61 @@
           "context"
         ],
         "title": "EntryContextChoiceRequest",
+        "type": "object"
+      },
+      "EntryGymWorkspace": {
+        "additionalProperties": false,
+        "description": "A gym where the viewer holds an active staff membership: only the gym's name and the viewer's own facts\nthere. No member, staff, booking, revenue, plan, verification or publication data exists here.\n",
+        "properties": {
+          "available_actions": {
+            "description": "What the viewer can do from a chooser, decided by the backend: `enter` a completed gym, or\n`continue_setup` of a draft (the role that completes setup). Empty when neither applies.\n",
+            "items": {
+              "enum": [
+                "enter",
+                "continue_setup"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "gym_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          },
+          "selected": {
+            "description": "This gym is the viewer's remembered choice and is still valid.",
+            "type": "boolean"
+          },
+          "setup_status": {
+            "description": "A `draft` gym is not an operational workspace yet; only its setup can continue.",
+            "enum": [
+              "draft",
+              "completed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "available_actions",
+          "gym_id",
+          "name",
+          "role",
+          "selected",
+          "setup_status"
+        ],
+        "title": "EntryGymWorkspace",
         "type": "object"
       },
       "EntryResponse": {
@@ -2292,6 +2354,9 @@
             "context": null,
             "destination": "fighter_onboarding",
             "fighter_profile": "in_progress",
+            "gym_id": null,
+            "gym_workspace_count": 0,
+            "gym_workspaces": [],
             "intent": "fighter",
             "mandatory": true,
             "reason": "fighter_onboarding_in_progress"
@@ -2311,11 +2376,12 @@
                 "type": "string"
               },
               "capabilities": {
-                "description": "Capabilities derived from real backend state, in the client route registry's vocabulary\n(`FIGHTER` once Fighter onboarding is complete, `COACH` once Coach onboarding is complete; both can\nbe held at once). A routing projection, not an authorization grant: `COACH` opens the user's own\nCoach application only.\n",
+                "description": "Capabilities derived from real backend state, in the client route registry's vocabulary\n(`FIGHTER` once Fighter onboarding is complete, `COACH` once Coach onboarding is complete,\n`GYM_WORKSPACE` while the viewer is active staff at a gym with a completed setup; any combination can\nbe held). A routing projection, not an authorization grant: `COACH` opens the user's own Coach\napplication only, and gym access is decided per gym by its path.\n",
                 "items": {
                   "enum": [
                     "FIGHTER",
-                    "COACH"
+                    "COACH",
+                    "GYM_WORKSPACE"
                   ],
                   "type": "string"
                 },
@@ -2331,17 +2397,18 @@
                 "type": "string"
               },
               "context": {
-                "description": "The requested `context` when it was applied (a completed profile, no `intent`, registration\ncomplete); otherwise `null`. Never stored.\n",
+                "description": "The requested `context` when it was applied (a completed profile, or `gym` with the `gym_id` of a\ncompleted gym where the user is active staff; no `intent`; registration complete); otherwise `null`.\nNever stored.\n",
                 "enum": [
                   "fighter",
                   "coach",
+                  "gym",
                   null
                 ],
                 "nullable": true,
                 "type": "string"
               },
               "destination": {
-                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\na journey to start. `context_selection`: the user chooses between their profile contexts (both\ncompleted without a remembered choice, or both onboardings in progress). `fighter_onboarding` /\n`fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application\nonce completed. `gym_onboarding`, `sponsor_application`: those journeys' entry points; nothing is\ncreated for them. A client that does not know a destination must fail visibly, never guess.\n",
+                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\na journey to start. `context_selection`: the user chooses between their profile contexts (both\ncompleted without a remembered choice, or both onboardings in progress). `fighter_onboarding` /\n`fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application\nonce completed. `gym_onboarding`: start Gym setup (`gym_id` null; nothing is created) or resume the\ndraft gym the user owns (`gym_id`). `gym_home`: the gym workspace `gym_id` (a completed gym where the\nuser is active staff). `gym_selection`: the user chooses among their gym workspaces\n(`gym_workspaces`). `sponsor_application`: that journey's entry point; nothing is created. A client\nthat does not know a destination must fail visibly, never guess.\n",
                 "enum": [
                   "account_registration",
                   "role_selection",
@@ -2351,6 +2418,8 @@
                   "coach_onboarding",
                   "coach_home",
                   "gym_onboarding",
+                  "gym_home",
+                  "gym_selection",
                   "sponsor_application"
                 ],
                 "type": "string"
@@ -2363,6 +2432,25 @@
                   "completed"
                 ],
                 "type": "string"
+              },
+              "gym_id": {
+                "description": "The gym `destination` refers to (`gym_home`, or `gym_onboarding` resuming a draft); otherwise `null`.\nNavigation only: every gym operation authorizes the gym id in its own path (`/api/v1/gyms/{gym_id}`).\n",
+                "format": "uuid",
+                "nullable": true,
+                "type": "string"
+              },
+              "gym_workspace_count": {
+                "description": "How many active gym staff memberships the viewer holds (drafts included).",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "gym_workspaces": {
+                "description": "The viewer's gym workspaces (active staff memberships), at most 25: the draft the viewer owns first,\nthen newest membership first. `gym_workspace_count` is the total; read the rest with `listMyGyms`.\nRe-read on every resolution, so a revoked membership is gone from the next answer.\n",
+                "items": {
+                  "$ref": "#/components/schemas/EntryGymWorkspace"
+                },
+                "maxItems": 25,
+                "type": "array"
               },
               "intent": {
                 "description": "The validated intent of this request, echoed; never stored.",
@@ -2396,7 +2484,11 @@
                   "no_role_started",
                   "coach_intent",
                   "gym_intent",
-                  "sponsor_intent"
+                  "sponsor_intent",
+                  "gym_setup_not_started",
+                  "gym_setup_in_progress",
+                  "gym_workspace_completed",
+                  "gym_choice_required"
                 ],
                 "type": "string"
               }
@@ -2407,10 +2499,13 @@
               "mandatory",
               "intent",
               "context",
+              "gym_id",
               "account_registration",
               "fighter_profile",
               "coach_profile",
-              "capabilities"
+              "capabilities",
+              "gym_workspaces",
+              "gym_workspace_count"
             ],
             "type": "object"
           }
@@ -7396,7 +7491,7 @@
     "/api/v1/me/entry": {
       "get": {
         "callbacks": {},
-        "description": "Resolves where the authenticated user should go next, as a semantic destination that each client maps to its\nown route (never a path). The answer is derived from current state on every call and resolving writes nothing,\nso repeated and concurrent calls are safe and advance on their own as registration and onboarding complete.\n\nOrder (ADR 0017 as amended by SF-51): mandatory account registration first; then an explicit `intent`\n(`fighter` / `coach` lead to that profile's home when completed, otherwise to its onboarding, whatever the\nother profile's state; `gym` / `sponsor` to their entry points); then a requested `context` that names a\ncompleted profile; otherwise the default by completed profiles: none - resume the one onboarding in progress\nor choose (`role_selection`, or `context_selection` when both are in progress); one - its home; both - the\nlast context chosen with `chooseMyEntryContext`, or `context_selection`. `intent` and `context` are navigation\nonly and grant nothing; `capabilities` projects completed profiles for routing and is not an authorization\ngrant.\n\n* `validation_error` - `intent` or `context` is not one of the allowed values (`invalid_choice`).\n",
+        "description": "Resolves where the authenticated user should go next, as a semantic destination that each client maps to its\nown route (never a path). The answer is derived from current state on every call and resolving writes nothing,\nso repeated and concurrent calls are safe and advance on their own as registration and onboarding complete.\n\nOrder (ADR 0017 as amended by SF-51): mandatory account registration first; then an explicit `intent`\n(`fighter` / `coach` lead to that profile's home when completed, otherwise to its onboarding, whatever the\nother profile's state; `gym` by the viewer's real gym workspaces (SF-84): none - `gym_onboarding` to start\nsetup (nothing is created); only the draft they own - `gym_onboarding` resuming it; one completed gym -\n`gym_home`; several - the remembered gym, or `gym_selection`; `sponsor` to its entry point); then a requested\n`context` that names a completed profile, or `context=gym&gym_id=` naming a completed gym where the viewer is\nactive staff; otherwise the default by completed contexts (completed profiles and completed gyms): none -\nresume the one journey in progress (an onboarding, or the viewer's draft gym) or choose (`role_selection`, or\n`context_selection` when several are in progress); one - its home; several - the last context chosen with\n`chooseMyEntryContext` while still valid, or `context_selection`. `intent`, `context` and `gym_id` are\nnavigation only and grant nothing; `capabilities` (`GYM_WORKSPACE` from an active staff membership at a\ncompleted gym) is a routing projection, and every gym operation authorizes the gym in its own path. A gym id\nthe viewer cannot use is ignored, never reported.\n\n* `validation_error` - `intent` or `context` is not an allowed value (`invalid_choice`); `gym_id` is not a\n  UUID, missing with `context=gym` (`required`) or sent without it.\n",
         "operationId": "resolveMyEntry",
         "parameters": [
           {
@@ -7422,8 +7517,19 @@
             "schema": {
               "enum": [
                 "fighter",
-                "coach"
+                "coach",
+                "gym"
               ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "With `context=gym`: the gym workspace to open. Ignored unless the viewer is active staff there.",
+            "in": "query",
+            "name": "gym_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -7463,7 +7569,7 @@
     "/api/v1/me/entry/context": {
       "put": {
         "callbacks": {},
-        "description": "Records an explicit choice between the viewer's completed profile contexts (a context switcher or the\ncontext-selection screen). With both Fighter and Coach completed and no `intent` or `context`, the entry then\nresolves to this context's home. Only a completed context can be chosen; the latest choice replaces the\nprevious one, from any device. A navigation preference, never an authorization grant: it is re-checked on\nevery resolution. Resolving the entry never records a choice.\n\n* `conflict` - that profile context is not completed; nothing is recorded.\n* `validation_error` - `context` is missing (`required`) or not an allowed value (`invalid_choice`); any\n  other field is rejected with `invalid` under its name.\n",
+        "description": "Records an explicit choice among the viewer's completed contexts (a context switcher or the context-selection\nscreen): a completed profile, or (`context: gym` with `gym_id`, SF-84) a gym with a completed setup where the\nviewer is active staff. With several completed contexts and no `intent` or `context`, the entry then resolves\nto this context's home. The latest choice replaces the previous one, for the viewer's account on every device\nand session; it is a navigation preference, never an authorization grant: it is re-checked on every\nresolution (a revoked membership or an unavailable gym is ignored), and each request still names its own gym\nin its path, so tabs and devices on different gyms never interfere. Resolving the entry never records a\nchoice.\n\n* `not_found` - no gym `gym_id` where the viewer is active staff (existence is never revealed); nothing is\n  recorded.\n* `conflict` - that profile context is not completed, or the gym's setup is a draft\n  (`details.setup_status: \"draft\"`); nothing is recorded.\n* `validation_error` - `context` is missing (`required`) or not an allowed value (`invalid_choice`); `gym_id`\n  missing with `context: gym`, sent without it, or not a UUID; any other field is rejected with `invalid`\n  under its name.\n",
         "operationId": "chooseMyEntryContext",
         "parameters": [],
         "requestBody": {
@@ -7483,6 +7589,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"

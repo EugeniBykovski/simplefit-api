@@ -1,23 +1,27 @@
 defmodule SimpleFit.Entry.ContextChoice do
   @moduledoc """
   The user's last explicitly chosen application context (ADR 0017, SF-51):
-  `:fighter` or `:coach`. One row per user, written only by an explicit
-  choice (`SimpleFit.Entry.record_context_choice/2`), never by resolving the
-  entry. A navigation preference: the resolver uses it only while that
-  context is still completed.
+  `:fighter`, `:coach` or, with its `gym_id`, `:gym` (SF-84). One row per
+  user, written only by an explicit choice
+  (`SimpleFit.Entry.record_context_choice/2`), never by resolving the entry.
+  A navigation preference: the resolver uses it only while that profile is
+  still completed, or that gym is still completed and the user active staff
+  there. It is per user, not per session or tab: every request still names
+  its own gym in the path.
   """
 
   use Ecto.Schema
 
   alias SimpleFit.Accounts.User
 
-  @contexts [:fighter, :coach]
+  @contexts [:fighter, :coach, :gym]
 
-  @type context :: :fighter | :coach
+  @type context :: :fighter | :coach | :gym
   @type t :: %__MODULE__{
           user_id: Ecto.UUID.t() | nil,
           user: User.t() | Ecto.Association.NotLoaded.t(),
           context: context() | nil,
+          gym_id: Ecto.UUID.t() | nil,
           chosen_at: DateTime.t() | nil,
           inserted_at: DateTime.t() | nil,
           updated_at: DateTime.t() | nil
@@ -30,12 +34,13 @@ defmodule SimpleFit.Entry.ContextChoice do
   schema "entry_context_choices" do
     belongs_to :user, User, primary_key: true
     field :context, Ecto.Enum, values: @contexts
+    field :gym_id, :binary_id
     field :chosen_at, :utc_datetime_usec
 
     timestamps()
   end
 
-  @doc "The profile contexts a user can choose between."
+  @doc "The contexts a user can choose between."
   @spec contexts() :: [context()]
   def contexts, do: @contexts
 end

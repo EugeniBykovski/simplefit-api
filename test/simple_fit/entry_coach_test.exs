@@ -107,12 +107,12 @@ defmodule SimpleFit.EntryCoachTest do
       end
     end
 
-    test "E6 Gym and Sponsor intents are unchanged and ignore profiles and contexts" do
+    test "E6 Gym (no gym workspaces) and Sponsor intents ignore profiles and contexts" do
       for fighter <- @statuses, coach <- @statuses, context <- @contexts do
         base = [fighter_profile: fighter, coach_profile: coach, context: context]
 
         assert outcome(Entry.decide(facts([intent: :gym] ++ base))) ==
-                 {:gym_onboarding, :gym_intent, false}
+                 {:gym_onboarding, :gym_setup_not_started, false}
 
         assert outcome(Entry.decide(facts([intent: :sponsor] ++ base))) ==
                  {:sponsor_application, :sponsor_intent, false}
@@ -345,7 +345,7 @@ defmodule SimpleFit.EntryCoachTest do
       for params <- [
             %{"intent" => "Coach"},
             %{"intent" => "admin"},
-            %{"context" => "gym"},
+            %{"context" => "GYM"},
             %{"context" => "COACH"},
             %{"context" => "sponsor"}
           ] do
@@ -425,8 +425,12 @@ defmodule SimpleFit.EntryCoachTest do
 
     test "unsupported, missing and extra values are validation errors", %{user: user} do
       for {params, codes} <- [
-            {%{"context" => "gym"}, %{"context" => ["invalid_choice"]}},
+            {%{"context" => "sponsor"}, %{"context" => ["invalid_choice"]}},
             {%{"context" => "admin"}, %{"context" => ["invalid_choice"]}},
+            {%{"context" => "gym"}, %{"gym_id" => ["required"]}},
+            {%{"context" => "coach", "gym_id" => Ecto.UUID.generate()},
+             %{"gym_id" => ["invalid"]}},
+            {%{"context" => "gym", "gym_id" => "not-a-uuid"}, %{"gym_id" => ["invalid_type"]}},
             {%{}, %{"context" => ["required"]}},
             {%{"context" => nil}, %{"context" => ["required"]}},
             {%{"context" => "coach", "capabilities" => ["COACH"]},
@@ -488,12 +492,19 @@ defmodule SimpleFit.EntryCoachTest do
       assert Repo.aggregate(ContextChoice, :count) == 0
     end
 
-    test "the database accepts only profile contexts", %{user: user} do
-      assert_raise Postgrex.Error, ~r/context_profile_contexts/, fn ->
-        Repo.query!(
-          "INSERT INTO entry_context_choices (user_id, context, chosen_at, inserted_at, updated_at) VALUES ($1, 'gym', now(), now(), now())",
-          [Ecto.UUID.dump!(user.id)]
-        )
+    test "the database accepts only known contexts, and a gym choice must name its gym", %{
+      user: user
+    } do
+      for {context, constraint} <- [
+            {"sponsor", "context_values"},
+            {"gym", "gym_choice_names_gym"}
+          ] do
+        assert_raise Postgrex.Error, ~r/#{constraint}/, fn ->
+          Repo.query!(
+            "INSERT INTO entry_context_choices (user_id, context, chosen_at, inserted_at, updated_at) VALUES ($1, $2, now(), now(), now())",
+            [Ecto.UUID.dump!(user.id), context]
+          )
+        end
       end
     end
 
