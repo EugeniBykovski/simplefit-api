@@ -25,7 +25,9 @@ defmodule SimpleFit.EntryTest do
     defp expected(:coach, _, _),
       do: {:coach_onboarding, :coach_onboarding_not_started, true}
 
-    defp expected(:gym, _, _), do: {:gym_onboarding, :gym_intent, false}
+    # SF-84: a Gym intent resolves by the user's gym workspaces; without any,
+    # Gym setup starts (nothing is created).
+    defp expected(:gym, _, _), do: {:gym_onboarding, :gym_setup_not_started, false}
     defp expected(:sponsor, _, _), do: {:sponsor_application, :sponsor_intent, false}
     defp expected(_, _, :completed), do: {:fighter_home, :fighter_onboarding_completed, false}
 

@@ -141,7 +141,7 @@ defmodule SimpleFitWeb.EntryCoachControllerTest do
 
     test "an unknown context is invalid_choice" do
       token = user!() |> session!()
-      conn = token |> authed() |> get(@entry <> "?context=gym")
+      conn = token |> authed() |> get(@entry <> "?context=sponsor")
 
       assert %{
                "code" => "validation_error",
@@ -210,7 +210,8 @@ defmodule SimpleFitWeb.EntryCoachControllerTest do
 
     test "invalid bodies are validation errors and record nothing", %{user: user, token: token} do
       for {body, codes} <- [
-            {%{"context" => "gym"}, %{"context" => ["invalid_choice"]}},
+            {%{"context" => "sponsor"}, %{"context" => ["invalid_choice"]}},
+            {%{"context" => "gym"}, %{"gym_id" => ["required"]}},
             {%{}, %{"context" => ["required"]}},
             {%{"context" => "coach", "user_id" => Ecto.UUID.generate()},
              %{"user_id" => ["invalid"]}},
@@ -253,7 +254,7 @@ defmodule SimpleFitWeb.EntryCoachControllerTest do
     test "is documented with its request schema and errors" do
       operation = ApiSpec.spec().paths[@choice].put
       assert operation.operationId == "chooseMyEntryContext"
-      assert Map.keys(operation.responses) |> Enum.sort() == [204, 401, 409, 422, 500]
+      assert Map.keys(operation.responses) |> Enum.sort() == [204, 401, 404, 409, 422, 500]
     end
   end
 end

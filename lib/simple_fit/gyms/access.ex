@@ -54,6 +54,39 @@ defmodule SimpleFit.Gyms.Access do
     end
   end
 
+  @doc """
+  The actor's active membership at `gym_id` with its gym, inside the caller's
+  transaction, share-locked (no permission check): `{:ok, %{gym, membership}}`
+  or `{:error, :not_found}`.
+
+  It takes the same lock order as every gym write (`authorize_locked/3`): the
+  gym row first (`FOR SHARE`, its own statement), then the membership (`FOR
+  SHARE`). A writer holding the gym row (revocation, transfer) therefore
+  finishes first or waits; the two never wait on each other's rows in
+  opposite order. (Locking the membership first deadlocked against a
+  revocation once the caller wrote a row referencing the gym, SF-84.)
+  """
+  @spec lock_shared(User.t(), term()) ::
+          {:ok, %{gym: Gym.t(), membership: StaffMembership.t()}} | {:error, :not_found}
+  def lock_shared(%User{id: user_id}, gym_id) when is_binary(user_id) do
+    true = Repo.in_transaction?()
+
+    with {:ok, gym_id} <- cast_id(gym_id),
+         %Gym{} = gym <-
+           Repo.one(from(g in Gym, where: g.id == ^gym_id, lock: "FOR SHARE"), log: false),
+         %StaffMembership{} = membership <-
+           Repo.one(
+             from(m in StaffMembership,
+               where: m.gym_id == ^gym.id and m.user_id == ^user_id and m.status == :active,
+               lock: "FOR SHARE"
+             )
+           ) do
+      {:ok, %{gym: gym, membership: membership}}
+    else
+      _ -> denied(:not_found)
+    end
+  end
+
   @doc "Locks an active membership of `gym_id` by its id (`nil` if none)."
   @spec lock_staff_membership(Ecto.UUID.t(), term()) :: StaffMembership.t() | nil
   def lock_staff_membership(gym_id, membership_id) do
