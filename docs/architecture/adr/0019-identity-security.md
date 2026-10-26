@@ -32,7 +32,7 @@ security service, a schema or a public API change.
 | IPv6 address rotation | Escape per-IP limits with a /64 | Limits keyed by /64 (this ADR) |
 | Concurrent requests | Race limits or rotations | Atomic upserts for counters, row locks for challenges and refresh tokens |
 | Leaky telemetry pipeline | Harvest credentials or personal data from logs, traces, Sentry | Allow-listed metadata, no bodies or headers, span sanitizer, Sentry filter, and a redaction filter on every log event (this ADR) |
-| Misconfigured production | Weaken any of the above | Boot fails on missing secrets, malformed `TRUSTED_PROXY_HOPS` or CORS origins; providers fail closed |
+| Misconfigured production | Weaken any of the above | Boot fails on missing secrets, a missing or malformed `TRUSTED_PROXY_HOPS` (SF-83) or malformed CORS origins; providers fail closed |
 
 ## Control audit
 
@@ -110,6 +110,13 @@ per-IP limits (coarse but never spoofable); per-address, per-challenge and
 per-subject limits are unaffected. The deployment ticket sets the hop count
 after verifying the topology, and the app must not be reachable around the
 proxies.
+
+**SF-83 amendment (2026-10-26).** Production now refuses to boot unless
+`TRUSTED_PROXY_HOPS` is set explicitly (`ClientIP.parse_required_hops!/1`).
+`0` is still valid, but it must be stated, so the topology is always a
+deliberate declaration. An undeclared proxy can no longer make every client
+silently share one IP bucket; this mattered for the new 20-per-client gym
+creation limit (ADR 0026, D-G25). Development keeps the default of 0.
 
 ### Secret-redaction contract
 

@@ -94,4 +94,23 @@ defmodule SimpleFitWeb.ClientIPTest do
       assert ClientIP.limit_key(peer({10, 0, 0, 1})) == "10.0.0.1"
     end
   end
+
+  describe "production hop configuration (SF-83)" do
+    test "must be set explicitly; 0 is a valid explicit value" do
+      for unset <- [nil, ""] do
+        assert_raise ArgumentError, ~r/must be set in production/, fn ->
+          ClientIP.parse_required_hops!(unset)
+        end
+      end
+
+      assert ClientIP.parse_required_hops!("0") == 0
+      assert ClientIP.parse_required_hops!("1") == 1
+    end
+
+    test "rejects what the development parser rejects" do
+      for bad <- ["abc", "-1", "9", "1.5"] do
+        assert_raise ArgumentError, fn -> ClientIP.parse_required_hops!(bad) end
+      end
+    end
+  end
 end

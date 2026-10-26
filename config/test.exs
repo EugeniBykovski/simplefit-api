@@ -39,6 +39,10 @@ config :simple_fit, SimpleFit.Coaching.Invitations,
   secret_key_base: "Qm4xT8vR2kLp9WzN6cYb3HsJ7dFgA5eUoKiVn1MqXtPrZyBwCjEhDlSuGaOfI0RT",
   web_app_url: "https://app.simplefit.example"
 
+# Test-only gym rate-limit key material (SF-83).
+config :simple_fit, SimpleFit.Gyms,
+  secret_key_base: "Vd7kQ2mXp9LsR4tN8wZc1HyJ6bFgU3eAoKiTn5MqYrPxBuCjEhDlSvGaOfW0RTzQ"
+
 # Google sign-in (ADR 0013): test audiences, and signing keys served by a
 # Req.Test stub instead of googleapis.com.
 config :simple_fit, SimpleFit.Identity.Google,

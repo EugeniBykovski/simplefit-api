@@ -47,6 +47,10 @@ config :simple_fit, SimpleFit.Coaching.Invitations,
   secret_key_base: "8YBMJlfoU9bSnKqnNYznwMHi94VUVsNfWHLLiIFiB7Fhy1hpnhfVR+5rXnu+5LHW",
   web_app_url: "http://localhost:3000"
 
+# Development-only gym rate-limit key material (SF-83).
+config :simple_fit, SimpleFit.Gyms,
+  secret_key_base: "8YBMJlfoU9bSnKqnNYznwMHi94VUVsNfWHLLiIFiB7Fhy1hpnhfVR+5rXnu+5LHW"
+
 # Transactional email (ADR 0011): development-only payload key, http CTA
 # URLs for the local web app, and the template preview at /dev/emails.
 config :simple_fit, SimpleFit.Email,
