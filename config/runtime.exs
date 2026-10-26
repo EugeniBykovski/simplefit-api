@@ -296,6 +296,10 @@ case config_env() do
           require_https: true
         )
 
+    # Gyms (SF-83): rate-limit keys of gym creation are derived from the same
+    # secret with a dedicated salt.
+    config :simple_fit, SimpleFit.Gyms, secret_key_base: secret_key_base
+
     # Client IP for auth rate limits (ADR 0012). Default 0: the direct peer
     # address; set it only to the number of trusted proxies in front of the
     # app after the deployment topology is verified.

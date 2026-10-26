@@ -3074,6 +3074,352 @@
         "title": "GoogleAuthResponse",
         "type": "object"
       },
+      "Gym": {
+        "additionalProperties": false,
+        "description": "A gym (the tenant) as one of its active staff sees it.",
+        "properties": {
+          "gym_type": {
+            "description": "One of six gym types: boxing gym, boxing club, amateur club, professional team, combat sports gym, fitness boxing studio.",
+            "enum": [
+              "boxing_gym",
+              "boxing_club",
+              "amateur_club",
+              "professional_team",
+              "combat_sports_gym",
+              "fitness_boxing_studio"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "inserted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "locations": {
+            "description": "Non-archived locations, primary first. Empty until setup adds one.",
+            "items": {
+              "$ref": "#/components/schemas/GymLocation"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Trimmed; 1–80 characters without control characters.",
+            "example": "Simple Boxing Gym",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "setup_status": {
+            "description": "`draft` from creation until the backend's setup checks pass, then `completed` (final). A draft is\nprivate to its staff and never public.\n",
+            "enum": [
+              "draft",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "viewer": {
+            "additionalProperties": false,
+            "description": "The viewer's active staff membership at this gym. `permissions` is a read-only projection of the fixed\nrole matrix for display; the server checks every operation itself, and some permissions are limited to a\nscope the operation enforces (for example a coach's own classes).\n",
+            "properties": {
+              "permissions": {
+                "items": {
+                  "enum": [
+                    "book_for_member",
+                    "cancel_occurrence",
+                    "change_member_status",
+                    "change_staff_role",
+                    "close_gym",
+                    "complete_setup",
+                    "edit_gym",
+                    "invite_manager",
+                    "invite_staff",
+                    "leave_gym",
+                    "manage_billing",
+                    "manage_locations",
+                    "manage_member_enrollment",
+                    "manage_timetable",
+                    "record_check_in",
+                    "remove_staff",
+                    "transfer_ownership",
+                    "view_attendance",
+                    "view_member_contact",
+                    "view_members",
+                    "view_rosters",
+                    "view_staff",
+                    "view_workspace"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "role": {
+                "enum": [
+                  "owner",
+                  "manager",
+                  "coach",
+                  "front_desk"
+                ],
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "permissions",
+              "role",
+              "staff_membership_id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "gym_type",
+          "id",
+          "inserted_at",
+          "locations",
+          "name",
+          "setup_status",
+          "updated_at",
+          "viewer"
+        ],
+        "title": "Gym",
+        "type": "object"
+      },
+      "GymCreateRequest": {
+        "additionalProperties": false,
+        "description": "The first valid submission of gym creation. The viewer becomes the owner; no owner, role, status or other\nfield is accepted.\n",
+        "properties": {
+          "client_request_id": {
+            "description": "Chosen by the client for one create and repeated on a retry (idempotency key).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "gym_type": {
+            "description": "One of six gym types: boxing gym, boxing club, amateur club, professional team, combat sports gym, fitness boxing studio.",
+            "enum": [
+              "boxing_gym",
+              "boxing_club",
+              "amateur_club",
+              "professional_team",
+              "combat_sports_gym",
+              "fitness_boxing_studio"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Trimmed; 1–80 characters without control characters.",
+            "example": "Simple Boxing Gym",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "gym_type",
+          "name"
+        ],
+        "title": "GymCreateRequest",
+        "type": "object"
+      },
+      "GymList": {
+        "additionalProperties": false,
+        "properties": {
+          "gyms": {
+            "description": "Newest membership first. Empty when the viewer works at no gym.",
+            "items": {
+              "$ref": "#/components/schemas/GymSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "gyms",
+          "next_cursor"
+        ],
+        "title": "GymList",
+        "type": "object"
+      },
+      "GymLocation": {
+        "additionalProperties": false,
+        "description": "An address-only place of the gym (no map, geocoding or tracking).",
+        "properties": {
+          "address_line": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "country_code": {
+            "description": "ISO 3166-1 alpha-2.",
+            "type": "string"
+          },
+          "entrance_note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "is_primary": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address_line",
+          "city",
+          "country_code",
+          "entrance_note",
+          "id",
+          "is_primary",
+          "name"
+        ],
+        "title": "GymLocation",
+        "type": "object"
+      },
+      "GymResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "gym": {
+            "$ref": "#/components/schemas/Gym"
+          }
+        },
+        "required": [
+          "gym"
+        ],
+        "title": "GymResponse",
+        "type": "object"
+      },
+      "GymSummary": {
+        "additionalProperties": false,
+        "description": "A gym where the viewer holds an active staff membership.",
+        "properties": {
+          "gym_type": {
+            "description": "One of six gym types: boxing gym, boxing club, amateur club, professional team, combat sports gym, fitness boxing studio.",
+            "enum": [
+              "boxing_gym",
+              "boxing_club",
+              "amateur_club",
+              "professional_team",
+              "combat_sports_gym",
+              "fitness_boxing_studio"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "inserted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "description": "Trimmed; 1–80 characters without control characters.",
+            "example": "Simple Boxing Gym",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "setup_status": {
+            "description": "`draft` from creation until the backend's setup checks pass, then `completed` (final). A draft is\nprivate to its staff and never public.\n",
+            "enum": [
+              "draft",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "viewer": {
+            "additionalProperties": false,
+            "description": "The viewer's active staff membership at this gym. `permissions` is a read-only projection of the fixed\nrole matrix for display; the server checks every operation itself, and some permissions are limited to a\nscope the operation enforces (for example a coach's own classes).\n",
+            "properties": {
+              "permissions": {
+                "items": {
+                  "enum": [
+                    "book_for_member",
+                    "cancel_occurrence",
+                    "change_member_status",
+                    "change_staff_role",
+                    "close_gym",
+                    "complete_setup",
+                    "edit_gym",
+                    "invite_manager",
+                    "invite_staff",
+                    "leave_gym",
+                    "manage_billing",
+                    "manage_locations",
+                    "manage_member_enrollment",
+                    "manage_timetable",
+                    "record_check_in",
+                    "remove_staff",
+                    "transfer_ownership",
+                    "view_attendance",
+                    "view_member_contact",
+                    "view_members",
+                    "view_rosters",
+                    "view_staff",
+                    "view_workspace"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "role": {
+                "enum": [
+                  "owner",
+                  "manager",
+                  "coach",
+                  "front_desk"
+                ],
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "permissions",
+              "role",
+              "staff_membership_id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "gym_type",
+          "id",
+          "inserted_at",
+          "name",
+          "setup_status",
+          "updated_at",
+          "viewer"
+        ],
+        "title": "GymSummary",
+        "type": "object"
+      },
       "HealthResponse": {
         "additionalProperties": false,
         "description": "Liveness status of the API process.",
@@ -4870,6 +5216,136 @@
         "summary": "What an invitation link shows",
         "tags": [
           "Coaching"
+        ]
+      }
+    },
+    "/api/v1/gyms": {
+      "post": {
+        "callbacks": {},
+        "description": "Creates a draft gym with the viewer as its owner, atomically (the gym and the owner's staff membership commit\ntogether). Requires completed account registration; no other profile or capability. Nothing is public and\nno plan, payment or verification is involved.\n\n`client_request_id` makes the create idempotent: repeating it returns the same gym with `200` and creates\nnothing. While the viewer has an open draft, any create returns that draft with `200` (the request's fields\nare ignored): one open draft per user. There is no limit on completed gyms.\n\n* `validation_error` - a field is missing, invalid or unknown (owners, roles and statuses are never\n  accepted), or account registration is incomplete (`account_registration: required`).\n* `conflict` - `client_request_id` names a gym where the viewer is no longer staff\n  (`details.client_request_id: \"reused\"`).\n* `rate_limited` - 5 gym creations per user or 20 per client in a 24-hour window. Replays and resumed drafts\n  are not counted.\n",
+        "operationId": "createGym",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymCreateRequest"
+              }
+            }
+          },
+          "description": "The gym",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymResponse"
+                }
+              }
+            },
+            "description": "The gym of this client_request_id, or the open draft"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create a draft gym",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One gym, for one of its active staff: the gym, its locations and the viewer's role and permissions there.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (the existence of a gym is\n  never revealed to anyone else).\n",
+        "operationId": "getGym",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymResponse"
+                }
+              }
+            },
+            "description": "The gym"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One gym",
+        "tags": [
+          "Gyms"
         ]
       }
     },
@@ -7253,6 +7729,65 @@
         ]
       }
     },
+    "/api/v1/me/gyms": {
+      "get": {
+        "callbacks": {},
+        "description": "The gyms where the viewer holds an active staff membership, with their role and permissions there, newest\nmembership first. Only the viewer's own memberships are read; nothing is selected or remembered.\n\n* `validation_error` - `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyGyms",
+        "parameters": [
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "The `next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymList"
+                }
+              }
+            },
+            "description": "One page of gyms"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My gyms",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
     "/api/v1/me/training-sessions": {
       "get": {
         "callbacks": {},
@@ -7508,6 +8043,10 @@
     {
       "description": "Training sessions a coach assigns to a fighter of an active relationship, and the fighter's own (ADR 0023).",
       "name": "Training"
+    },
+    {
+      "description": "Gyms (the tenant) and the viewer's staff memberships; every gym-scoped path names the gym (ADR 0026).",
+      "name": "Gyms"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

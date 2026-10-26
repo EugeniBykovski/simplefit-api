@@ -86,6 +86,11 @@ defmodule SimpleFitWeb.ApiSpec do
             "Training sessions a coach assigns to a fighter of an active relationship, and the fighter's own (ADR 0023)."
         },
         %Tag{
+          name: "Gyms",
+          description:
+            "Gyms (the tenant) and the viewer's staff memberships; every gym-scoped path names the gym (ADR 0026)."
+        },
+        %Tag{
           name: "Legal",
           description: "Published legal documents (versioned, per language; ADR 0022)."
         },

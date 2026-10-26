@@ -8,7 +8,8 @@ defmodule SimpleFitWeb.Router do
   #   /dev/emails                            email template preview, development only (ADR 0011)
   #   /api/v1/...                            product resources: /me/account-profile,
   #                                          /me/email-identities, /me/fighter-profile,
-  #                                          /me/coach-profile, /me/entry, /me/first-run
+  #                                          /me/coach-profile, /me/entry, /me/first-run,
+  #                                          /gyms/{gym_id}/... (tenant-scoped, ADR 0026)
 
   pipeline :api do
     plug :accepts, ["json"]
@@ -137,6 +138,12 @@ defmodule SimpleFitWeb.Router do
     get "/me/coach/training-sessions/:session_id", CoachTrainingSessionController, :show
     patch "/me/coach/training-sessions/:session_id", CoachTrainingSessionController, :update
     post "/me/coach/training-sessions/:session_id/cancel", CoachTrainingSessionController, :cancel
+    # SF-83: gyms (ADR 0026). Every gym-scoped operation names the gym in the
+    # path; access comes from the viewer's active staff membership there.
+    post "/gyms", GymController, :create
+    get "/me/gyms", GymController, :index
+    get "/gyms/:gym_id", GymController, :show
+
     get "/me/training-sessions", MyTrainingSessionController, :index
     get "/me/training-sessions/:session_id", MyTrainingSessionController, :show
     post "/me/training-sessions/:session_id/complete", MyTrainingSessionController, :complete
