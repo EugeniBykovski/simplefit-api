@@ -18,6 +18,9 @@ defmodule SimpleFit.Gyms.AuditEvent do
           | :staff_membership_created
           | :ownership_transferred
           | :staff_membership_ended
+          | :primary_location_set
+          | :setup_completed
+          | :draft_discarded
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -43,7 +46,10 @@ defmodule SimpleFit.Gyms.AuditEvent do
         :gym_created,
         :staff_membership_created,
         :ownership_transferred,
-        :staff_membership_ended
+        :staff_membership_ended,
+        :primary_location_set,
+        :setup_completed,
+        :draft_discarded
       ]
 
     field :staff_membership_id, :binary_id

@@ -3232,6 +3232,7 @@
                     "change_staff_role",
                     "close_gym",
                     "complete_setup",
+                    "discard_draft",
                     "edit_gym",
                     "invite_manager",
                     "invite_staff",
@@ -3390,6 +3391,49 @@
         "title": "GymLocation",
         "type": "object"
       },
+      "GymPrimaryLocationRequest": {
+        "additionalProperties": false,
+        "description": "The whole primary address (address only: no map, geocoding or tracking). Replaces every field; an omitted\noptional field is cleared. `name` defaults to the city.\n",
+        "properties": {
+          "address_line": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "city": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "country_code": {
+            "description": "ISO 3166-1 alpha-2.",
+            "pattern": "^[A-Za-z]{2}$",
+            "type": "string"
+          },
+          "entrance_note": {
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "Optional: the `revision` the client last read. When it is no longer current the write changes nothing and\nanswers `409 conflict` (`details.revision: \"stale\"`).\n",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 80,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "address_line",
+          "city",
+          "country_code"
+        ],
+        "title": "GymPrimaryLocationRequest",
+        "type": "object"
+      },
       "GymResponse": {
         "additionalProperties": false,
         "properties": {
@@ -3401,6 +3445,289 @@
           "gym"
         ],
         "title": "GymResponse",
+        "type": "object"
+      },
+      "GymSetup": {
+        "additionalProperties": false,
+        "description": "A gym's setup as one of its active staff sees it.",
+        "properties": {
+          "accent_color": {
+            "description": "Optional accent colour: one of OG3's six contrast-checked swatches, lowercase hex.",
+            "enum": [
+              "#aeb95a",
+              "#e3a24f",
+              "#e07a5f",
+              "#7fa7c9",
+              "#edefe7",
+              "#8d9840",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "gym_type": {
+            "description": "One of six gym types: boxing gym, boxing club, amateur club, professional team, combat sports gym, fitness boxing studio.",
+            "enum": [
+              "boxing_gym",
+              "boxing_club",
+              "amateur_club",
+              "professional_team",
+              "combat_sports_gym",
+              "fitness_boxing_studio"
+            ],
+            "type": "string"
+          },
+          "missing_requirements": {
+            "description": "What a draft still needs before `completeGymSetup` succeeds; empty when it can complete, and always\nempty once completed. Nothing commercial is ever required.\n",
+            "items": {
+              "enum": [
+                "name",
+                "gym_type",
+                "primary_location"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "Trimmed; 1–80 characters without control characters.",
+            "example": "Simple Boxing Gym",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phone": {
+            "description": "Optional contact phone: digits, spaces, `( ) -`, an optional leading `+`; 5-31 characters.",
+            "example": "+48 22 000 00 00",
+            "nullable": true,
+            "type": "string"
+          },
+          "primary_location": {
+            "additionalProperties": false,
+            "description": "The active primary location, or `null` until setup sets one.",
+            "nullable": true,
+            "properties": {
+              "address_line": {
+                "type": "string"
+              },
+              "city": {
+                "type": "string"
+              },
+              "country_code": {
+                "description": "ISO 3166-1 alpha-2.",
+                "type": "string"
+              },
+              "entrance_note": {
+                "nullable": true,
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "is_primary": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "address_line",
+              "city",
+              "country_code",
+              "entrance_note",
+              "id",
+              "is_primary",
+              "name"
+            ],
+            "type": "object"
+          },
+          "revision": {
+            "description": "Changes with every setup change; send it back as `expected_revision`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "setup_status": {
+            "description": "`draft` from creation until the backend's setup checks pass, then `completed` (final). A draft is\nprivate to its staff and never public.\n",
+            "enum": [
+              "draft",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "tagline": {
+            "description": "Optional one-line tagline (OG3).",
+            "example": "Boxing for everyone. Fighters welcome.",
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "viewer": {
+            "additionalProperties": false,
+            "description": "The viewer's active staff membership at this gym. `permissions` is a read-only projection of the fixed\nrole matrix for display; the server checks every operation itself, and some permissions are limited to a\nscope the operation enforces (for example a coach's own classes).\n",
+            "properties": {
+              "permissions": {
+                "items": {
+                  "enum": [
+                    "book_for_member",
+                    "cancel_occurrence",
+                    "change_member_status",
+                    "change_staff_role",
+                    "close_gym",
+                    "complete_setup",
+                    "discard_draft",
+                    "edit_gym",
+                    "invite_manager",
+                    "invite_staff",
+                    "leave_gym",
+                    "manage_billing",
+                    "manage_locations",
+                    "manage_member_enrollment",
+                    "manage_timetable",
+                    "record_check_in",
+                    "remove_staff",
+                    "transfer_ownership",
+                    "view_attendance",
+                    "view_member_contact",
+                    "view_members",
+                    "view_rosters",
+                    "view_staff",
+                    "view_workspace"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "role": {
+                "enum": [
+                  "owner",
+                  "manager",
+                  "coach",
+                  "front_desk"
+                ],
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "permissions",
+              "role",
+              "staff_membership_id"
+            ],
+            "type": "object"
+          },
+          "website": {
+            "description": "Optional `http(s)` address with a host and no credentials.",
+            "example": "https://simpleboxing.pl",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "accent_color",
+          "gym_id",
+          "gym_type",
+          "missing_requirements",
+          "name",
+          "phone",
+          "primary_location",
+          "revision",
+          "setup_status",
+          "tagline",
+          "viewer",
+          "website"
+        ],
+        "title": "GymSetup",
+        "type": "object"
+      },
+      "GymSetupResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "setup": {
+            "$ref": "#/components/schemas/GymSetup"
+          }
+        },
+        "required": [
+          "setup"
+        ],
+        "title": "GymSetupResponse",
+        "type": "object"
+      },
+      "GymSetupUpdateRequest": {
+        "additionalProperties": false,
+        "description": "Any subset of the setup fields. An omitted field is unchanged; `null` or a blank string clears an optional\nfield; `name` and `gym_type` cannot be cleared. Read-only fields (`setup_status`, `revision`, owners, ids)\nare rejected.\n",
+        "properties": {
+          "accent_color": {
+            "description": "Optional accent colour: one of OG3's six contrast-checked swatches, lowercase hex.",
+            "enum": [
+              "#aeb95a",
+              "#e3a24f",
+              "#e07a5f",
+              "#7fa7c9",
+              "#edefe7",
+              "#8d9840",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "Optional: the `revision` the client last read. When it is no longer current the write changes nothing and\nanswers `409 conflict` (`details.revision: \"stale\"`).\n",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "gym_type": {
+            "description": "One of six gym types: boxing gym, boxing club, amateur club, professional team, combat sports gym, fitness boxing studio.",
+            "enum": [
+              "boxing_gym",
+              "boxing_club",
+              "amateur_club",
+              "professional_team",
+              "combat_sports_gym",
+              "fitness_boxing_studio"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "Trimmed; 1–80 characters without control characters.",
+            "example": "Simple Boxing Gym",
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "phone": {
+            "description": "Optional contact phone: digits, spaces, `( ) -`, an optional leading `+`; 5-31 characters.",
+            "example": "+48 22 000 00 00",
+            "nullable": true,
+            "type": "string"
+          },
+          "tagline": {
+            "description": "Optional one-line tagline (OG3).",
+            "example": "Boxing for everyone. Fighters welcome.",
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "website": {
+            "description": "Optional `http(s)` address with a host and no credentials.",
+            "example": "https://simpleboxing.pl",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "title": "GymSetupUpdateRequest",
         "type": "object"
       },
       "GymSummary": {
@@ -3459,6 +3786,7 @@
                     "change_staff_role",
                     "close_gym",
                     "complete_setup",
+                    "discard_draft",
                     "edit_gym",
                     "invite_manager",
                     "invite_staff",
@@ -5396,6 +5724,52 @@
       }
     },
     "/api/v1/gyms/{gym_id}": {
+      "delete": {
+        "callbacks": {},
+        "description": "Deletes a draft gym (owner only) with its owner membership, locations and any remembered entry choice naming\nit; a minimal audit event is kept. A completed gym is never deleted here. Discarding frees the owner's draft\nslot but does not refund the creation rate limit.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - only the owner discards the draft.\n* `conflict` - the gym's setup is completed (`details.setup_status: \"completed\"`).\n",
+        "operationId": "discardGymDraft",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Discarded"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Discard a draft gym",
+        "tags": [
+          "Gyms"
+        ]
+      },
       "get": {
         "callbacks": {},
         "description": "One gym, for one of its active staff: the gym, its locations and the viewer's role and permissions there.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (the existence of a gym is\n  never revealed to anyone else).\n",
@@ -5439,6 +5813,249 @@
           }
         ],
         "summary": "One gym",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/complete-setup": {
+      "post": {
+        "callbacks": {},
+        "description": "Completes the setup of a draft (owner only), after re-validating the persisted state: a valid name and type,\nan active primary location with a complete address, and exactly one active owner. The gym then becomes an\noperational workspace (`GYM_WORKSPACE`, `gym_home` in `resolveMyEntry`). Completion is final and requires\nnothing commercial (no plan, trial, payment, verification or publication). Completing a completed gym returns\nit unchanged.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - only the owner completes setup.\n* `validation_error` - requirements are missing; each is named under `details.fields` with `required`.\n",
+        "operationId": "completeGymSetup",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSetupResponse"
+                }
+              }
+            },
+            "description": "The setup"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Complete a gym's setup",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/setup": {
+      "get": {
+        "callbacks": {},
+        "description": "The persisted setup of a gym and what a draft still needs before completion (`missing_requirements`). Any\nactive staff member may read it; a draft's owner needs no `GYM_WORKSPACE` capability.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n",
+        "operationId": "getGymSetup",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSetupResponse"
+                }
+              }
+            },
+            "description": "The setup"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's setup",
+        "tags": [
+          "Gyms"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Saves any subset of the profile (`name`, `gym_type`, `phone`, `website`) and text branding (`tagline`,\n`accent_color`), in a draft or a completed gym. An omitted field is unchanged; `null` or a blank string clears\nan optional field; nothing is rounded or truncated. An empty body changes nothing (and creates nothing).\nRequires the `edit_gym` permission (owner, manager).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - the viewer's role cannot edit the gym.\n* `conflict` - `expected_revision` is stale (`details.revision: \"stale\"`); nothing is saved.\n* `validation_error` - a field is invalid or cannot be cleared, or the body names an unknown or read-only\n  field.\n",
+        "operationId": "updateGymSetup",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymSetupUpdateRequest"
+              }
+            }
+          },
+          "description": "The fields to save",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSetupResponse"
+                }
+              }
+            },
+            "description": "The setup"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save part of a gym's setup",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/setup/primary-location": {
+      "put": {
+        "callbacks": {},
+        "description": "Sets the gym's primary address (OG2: address only). The first call creates the primary location; later calls\nreplace its fields in place, so there is never a second primary location. An identical address changes\nnothing. Requires the `manage_locations` permission (owner, manager).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n\n* `forbidden` - the viewer's role cannot manage locations.\n* `conflict` - `expected_revision` is stale (`details.revision: \"stale\"`); nothing is saved.\n* `validation_error` - a field is missing or invalid (`country_code` must be an ISO 3166-1 alpha-2 code), or\n  an unknown field is sent.\n",
+        "operationId": "setGymPrimaryLocation",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymPrimaryLocationRequest"
+              }
+            }
+          },
+          "description": "The primary address",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSetupResponse"
+                }
+              }
+            },
+            "description": "The setup"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Set a gym's primary location",
         "tags": [
           "Gyms"
         ]

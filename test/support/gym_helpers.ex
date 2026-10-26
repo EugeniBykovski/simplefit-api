@@ -10,7 +10,7 @@ defmodule SimpleFit.GymHelpers do
 
   alias SimpleFit.Accounts.User
   alias SimpleFit.{CoachingHelpers, Gyms, Repo}
-  alias SimpleFit.Gyms.{AuditEvent, Gym, StaffMembership}
+  alias SimpleFit.Gyms.{AuditEvent, Gym, GymLocation, StaffMembership}
 
   @doc "A user with completed account registration."
   @spec registered!(String.t()) :: User.t()
@@ -48,9 +48,30 @@ defmodule SimpleFit.GymHelpers do
     %{view | setup_status: :completed}
   end
 
-  @doc "Marks a gym's setup completed (fixture for SF-85's completion)."
+  @doc """
+  Marks a gym's setup completed directly, after giving it a primary location
+  when it has none (the database refuses completion without one, SF-85). A
+  fixture for tests that need a completed gym; the real path is
+  `SimpleFit.Gyms.complete_setup/2`.
+  """
   @spec complete!(Ecto.UUID.t()) :: :ok
   def complete!(gym_id) do
+    unless Repo.exists?(
+             from(l in GymLocation,
+               where: l.gym_id == ^gym_id and l.is_primary and is_nil(l.archived_at)
+             )
+           ) do
+      Repo.insert!(%GymLocation{
+        gym_id: gym_id,
+        # Not "Warsaw": privacy tests use the coach profile's city as a canary.
+        name: "Kazimierz",
+        country_code: "PL",
+        city: "Kraków",
+        address_line: "ul. Józefa 12",
+        is_primary: true
+      })
+    end
+
     {1, _} =
       Repo.update_all(from(g in Gym, where: g.id == ^gym_id), set: [setup_status: :completed])
 
