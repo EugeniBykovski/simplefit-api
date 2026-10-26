@@ -784,7 +784,7 @@ defmodule SimpleFit.Training do
 
   defp uuid(_id), do: {:error, :not_found}
 
-  defp now, do: DateTime.utc_now()
+  defp now, do: SimpleFit.Clock.utc_now()
 
   # Outcomes only: never a title, note, name or id.
   defp emit(event, metadata, count \\ 1),
