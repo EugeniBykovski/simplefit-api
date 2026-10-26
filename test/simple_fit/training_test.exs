@@ -262,50 +262,61 @@ defmodule SimpleFit.TrainingTest do
                )
     end
 
+    # DST cases run at a controlled instant (SimpleFit.Clock, test build
+    # only), so the fixed transition dates stay inside the scheduling window
+    # (one day before to one year after now) whatever today's date is.
     test "DST: a repeated autumn wall time keeps both instants; a spring gap cannot be sent",
          ctx do
+      SimpleFit.Clock.freeze(~U[2026-10-01 12:00:00Z])
+      on_exit(&SimpleFit.Clock.unfreeze/0)
       warsaw = %{"time_zone" => "Europe/Warsaw"}
 
-      # 2026-10-25 02:30 happens twice in Warsaw (CEST +02:00, then CET +01:00).
-      {:ok, first, :created} =
+      create = fn starts_at ->
         Training.create_session(
           ctx.coach,
-          session_attrs(ctx.rel, Map.put(warsaw, "starts_at", "2026-10-25T02:30:00+02:00"))
+          session_attrs(ctx.rel, Map.put(warsaw, "starts_at", starts_at))
         )
+      end
 
-      {:ok, second, :created} =
-        Training.create_session(
-          ctx.coach,
-          session_attrs(ctx.rel, Map.put(warsaw, "starts_at", "2026-10-25T02:30:00+01:00"))
-        )
+      # 2026-10-25 02:30 happens twice in Warsaw (CEST +02:00, then CET
+      # +01:00): both offsets are valid and name two distinct instants.
+      {:ok, first, :created} = create.("2026-10-25T02:30:00+02:00")
+      {:ok, second, :created} = create.("2026-10-25T02:30:00+01:00")
 
       assert first.starts_at == ~U[2026-10-25 00:30:00.000000Z]
       assert second.starts_at == ~U[2026-10-25 01:30:00.000000Z]
+      assert first.time_zone == "Europe/Warsaw" and second.time_zone == "Europe/Warsaw"
+
+      # Either side of the repeated hour, only the offset in force is valid.
+      assert {:ok, _, :created} = create.("2026-10-25T01:30:00+02:00")
+      assert %{"starts_at" => ["invalid"]} = codes(create.("2026-10-25T01:30:00+01:00"))
+      assert {:ok, _, :created} = create.("2026-10-25T03:30:00+01:00")
+      assert %{"starts_at" => ["invalid"]} = codes(create.("2026-10-25T03:30:00+02:00"))
 
       # 2027-03-28 02:30 does not exist in Warsaw: neither offset is Warsaw's
       # offset at the instant it would name.
       for offset <- ["+01:00", "+02:00"] do
-        assert %{"starts_at" => ["invalid"]} =
-                 codes(
-                   Training.create_session(
-                     ctx.coach,
-                     session_attrs(
-                       ctx.rel,
-                       Map.put(warsaw, "starts_at", "2027-03-28T02:30:00" <> offset)
-                     )
-                   )
-                 )
+        assert %{"starts_at" => ["invalid"]} = codes(create.("2027-03-28T02:30:00" <> offset))
       end
 
       # The instants either side of the gap, and UTC instants, are fine.
       for at <- ["2027-03-28T01:59:00+01:00", "2027-03-28T03:00:00+02:00", "2027-03-28T01:30:00Z"] do
-        assert {:ok, _, :created} =
-                 Training.create_session(
-                   ctx.coach,
-                   session_attrs(ctx.rel, Map.put(warsaw, "starts_at", at))
-                 ),
-               at
+        assert {:ok, _, :created} = create.(at), at
       end
+    end
+
+    test "the scheduling window follows the clock: one day before to one year after now", ctx do
+      SimpleFit.Clock.freeze(~U[2026-10-01 12:00:00Z])
+      on_exit(&SimpleFit.Clock.unfreeze/0)
+
+      create = fn starts_at ->
+        Training.create_session(ctx.coach, session_attrs(ctx.rel, %{"starts_at" => starts_at}))
+      end
+
+      assert {:ok, _, :created} = create.("2026-09-30T12:00:00Z")
+      assert {:ok, _, :created} = create.("2027-10-01T12:00:00Z")
+      assert %{"starts_at" => ["out_of_range"]} = codes(create.("2026-09-30T11:59:59Z"))
+      assert %{"starts_at" => ["out_of_range"]} = codes(create.("2027-10-01T12:00:01Z"))
     end
 
     test "an offset from another zone is rejected; the same instant in UTC is accepted", ctx do
