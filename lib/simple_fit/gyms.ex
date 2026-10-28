@@ -44,6 +44,7 @@ defmodule SimpleFit.Gyms do
   alias SimpleFit.Gyms.{
     Access,
     Creation,
+    FirstRun,
     Gym,
     GymLocation,
     Ownership,
@@ -119,6 +120,26 @@ defmodule SimpleFit.Gyms do
   @spec discard_draft(User.t(), term()) ::
           :ok | {:error, :not_found | :forbidden | {:conflict, map()}}
   defdelegate discard_draft(user, gym_id), to: Setup, as: :discard
+
+  ## First run (SF-90)
+
+  @doc """
+  The owner's first run at a completed gym and the gym's setup checklist
+  (see `SimpleFit.Gyms.FirstRun`): `:not_found` for anyone without an active
+  membership there, `:forbidden` for staff other than the owner.
+  """
+  @spec get_first_run(User.t(), term()) ::
+          {:ok, FirstRun.state()} | {:error, :not_found | :forbidden}
+  defdelegate get_first_run(user, gym_id), to: FirstRun, as: :get
+
+  @doc """
+  An explicit first-run transition, `:start`, `:complete` or `:dismiss`
+  (`attrs`: the request body, which must be empty). See
+  `SimpleFit.Gyms.FirstRun.transition/4`.
+  """
+  @spec first_run_transition(User.t(), term(), FirstRun.action(), map()) ::
+          {:ok, FirstRun.state()} | {:error, FirstRun.error()}
+  defdelegate first_run_transition(user, gym_id, action, attrs), to: FirstRun, as: :transition
 
   defp setup_view(%{gym: gym, membership: membership, primary_location: location}) do
     %{

@@ -436,3 +436,141 @@ ticket. Branding never blocks completion.
   register outranks the SF-85 brief for OG4/OG5.
 * The location `name` defaults to the city, because OG2 has no name field
   and the column is required.
+
+## Amendment — SF-90 (2026-10-28): gym first run and setup checklist API
+
+Claude Design source: canvas version `1792675284-1046` (unchanged). Artboards:
+GRW1 `FirstRunWebG`, GRW2 `FirstRunWebGTour(Steps)` (9 steps + complete),
+GR1 `FirstRunGPulse`, GR2 `FirstRunGCheckinTip(Steps)` (8 steps + complete)
+and OS4 `OnbSTour` (staff, out of scope). The approved checklist is SF-82 C7
+(`12-design-reconciliation-plan.md`); the boards still show the unapproved
+published / invites / payout / store / challenge rows (R5).
+
+### Three things, kept apart
+
+| Concept | Source of truth | Changed by |
+| --- | --- | --- |
+| Gym setup | `gyms.setup_status` (SF-85) | `completeGymSetup` only; SF-90 never writes it |
+| Introduction (first run) | `gym_first_runs`, one row per gym and owner | explicit start / complete / dismiss |
+| Setup checklist | derived on every read from the gym's own records | nothing: no stored flag, no client input |
+
+Tour steps, highlights, arrows, scroll, replays and overlays are client-only
+and stored nowhere. A finished or skipped introduction marks no checklist
+item and changes nothing about the gym.
+
+### Lifecycle
+
+* `unavailable` (the gym is a draft), `not_started` (no row), `in_progress`
+  (`started_at`), then `completed` (`completed_at`) or `dismissed`
+  (`dismissed_at`, the design's Skip / End tour; ADR 0018 vocabulary).
+* **Final outcomes.** A repeat of the same outcome returns the same state
+  with the first timestamp; the other outcome, or a start after an outcome,
+  is `409 conflict` (`details.first_run: completed | dismissed`) and changes
+  nothing. A dismissed introduction cannot be resumed: replaying the tour
+  ("Replay the tour any time") is client-only. There is no reset, and new
+  features never reopen it.
+* `complete` without a recorded start sets `started_at = completed_at`; a
+  dismissal without a start keeps `started_at` null.
+* A draft's transitions are `409` (`details.setup_status: draft`); a draft
+  never has a row.
+
+### Data (migration `20261029090000`, explicit up/down)
+
+* `gym_first_runs`: `gym_id` (`ON DELETE CASCADE`), `user_id`
+  (`ON DELETE CASCADE`, personal presentation state like
+  `first_run_outcomes`), `started_at`, `completed_at`, `dismissed_at`,
+  timestamps.
+* Unique `(gym_id, user_id)`; index on `user_id`.
+* Checks: at most one outcome; a row records something; completion after a
+  start; dismissal not before a start.
+* Trigger `gym_first_runs_guard`: keys and a set start are immutable, and an
+  outcome is final.
+* Audit types `first_run_completed`, `first_run_dismissed` (gym, actor,
+  type, time; nothing else). Starting is not audited.
+
+### Checklist (SF-82 C7)
+
+| Key | Status today | Derived from |
+| --- | --- | --- |
+| `create_gym` | `completed` when setup is completed; `available` for a draft | `gyms.setup_status` |
+| `add_class` | `coming_later` | classes (SF-93) |
+| `invite_staff` | `coming_later` | an accepted staff invitation (SF-92) |
+| `invite_members` | `coming_later` | an active gym member (member domain) |
+| `first_check_in` | `coming_later` | a recorded check-in (check-in domain) |
+
+Item statuses are `completed`, `available` and `coming_later`. Each future
+item derives from its own domain when that ships, with no change to the
+first-run model. No item is ever blocked today, so no `blocked` status exists.
+
+### API (tag "Gyms", all `no-store`)
+
+| Operation | Path |
+| --- | --- |
+| `getGymFirstRun` | `GET /api/v1/gyms/{gym_id}/first-run` |
+| `startGymFirstRun` | `POST /api/v1/gyms/{gym_id}/first-run/start` |
+| `completeGymFirstRun` | `POST /api/v1/gyms/{gym_id}/first-run/complete` |
+| `dismissGymFirstRun` | `POST /api/v1/gyms/{gym_id}/first-run/dismiss` |
+
+* Every response is `GymFirstRunResponse`: `gym_id`, `status`, the three
+  timestamps and `checklist`.
+* Transitions take an empty body. Any field, such as a forged `user_id`,
+  `gym_id` or checklist flag, is a `422 validation_error`.
+* Errors:
+  * 401: no, invalid or revoked session.
+  * 404: unknown, foreign, malformed or revoked gym.
+  * 403: active staff who are not the owner.
+  * 409: a conflicting transition.
+  * 422: a body field.
+
+### Authorization and locks
+
+* New permission `manage_first_run` (owner only). GRW1/GR1 are the owner's
+  opening week. Managers, coaches and front desk get `403`; their tour is OS4
+  (`gym_staff_tour`, later). The saved entry context is never authorization.
+* `Access.authorize_shared/3`: gym row `FOR SHARE`, then the membership
+  `FOR SHARE` (the SF-84 order), then the first-run row `FOR UPDATE`.
+* Ownership transfer, revocation and discard lock the gym row `FOR UPDATE`,
+  so they commit entirely before or after a first-run call. Two transitions
+  of one owner serialize on the row, and a first insert is
+  `ON CONFLICT DO NOTHING` then re-read under the lock.
+* Real-commit race tests cover:
+  * concurrent starts;
+  * double completion;
+  * completion vs. dismissal;
+  * a mixed burst;
+  * transfer vs. completion;
+  * read vs. transfer;
+  * revocation + setup write + transition;
+  * draft completion or discard vs. start;
+  * one owner on two gyms.
+
+  The suite is repeated without failure.
+
+### Ownership and lifecycle
+
+* The state belongs to the gym and the user together. Gym A and Gym B are
+  independent, and a later owner after a transfer starts fresh. The previous
+  owner's row stays as history but is unreachable without the permission.
+* Discarding a draft never meets a row. Deleting a user removes their rows;
+  the database still refuses to delete an active member (SF-83). Deleting a
+  gym (closure is future) removes its rows. No retention period is invented.
+* Entry resolution (ADR 0017, SF-84) is unchanged: the first run never
+  changes `resolveMyEntry`, and the gym shells work without it.
+
+### Deviations from SF-82 §7
+
+* **One cross-platform introduction per gym and owner.** SF-82 §7 proposed
+  two per-user keys (`gym_web_tour`, `gym_mobile_first_run`) "after their
+  first gym". The SF-90 brief requires per-gym independence and cross-device
+  start/resume/complete, so one gym-scoped lifecycle replaces both.
+  * Alternative: keep the two ADR 0018 keys in `first_run_outcomes`. Rejected:
+    they are account-wide (gym B would inherit gym A) and have no
+    `in_progress`.
+  * Alternative: a per-platform pair per gym. Not chosen: web and mobile would
+    show different states for one owner.
+* **`in_progress` is stored.** ADR 0018 deliberately recorded only outcomes.
+  The brief requires start on one device and resume on another, so the
+  start is stored here, and only here.
+* **Owner only.** SF-82 does not say whether managers see the checklist.
+  Recommendation, as built: owner only until a design shows it to managers.
+  Exposing a read-only checklist to managers later is additive.

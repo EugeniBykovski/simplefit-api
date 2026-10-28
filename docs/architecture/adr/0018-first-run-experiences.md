@@ -84,3 +84,16 @@ mobile app would show a dismissed tour again.
 * The first-run checklist is not stored here. Its items are derived from
   their domains (gym membership, bookings, training) once those exist, so
   finishing a step on one platform ticks it on the other.
+
+## Amendment — SF-90 (gym first run)
+
+* The gym first run is not an experience key here. It is gym-scoped and
+  lives in `SimpleFit.Gyms` (`gym_first_runs`, ADR 0026 SF-90 amendment):
+  * one introduction per gym and owner, the same on every client;
+  * it also stores `in_progress` (a start), so another device can resume.
+* It reuses this ADR's rules:
+  * only explicit actions are recorded;
+  * `completed` / `dismissed` are final;
+  * a repeat returns the kept state;
+  * the checklist is derived from the gym's records, never stored.
+* `first_run_outcomes` and its two Fighter keys are unchanged.

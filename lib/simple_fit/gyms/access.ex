@@ -87,6 +87,20 @@ defmodule SimpleFit.Gyms.Access do
     end
   end
 
+  @doc """
+  `lock_shared/2` plus the permission check: for operations that write rows
+  of their own under a gym (not the gym or its staff), such as the first
+  run. A transfer or revocation (which lock the gym row for update) commits
+  before, and this sees its result, or waits until the caller commits.
+  """
+  @spec authorize_shared(User.t(), term(), Policy.permission()) ::
+          {:ok, t()} | {:error, :not_found | :forbidden}
+  def authorize_shared(%User{} = user, gym_id, permission) do
+    with {:ok, %{gym: gym, membership: membership}} <- lock_shared(user, gym_id) do
+      grant(gym, membership, permission)
+    end
+  end
+
   @doc "Locks an active membership of `gym_id` by its id (`nil` if none)."
   @spec lock_staff_membership(Ecto.UUID.t(), term()) :: StaffMembership.t() | nil
   def lock_staff_membership(gym_id, membership_id) do
