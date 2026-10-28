@@ -3238,6 +3238,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
                     "manage_timetable",
@@ -3290,6 +3291,42 @@
         "title": "Gym",
         "type": "object"
       },
+      "GymChecklistItem": {
+        "additionalProperties": false,
+        "description": "One step of the opening-week checklist (SF-82 C7), derived on every read from the gym's own records. No\nclient can set it, and finishing or dismissing the introduction never changes it.\n",
+        "example": {
+          "key": "create_gym",
+          "status": "completed"
+        },
+        "properties": {
+          "key": {
+            "description": "Stable step keys, in display order: `create_gym` (name, type and primary location, completed with the\nsetup), `add_class`, `invite_staff`, `invite_members`, `first_check_in`.\n",
+            "enum": [
+              "create_gym",
+              "add_class",
+              "invite_staff",
+              "invite_members",
+              "first_check_in"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "`completed`: a persisted fact of the gym. `available`: the owner can do it now. `coming_later`: its\nfeature does not exist yet; show it as coming later, never as missing, and link nowhere.\n",
+            "enum": [
+              "completed",
+              "available",
+              "coming_later"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "status"
+        ],
+        "title": "GymChecklistItem",
+        "type": "object"
+      },
       "GymCreateRequest": {
         "additionalProperties": false,
         "description": "The first valid submission of gym creation. The viewer becomes the owner; no owner, role, status or other\nfield is accepted.\n",
@@ -3325,6 +3362,110 @@
           "name"
         ],
         "title": "GymCreateRequest",
+        "type": "object"
+      },
+      "GymFirstRun": {
+        "additionalProperties": false,
+        "description": "The viewer's (the owner's) introduction to one gym, the same on every client, and the gym's checklist.\nIndependent of `setup_status`: neither outcome changes the gym or any checklist item.\n",
+        "example": {
+          "checklist": [
+            {
+              "key": "create_gym",
+              "status": "completed"
+            },
+            {
+              "key": "add_class",
+              "status": "coming_later"
+            },
+            {
+              "key": "invite_staff",
+              "status": "coming_later"
+            },
+            {
+              "key": "invite_members",
+              "status": "coming_later"
+            },
+            {
+              "key": "first_check_in",
+              "status": "coming_later"
+            }
+          ],
+          "completed_at": null,
+          "dismissed_at": null,
+          "gym_id": "0b9d6c43-5bd5-4d39-9f5c-3e1b3c1f8c11",
+          "started_at": null,
+          "status": "not_started"
+        },
+        "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/GymChecklistItem"
+            },
+            "type": "array"
+          },
+          "completed_at": {
+            "description": "When it was finished; `null` otherwise.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "dismissed_at": {
+            "description": "When it was ended or skipped; `null` otherwise.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "When the introduction was started; `null` if never (or dismissed unstarted).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`unavailable`: the gym is a draft (no first run until setup completes). `not_started`: offer it.\n`in_progress`: started on some client and not ended; offer to resume. `completed` / `dismissed`: final;\nnever offer it again (replaying the tour is client-only and records nothing).\n",
+            "enum": [
+              "unavailable",
+              "not_started",
+              "in_progress",
+              "completed",
+              "dismissed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "gym_id",
+          "status",
+          "started_at",
+          "completed_at",
+          "dismissed_at",
+          "checklist"
+        ],
+        "title": "GymFirstRun",
+        "type": "object"
+      },
+      "GymFirstRunResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "first_run": {
+            "$ref": "#/components/schemas/GymFirstRun"
+          }
+        },
+        "required": [
+          "first_run"
+        ],
+        "title": "GymFirstRunResponse",
+        "type": "object"
+      },
+      "GymFirstRunTransitionRequest": {
+        "additionalProperties": false,
+        "description": "No fields: the gym comes from the path and the user from the session. Any field (a `user_id`, a checklist\nflag) answers `422 validation_error`.\n",
+        "properties": {},
+        "title": "GymFirstRunTransitionRequest",
         "type": "object"
       },
       "GymList": {
@@ -3588,6 +3729,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
                     "manage_timetable",
@@ -3796,6 +3938,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
                     "manage_timetable",
@@ -5875,6 +6018,265 @@
           }
         ],
         "summary": "Complete a gym's setup",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/first-run": {
+      "get": {
+        "callbacks": {},
+        "description": "The owner's introduction to this gym (`not_started`, `in_progress`, `completed`, `dismissed`; `unavailable`\nfor a draft) and the gym's opening-week checklist, derived from the gym's own records. The same answer on\nevery client and after any sign-in; reading creates nothing.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - the viewer is active staff but not the owner (the first run is the owner's).\n\n",
+        "operationId": "getGymFirstRun",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's first run and setup checklist",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/first-run/complete": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the owner finished the introduction (`completed`, final). It marks no checklist item done and\nchanges nothing about the gym. Repeating it returns the same state with the first `completed_at`.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - the viewer is active staff but not the owner (the first run is the owner's).\n\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`), or the introduction already ended the\n  other way (`details.first_run: \"completed\"` or `\"dismissed\"`); nothing changes.\n* `validation_error` - the body has a field (none is accepted).\n\n",
+        "operationId": "completeGymFirstRun",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymFirstRunTransitionRequest"
+              }
+            }
+          },
+          "description": "No fields",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Finish the gym introduction",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/first-run/dismiss": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the owner skipped or ended the introduction (`dismissed`, final: it is not offered again and\ncannot be resumed). It marks no checklist item done. Repeating it returns the same state with the first\n`dismissed_at`.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - the viewer is active staff but not the owner (the first run is the owner's).\n\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`), or the introduction already ended the\n  other way (`details.first_run: \"completed\"` or `\"dismissed\"`); nothing changes.\n* `validation_error` - the body has a field (none is accepted).\n\n",
+        "operationId": "dismissGymFirstRun",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymFirstRunTransitionRequest"
+              }
+            }
+          },
+          "description": "No fields",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Skip or end the gym introduction",
+        "tags": [
+          "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/first-run/start": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the owner started the introduction (`in_progress`), so another client can offer to resume it.\nRepeating it while in progress returns the same state with the first `started_at`.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - the viewer is active staff but not the owner (the first run is the owner's).\n\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`), or the introduction already ended the\n  other way (`details.first_run: \"completed\"` or `\"dismissed\"`); nothing changes.\n* `validation_error` - the body has a field (none is accepted).\n\n",
+        "operationId": "startGymFirstRun",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymFirstRunTransitionRequest"
+              }
+            }
+          },
+          "description": "No fields",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Start the gym introduction",
         "tags": [
           "Gyms"
         ]

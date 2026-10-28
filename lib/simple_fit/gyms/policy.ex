@@ -28,6 +28,7 @@ defmodule SimpleFit.Gyms.Policy do
           | :manage_locations
           | :complete_setup
           | :discard_draft
+          | :manage_first_run
           | :invite_manager
           | :invite_staff
           | :change_staff_role
@@ -67,6 +68,9 @@ defmodule SimpleFit.Gyms.Policy do
     complete_setup: @owner,
     # SF-85: only the owner discards their own draft (never a completed gym).
     discard_draft: @owner,
+    # SF-90: the gym first run (opening-week checklist and introduction) is
+    # the owner's (GRW1/GR1); staff have their own tour (OS4, later).
+    manage_first_run: @owner,
     invite_manager: @owner,
     invite_staff: @admins,
     change_staff_role: %{owner: :all, manager: :coach_and_front_desk},

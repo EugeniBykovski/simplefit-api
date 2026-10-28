@@ -149,6 +149,11 @@ defmodule SimpleFitWeb.Router do
     put "/gyms/:gym_id/setup/primary-location", GymSetupController, :put_primary_location
     post "/gyms/:gym_id/complete-setup", GymSetupController, :complete
     delete "/gyms/:gym_id", GymSetupController, :discard
+    # SF-90: the owner's first run and the setup checklist.
+    get "/gyms/:gym_id/first-run", GymFirstRunController, :show
+    post "/gyms/:gym_id/first-run/start", GymFirstRunController, :start
+    post "/gyms/:gym_id/first-run/complete", GymFirstRunController, :complete
+    post "/gyms/:gym_id/first-run/dismiss", GymFirstRunController, :dismiss
 
     get "/me/training-sessions", MyTrainingSessionController, :index
     get "/me/training-sessions/:session_id", MyTrainingSessionController, :show
