@@ -154,6 +154,32 @@ defmodule SimpleFitWeb.Router do
     post "/gyms/:gym_id/first-run/start", GymFirstRunController, :start
     post "/gyms/:gym_id/first-run/complete", GymFirstRunController, :complete
     post "/gyms/:gym_id/first-run/dismiss", GymFirstRunController, :dismiss
+    get "/gyms/:gym_id/staff", GymStaffController, :index
+    patch "/gyms/:gym_id/staff/:staff_membership_id", GymStaffController, :update
+    delete "/gyms/:gym_id/staff/:staff_membership_id", GymStaffController, :delete
+    get "/gyms/:gym_id/staff-invitations", GymStaffInvitationController, :index
+    post "/gyms/:gym_id/staff-invitations", GymStaffInvitationController, :create
+
+    post "/gyms/:gym_id/staff-invitations/:invitation_id/resend",
+         GymStaffInvitationController,
+         :resend
+
+    post "/gyms/:gym_id/staff-invitations/:invitation_id/cancel",
+         GymStaffInvitationController,
+         :cancel
+
+    get "/me/staff-invitations", StaffInvitationResponseController, :index
+    post "/me/staff-invitations/accept", StaffInvitationResponseController, :accept_by_token
+    post "/me/staff-invitations/decline", StaffInvitationResponseController, :decline_by_token
+    get "/me/staff-invitations/:invitation_id", StaffInvitationResponseController, :show
+
+    post "/me/staff-invitations/:invitation_id/accept",
+         StaffInvitationResponseController,
+         :accept_by_id
+
+    post "/me/staff-invitations/:invitation_id/decline",
+         StaffInvitationResponseController,
+         :decline_by_id
 
     get "/me/training-sessions", MyTrainingSessionController, :index
     get "/me/training-sessions/:session_id", MyTrainingSessionController, :show
@@ -170,6 +196,7 @@ defmodule SimpleFitWeb.Router do
     pipe_through :api
 
     post "/coach-invitations/preview", CoachInvitationResponseController, :preview
+    post "/staff-invitations/preview", StaffInvitationResponseController, :preview
 
     # SF-72: published legal documents for the public pages (ADR 0022).
     get "/legal-documents/:document_id", LegalDocumentController, :show

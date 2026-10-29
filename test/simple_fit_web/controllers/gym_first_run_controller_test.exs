@@ -63,7 +63,7 @@ defmodule SimpleFitWeb.GymFirstRunControllerTest do
              "checklist" => [
                %{"key" => "create_gym", "status" => "completed"},
                %{"key" => "add_class", "status" => "coming_later"},
-               %{"key" => "invite_staff", "status" => "coming_later"},
+               %{"key" => "invite_staff", "status" => "available"},
                %{"key" => "invite_members", "status" => "coming_later"},
                %{"key" => "first_check_in", "status" => "coming_later"}
              ]
@@ -95,7 +95,9 @@ defmodule SimpleFitWeb.GymFirstRunControllerTest do
     dismissed = ctx.token |> authed() |> post_action(ctx.gym.id, "dismiss") |> first_run()
     assert %{"status" => "dismissed", "started_at" => nil, "completed_at" => nil} = dismissed
     assert Enum.at(dismissed["checklist"], 0) == %{"key" => "create_gym", "status" => "completed"}
-    assert dismissed["checklist"] |> Enum.drop(1) |> Enum.all?(&(&1["status"] == "coming_later"))
+
+    assert dismissed["checklist"] |> Enum.drop(1) |> Enum.map(& &1["status"]) ==
+             ~w(coming_later available coming_later coming_later)
 
     assert ^dismissed = ctx.token |> authed() |> post_action(ctx.gym.id, "dismiss") |> first_run()
 

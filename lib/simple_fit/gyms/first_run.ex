@@ -41,7 +41,7 @@ defmodule SimpleFit.Gyms.FirstRun do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Audit, Gym, GymFirstRun}
+  alias SimpleFit.Gyms.{Access, Audit, Gym, GymFirstRun, StaffInvitation}
   alias SimpleFit.Repo
 
   @type status :: :unavailable | :not_started | :in_progress | :completed | :dismissed
@@ -68,8 +68,8 @@ defmodule SimpleFit.Gyms.FirstRun do
   @type error :: :not_found | :forbidden | {:conflict, map()} | Changeset.t()
 
   # The approved opening-week checklist (SF-82 C7, D-G21), in design order.
-  # Only `create_gym` has a domain today; each other item derives from its
-  # own domain when that ships (classes SF-93, staff invitations SF-92,
+  # `create_gym` and `invite_staff` (SF-93) have their domains today; each
+  # other item derives from its own domain when that ships (classes,
   # members and check-ins later), with no change to the first run.
   @checklist [:create_gym, :add_class, :invite_staff, :invite_members, :first_check_in]
 
@@ -126,7 +126,22 @@ defmodule SimpleFit.Gyms.FirstRun do
   # the owner of a draft can still finish it.
   defp item(:create_gym, %Gym{setup_status: :completed}), do: :completed
   defp item(:create_gym, %Gym{setup_status: :draft}), do: :available
-  # No class, staff-invitation, member or check-in domain exists yet.
+  # "Invite staff" is done once a staff invitation was accepted (SF-82 03 §3,
+  # C7; ADR 0026 SF-90 amendment): a person joined the team. Sending one is
+  # not enough, and a later removal does not undo it (the gym's history).
+  # Only a completed gym invites, so a draft has nothing to offer yet.
+  defp item(:invite_staff, %Gym{setup_status: :completed, id: gym_id}) do
+    accepted? =
+      Repo.exists?(
+        from(i in StaffInvitation, where: i.gym_id == ^gym_id and i.status == :accepted),
+        log: false
+      )
+
+    if accepted?, do: :completed, else: :available
+  end
+
+  # No class, member or check-in domain exists yet (and a draft invites no
+  # staff yet).
   defp item(_future, %Gym{}), do: :coming_later
 
   # -- Transitions ---------------------------------------------------------------

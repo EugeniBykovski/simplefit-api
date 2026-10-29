@@ -1,8 +1,8 @@
 defmodule SimpleFit.Gyms.AuditEvent do
   @moduledoc """
   An append-only record of a committed gym transition (ADR 0026, D-G18):
-  who (`actor_user_id`), what (`event_type`), which staff membership, the
-  roles involved and the end reason. Nothing else: no names, emails,
+  who (`actor_user_id`), what (`event_type`), which staff membership and
+  staff invitation, the roles involved and the end reason. Nothing else: no names, emails,
   tokens or profile data. Written by `SimpleFit.Gyms` in the same
   transaction as the transition it records, so only committed actions are
   recorded. The database rejects updates; no foreign keys, so events outlive
@@ -23,6 +23,11 @@ defmodule SimpleFit.Gyms.AuditEvent do
           | :draft_discarded
           | :first_run_completed
           | :first_run_dismissed
+          | :staff_invited
+          | :staff_invitation_cancelled
+          | :staff_invitation_accepted
+          | :staff_invitation_declined
+          | :staff_role_changed
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -30,6 +35,7 @@ defmodule SimpleFit.Gyms.AuditEvent do
           actor_user_id: Ecto.UUID.t() | nil,
           event_type: event_type() | nil,
           staff_membership_id: Ecto.UUID.t() | nil,
+          staff_invitation_id: Ecto.UUID.t() | nil,
           from_role: StaffMembership.role() | nil,
           to_role: StaffMembership.role() | nil,
           reason: StaffMembership.ended_reason() | nil,
@@ -53,10 +59,16 @@ defmodule SimpleFit.Gyms.AuditEvent do
         :setup_completed,
         :draft_discarded,
         :first_run_completed,
-        :first_run_dismissed
+        :first_run_dismissed,
+        :staff_invited,
+        :staff_invitation_cancelled,
+        :staff_invitation_accepted,
+        :staff_invitation_declined,
+        :staff_role_changed
       ]
 
     field :staff_membership_id, :binary_id
+    field :staff_invitation_id, :binary_id
     field :from_role, Ecto.Enum, values: StaffMembership.roles()
     field :to_role, Ecto.Enum, values: StaffMembership.roles()
 

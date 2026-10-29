@@ -199,12 +199,13 @@ case config_env() do
       | Keyword.update!(email, :from, &(&1 || "SimpleFit Dev <dev@simplefit.invalid>"))
     ]
 
-    # E01 verification and E08 invitation links point at the local web app
+    # E01 verification, E06 and E08 invitation links point at the local web app
     # unless overridden.
     if web_app_url = System.get_env("WEB_APP_URL") do
       web_app_url = SimpleFit.Accounts.EmailAuth.parse_web_app_url!(web_app_url)
       config :simple_fit, SimpleFit.Accounts.EmailAuth, web_app_url: web_app_url
       config :simple_fit, SimpleFit.Coaching.Invitations, web_app_url: web_app_url
+      config :simple_fit, SimpleFit.Gyms, web_app_url: web_app_url
     end
 
     config :simple_fit, SimpleFitWeb.ClientIP,
@@ -297,8 +298,15 @@ case config_env() do
         )
 
     # Gyms (SF-83): rate-limit keys of gym creation are derived from the same
-    # secret with a dedicated salt.
-    config :simple_fit, SimpleFit.Gyms, secret_key_base: secret_key_base
+    # secret with a dedicated salt. Staff invitations (SF-93) derive their
+    # recipient digests, sealed addresses and rate-limit keys from it with
+    # their own salts; E06 links point at the https web app.
+    config :simple_fit, SimpleFit.Gyms,
+      secret_key_base: secret_key_base,
+      web_app_url:
+        SimpleFit.Accounts.EmailAuth.parse_web_app_url!(System.get_env("WEB_APP_URL"),
+          require_https: true
+        )
 
     # Client IP for rate limits (ADR 0012). Required in production (SF-83):
     # 0 when clients connect directly (the peer address), otherwise the number

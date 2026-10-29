@@ -30,10 +30,10 @@ defmodule SimpleFit.Gyms do
   Creating a gym creates a draft and its owner membership only (D-G05). The
   setup steps, locations and completion (which requires a primary location)
   are SF-85's; entry projection (`GYM_WORKSPACE`) is SF-84's; staff roles,
-  coach affiliation and invitations are SF-92's; participant memberships are
-  later tickets. Ownership transfer and revocation exist here as domain
-  operations only: the transfer request and acceptance (D-G04) need a
-  dedicated backend ticket, and revocation's HTTP operation comes with SF-92.
+  coach affiliation and invitations are SF-93's (`SimpleFit.Gyms.Staff`,
+  `SimpleFit.Gyms.StaffInvitations`); participant memberships are later
+  tickets. Ownership transfer exists here as a domain operation only: the
+  transfer request and acceptance (D-G04) need a dedicated backend ticket.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -50,8 +50,12 @@ defmodule SimpleFit.Gyms do
     Ownership,
     Policy,
     Setup,
+    Staff,
+    StaffInvitations,
     StaffMembership
   }
+
+  alias SimpleFit.Accounts.Session
 
   alias SimpleFit.Repo
 
@@ -372,6 +376,84 @@ defmodule SimpleFit.Gyms do
   defdelegate revoke_staff_membership(actor, gym_id, staff_membership_id),
     to: Ownership,
     as: :revoke
+
+  @doc """
+  Ends a staff membership at a gym: another member's (removal) or the
+  actor's own (leaving). See `SimpleFit.Gyms.Ownership.revoke/3`.
+  """
+  @spec end_staff_membership(User.t(), term(), term()) ::
+          {:ok, StaffMembership.t()}
+          | {:error,
+             :not_found | :forbidden | {:conflict, map()} | {:rate_limited, pos_integer()}}
+  defdelegate end_staff_membership(actor, gym_id, staff_membership_id),
+    to: Ownership,
+    as: :revoke
+
+  ## Staff and invitations (SF-93)
+
+  @doc "The gym's staff roster (see `SimpleFit.Gyms.Staff.list/3`)."
+  @spec list_staff(User.t(), term(), map()) :: {:ok, Staff.page()} | {:error, term()}
+  defdelegate list_staff(user, gym_id, params), to: Staff, as: :list
+
+  @doc "Changes a staff member's role (see `SimpleFit.Gyms.Staff.change_role/4`)."
+  @spec change_staff_role(User.t(), term(), term(), map()) :: {:ok, map()} | {:error, term()}
+  defdelegate change_staff_role(user, gym_id, staff_membership_id, attrs),
+    to: Staff,
+    as: :change_role
+
+  @doc "Invites an email address to a staff role (see `SimpleFit.Gyms.StaffInvitations.create/4`)."
+  @spec create_staff_invitation(User.t(), term(), map(), String.t()) ::
+          {:ok, map(), :created | :existing} | {:error, StaffInvitations.error()}
+  defdelegate create_staff_invitation(user, gym_id, attrs, client_ip),
+    to: StaffInvitations,
+    as: :create
+
+  @doc "The gym's staff invitations (see `SimpleFit.Gyms.StaffInvitations.list/3`)."
+  @spec list_staff_invitations(User.t(), term(), map()) ::
+          {:ok, StaffInvitations.page()} | {:error, StaffInvitations.error()}
+  defdelegate list_staff_invitations(user, gym_id, params), to: StaffInvitations, as: :list
+
+  @doc "Sends a pending invitation again (see `SimpleFit.Gyms.StaffInvitations.resend/3`)."
+  @spec resend_staff_invitation(User.t(), term(), term()) ::
+          {:ok, map()} | {:error, StaffInvitations.error()}
+  defdelegate resend_staff_invitation(user, gym_id, invitation_id),
+    to: StaffInvitations,
+    as: :resend
+
+  @doc "Cancels a pending invitation (see `SimpleFit.Gyms.StaffInvitations.cancel/3`)."
+  @spec cancel_staff_invitation(User.t(), term(), term()) ::
+          {:ok, map()} | {:error, StaffInvitations.error()}
+  defdelegate cancel_staff_invitation(user, gym_id, invitation_id),
+    to: StaffInvitations,
+    as: :cancel
+
+  @doc "The staff invitations sent to the user's verified addresses (inbox)."
+  @spec list_my_staff_invitations(User.t(), map()) ::
+          {:ok, StaffInvitations.page()} | {:error, StaffInvitations.error()}
+  defdelegate list_my_staff_invitations(user, params), to: StaffInvitations, as: :list_mine
+
+  @doc "One staff invitation sent to the user's verified addresses."
+  @spec get_my_staff_invitation(User.t(), term()) :: {:ok, map()} | {:error, :not_found}
+  defdelegate get_my_staff_invitation(user, invitation_id), to: StaffInvitations, as: :get_mine
+
+  @doc "What an E06 token shows before sign-in (see `SimpleFit.Gyms.StaffInvitations.preview/2`)."
+  @spec preview_staff_invitation(term(), String.t()) ::
+          {:ok, map()} | {:error, StaffInvitations.error()}
+  defdelegate preview_staff_invitation(token, client_ip), to: StaffInvitations, as: :preview
+
+  @doc "The recipient's explicit acceptance (see `SimpleFit.Gyms.StaffInvitations.accept/4`)."
+  @spec accept_staff_invitation(User.t(), Session.t(), {:token | :id, term()}, String.t()) ::
+          {:ok, map()} | {:error, StaffInvitations.error()}
+  defdelegate accept_staff_invitation(user, session, locator, client_ip),
+    to: StaffInvitations,
+    as: :accept
+
+  @doc "The recipient declines (see `SimpleFit.Gyms.StaffInvitations.decline/3`)."
+  @spec decline_staff_invitation(User.t(), {:token | :id, term()}, String.t()) ::
+          {:ok, map()} | {:error, StaffInvitations.error()}
+  defdelegate decline_staff_invitation(user, locator, client_ip),
+    to: StaffInvitations,
+    as: :decline
 
   ## Account deletion
 

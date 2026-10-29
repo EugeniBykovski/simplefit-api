@@ -574,3 +574,175 @@ first-run model. No item is ever blocked today, so no `blocked` status exists.
 * **Owner only.** SF-82 does not say whether managers see the checklist.
   Recommendation, as built: owner only until a design shows it to managers.
   Exposing a read-only checklist to managers later is additive.
+
+## Amendment — SF-93 (2026-10-29): staff roles, coach affiliation and invitations
+
+Jira SF-93 is the ticket the tables above call "SF-92" (staff invitations,
+role change and the revocation HTTP operation). Its brief's older role
+vocabulary (`admin`, `frontdesk`) is not used: the roles stay `owner`,
+`manager`, `coach`, `front_desk`.
+
+### Data (migration `20261030090000`, explicit up/down)
+
+* **`gym_staff_invitations`**:
+  * columns: `gym_id` (`ON DELETE CASCADE`), `invited_by_staff_membership_id`,
+    `token_hash` (SHA-256 of the `sfs_` token, unique), `recipient_digest`
+    (HMAC of the canonical address), `recipient_sealed` (encrypted address),
+    `role` (`manager` | `coach` | `front_desk`, never `owner`), `status`
+    (`pending` → `accepted` | `declined` | `cancelled` | `expired`),
+    `expires_at`, `send_count`, `last_sent_at`, `responded_at`,
+    `staff_membership_id`;
+  * composite foreign keys `(gym_id, invited_by_staff_membership_id)` and
+    `(gym_id, staff_membership_id)` to `gym_staff_memberships (gym_id, id)`
+    (new unique index): neither the inviter nor the accepted membership can
+    belong to another gym;
+  * partial unique "one pending invitation per gym and recipient digest",
+    unique "one invitation per accepted membership";
+  * checks on roles, statuses, digest sizes and the outcome shape (only an
+    acceptance names a membership; only a response has a time);
+  * insert trigger: a completed gym only, and `pending` only;
+  * update trigger: a resolved invitation is immutable; a pending one keeps
+    its gym, recipient, role, inviter and creation; an acceptance must name
+    an active membership of the gym with the invited role.
+* **`gym_audit_events`**: nullable `staff_invitation_id`, and the types
+  `staff_invited`, `staff_invitation_cancelled`, `staff_invitation_accepted`,
+  `staff_invitation_declined`, `staff_role_changed`.
+* `gym_staff_memberships` is unchanged: acceptance inserts an `active` row;
+  ended rows stay final, so rejoining is a new row from a new invitation.
+
+### Lifecycle and rules
+
+* **Who invites whom:** the owner invites managers, coaches and front desk;
+  a manager coaches and front desk; nobody invites an owner, and only a
+  completed gym invites. Cancel and resend need the same permission.
+* **Duplicates:** the same address and role while pending returns the
+  pending invitation (`200`, no new token or email); another role is `409`
+  (`staff_invitation: pending_other_role`); an address of an active member
+  of this gym is `409` (`staff_membership: already_active`); gyms are
+  independent. The gym row lock serializes invitation writes of one gym and
+  the partial unique index is the final authority.
+* **Expiry (D-G12):** 7 days from the last sending, server time. A pending
+  invitation past `expires_at` is reported `expired` and the stored status
+  catches up when it is next touched.
+* **Resend** rotates the token (the old link stops at once) and restarts the
+  7 days; at most 3 resends, 60 seconds apart.
+* **Recipient binding (D-G16, D-G22):** only a signed-in user with an email
+  identity for the invited address (proved by a code: ADR 0012, or ADR 0024
+  linking for Google/Apple-only users) can accept or decline. Provider email
+  claims never count; nothing is linked, merged or created. Inviting an
+  unregistered address creates no account.
+* **Two ways to answer, one transaction:** the mobile inbox
+  (`/me/staff-invitations`, token-free, matched by the session user's
+  verified addresses; unknown or foreign ids `404`) and the web page of the
+  E06 link (token in the body: any unusable token `410
+  invitation_unavailable`, a current token held by another account `403
+  invitation_recipient_mismatch`).
+* **Acceptance** (completed account registration only; no Coach or Fighter
+  profile) locks the session (`FOR SHARE`, after the user row `FOR KEY
+  SHARE`), the gym row (`FOR UPDATE`), then the invitation (`FOR UPDATE`),
+  re-checks the recipient, the inviter's membership and role, and inserts the
+  membership (`ON CONFLICT DO NOTHING` on the active-membership index),
+  consumes the invitation and records `staff_invitation_accepted` and
+  `staff_membership_created`: all or nothing. A repeat by the same person
+  returns the same membership (`already_accepted`). A session revoked during
+  the request answers `401`.
+* **Role changes** (`change_staff_role`): owner any non-owner to `manager`,
+  `coach`, `front_desk`; manager only between `coach` and `front_desk`; never
+  one's own role, never to or from `owner` (`409 owner_requires_transfer`).
+* **End of a membership:** removal (`removed`, as SF-83) or leaving (`left`,
+  `leave_gym`: managers, coaches, front desk; never the owner). Access ends
+  on the next request; the user's session and other gyms are untouched.
+* **Inviter changes:** ending a membership (removal, leaving, ownership
+  transfer) cancels the pending invitations it issued, and a role change
+  cancels those its new role can no longer issue, in the same transaction.
+  Acceptance also re-checks the inviter, as defence in depth.
+* **New permission** `view_staff_records` (owner, manager): the gym's
+  invitation list (masked addresses) and ended memberships. The active
+  roster stays `view_staff` (every role).
+
+### Lock order
+
+Every staff write takes the gym row `FOR UPDATE` first, then memberships,
+then invitations (SF-83 order). Acceptance takes the user and session first
+(the account-deletion order of ADR 0024), then the same gym → invitation
+order. Entry choice, first-run calls and setup writes are unchanged. Real
+commit race tests: 12 concurrent acceptances, two accounts on one token,
+accept vs cancel, accept vs decline, accept vs inviter removal, concurrent
+invitations by two administrators and to different roles, role change vs
+removal, attacks on the owner, removal vs entry choice, logout vs
+acceptance, and one coach accepting two gyms at once.
+
+### Coach affiliation (D-G06)
+
+A gym coach is a `coach` staff membership. It needs no CoachProfile and
+creates or changes none; an existing CoachProfile is untouched and not shown
+to the gym. No Coach–Fighter relationship is created, and no gym role reads a
+fighter's training data (tests: a gym coach with a CoachProfile and a
+fighter working the front desk at the same gym see no relationship or
+session of each other). One user may hold memberships at several gyms with
+independent roles; ending one leaves the others.
+
+### API (tag "Gym staff", all `no-store`)
+
+| Operation | Path | Who |
+| --- | --- | --- |
+| `listGymStaff` | `GET /api/v1/gyms/{gym_id}/staff` | any staff (`status=ended`: owner, manager) |
+| `changeGymStaffRole` | `PATCH /api/v1/gyms/{gym_id}/staff/{staff_membership_id}` | owner, manager (scoped) |
+| `endGymStaffMembership` | `DELETE /api/v1/gyms/{gym_id}/staff/{staff_membership_id}` | removal per matrix; self (not owner) |
+| `listGymStaffInvitations` | `GET /api/v1/gyms/{gym_id}/staff-invitations` | owner, manager |
+| `createGymStaffInvitation` | `POST /api/v1/gyms/{gym_id}/staff-invitations` | owner, manager (scoped) |
+| `resendGymStaffInvitation` | `POST …/staff-invitations/{invitation_id}/resend` | as inviting that role |
+| `cancelGymStaffInvitation` | `POST …/staff-invitations/{invitation_id}/cancel` | as inviting that role |
+| `listMyStaffInvitations` | `GET /api/v1/me/staff-invitations` | signed in |
+| `getMyStaffInvitation` | `GET /api/v1/me/staff-invitations/{invitation_id}` | the recipient |
+| `acceptMyStaffInvitation`, `declineMyStaffInvitation` | `POST /api/v1/me/staff-invitations/{invitation_id}/accept`, `/decline` | the recipient |
+| `acceptStaffInvitation`, `declineStaffInvitation` | `POST /api/v1/me/staff-invitations/accept`, `/decline` (token in body) | the recipient |
+| `previewStaffInvitation` | `POST /api/v1/staff-invitations/preview` (token in body) | anyone |
+
+Errors: `401`; `404` (unknown, foreign, malformed or revoked gym, foreign
+membership or invitation id); `403 forbidden` (active staff without the
+permission); `403 invitation_recipient_mismatch` (token of another
+address); `409 conflict` with the details above; `410
+invitation_unavailable` (unusable token or a resolved inbox invitation);
+`422 validation_error`; `429 rate_limited`.
+
+### Rate limits (D-G25 open: mirrors SF-57)
+
+Creation (rolling, counted only when an invitation is created): 10 per hour
+and 30 per day per user, 100 per day per gym, 3 per day per recipient
+address across gyms, 20 per 10 minutes per client. Previews and answers: 30
+per 10 minutes per client. Resend, cancel, role change and removal: 60 per
+10 minutes per user. Product may tune these when D-G25 closes.
+
+### Email (E06)
+
+The existing E06 template (SF-35) is sent in the invitation's transaction
+through the encrypted Oban outbox, with `<web app>/invite/staff#token=sfs_…`
+(fragment only). The template's invitee name and location became optional:
+an invitation is addressed to an email, and no location is assigned. The
+abilities listed are only those that exist today (manager: edit details and
+location, invite coaches and front desk, see the team; coach and front desk:
+open the workspace, see the team). The reconciled E06 copy (C15/R10) is not
+yet published in Claude Design.
+
+### Entry and checklist
+
+Acceptance adds the gym to `resolveMyEntry`/`listMyGyms` (`GYM_WORKSPACE`)
+and selects nothing. The SF-90 `invite_staff` item is `available` at a
+completed gym and `completed` once any staff invitation of the gym was
+accepted (SF-82 03 §3); sending one is not enough and a later removal does
+not undo it. A draft keeps `coming_later`.
+
+### Deviations and gaps
+
+1. Inviter display: first name to recipients (T9), "First L." in the gym's
+   roster and invitation list, both from the account name. Using the account
+   name for staff display needs product confirmation.
+2. The web page `/invite/staff` and the mobile inbox `/me/gym-invitations`
+   are not in the route registry yet (the frontend ticket). Until then an E06
+   link has no page; the API is complete.
+3. Claude Design 112 still shows unreconciled E06, OS2, OG11, WG16 and WG17
+   copy (drop-ins, incidents, fighter notes, payouts, shifts, a per-invite
+   location, an invitee name); the SF-82 corrections R4, R7, R10, R11 and
+   C10–C16 apply.
+4. Ownership transfer stays a domain function without an HTTP operation.

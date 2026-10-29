@@ -1,16 +1,18 @@
 defmodule SimpleFit.GymHelpers do
   @moduledoc """
   Test helpers for gyms (SF-83). Gyms are created through the public
-  context. Staff other than the owner are inserted as fixtures, because
-  staff invitations (their only production source) are a later ticket, and
-  a completed setup is set directly, because setup completion is SF-85's.
+  context. Staff other than the owner can be inserted as fixtures
+  (`staff!/3`) where a test is about something else; staff invitations
+  (SF-93, their production source) have their own helpers below. A
+  completed setup is set directly, because setup completion is SF-85's.
   """
 
   import Ecto.Query, only: [from: 2]
 
-  alias SimpleFit.Accounts.User
-  alias SimpleFit.{CoachingHelpers, Gyms, Repo}
-  alias SimpleFit.Gyms.{AuditEvent, Gym, GymLocation, StaffMembership}
+  alias SimpleFit.Accounts
+  alias SimpleFit.Accounts.{Session, User}
+  alias SimpleFit.{CoachingHelpers, EmailAuthHelpers, Gyms, Repo}
+  alias SimpleFit.Gyms.{AuditEvent, Gym, GymLocation, StaffInvitation, StaffMembership}
 
   @doc "A user with completed account registration."
   @spec registered!(String.t()) :: User.t()
@@ -131,4 +133,115 @@ defmodule SimpleFit.GymHelpers do
   @spec gyms_created_by(User.t()) :: non_neg_integer()
   def gyms_created_by(%User{id: user_id}),
     do: Repo.aggregate(from(g in Gym, where: g.created_by_user_id == ^user_id), :count)
+
+  ## Staff invitations (SF-93)
+
+  @doc "A unique email address for a test."
+  @spec address(String.t()) :: String.t()
+  def address(prefix \\ "staff"),
+    do: "#{prefix}-#{System.unique_integer([:positive])}@example.com"
+
+  @doc """
+  A user signed up with an email identity for `email` (verified, ADR 0012)
+  and completed account registration under `full_name`.
+  """
+  @spec email_user!(String.t(), String.t()) :: User.t()
+  def email_user!(email \\ address(), full_name \\ "Natalia Wiśniewska") do
+    {:ok, user} = Accounts.register_user(:email, email)
+    registered_as!(user, full_name)
+  end
+
+  @doc "Completes account registration of `user` under `full_name`."
+  @spec registered_as!(User.t(), String.t()) :: User.t()
+  def registered_as!(%User{} = user, full_name) do
+    {:ok, _} =
+      Accounts.update_account_registration(user, %{
+        "full_name" => full_name,
+        "date_of_birth" => Date.to_iso8601(Date.shift(Date.utc_today(), year: -30)),
+        "accept_terms" => true,
+        "accept_privacy" => true
+      })
+
+    {:ok, %{status: :complete}} = Accounts.complete_account_registration(user)
+    user
+  end
+
+  @doc "Adds a verified email identity to `user` (the end state of SF-77 linking)."
+  @spec link_email!(User.t(), String.t()) :: User.t()
+  def link_email!(%User{} = user, email) do
+    {:ok, _identity} = Accounts.link_identity(user, :email, email)
+    user
+  end
+
+  @doc "A live session of `user`."
+  @spec live_session!(User.t()) :: Session.t()
+  def live_session!(%User{} = user) do
+    {:ok, %{session: session}} = Accounts.create_session(user)
+    session
+  end
+
+  @doc "Invites `email` as `role` through `SimpleFit.Gyms` (asserting success)."
+  @spec invite!(User.t(), Ecto.UUID.t(), String.t(), atom() | String.t()) :: map()
+  def invite!(%User{} = inviter, gym_id, email, role) do
+    {:ok, view, _outcome} =
+      Gyms.create_staff_invitation(
+        inviter,
+        gym_id,
+        %{"email" => email, "role" => to_string(role)},
+        client_ip()
+      )
+
+    view
+  end
+
+  @doc "Accepts an inbox invitation as `user` on a new session."
+  @spec accept!(User.t(), Ecto.UUID.t()) :: map()
+  def accept!(%User{} = user, invitation_id) do
+    {:ok, result} =
+      Gyms.accept_staff_invitation(user, live_session!(user), {:id, invitation_id}, client_ip())
+
+    result
+  end
+
+  @doc "A user with an email identity, invited by `inviter` as `role` and accepted."
+  @spec joined_staff!(User.t(), Ecto.UUID.t(), atom(), String.t()) :: {User.t(), map()}
+  def joined_staff!(%User{} = inviter, gym_id, role, full_name \\ "Ola Kowalska") do
+    email = address("joined")
+    user = email_user!(email, full_name)
+    invitation = invite!(inviter, gym_id, email, role)
+    {user, accept!(user, invitation.invitation_id)}
+  end
+
+  @doc "The token of the latest E06 email sent to `email`."
+  @spec staff_token_for(String.t()) :: String.t()
+  def staff_token_for(email) do
+    message = EmailAuthHelpers.last_email_to(email)
+    [_, token] = Regex.run(~r"/invite/staff#token=(sfs_[A-Za-z0-9_-]{43})", message.text)
+    token
+  end
+
+  @doc "The stored staff invitation."
+  @spec stored_invitation(Ecto.UUID.t()) :: StaffInvitation.t()
+  def stored_invitation(id), do: Repo.get!(StaffInvitation, id)
+
+  @doc "Moves an invitation's expiry into the past (the clock never moves in tests)."
+  @spec expire_invitation!(Ecto.UUID.t()) :: :ok
+  def expire_invitation!(id) do
+    past = DateTime.add(DateTime.utc_now(), -1)
+
+    {1, _} =
+      Repo.update_all(from(i in StaffInvitation, where: i.id == ^id), set: [expires_at: past])
+
+    :ok
+  end
+
+  @doc "The active staff memberships of `user` at `gym_id`."
+  @spec active_memberships(Ecto.UUID.t(), User.t()) :: [StaffMembership.t()]
+  def active_memberships(gym_id, %User{id: user_id}) do
+    Repo.all(
+      from(m in StaffMembership,
+        where: m.gym_id == ^gym_id and m.user_id == ^user_id and m.status == :active
+      )
+    )
+  end
 end

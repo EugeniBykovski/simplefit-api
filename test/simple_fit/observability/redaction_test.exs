@@ -24,6 +24,7 @@ defmodule SimpleFit.Observability.RedactionTest do
       link: "sfv_#{@marker}0123456789abcd",
       registration: "sfg_#{@marker}0123456789efgh",
       invitation: "sfi_#{@marker}0123456789ijkl",
+      staff_invitation: "sfs_#{@marker}0123456789mnop",
       jwt: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ#{@marker}.c2lnbmF0dXJl#{@marker}",
       email: "#{String.downcase(@marker)}@example.com",
       full_name: "Full #{@marker} Name",

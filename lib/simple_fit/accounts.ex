@@ -33,6 +33,7 @@ defmodule SimpleFit.Accounts do
   import Ecto.Query, only: [from: 2]
 
   alias SimpleFit.Accounts.{
+    AccountProfile,
     AppleAuth,
     EmailAddress,
     EmailAuth,
@@ -116,6 +117,42 @@ defmodule SimpleFit.Accounts do
   end
 
   @doc """
+  How colleagues and invitees see `user_ids` (ADR 0026, SF-93): from the
+  account name, only the first name and the initial of the last word
+  (`%{first_name: "Natalia", short_name: "Natalia W."}`), or `nil` without a
+  name. Never the full name, an email or any other account field. Users with
+  no name are absent from the map.
+  """
+  @spec short_names([Ecto.UUID.t()]) :: %{
+          Ecto.UUID.t() => %{first_name: String.t(), short_name: String.t()}
+        }
+  def short_names([]), do: %{}
+
+  def short_names(user_ids) when is_list(user_ids) do
+    from(p in AccountProfile,
+      where: p.user_id in ^Enum.uniq(user_ids) and not is_nil(p.full_name),
+      select: {p.user_id, p.full_name}
+    )
+    |> Repo.all(@unlogged)
+    |> Enum.flat_map(fn {user_id, full_name} ->
+      case String.split(full_name, ~r/\s+/u, trim: true) do
+        [] ->
+          []
+
+        [first] ->
+          [{user_id, %{first_name: first, short_name: first}}]
+
+        [first | rest] ->
+          [
+            {user_id,
+             %{first_name: first, short_name: "#{first} #{String.first(List.last(rest))}."}}
+          ]
+      end
+    end)
+    |> Map.new()
+  end
+
+  @doc """
   The user's email identities, oldest first: each canonical address and
   when it was added. Never another user's, never a Google or Apple identity.
   """
@@ -190,6 +227,11 @@ defmodule SimpleFit.Accounts do
   """
   @spec refresh_session(String.t()) :: {:ok, Sessions.credentials()} | {:error, :unauthorized}
   defdelegate refresh_session(token), to: Sessions, as: :refresh
+
+  @doc "See `SimpleFit.Accounts.Sessions.hold_active/2`."
+  @spec hold_active_session(User.t(), Session.t()) :: :ok | {:error, :unauthorized}
+  def hold_active_session(%User{id: user_id}, %Session{id: session_id}),
+    do: Sessions.hold_active(user_id, session_id)
 
   @doc "Logs out the session behind an access or refresh token. Always `:ok`."
   @spec revoke_session({:access, String.t()} | {:refresh, String.t()}) :: :ok

@@ -191,29 +191,32 @@ defmodule SimpleFit.Email.Templates.Inventory do
              %{
                id: "E06",
                name: "Staff invitation",
-               trigger: "Gym owner invites staff (artboard links OS1)",
+               trigger:
+                 "Gym owner or manager invites staff (SF-93; artboard links OS1; link <web app>/invite/staff#token=…)",
                subject: "{inviter_name} invited you to {gym_name}",
-               preheader: "Join the team as {role} · {location}.",
+               preheader: "Join the team as {role}[ · {location}].",
                required_variables: [
-                 "invitee_name",
                  "inviter_name",
                  "inviter_display_name",
                  "inviter_role",
                  "gym_name",
                  "role",
-                 "location",
                  "permissions",
                  "accept_url",
                  "expires_on"
                ],
-               optional_variables: [],
-               conditional_blocks: [],
+               optional_variables: ["invitee_name", "location"],
+               conditional_blocks: [
+                 "Greeting with the invitee's name (invitee_name; SF-93 sends none)",
+                 "Location line (location; SF-93 sends none: no location is assigned)"
+               ],
                primary_cta: "Accept invitation → accept_url",
                fallback_url: @plain_text_fallback,
                artboard: "project/EmailStaffInvite.dc.html",
                template: :staff_invite,
                module: SimpleFit.Email.Templates.StaffInvite,
-               trigger_owner: "Future gym staff ticket (not yet created)",
+               trigger_owner: "SF-93 (interim copy until design C15 / R10 is published)",
+               trigger_status: :available,
                deferred: []
              },
              %{

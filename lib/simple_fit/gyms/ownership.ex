@@ -15,7 +15,7 @@ defmodule SimpleFit.Gyms.Ownership do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Audit, Gym, StaffMembership}
+  alias SimpleFit.Gyms.{Access, Audit, Gym, Policy, StaffInvitations, StaffMembership}
   alias SimpleFit.Repo
 
   @type previous_owner :: :stay_as_manager | :leave
@@ -52,22 +52,28 @@ defmodule SimpleFit.Gyms.Ownership do
   end
 
   @doc """
-  Revokes another staff member's active membership (`removed`). The owner may
-  revoke any manager, coach or front desk; a manager only a coach or front
-  desk; other roles none. Nobody revokes the owner: the owner leaves only by
-  a transfer (`409 conflict`, `staff_membership: owner_requires_transfer`).
-  The revoked user loses every permission at that gym on their next request.
+  Ends an active staff membership: another member's (`removed`) or the
+  actor's own (`left`, SF-93). The owner may remove any manager, coach or
+  front desk; a manager only a coach or front desk; other roles nobody.
+  Managers, coaches and front desk may leave (`leave_gym`). Nobody removes
+  the owner, and the owner never leaves: ownership moves only by a transfer
+  (`409 conflict`, `staff_membership: owner_requires_transfer`). The ended
+  user loses every permission at that gym on their next request, and the
+  pending invitations their membership issued are cancelled in the same
+  transaction (SF-93). Other gyms and the user's session are untouched.
   """
   @spec revoke(User.t(), term(), term()) ::
           {:ok, StaffMembership.t()} | {:error, :not_found | :forbidden | {:conflict, map()}}
   def revoke(%User{} = actor, gym_id, target_id) do
     Repo.transaction(fn ->
-      with {:ok, %{gym: gym, membership: actor_membership, scope: scope}} <-
-             Access.authorize_locked(actor, gym_id, :remove_staff),
+      with {:ok, %{gym: gym, membership: actor_membership}} <-
+             Access.authorize_locked(actor, gym_id, :view_workspace),
            %StaffMembership{} = target <- Access.lock_staff_membership(gym.id, target_id),
-           :ok <- revocable(target, actor_membership, scope) do
+           {:ok, reason} <- ending(target, actor_membership),
+           :ok <- StaffInvitations.admin_limit(actor) do
         now = DateTime.utc_now()
-        ended = end!(target, :removed, now)
+        ended = end!(target, reason, now)
+        StaffInvitations.cancel_issued_by!(target, nil, actor.id, now)
 
         Audit.record!(
           %{
@@ -76,7 +82,7 @@ defmodule SimpleFit.Gyms.Ownership do
             event_type: :staff_membership_ended,
             staff_membership_id: target.id,
             from_role: target.role,
-            reason: :removed
+            reason: reason
           },
           now
         )
@@ -129,6 +135,7 @@ defmodule SimpleFit.Gyms.Ownership do
   defp commit_transfer!(gym, owner, target, previous_owner, actor_id) do
     now = DateTime.utc_now()
     %StaffMembership{} = end!(owner, :transferred, now)
+    StaffInvitations.cancel_issued_by!(owner, nil, actor_id, now)
     promoted = target |> Changeset.change(role: :owner) |> Repo.update!()
 
     stayed =
@@ -182,8 +189,19 @@ defmodule SimpleFit.Gyms.Ownership do
 
   # -- Revocation --------------------------------------------------------------
 
-  defp revocable(%StaffMembership{role: :owner, id: id}, %StaffMembership{id: id}, _scope),
+  # The actor's own membership: leaving (never the owner).
+  defp ending(%StaffMembership{id: id, role: :owner}, %StaffMembership{id: id}),
     do: {:error, {:conflict, %{staff_membership: "owner_requires_transfer"}}}
+
+  defp ending(%StaffMembership{id: id}, %StaffMembership{id: id} = actor) do
+    with {:ok, _scope} <- Policy.check(actor, :leave_gym), do: {:ok, :left}
+  end
+
+  defp ending(target, actor) do
+    with {:ok, scope} <- Policy.check(actor, :remove_staff),
+         :ok <- revocable(target, actor, scope),
+         do: {:ok, :removed}
+  end
 
   defp revocable(%StaffMembership{role: :owner}, _actor, _scope), do: {:error, :forbidden}
   defp revocable(_target, _actor, :all), do: :ok

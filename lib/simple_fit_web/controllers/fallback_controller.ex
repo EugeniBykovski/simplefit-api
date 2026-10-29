@@ -7,6 +7,7 @@ defmodule SimpleFitWeb.FallbackController do
   | Context result | Public code |
   | --- | --- |
   | `{:error, %Ecto.Changeset{}}` | `validation_error`, with `fields` and `field_codes` |
+  | `{:error, :session_revoked}` (the session ended during the request, SF-93) | `unauthorized` |
   | `{:error, :not_found}` | `not_found` |
   | `{:error, :forbidden}` | `forbidden` |
   | `{:error, :conflict}` | `conflict` |
@@ -47,6 +48,8 @@ defmodule SimpleFitWeb.FallbackController do
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do
     APIError.send_error(conn, "validation_error", details: ChangesetErrors.details(changeset))
   end
+
+  def call(conn, {:error, :session_revoked}), do: APIError.send_error(conn, "unauthorized")
 
   def call(conn, {:error, reason}) when reason in [:not_found, :forbidden, :conflict] do
     APIError.send_error(conn, Atom.to_string(reason))

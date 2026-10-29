@@ -3250,6 +3250,7 @@
                     "view_members",
                     "view_rosters",
                     "view_staff",
+                    "view_staff_records",
                     "view_workspace"
                   ],
                   "type": "string"
@@ -3300,7 +3301,7 @@
         },
         "properties": {
           "key": {
-            "description": "Stable step keys, in display order: `create_gym` (name, type and primary location, completed with the\nsetup), `add_class`, `invite_staff`, `invite_members`, `first_check_in`.\n",
+            "description": "Stable step keys, in display order: `create_gym` (name, type and primary location, completed with the\nsetup), `add_class`, `invite_staff` (available at a completed gym, completed once a staff invitation\nwas accepted, SF-93; sending one is not enough), `invite_members`, `first_check_in`.\n",
             "enum": [
               "create_gym",
               "add_class",
@@ -3379,7 +3380,7 @@
             },
             {
               "key": "invite_staff",
-              "status": "coming_later"
+              "status": "available"
             },
             {
               "key": "invite_members",
@@ -3741,6 +3742,7 @@
                     "view_members",
                     "view_rosters",
                     "view_staff",
+                    "view_staff_records",
                     "view_workspace"
                   ],
                   "type": "string"
@@ -3876,6 +3878,307 @@
         "title": "GymSetupUpdateRequest",
         "type": "object"
       },
+      "GymStaffInvitation": {
+        "additionalProperties": false,
+        "description": "An invitation issued by this gym. The address is masked; the token and any account of the recipient are\nnever shown. An invitation grants nothing until its recipient accepts it.\n",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invited_by": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "staff_membership_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "last_sent_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "recipient_email": {
+            "description": "The invited address, masked (`n•••@example.com`).",
+            "type": "string"
+          },
+          "resends_remaining": {
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "responded_at": {
+            "description": "When it was accepted, declined or cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "role": {
+            "description": "`manager`, `coach` or `front_desk`. Never `owner`: ownership moves only by a transfer (D-G04). The owner\ngives any of the three; a manager only `coach` or `front_desk`.\n",
+            "enum": [
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          },
+          "staff_membership_id": {
+            "description": "The membership an acceptance created.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending` until answered, cancelled or expired (7 days after it was last sent, server time); `accepted`,\n`declined`, `cancelled` and `expired` are final. A `pending` invitation past its expiry is reported as\n`expired`.\n",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "role",
+          "status",
+          "recipient_email",
+          "invited_by",
+          "created_at",
+          "expires_at",
+          "last_sent_at",
+          "resends_remaining",
+          "responded_at",
+          "staff_membership_id"
+        ],
+        "title": "GymStaffInvitation",
+        "type": "object"
+      },
+      "GymStaffInvitationCreateRequest": {
+        "description": "Exactly `email` and `role`; any other field (an owner role, a gym id, a token) is a `422 validation_error`.",
+        "example": {
+          "email": "natalia@example.com",
+          "role": "front_desk"
+        },
+        "properties": {
+          "email": {
+            "description": "The address to invite; normalized like a sign-in address. Not one of the viewer's own.",
+            "type": "string"
+          },
+          "role": {
+            "description": "`manager`, `coach` or `front_desk`. Never `owner`: ownership moves only by a transfer (D-G04). The owner\ngives any of the three; a manager only `coach` or `front_desk`.\n",
+            "enum": [
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "title": "GymStaffInvitationCreateRequest",
+        "type": "object"
+      },
+      "GymStaffInvitationList": {
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymStaffInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor"
+        ],
+        "title": "GymStaffInvitationList",
+        "type": "object"
+      },
+      "GymStaffInvitationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/GymStaffInvitation"
+          }
+        },
+        "required": [
+          "invitation"
+        ],
+        "title": "GymStaffInvitationResponse",
+        "type": "object"
+      },
+      "GymStaffList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "staff": {
+            "description": "Oldest membership first.",
+            "items": {
+              "$ref": "#/components/schemas/GymStaffMember"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "staff",
+          "next_cursor"
+        ],
+        "title": "GymStaffList",
+        "type": "object"
+      },
+      "GymStaffMember": {
+        "additionalProperties": false,
+        "description": "A staff membership of this gym. Only gym facts and a short name: no email, user id, profile, other gym or\nCoach–Fighter fact. A `coach` membership is the person's affiliation with this gym; their CoachProfile\n(if any) is neither required, changed nor shown.\n",
+        "example": {
+          "ended_at": null,
+          "ended_reason": null,
+          "is_viewer": false,
+          "joined_at": "2026-10-29T10:00:00Z",
+          "name": "Natalia W.",
+          "role": "coach",
+          "staff_membership_id": "6f1c1a3e-2b1d-4a8e-9a54-0d6b2f0c1e77",
+          "status": "active"
+        },
+        "properties": {
+          "ended_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_reason": {
+            "enum": [
+              "left",
+              "removed",
+              "transferred",
+              "account_deleted",
+              "gym_closed",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "is_viewer": {
+            "description": "Whether this is the viewer's own membership.",
+            "type": "boolean"
+          },
+          "joined_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "name": {
+            "description": "First name and the initial of the last name (\"Natalia W.\"), from the account name; `null` without one.",
+            "nullable": true,
+            "type": "string"
+          },
+          "role": {
+            "description": "The fixed gym roles (D-G03): `owner`, `manager`, `coach`, `front_desk`.",
+            "enum": [
+              "owner",
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          },
+          "staff_membership_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "ended"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "staff_membership_id",
+          "role",
+          "status",
+          "name",
+          "is_viewer",
+          "joined_at",
+          "ended_at",
+          "ended_reason"
+        ],
+        "title": "GymStaffMember",
+        "type": "object"
+      },
+      "GymStaffMemberResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "staff_member": {
+            "$ref": "#/components/schemas/GymStaffMember"
+          }
+        },
+        "required": [
+          "staff_member"
+        ],
+        "title": "GymStaffMemberResponse",
+        "type": "object"
+      },
+      "GymStaffRoleChangeRequest": {
+        "description": "Only `role`; any other field (a user id, a status, a gym) is a `422 validation_error`.",
+        "example": {
+          "role": "front_desk"
+        },
+        "properties": {
+          "role": {
+            "description": "`manager`, `coach` or `front_desk`. Never `owner`: ownership moves only by a transfer (D-G04). The owner\ngives any of the three; a manager only `coach` or `front_desk`.\n",
+            "enum": [
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "GymStaffRoleChangeRequest",
+        "type": "object"
+      },
       "GymSummary": {
         "additionalProperties": false,
         "description": "A gym where the viewer holds an active staff membership.",
@@ -3950,6 +4253,7 @@
                     "view_members",
                     "view_rosters",
                     "view_staff",
+                    "view_staff_records",
                     "view_workspace"
                   ],
                   "type": "string"
@@ -4455,6 +4759,155 @@
         "title": "MyCoachRelationshipResponse",
         "type": "object"
       },
+      "MyStaffInvitation": {
+        "additionalProperties": false,
+        "description": "An invitation sent to one of the viewer's verified email addresses. Reading it changes nothing; only an\nexplicit acceptance creates a staff membership.\n",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "gym": {
+            "additionalProperties": false,
+            "properties": {
+              "gym_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "gym_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invited_by": {
+            "additionalProperties": false,
+            "description": "Who invited: their first name from their account name and their role at the gym, nothing else.",
+            "properties": {
+              "first_name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "role": {
+                "description": "The fixed gym roles (D-G03): `owner`, `manager`, `coach`, `front_desk`.",
+                "enum": [
+                  "owner",
+                  "manager",
+                  "coach",
+                  "front_desk",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "first_name",
+              "role"
+            ],
+            "type": "object"
+          },
+          "responded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "role": {
+            "description": "`manager`, `coach` or `front_desk`. Never `owner`: ownership moves only by a transfer (D-G04). The owner\ngives any of the three; a manager only `coach` or `front_desk`.\n",
+            "enum": [
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          },
+          "sent_to": {
+            "description": "The viewer's own verified address the invitation was sent to.",
+            "type": "string"
+          },
+          "staff_membership_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending` until answered, cancelled or expired (7 days after it was last sent, server time); `accepted`,\n`declined`, `cancelled` and `expired` are final. A `pending` invitation past its expiry is reported as\n`expired`.\n",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "status",
+          "role",
+          "gym",
+          "invited_by",
+          "sent_to",
+          "created_at",
+          "expires_at",
+          "responded_at",
+          "staff_membership_id"
+        ],
+        "title": "MyStaffInvitation",
+        "type": "object"
+      },
+      "MyStaffInvitationList": {
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/MyStaffInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor"
+        ],
+        "title": "MyStaffInvitationList",
+        "type": "object"
+      },
+      "MyStaffInvitationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/MyStaffInvitation"
+          }
+        },
+        "required": [
+          "invitation"
+        ],
+        "title": "MyStaffInvitationResponse",
+        "type": "object"
+      },
       "MyTrainingSession": {
         "additionalProperties": false,
         "description": "A training session assigned to the viewer (their own training history).",
@@ -4715,6 +5168,144 @@
           "refresh_token_transport"
         ],
         "title": "SessionTokens",
+        "type": "object"
+      },
+      "StaffInvitationAcceptResponse": {
+        "additionalProperties": false,
+        "description": "The consumed invitation and the active staff membership it created. The gym now appears among the\nviewer's gym workspaces (`resolveMyEntry`, `listMyGyms`); nothing switches the viewer's current context.\n",
+        "properties": {
+          "gym_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invitation": {
+            "$ref": "#/components/schemas/MyStaffInvitation"
+          },
+          "outcome": {
+            "description": "`already_accepted`: the viewer accepted it before (a repeated request); nothing changed.",
+            "enum": [
+              "accepted",
+              "already_accepted"
+            ],
+            "type": "string"
+          },
+          "role": {
+            "description": "`manager`, `coach` or `front_desk`. Never `owner`: ownership moves only by a transfer (D-G04). The owner\ngives any of the three; a manager only `coach` or `front_desk`.\n",
+            "enum": [
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          },
+          "staff_membership_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation",
+          "gym_id",
+          "staff_membership_id",
+          "role",
+          "outcome"
+        ],
+        "title": "StaffInvitationAcceptResponse",
+        "type": "object"
+      },
+      "StaffInvitationPreview": {
+        "additionalProperties": false,
+        "description": "Only the gym's name, the role, the inviter's first name and role, and the expiry (T9). Nothing about the\nrecipient, the address or any account.\n",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "gym": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "invited_by": {
+            "additionalProperties": false,
+            "description": "Who invited: their first name from their account name and their role at the gym, nothing else.",
+            "properties": {
+              "first_name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "role": {
+                "description": "The fixed gym roles (D-G03): `owner`, `manager`, `coach`, `front_desk`.",
+                "enum": [
+                  "owner",
+                  "manager",
+                  "coach",
+                  "front_desk",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "first_name",
+              "role"
+            ],
+            "type": "object"
+          },
+          "role": {
+            "description": "`manager`, `coach` or `front_desk`. Never `owner`: ownership moves only by a transfer (D-G04). The owner\ngives any of the three; a manager only `coach` or `front_desk`.\n",
+            "enum": [
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "gym",
+          "role",
+          "invited_by",
+          "expires_at"
+        ],
+        "title": "StaffInvitationPreview",
+        "type": "object"
+      },
+      "StaffInvitationPreviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/StaffInvitationPreview"
+          }
+        },
+        "required": [
+          "preview"
+        ],
+        "title": "StaffInvitationPreviewResponse",
+        "type": "object"
+      },
+      "StaffInvitationTokenRequest": {
+        "properties": {
+          "token": {
+            "description": "The one-time token from the E06 link fragment (`<web app>/invite/staff#token=…`). Send it only in request\nbodies, never in a URL, a log or app navigation. Any value that is not a current token answers `410\ninvitation_unavailable`.\n",
+            "example": "sfs_3q2-7wEXAMPLEonlyEXAMPLEonlyEXAMPLEonlyEXAMPLEo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "StaffInvitationTokenRequest",
         "type": "object"
       },
       "TrainingSessionCreateRequest": {
@@ -6464,6 +7055,635 @@
         "summary": "Set a gym's primary location",
         "tags": [
           "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/staff": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's active staff (`status=active`, the default; every staff role) or its ended memberships\n(`status=ended`; owner and managers), oldest membership first. Each entry carries only gym facts and a\nshort name.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown, ended or other gym's membership.\n\n* `forbidden` - `status=ended` for a coach or front desk.\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listGymStaff",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`active` (default) or `ended`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "ended"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same `status`).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffList"
+                }
+              }
+            },
+            "description": "One page of staff"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's staff",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/staff-invitations": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's invitations, newest first, with their effective status and a masked address. Owner and managers.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - a coach or front desk.\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listGymStaffInvitations",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only invitations with this effective status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "accepted",
+                "declined",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same `status`).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffInvitationList"
+                }
+              }
+            },
+            "description": "One page of invitations"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's staff invitations",
+        "tags": [
+          "Gym staff"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Invites an email address to a role and queues the E06 email, whose link carries a one-time token in its\nfragment (`<web app>/invite/staff#token=…`). The invitation grants nothing: the recipient must sign in with\nthat address (a verified email identity) and accept it explicitly, within 7 days. Creating it creates no\naccount and reveals nothing about one. Only a completed gym invites. The owner invites managers, coaches\nand front desk; a manager coaches and front desk; nobody is invited as owner.\n\nThe same address and role while an invitation is pending returns that invitation with `200` (no new email):\na repeated request is safe. Another gym inviting the same address is independent.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - the viewer's role may not invite (or not this role: managers are invited by the owner).\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`); this address has a pending invitation\n  to another role (`details.staff_invitation: \"pending_other_role\"`: cancel it first); or it belongs to an\n  active member of this gym (`details.staff_membership: \"already_active\"`).\n* `validation_error` - `email` invalid or the viewer's own, `role` missing or not `manager`, `coach` or\n  `front_desk`, or any other field.\n* `rate_limited` - 10 invitations per hour and 30 per day per user, 100 per day per gym, 3 per day per\n  address (any gym), 20 per 10 minutes per client, in rolling windows; repeats are not counted.\n",
+        "operationId": "createGymStaffInvitation",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymStaffInvitationCreateRequest"
+              }
+            }
+          },
+          "description": "Who and which role",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The pending invitation for this address and role"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Invite someone to the gym's staff",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/staff-invitations/{invitation_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "A pending invitation can no longer be accepted. Repeating it, or cancelling an expired invitation, returns\nthe invitation unchanged. The same permission as inviting that role.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - the viewer's role may not invite this role.\n* `conflict` - already accepted or declined (`details.staff_invitation: \"accepted\" | \"declined\"`).\n* `rate_limited` - 60 staff administration requests per 10 minutes per user.\n",
+        "operationId": "cancelGymStaffInvitation",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A staff invitation of this gym.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel a staff invitation",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/staff-invitations/{invitation_id}/resend": {
+      "post": {
+        "callbacks": {},
+        "description": "Sends a pending invitation again with a new token (the previous link stops working at once) and a new\n7-day expiry. At most 3 resends, 60 seconds apart. The same permission as inviting that role.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - the viewer's role may not invite this role.\n* `conflict` - not pending (`details.staff_invitation: \"not_pending\"`) or no resends left\n  (`details.resends: \"limit_reached\"`).\n* `rate_limited` - within 60 seconds of the last sending, or 60 staff administration requests per 10\n  minutes per user.\n",
+        "operationId": "resendGymStaffInvitation",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A staff invitation of this gym.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Send a staff invitation again",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/staff/{staff_membership_id}": {
+      "delete": {
+        "callbacks": {},
+        "description": "Ends an active staff membership at once: another member's (removal: the owner removes any manager, coach\nor front desk, a manager only coaches and front desk) or the viewer's own (leaving: managers, coaches and\nfront desk). The owner is never removed and never leaves; ownership moves only by a transfer. The member\nloses every permission at this gym on their next request (`404`), the gym leaves their workspaces, and the\npending invitations their membership issued are cancelled. Other gyms and their session are untouched;\nthe ended membership stays in the gym's history. A repeat answers `404` (the membership is no longer\nactive).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown, ended or other gym's membership.\n\n* `forbidden` - the viewer's role may not remove this member.\n* `conflict` - the target is the owner (`details.staff_membership: \"owner_requires_transfer\"`).\n* `rate_limited` - 60 staff administration requests per 10 minutes per user.\n",
+        "operationId": "endGymStaffMembership",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "An active staff membership of this gym.",
+            "in": "path",
+            "name": "staff_membership_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffMemberResponse"
+                }
+              }
+            },
+            "description": "The ended membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remove a staff member, or leave the gym",
+        "tags": [
+          "Gym staff"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Within the fixed matrix: the owner sets any manager, coach or front desk to `manager`, `coach` or\n`front_desk`; a manager only switches coaches and front desk between those two. Nobody changes their own\nrole, nobody becomes `owner` (ownership moves only by a transfer) and the owner's membership never changes.\nThe same role again changes nothing. Pending invitations the member can no longer issue are cancelled.\nTakes effect on the member's next request; their session is untouched.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown, ended or other gym's membership.\n\n* `forbidden` - the viewer's role may not make this change (including their own role).\n* `conflict` - the target is the owner (`details.staff_membership: \"owner_requires_transfer\"`).\n* `validation_error` - `role` missing or not one of the three, or any other field.\n* `rate_limited` - 60 staff administration requests per 10 minutes per user.\n",
+        "operationId": "changeGymStaffRole",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "An active staff membership of this gym.",
+            "in": "path",
+            "name": "staff_membership_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymStaffRoleChangeRequest"
+              }
+            }
+          },
+          "description": "The new role",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymStaffMemberResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change a staff member's role",
+        "tags": [
+          "Gym staff"
         ]
       }
     },
@@ -8920,6 +10140,426 @@
         ]
       }
     },
+    "/api/v1/me/staff-invitations": {
+      "get": {
+        "callbacks": {},
+        "description": "The staff invitations sent to any email address the viewer verified with a code, newest first, with the\ngym's name, the role, the inviter's first name and the effective status. Matched on the server from the\nsession's user: no address or user id is accepted, and a Google or Apple sign-in without an email identity\nhas an empty inbox. Reading changes nothing. Answer with `acceptMyStaffInvitation` or\n`declineMyStaffInvitation` (no token is needed or shown).\n\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyStaffInvitations",
+        "parameters": [
+          {
+            "description": "Only invitations with this effective status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "accepted",
+                "declined",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same `status`).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyStaffInvitationList"
+                }
+              }
+            },
+            "description": "One page of invitations"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Staff invitations sent to me",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/me/staff-invitations/accept": {
+      "post": {
+        "callbacks": {},
+        "description": "The explicit acceptance on the web page of an E06 link, with its token in the body. Holding the token is not\nenough. The viewer must be signed in with the invited address (an email identity they verified with a code; a Google\nor Apple sign-in alone does not count: add and verify the address first with `requestEmailIdentityLink`) and\nhave completed account registration. Nothing else is needed: no Coach or Fighter profile is required,\ncreated or changed, and no Coach–Fighter relationship is created. One transaction re-checks the session, the\ninvitation and the gym, creates the active staff membership with the invited role, consumes the invitation\nand records the audit events; nothing changes if any step fails. The gym then appears among the viewer's gym\nworkspaces; the current context is not switched. Repeating a successful acceptance returns the same\nmembership (`outcome: already_accepted`).\n\n\n* `invitation_unavailable` (410) - not a current pending token (unknown, resent, used, declined, cancelled\n  or expired: one answer for all).\n* `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.\n* `validation_error` - `account_registration` `required` (acceptance only).\n* `conflict` - the viewer is already active staff of this gym (`details.staff_membership: \"already_active\"`);\n  the invitation stays pending.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n\n",
+        "operationId": "acceptStaffInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E06 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffInvitationAcceptResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Accept a staff invitation link",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/me/staff-invitations/decline": {
+      "post": {
+        "callbacks": {},
+        "description": "Declines on the web page of an E06 link, with its token in the body, for the signed-in recipient. Creates\nnothing.\n\n* `invitation_unavailable` (410) - not a current pending token.\n* `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "declineStaffInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E06 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The declined invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Decline a staff invitation link",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/me/staff-invitations/{invitation_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One invitation from the viewer's inbox, in any status (so a client can say it expired, was cancelled or was\nalready accepted). Reading changes nothing.\n\n* `not_found` - an unknown id, or an invitation not sent to one of the viewer's verified addresses.\n",
+        "operationId": "getMyStaffInvitation",
+        "parameters": [
+          {
+            "description": "An invitation from the viewer's inbox.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One staff invitation sent to me",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/me/staff-invitations/{invitation_id}/accept": {
+      "post": {
+        "callbacks": {},
+        "description": "The explicit acceptance of an invitation from the inbox, by id (no body). The viewer must be signed in with the invited address (an email identity they verified with a code; a Google\nor Apple sign-in alone does not count: add and verify the address first with `requestEmailIdentityLink`) and\nhave completed account registration. Nothing else is needed: no Coach or Fighter profile is required,\ncreated or changed, and no Coach–Fighter relationship is created. One transaction re-checks the session, the\ninvitation and the gym, creates the active staff membership with the invited role, consumes the invitation\nand records the audit events; nothing changes if any step fails. The gym then appears among the viewer's gym\nworkspaces; the current context is not switched. Repeating a successful acceptance returns the same\nmembership (`outcome: already_accepted`).\n\n\n* `not_found` - an unknown id, or an invitation not sent to one of the viewer's verified addresses.\n* `invitation_unavailable` (410) - expired, cancelled, declined, or accepted by someone else.\n* `validation_error` - `account_registration` `required` (acceptance only).\n* `conflict` - the viewer is already active staff of this gym (`details.staff_membership: \"already_active\"`);\n  the invitation stays pending.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n\n",
+        "operationId": "acceptMyStaffInvitation",
+        "parameters": [
+          {
+            "description": "An invitation from the viewer's inbox.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffInvitationAcceptResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Accept a staff invitation from my inbox",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/me/staff-invitations/{invitation_id}/decline": {
+      "post": {
+        "callbacks": {},
+        "description": "Declines an invitation from the inbox, by id (no body). Creates nothing; a repeat returns the same answer.\n\n* `not_found` - an unknown id, or an invitation not sent to one of the viewer's verified addresses.\n* `invitation_unavailable` (410) - expired, cancelled or accepted.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "declineMyStaffInvitation",
+        "parameters": [
+          {
+            "description": "An invitation from the viewer's inbox.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The declined invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Decline a staff invitation from my inbox",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
     "/api/v1/me/training-sessions": {
       "get": {
         "callbacks": {},
@@ -9133,6 +10773,66 @@
           "Training"
         ]
       }
+    },
+    "/api/v1/staff-invitations/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "No sign-in needed: the gym's name, the role, the inviter's first name and role, and the expiry. Reveals\nnothing about the recipient, the address or any account, and changes nothing. Every token that is not a\ncurrent pending one answers the same `410 invitation_unavailable`.\n\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "previewStaffInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E06 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffInvitationPreviewResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "What a staff invitation link shows",
+        "tags": [
+          "Gym staff"
+        ]
+      }
     }
   },
   "security": [],
@@ -9179,6 +10879,10 @@
     {
       "description": "Gyms (the tenant) and the viewer's staff memberships; every gym-scoped path names the gym (ADR 0026).",
       "name": "Gyms"
+    },
+    {
+      "description": "A gym's staff roster, role changes and staff invitations, and the recipient's own invitations (ADR 0026, SF-93). Separate from Coach–Fighter invitations.",
+      "name": "Gym staff"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

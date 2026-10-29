@@ -22,7 +22,8 @@ defmodule SimpleFitWeb.Schemas.GymChecklistItem do
           enum: Enum.map(FirstRun.checklist_keys(), &Atom.to_string/1),
           description: """
           Stable step keys, in display order: `create_gym` (name, type and primary location, completed with the
-          setup), `add_class`, `invite_staff`, `invite_members`, `first_check_in`.
+          setup), `add_class`, `invite_staff` (available at a completed gym, completed once a staff invitation
+          was accepted, SF-93; sending one is not enough), `invite_members`, `first_check_in`.
           """
         },
         status: %Schema{
@@ -92,7 +93,7 @@ defmodule SimpleFitWeb.Schemas.GymFirstRun do
         checklist: [
           %{key: "create_gym", status: "completed"},
           %{key: "add_class", status: "coming_later"},
-          %{key: "invite_staff", status: "coming_later"},
+          %{key: "invite_staff", status: "available"},
           %{key: "invite_members", status: "coming_later"},
           %{key: "first_check_in", status: "coming_later"}
         ]

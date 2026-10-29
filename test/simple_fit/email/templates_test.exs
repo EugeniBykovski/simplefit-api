@@ -138,10 +138,11 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert Map.keys(@footer_of) |> Enum.sort() ==
                implemented |> Enum.map(& &1.template) |> Enum.sort()
 
-      # SF-21 wires the triggers of E01 and E17; every other trigger is deferred.
+      # SF-21 wires the triggers of E01 and E17, SF-93 the trigger of E06;
+      # every other trigger is deferred.
       for entry <- implemented do
         expected =
-          if entry.id in ["E01", "E17"],
+          if entry.id in ["E01", "E06", "E17"],
             do: "IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE",
             else: "IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED"
 
@@ -486,6 +487,16 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert r.text =~ "Yauheni B. (owner) invited you as Front desk at the Praga location."
       assert r.text =~ "- Log incidents for the owner"
       assert r.text =~ "The invitation expires on Oct 10."
+    end
+
+    test "E06 without an invitee name or location (as SF-93 sends it)" do
+      {:ok, %Rendered{} = r} = render(:staff_invite, %{invitee_name: nil, location: nil})
+
+      assert r.preheader == "Join the team as Front desk."
+      assert r.html =~ "You’re invited to the team.</h1>"
+      refute r.html =~ "Hi "
+      assert r.text =~ "Yauheni B. (owner) invited you as Front desk."
+      refute r.text =~ "location"
     end
 
     test "E07 member invite with a presentation-only opt-out URL" do

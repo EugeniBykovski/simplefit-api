@@ -24,6 +24,7 @@ defmodule SimpleFit.Gyms.Policy do
   @type permission ::
           :view_workspace
           | :view_staff
+          | :view_staff_records
           | :edit_gym
           | :manage_locations
           | :complete_setup
@@ -63,6 +64,9 @@ defmodule SimpleFit.Gyms.Policy do
   @matrix %{
     view_workspace: @staff,
     view_staff: @staff,
+    # SF-93: the gym's staff invitations (with masked addresses) and ended
+    # memberships are the administrators' (who invite and remove staff).
+    view_staff_records: @admins,
     edit_gym: @admins,
     manage_locations: @admins,
     complete_setup: @owner,

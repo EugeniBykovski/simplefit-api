@@ -365,6 +365,35 @@ defmodule SimpleFit.Accounts.Sessions do
     end
   end
 
+  @doc """
+  Inside the caller's transaction, holds the user's session still active
+  until the transaction ends: `:ok`, or `{:error, :unauthorized}` when it was
+  revoked, expired or is not the user's. The user row is locked first
+  (`FOR KEY SHARE`), then the session (`FOR SHARE`), the order in which a
+  user deletion locks them; a logout or refresh reuse (which update the
+  session row) commits before, and this answers `:unauthorized`, or waits
+  for the caller (SF-93: a staff invitation acceptance commits only on a
+  session that is active when it commits).
+  """
+  @spec hold_active(Ecto.UUID.t(), Ecto.UUID.t()) :: :ok | {:error, :unauthorized}
+  def hold_active(user_id, session_id) when is_binary(user_id) and is_binary(session_id) do
+    true = Repo.in_transaction?()
+
+    with %User{} <- Repo.one(from(u in User, where: u.id == ^user_id, lock: "FOR KEY SHARE")),
+         %Session{} = session <-
+           Repo.one(
+             from(s in Session,
+               where: s.id == ^session_id and s.user_id == ^user_id,
+               lock: "FOR SHARE"
+             )
+           ),
+         true <- active?(session, now()) do
+      :ok
+    else
+      _ -> {:error, :unauthorized}
+    end
+  end
+
   @doc "Revokes a session (idempotent: an already revoked session keeps its first reason)."
   @spec revoke_session(Ecto.UUID.t(), Session.revoked_reason()) :: :ok
   def revoke_session(session_id, reason) when reason in [:logout, :refresh_reuse] do
