@@ -17,7 +17,14 @@ defmodule SimpleFit.GymFirstRunTest do
   alias SimpleFit.{Entry, Gyms}
   alias SimpleFit.Gyms.{AuditEvent, Gym, GymFirstRun, StaffMembership}
 
-  @future [:add_class, :invite_staff, :invite_members, :first_check_in]
+  @future [:add_class, :invite_members, :first_check_in]
+
+  # A completed gym with no accepted staff invitation (SF-93): inviting staff
+  # is available, every other future item is coming later.
+  @fresh Map.new([
+           {:create_gym, :completed},
+           {:invite_staff, :available} | Enum.map(@future, &{&1, :coming_later})
+         ])
 
   defp completed_with_owner do
     owner = registered!("first-run")
@@ -50,8 +57,7 @@ defmodule SimpleFit.GymFirstRunTest do
       assert Enum.map(state.checklist, & &1.key) ==
                [:create_gym, :add_class, :invite_staff, :invite_members, :first_check_in]
 
-      assert statuses(state.checklist) ==
-               Map.new([{:create_gym, :completed} | Enum.map(@future, &{&1, :coming_later})])
+      assert statuses(state.checklist) == @fresh
 
       assert rows(gym.id) == []
       assert first_run_events(gym.id) == []
@@ -64,6 +70,7 @@ defmodule SimpleFit.GymFirstRunTest do
       assert {:ok, state} = Gyms.get_first_run(owner, draft.id)
       assert state.status == :unavailable
       assert statuses(state.checklist).create_gym == :available
+      assert statuses(state.checklist).invite_staff == :coming_later
       assert Enum.all?(@future, &(statuses(state.checklist)[&1] == :coming_later))
     end
 
@@ -124,8 +131,7 @@ defmodule SimpleFit.GymFirstRunTest do
 
       # The gym itself (setup, revision) is untouched, and so is the checklist.
       assert Repo.get!(Gym, gym.id) == before
-      assert statuses(state.checklist).create_gym == :completed
-      assert Enum.all?(@future, &(statuses(state.checklist)[&1] == :coming_later))
+      assert statuses(state.checklist) == @fresh
     end
 
     test "finishing without a recorded start counts as started at that moment" do
@@ -147,8 +153,7 @@ defmodule SimpleFit.GymFirstRunTest do
       assert complete(owner, gym.id) == {:error, {:conflict, %{first_run: "dismissed"}}}
       assert start(owner, gym.id) == {:error, {:conflict, %{first_run: "dismissed"}}}
 
-      assert statuses(state.checklist) ==
-               Map.new([{:create_gym, :completed} | Enum.map(@future, &{&1, :coming_later})])
+      assert statuses(state.checklist) == @fresh
 
       assert [%AuditEvent{event_type: :first_run_dismissed}] = first_run_events(gym.id)
     end

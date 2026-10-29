@@ -2,20 +2,24 @@ defmodule SimpleFit.Email.Templates.StaffInvite do
   @moduledoc """
   E06 · Staff invitation (`project/EmailStaffInvite.dc.html`, ADR 0011).
 
-  Sent when a gym owner invites someone to the gym team. The trigger is
-  deferred: no gym workspace, staff role, location or invitation domain
-  exists yet. The renderer only accepts presentation data; it creates no
-  invitation and no token.
+  Sent when a gym's owner or a manager invites someone to the gym team
+  (SF-93, `SimpleFit.Gyms`). The renderer only accepts presentation data; it
+  creates no invitation and no token.
 
-  Variables (all required):
+  SF-93 sends it without `:invitee_name` and `:location`: a staff invitation
+  is addressed to an email, not to a named person, and assigns no location
+  (ADR 0026: the home location is the staff member's later choice, OS3). The
+  artboard's greeting and location line appear only when they are given.
 
-    * `:invitee_name` - 1..80
+  Variables (required unless marked optional):
+
+    * `:invitee_name` - optional, 1..80
     * `:inviter_name` - inviter as named in the subject ("Yauheni"), 1..80
     * `:inviter_display_name` - inviter as named in the body ("Yauheni B."), 1..80
     * `:inviter_role` - the inviter's role ("owner"), 1..40
     * `:gym_name` - 1..80
     * `:role` - the offered role ("Front desk"), 1..40
-    * `:location` - the location ("Praga"), 1..60
+    * `:location` - optional, the location ("Praga"), 1..60
     * `:permissions` - 1..8 lines of what the role can do, each 1..80
     * `:accept_url` - absolute https URL; any credential in it belongs to
       the sending domain
@@ -39,23 +43,23 @@ defmodule SimpleFit.Email.Templates.StaffInvite do
 
   @spec render(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
   def render(attrs) do
-    with {:ok, data} <- Input.validate(attrs, @types, &checks/1) do
+    with {:ok, data} <- Input.validate(attrs, @types, &checks/1, [:invitee_name, :location]) do
       frame = %{
         subject: "#{data.inviter_name} invited you to #{data.gym_name}",
-        preheader: "Join the team as #{data.role} · #{data.location}.",
+        preheader: "Join the team as #{data.role}#{location_suffix(data)}.",
         tag: "INVITATION",
         footer: :invitation
       }
 
       blocks = [
         {:identity, nil, "TEAM INVITATION", data.gym_name, nil},
-        {:heading, "Hi #{data.invitee_name}, you’re invited to the team.", 24},
+        {:heading, greeting(data), 24},
         {:paragraph,
          [
            {:strong, data.inviter_display_name},
            " (#{data.inviter_role}) invited you as ",
            {:strong, data.role},
-           " at the #{data.location} location."
+           at_location(data)
          ]},
         {:panel, [{:label, "YOU’LL BE ABLE TO"}, {:bullets, data.permissions, :olive}]},
         {:button, "Accept invitation", data.accept_url, :dark},
@@ -70,6 +74,15 @@ defmodule SimpleFit.Email.Templates.StaffInvite do
       Layout.render(:staff_invite, frame, blocks)
     end
   end
+
+  defp greeting(%{invitee_name: name}), do: "Hi #{name}, you’re invited to the team."
+  defp greeting(_data), do: "You’re invited to the team."
+
+  defp location_suffix(%{location: location}), do: " · #{location}"
+  defp location_suffix(_data), do: ""
+
+  defp at_location(%{location: location}), do: " at the #{location} location."
+  defp at_location(_data), do: "."
 
   defp checks(changeset) do
     changeset

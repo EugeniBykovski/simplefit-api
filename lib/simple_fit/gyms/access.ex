@@ -101,6 +101,18 @@ defmodule SimpleFit.Gyms.Access do
     end
   end
 
+  @doc """
+  Locks a gym row (`FOR UPDATE`) inside the caller's transaction, without
+  any membership: for a recipient answering a staff invitation (SF-93), who
+  is not staff yet. Every staff write takes the gym row first, so an
+  acceptance serializes with revocations, role changes and transfers.
+  """
+  @spec lock_gym!(Ecto.UUID.t()) :: Gym.t() | nil
+  def lock_gym!(gym_id) do
+    true = Repo.in_transaction?()
+    lock_gym(gym_id)
+  end
+
   @doc "Locks an active membership of `gym_id` by its id (`nil` if none)."
   @spec lock_staff_membership(Ecto.UUID.t(), term()) :: StaffMembership.t() | nil
   def lock_staff_membership(gym_id, membership_id) do

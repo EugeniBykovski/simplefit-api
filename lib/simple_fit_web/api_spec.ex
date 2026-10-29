@@ -91,6 +91,12 @@ defmodule SimpleFitWeb.ApiSpec do
             "Gyms (the tenant) and the viewer's staff memberships; every gym-scoped path names the gym (ADR 0026)."
         },
         %Tag{
+          name: "Gym staff",
+          description:
+            "A gym's staff roster, role changes and staff invitations, and the recipient's own invitations " <>
+              "(ADR 0026, SF-93). Separate from Coach–Fighter invitations."
+        },
+        %Tag{
           name: "Legal",
           description: "Published legal documents (versioned, per language; ADR 0022)."
         },
