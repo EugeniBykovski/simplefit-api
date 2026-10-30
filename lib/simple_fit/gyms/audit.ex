@@ -11,7 +11,8 @@ defmodule SimpleFit.Gyms.Audit do
   @doc """
   Records one event. `attrs`: `gym_id`, `actor_user_id`, `event_type` and,
   as the event needs, `staff_membership_id`, `staff_invitation_id`,
-  `from_role`, `to_role`, `reason`. Must run inside a transaction.
+  `gym_member_id`, `member_invitation_id`, `from_role`, `to_role`, `reason`,
+  `enabled`. Must run inside a transaction.
   """
   @spec record!(map(), DateTime.t()) :: :ok
   def record!(attrs, occurred_at) when is_map(attrs) do

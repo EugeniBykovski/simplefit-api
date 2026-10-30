@@ -54,8 +54,9 @@ unsubscribe/preferences workflow.
 * A record line the sending domain must phrase (e.g. "175 · tomorrow
   10:00", "Nov 1 · €79 · Visa •• 4242") is a validated one-line display
   string; full card numbers or other secrets never belong in one.
-* Opt-out (E07), Email preferences and Unsubscribe (E02, E12) links are
-  validated URLs supplied by the sender. No preference, unsubscribe or
+* Email preferences and Unsubscribe (E02, E12) links are validated URLs
+  supplied by the sender (E07's opt-out link was removed by SF-95: no
+  opt-out flow exists). No preference, unsubscribe or
   opt-out system exists, and no `List-Unsubscribe` header is sent.
 * User-written text (E08's coach note) is plain text: one paragraph, at
   most 500 characters, escaped like every other value.
@@ -178,7 +179,7 @@ deferred.
 | E04 | Finish gym setup | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future gym onboarding |
 | E05 | Your gym is live | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future gym publishing |
 | E06 | Staff invitation | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future gym staff |
-| E07 | Member invite from gym | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future membership import |
+| E07 | Member invite from gym | IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE | SF-95 member invitations (C15 copy) |
 | E08 | Coach invited you | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future coaching |
 | E09 | Join request approved | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | future membership |
 | E10 | New sign-in alert | IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED | SF-28 / security (expected) |
@@ -234,8 +235,8 @@ These do not block rendering; their owners decide them.
 * **E02:** "weight and RPE never leave your phone" may conflict with the
   coach-visible metrics a fighter shares with consent (E08); the
   fighter/coach domain reconciles it.
-* **E07:** the privacy note says the gym shared name, email and plan; the
-  membership/import domain confirms what an import really shares.
+* **E07:** resolved by SF-95 with the C15/R10 copy: the gym used the email
+  address to invite; no name, plan or payment is shared or shown.
 * **E01:** resolved by SF-21: the code and the link both answer the same
   verification challenge (ADR 0012).
 * **E11/E16 lifetimes:** displayed values are presentation data; SF-28

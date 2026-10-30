@@ -38,6 +38,7 @@ defmodule SimpleFit.Gyms.Policy do
           | :transfer_ownership
           | :close_gym
           | :manage_member_enrollment
+          | :manage_enrollment_settings
           | :view_members
           | :view_member_contact
           | :change_member_status
@@ -83,7 +84,12 @@ defmodule SimpleFit.Gyms.Policy do
     leave_gym: %{manager: :all, coach: :all, front_desk: :all},
     transfer_ownership: @owner,
     close_gym: @owner,
+    # SF-95: invite members, read and answer join requests, show the join
+    # code at the desk, preview a member list.
     manage_member_enrollment: %{owner: :all, manager: :all, front_desk: :all},
+    # SF-95: rotate or disable the join code and switch auto-approval (an
+    # enrollment policy of the gym, SF-82 11: owner and manager).
+    manage_enrollment_settings: @admins,
     view_members: %{owner: :all, manager: :all, coach: :own_classes, front_desk: :all},
     view_member_contact: %{owner: :all, manager: :all, front_desk: :at_check_in},
     change_member_status: @admins,

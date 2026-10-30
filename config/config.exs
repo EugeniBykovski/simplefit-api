@@ -195,7 +195,10 @@ config :phoenix, :filter_parameters, [
   # "token".
   "id_token",
   # The raw Sign in with Apple nonce (ADR 0014).
-  "nonce"
+  "nonce",
+  # SF-95: a member list's raw CSV text ("code" above covers join codes,
+  # "token" member invitation tokens).
+  "csv"
 ]
 
 # Import environment specific config. This must remain at the bottom

@@ -222,24 +222,26 @@ defmodule SimpleFit.Email.Templates.Inventory do
              %{
                id: "E07",
                name: "Member invite from gym",
-               trigger: "Gym imports its members (artboard links A03)",
-               subject: "{gym_name} is now on SimpleFit",
-               preheader: "Claim your {plan} membership — book and check in from your phone.",
-               required_variables: ["member_name", "gym_name", "plan", "claim_url", "opt_out_url"],
-               optional_variables: ["active_until", "home_location"],
+               trigger:
+                 "Gym owner, manager or front desk invites an email address to become a member (SF-95; artboard links A03; link <web app>/invite/gym#token=…); resend rotates the link",
+               subject: "{gym_name} invited you to join on SimpleFit",
+               preheader: "Accept with this email address — nothing changes until you do.",
+               required_variables: ["gym_name", "accept_url", "expires_on"],
+               optional_variables: ["member_name", "home_location"],
                conditional_blocks: [
-                 "Active until row (active_until)",
-                 "Home location row (home_location)"
+                 "Greeting with the invitee's name (member_name; SF-95 sends none)",
+                 "Home location row (home_location; SF-95 sends none: no home location is assigned)"
                ],
-               primary_cta: "Claim my membership → claim_url",
-               fallback_url:
-                 "The plain-text part carries both URLs; the opt-out URL is presentation data (no opt-out flow exists)",
+               primary_cta: "Accept invitation → accept_url",
+               fallback_url: @plain_text_fallback,
                artboard: "project/EmailMemberInvite.dc.html",
                template: :member_invite,
                module: SimpleFit.Email.Templates.MemberInvite,
-               trigger_owner: "Future membership import ticket (not yet created)",
+               trigger_owner:
+                 "SF-95 (copy correction C15 / R10; interim until the corrected artboard is published)",
+               trigger_status: :available,
                deferred: [
-                 "The privacy note says the gym shared name, email and plan; the future membership/import domain must confirm what an import really shares."
+                 "C15's “book classes and check in” waits for the class and check-in domains; no opt-out link until an opt-out flow exists (CSV import, which would need one, is blocked: D-G08, T15)."
                ]
              },
              %{

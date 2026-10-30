@@ -181,6 +181,47 @@ defmodule SimpleFitWeb.Router do
          StaffInvitationResponseController,
          :decline_by_id
 
+    # SF-95: gym members (participants), enrollment and member invitations.
+    get "/gyms/:gym_id/members", GymMemberController, :index
+    get "/gyms/:gym_id/members/:gym_member_id", GymMemberController, :show
+    post "/gyms/:gym_id/members/:gym_member_id/remove", GymMemberController, :remove
+    get "/gyms/:gym_id/join-requests", GymMemberController, :requests
+    post "/gyms/:gym_id/join-requests/:gym_member_id/approve", GymMemberController, :approve
+    post "/gyms/:gym_id/join-requests/:gym_member_id/reject", GymMemberController, :reject
+    get "/gyms/:gym_id/enrollment", GymMemberController, :enrollment
+    patch "/gyms/:gym_id/enrollment", GymMemberController, :update_enrollment
+    post "/gyms/:gym_id/join-code/rotate", GymMemberController, :rotate_code
+    post "/gyms/:gym_id/join-code/disable", GymMemberController, :disable_code
+    post "/gyms/:gym_id/member-imports/preview", GymMemberController, :import_preview
+    get "/gyms/:gym_id/member-invitations", GymMemberInvitationController, :index
+    post "/gyms/:gym_id/member-invitations", GymMemberInvitationController, :create
+
+    post "/gyms/:gym_id/member-invitations/:invitation_id/resend",
+         GymMemberInvitationController,
+         :resend
+
+    post "/gyms/:gym_id/member-invitations/:invitation_id/cancel",
+         GymMemberInvitationController,
+         :cancel
+
+    get "/me/gym-memberships", MyGymMembershipController, :index
+    post "/me/gym-memberships/join", MyGymMembershipController, :join
+    get "/me/gym-memberships/:gym_member_id", MyGymMembershipController, :show
+    post "/me/gym-memberships/:gym_member_id/cancel", MyGymMembershipController, :cancel
+    post "/me/gym-memberships/:gym_member_id/leave", MyGymMembershipController, :leave
+    get "/me/gym-invitations", GymInvitationResponseController, :index
+    post "/me/gym-invitations/accept", GymInvitationResponseController, :accept_by_token
+    post "/me/gym-invitations/decline", GymInvitationResponseController, :decline_by_token
+    get "/me/gym-invitations/:invitation_id", GymInvitationResponseController, :show
+
+    post "/me/gym-invitations/:invitation_id/accept",
+         GymInvitationResponseController,
+         :accept_by_id
+
+    post "/me/gym-invitations/:invitation_id/decline",
+         GymInvitationResponseController,
+         :decline_by_id
+
     get "/me/training-sessions", MyTrainingSessionController, :index
     get "/me/training-sessions/:session_id", MyTrainingSessionController, :show
     post "/me/training-sessions/:session_id/complete", MyTrainingSessionController, :complete
@@ -197,6 +238,9 @@ defmodule SimpleFitWeb.Router do
 
     post "/coach-invitations/preview", CoachInvitationResponseController, :preview
     post "/staff-invitations/preview", StaffInvitationResponseController, :preview
+    # SF-95: what an E07 link and a join code show before sign-in.
+    post "/gym-invitations/preview", GymInvitationResponseController, :preview
+    post "/gym-join/preview", MyGymMembershipController, :preview
 
     # SF-72: published legal documents for the public pages (ADR 0022).
     get "/legal-documents/:document_id", LegalDocumentController, :show

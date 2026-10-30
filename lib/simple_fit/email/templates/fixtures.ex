@@ -99,11 +99,9 @@ defmodule SimpleFit.Email.Templates.Fixtures do
     member_invite: %{
       member_name: "Marta",
       gym_name: "Simple Boxing Gym",
-      plan: "Unlimited",
-      active_until: ~D[2026-10-31],
       home_location: "Wola",
-      claim_url: "#{@app}/invite/member?token=FIXTURE-INVITATION-TOKEN",
-      opt_out_url: "#{@app}/invite/member/opt-out?token=FIXTURE-INVITATION-TOKEN"
+      accept_url: "#{@app}/invite/gym#token=FIXTURE-INVITATION-TOKEN",
+      expires_on: ~D[2026-10-31]
     },
     coach_invite: %{
       coach_name: "Yauheni",
@@ -201,7 +199,7 @@ defmodule SimpleFit.Email.Templates.Fixtures do
     },
     member_invite: %{
       "no-home-location" => {[:home_location], %{}},
-      "minimal" => {[:active_until, :home_location], %{}}
+      "minimal" => {[:member_name, :home_location], %{}}
     },
     coach_invite: %{"no-note" => {[:message], %{}}},
     join_approved: %{

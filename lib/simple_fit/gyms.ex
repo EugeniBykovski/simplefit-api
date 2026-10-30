@@ -31,8 +31,10 @@ defmodule SimpleFit.Gyms do
   setup steps, locations and completion (which requires a primary location)
   are SF-85's; entry projection (`GYM_WORKSPACE`) is SF-84's; staff roles,
   coach affiliation and invitations are SF-93's (`SimpleFit.Gyms.Staff`,
-  `SimpleFit.Gyms.StaffInvitations`); participant memberships are later
-  tickets. Ownership transfer exists here as a domain operation only: the
+  `SimpleFit.Gyms.StaffInvitations`); gym members (participants), their
+  enrollment, member invitations and the member-list dry run are SF-95's
+  (`SimpleFit.Gyms.Members`, `SimpleFit.Gyms.MemberInvitations`,
+  `SimpleFit.Gyms.MemberImport`). Ownership transfer exists here as a domain operation only: the
   transfer request and acceptance (D-G04) need a dedicated backend ticket.
   """
 
@@ -47,6 +49,9 @@ defmodule SimpleFit.Gyms do
     FirstRun,
     Gym,
     GymLocation,
+    MemberImport,
+    MemberInvitations,
+    Members,
     Ownership,
     Policy,
     Setup,
@@ -454,6 +459,136 @@ defmodule SimpleFit.Gyms do
   defdelegate decline_staff_invitation(user, locator, client_ip),
     to: StaffInvitations,
     as: :decline
+
+  ## Members (SF-95)
+
+  @doc "The gym's members (see `SimpleFit.Gyms.Members.list/3`)."
+  @spec list_members(User.t(), term(), map()) :: {:ok, Members.page()} | {:error, Members.error()}
+  defdelegate list_members(user, gym_id, params), to: Members, as: :list
+
+  @doc "One membership of the gym (see `SimpleFit.Gyms.Members.get/3`)."
+  @spec get_member(User.t(), term(), term()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate get_member(user, gym_id, member_id), to: Members, as: :get
+
+  @doc "Ends a membership as the gym (see `SimpleFit.Gyms.Members.remove/3`)."
+  @spec remove_member(User.t(), term(), term()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate remove_member(user, gym_id, member_id), to: Members, as: :remove
+
+  @doc "The gym's pending join requests (see `SimpleFit.Gyms.Members.list_requests/3`)."
+  @spec list_join_requests(User.t(), term(), map()) ::
+          {:ok, Members.page()} | {:error, Members.error()}
+  defdelegate list_join_requests(user, gym_id, params), to: Members, as: :list_requests
+
+  @doc "Approves a join request (see `SimpleFit.Gyms.Members.approve/3`)."
+  @spec approve_join_request(User.t(), term(), term()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate approve_join_request(user, gym_id, member_id), to: Members, as: :approve
+
+  @doc "Rejects a join request (see `SimpleFit.Gyms.Members.reject/3`)."
+  @spec reject_join_request(User.t(), term(), term()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate reject_join_request(user, gym_id, member_id), to: Members, as: :reject
+
+  @doc "The gym's enrollment settings (see `SimpleFit.Gyms.Members.get_settings/2`)."
+  @spec get_enrollment_settings(User.t(), term()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate get_enrollment_settings(user, gym_id), to: Members, as: :get_settings
+
+  @doc "Changes auto-approval (see `SimpleFit.Gyms.Members.update_settings/3`)."
+  @spec update_enrollment_settings(User.t(), term(), map()) ::
+          {:ok, map()} | {:error, Members.error()}
+  defdelegate update_enrollment_settings(user, gym_id, attrs), to: Members, as: :update_settings
+
+  @doc "Issues a new join code (see `SimpleFit.Gyms.Members.rotate_join_code/2`)."
+  @spec rotate_join_code(User.t(), term()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate rotate_join_code(user, gym_id), to: Members
+
+  @doc "Disables joining by code (see `SimpleFit.Gyms.Members.disable_join_code/2`)."
+  @spec disable_join_code(User.t(), term()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate disable_join_code(user, gym_id), to: Members
+
+  @doc "The caller's own gym memberships (see `SimpleFit.Gyms.Members.list_mine/2`)."
+  @spec list_my_gym_memberships(User.t(), map()) ::
+          {:ok, Members.page()} | {:error, Members.error()}
+  defdelegate list_my_gym_memberships(user, params), to: Members, as: :list_mine
+
+  @doc "One of the caller's own gym memberships."
+  @spec get_my_gym_membership(User.t(), term()) :: {:ok, map()} | {:error, :not_found}
+  defdelegate get_my_gym_membership(user, member_id), to: Members, as: :get_mine
+
+  @doc "What a join code shows (see `SimpleFit.Gyms.Members.preview_join/2`)."
+  @spec preview_gym_join(term(), String.t()) :: {:ok, map()} | {:error, Members.error()}
+  defdelegate preview_gym_join(code, client_ip), to: Members, as: :preview_join
+
+  @doc "Joins a gym by code (see `SimpleFit.Gyms.Members.join/4`)."
+  @spec join_gym(User.t(), Session.t(), term(), String.t()) ::
+          {:ok, map(), :created | :existing} | {:error, Members.error()}
+  defdelegate join_gym(user, session, code, client_ip), to: Members, as: :join
+
+  @doc "Cancels the caller's own join request."
+  @spec cancel_gym_join_request(User.t(), Session.t(), term()) ::
+          {:ok, map()} | {:error, Members.error()}
+  defdelegate cancel_gym_join_request(user, session, member_id), to: Members, as: :cancel_request
+
+  @doc "Leaves a gym (the caller's own active membership)."
+  @spec leave_gym_membership(User.t(), Session.t(), term()) ::
+          {:ok, map()} | {:error, Members.error()}
+  defdelegate leave_gym_membership(user, session, member_id), to: Members, as: :leave
+
+  @doc "Invites an address to become a member (see `SimpleFit.Gyms.MemberInvitations.create/4`)."
+  @spec create_member_invitation(User.t(), term(), map(), String.t()) ::
+          {:ok, map(), :created | :existing} | {:error, MemberInvitations.error()}
+  defdelegate create_member_invitation(user, gym_id, attrs, client_ip),
+    to: MemberInvitations,
+    as: :create
+
+  @doc "The gym's member invitations."
+  @spec list_member_invitations(User.t(), term(), map()) ::
+          {:ok, MemberInvitations.page()} | {:error, MemberInvitations.error()}
+  defdelegate list_member_invitations(user, gym_id, params), to: MemberInvitations, as: :list
+
+  @doc "Sends a member invitation again."
+  @spec resend_member_invitation(User.t(), term(), term()) ::
+          {:ok, map()} | {:error, MemberInvitations.error()}
+  defdelegate resend_member_invitation(user, gym_id, invitation_id),
+    to: MemberInvitations,
+    as: :resend
+
+  @doc "Cancels a member invitation."
+  @spec cancel_member_invitation(User.t(), term(), term()) ::
+          {:ok, map()} | {:error, MemberInvitations.error()}
+  defdelegate cancel_member_invitation(user, gym_id, invitation_id),
+    to: MemberInvitations,
+    as: :cancel
+
+  @doc "The member invitations sent to the user's verified addresses (inbox)."
+  @spec list_my_member_invitations(User.t(), map()) ::
+          {:ok, MemberInvitations.page()} | {:error, MemberInvitations.error()}
+  defdelegate list_my_member_invitations(user, params), to: MemberInvitations, as: :list_mine
+
+  @doc "One member invitation sent to the user's verified addresses."
+  @spec get_my_member_invitation(User.t(), term()) :: {:ok, map()} | {:error, :not_found}
+  defdelegate get_my_member_invitation(user, invitation_id), to: MemberInvitations, as: :get_mine
+
+  @doc "What an E07 token shows before sign-in."
+  @spec preview_member_invitation(term(), String.t()) ::
+          {:ok, map()} | {:error, MemberInvitations.error()}
+  defdelegate preview_member_invitation(token, client_ip), to: MemberInvitations, as: :preview
+
+  @doc "The recipient's explicit acceptance of a member invitation."
+  @spec accept_member_invitation(User.t(), Session.t(), {:token | :id, term()}, String.t()) ::
+          {:ok, map()} | {:error, MemberInvitations.error()}
+  defdelegate accept_member_invitation(user, session, locator, client_ip),
+    to: MemberInvitations,
+    as: :accept
+
+  @doc "The recipient declines a member invitation."
+  @spec decline_member_invitation(User.t(), {:token | :id, term()}, String.t()) ::
+          {:ok, map()} | {:error, MemberInvitations.error()}
+  defdelegate decline_member_invitation(user, locator, client_ip),
+    to: MemberInvitations,
+    as: :decline
+
+  @doc "A dry-run preview of a member list (see `SimpleFit.Gyms.MemberImport`)."
+  @spec preview_member_import(User.t(), term(), map()) :: {:ok, map()} | {:error, term()}
+  defdelegate preview_member_import(user, gym_id, attrs), to: MemberImport, as: :preview
 
   ## Account deletion
 

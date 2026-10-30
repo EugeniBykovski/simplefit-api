@@ -57,17 +57,17 @@ defmodule SimpleFit.Gyms.InvitationSecrets do
   @doc "The recipient digest of a canonical email address."
   @spec recipient_digest(String.t()) :: binary()
   def recipient_digest(address) when is_binary(address),
-    do: :crypto.mac(:hmac, :sha256, key(@recipient_salt), address)
+    do: :crypto.mac(:hmac, :sha256, derive_key(@recipient_salt), address)
 
   @doc "Encrypts a canonical recipient address for storage."
   @spec seal(String.t()) :: String.t()
   def seal(address) when is_binary(address),
-    do: Plug.Crypto.encrypt(key(@sealed_salt), @sealed_salt, address, max_age: :infinity)
+    do: Plug.Crypto.encrypt(derive_key(@sealed_salt), @sealed_salt, address, max_age: :infinity)
 
   @doc "Decrypts a sealed recipient address."
   @spec open(String.t()) :: {:ok, String.t()} | :error
   def open(sealed) when is_binary(sealed) do
-    case Plug.Crypto.decrypt(key(@sealed_salt), @sealed_salt, sealed, max_age: :infinity) do
+    case Plug.Crypto.decrypt(derive_key(@sealed_salt), @sealed_salt, sealed, max_age: :infinity) do
       {:ok, address} when is_binary(address) -> {:ok, address}
       _ -> :error
     end
@@ -76,9 +76,13 @@ defmodule SimpleFit.Gyms.InvitationSecrets do
   @doc "A rate-limit key for `kind` and `value` (nothing personal is stored)."
   @spec rate_limit_key(String.t(), String.t()) :: binary()
   def rate_limit_key(kind, value) when is_binary(kind) and is_binary(value),
-    do: :crypto.mac(:hmac, :sha256, key(@rate_limit_salt), kind <> <<0>> <> value)
+    do: :crypto.mac(:hmac, :sha256, derive_key(@rate_limit_salt), kind <> <<0>> <> value)
 
-  defp key(salt) do
+  @doc false
+  # A 32-byte key for `salt` from the gyms' `secret_key_base` (also used by
+  # `SimpleFit.Gyms.MemberSecrets`, with its own salts).
+  @spec derive_key(String.t()) :: binary()
+  def derive_key(salt) do
     KeyGenerator.generate(secret_key_base(), salt,
       length: 32,
       digest: :sha256,

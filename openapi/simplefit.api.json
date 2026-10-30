@@ -3238,6 +3238,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_enrollment_settings",
                     "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
@@ -3365,6 +3366,73 @@
         "title": "GymCreateRequest",
         "type": "object"
       },
+      "GymEnrollmentSettings": {
+        "additionalProperties": false,
+        "properties": {
+          "auto_approve": {
+            "description": "Whether a join-code request starts active (default `false`). Even when on, a joiner without a completed\naccount and a verified sign-in identity gets a request.\n",
+            "type": "boolean"
+          },
+          "auto_approve_changed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "can_manage": {
+            "description": "Whether the viewer may rotate or disable the code and switch auto-approval.",
+            "type": "boolean"
+          },
+          "join_code": {
+            "description": "The current code (`ABCD-EFGH`); `null` when joining by code is off.",
+            "example": "K7QM-3XRD",
+            "nullable": true,
+            "type": "string"
+          },
+          "join_code_rotated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "join_code",
+          "join_code_rotated_at",
+          "auto_approve",
+          "auto_approve_changed_at",
+          "can_manage"
+        ],
+        "title": "GymEnrollmentSettings",
+        "type": "object"
+      },
+      "GymEnrollmentSettingsResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "enrollment": {
+            "$ref": "#/components/schemas/GymEnrollmentSettings"
+          }
+        },
+        "required": [
+          "enrollment"
+        ],
+        "title": "GymEnrollmentSettingsResponse",
+        "type": "object"
+      },
+      "GymEnrollmentSettingsUpdateRequest": {
+        "description": "Exactly `auto_approve`; any other field is a `422 validation_error`.",
+        "example": {
+          "auto_approve": false
+        },
+        "properties": {
+          "auto_approve": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "auto_approve"
+        ],
+        "title": "GymEnrollmentSettingsUpdateRequest",
+        "type": "object"
+      },
       "GymFirstRun": {
         "additionalProperties": false,
         "description": "The viewer's (the owner's) introduction to one gym, the same on every client, and the gym's checklist.\nIndependent of `setup_status`: neither outcome changes the gym or any checklist item.\n",
@@ -3469,6 +3537,169 @@
         "title": "GymFirstRunTransitionRequest",
         "type": "object"
       },
+      "GymInvitationAcceptResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "gym_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "gym_member_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invitation": {
+            "$ref": "#/components/schemas/MyGymInvitation"
+          },
+          "outcome": {
+            "description": "`already_accepted` when the viewer had accepted it before (a repeated request).",
+            "enum": [
+              "accepted",
+              "already_accepted"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation",
+          "gym_id",
+          "gym_member_id",
+          "outcome"
+        ],
+        "title": "GymInvitationAcceptResponse",
+        "type": "object"
+      },
+      "GymInvitationPreviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "preview": {
+            "additionalProperties": false,
+            "properties": {
+              "expires_at": {
+                "format": "date-time",
+                "nullable": false,
+                "type": "string"
+              },
+              "gym": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "invited_by": {
+                "additionalProperties": false,
+                "description": "Who invited: their first name from their account name and their role at the gym, nothing else.",
+                "properties": {
+                  "first_name": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "role": {
+                    "description": "The fixed gym roles (D-G03): `owner`, `manager`, `coach`, `front_desk`.",
+                    "enum": [
+                      "owner",
+                      "manager",
+                      "coach",
+                      "front_desk",
+                      null
+                    ],
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "first_name",
+                  "role"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "gym",
+              "invited_by",
+              "expires_at"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "preview"
+        ],
+        "title": "GymInvitationPreviewResponse",
+        "type": "object"
+      },
+      "GymInvitationTokenRequest": {
+        "properties": {
+          "token": {
+            "description": "The one-time token from the E07 link fragment (`<web app>/invite/gym#token=…`): `sgm_` and 43 base64url\ncharacters. Send it only in request bodies, never in a URL, a log or app navigation. Any value that is not\na current token answers `410 invitation_unavailable`.\n",
+            "example": "sgm_3q2-7wEXAMPLEonlyEXAMPLEonlyEXAMPLEonlyEXAMPLEo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "GymInvitationTokenRequest",
+        "type": "object"
+      },
+      "GymJoinPreviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "preview": {
+            "additionalProperties": false,
+            "properties": {
+              "gym": {
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "requires_approval": {
+                "description": "Whether joining sends a request the gym approves (`false` only with the gym's explicit auto-approval).",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "gym",
+              "requires_approval"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "preview"
+        ],
+        "title": "GymJoinPreviewResponse",
+        "type": "object"
+      },
+      "GymJoinRequest": {
+        "properties": {
+          "code": {
+            "description": "The gym's join code (8 symbols, shown as `ABCD-EFGH`). Case, spaces and hyphens are ignored; `O`, `I` and\n`L` read as `0`, `1`, `1`.\n",
+            "example": "K7QM-3XRD",
+            "maxLength": 32,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "GymJoinRequest",
+        "type": "object"
+      },
       "GymList": {
         "additionalProperties": false,
         "properties": {
@@ -3531,6 +3762,504 @@
           "name"
         ],
         "title": "GymLocation",
+        "type": "object"
+      },
+      "GymMember": {
+        "additionalProperties": false,
+        "description": "A membership of this gym. Only gym facts and a short name: no email, user id, profile, other gym,\nCoach–Fighter fact or training data (D-G06).\n",
+        "example": {
+          "auto_approved": false,
+          "ended_at": null,
+          "ended_reason": null,
+          "gym_member_id": "5d1c1a3e-2b1d-4a8e-9a54-0d6b2f0c1e70",
+          "joined_at": "2026-10-30T10:00:00Z",
+          "joined_via": "join_code",
+          "name": "Marta K.",
+          "requested_at": "2026-10-30T09:00:00Z",
+          "responded_at": null,
+          "status": "active"
+        },
+        "properties": {
+          "auto_approved": {
+            "description": "Activated by the gym's auto-approval setting rather than by a staff member.",
+            "type": "boolean"
+          },
+          "ended_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_reason": {
+            "description": "`left` (by the member) or `removed` (by an owner or manager); `null` unless ended.",
+            "enum": [
+              "left",
+              "removed",
+              "account_deleted",
+              "gym_closed",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_member_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "joined_at": {
+            "description": "When it became active.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "joined_via": {
+            "description": "`join_code` (a request, possibly auto-approved) or `invitation` (an accepted E07).",
+            "enum": [
+              "join_code",
+              "invitation"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "First name and the initial of the last name (\"Marta K.\"), from the account name; `null` without one.",
+            "nullable": true,
+            "type": "string"
+          },
+          "requested_at": {
+            "description": "When the join request was made (`null` for an invitation).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "responded_at": {
+            "description": "When a request was rejected or cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`requested` (a join-code request waiting for the gym), `active`, `rejected` (by the gym; final),\n`cancelled` (by the requester; final) or `ended` (left or removed; final). Re-enrolling creates a new\nmembership.\n",
+            "enum": [
+              "requested",
+              "active",
+              "ended",
+              "rejected",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "gym_member_id",
+          "status",
+          "joined_via",
+          "auto_approved",
+          "requested_at",
+          "joined_at",
+          "responded_at",
+          "ended_at",
+          "ended_reason"
+        ],
+        "title": "GymMember",
+        "type": "object"
+      },
+      "GymMemberImportPreviewRequest": {
+        "description": "Exactly `csv` and an optional `mapping`; any other field is a `422 validation_error`.",
+        "example": {
+          "csv": "name;email\nMarta Kowalska;marta@example.com\n"
+        },
+        "properties": {
+          "csv": {
+            "description": "The CSV text: UTF-8, header row first, `,`, `;` or tab separated, at most 1 MB, 1,000 data rows, 30\ncolumns and 500 bytes per field. Never stored or logged.\n",
+            "type": "string"
+          },
+          "mapping": {
+            "additionalProperties": false,
+            "description": "Which header column holds each SimpleFit field. Without it, columns are suggested from common headers.\n`email` must end up mapped.\n",
+            "properties": {
+              "email": {
+                "nullable": true,
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "csv"
+        ],
+        "title": "GymMemberImportPreviewRequest",
+        "type": "object"
+      },
+      "GymMemberImportPreviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "preview": {
+            "additionalProperties": false,
+            "properties": {
+              "columns": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "field": {
+                      "enum": [
+                        "email",
+                        "name",
+                        null
+                      ],
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "header": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "description": "Every unmapped column (plan, phone, dates...) is `not_imported`.",
+                      "enum": [
+                        "mapped",
+                        "not_imported"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "header",
+                    "field",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "commit": {
+                "additionalProperties": false,
+                "description": "Whether the list can be committed. Not yet: storing third parties' contacts and inviting them in bulk\nwait for an approved legal basis and retention rule (`blocked_by: legal_basis_pending`).\n",
+                "properties": {
+                  "available": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "blocked_by": {
+                    "enum": [
+                      "legal_basis_pending"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "available",
+                  "blocked_by"
+                ],
+                "type": "object"
+              },
+              "delimiter": {
+                "enum": [
+                  ",",
+                  ";",
+                  "\t"
+                ],
+                "type": "string"
+              },
+              "persisted": {
+                "description": "Always `false`: a dry run stores nothing.",
+                "enum": [
+                  false
+                ],
+                "type": "boolean"
+              },
+              "rows": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "duplicate_of_line": {
+                      "nullable": true,
+                      "type": "integer"
+                    },
+                    "email": {
+                      "description": "The canonical address, masked; `null` when missing or invalid.",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "line": {
+                      "description": "The line where the row starts.",
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "name_present": {
+                      "type": "boolean"
+                    },
+                    "outcome": {
+                      "description": "`ready` (an invitation could be sent), `missing_email`, `invalid_email`, `duplicate` (the same address on\nan earlier line), `already_member` (an active member of this gym), `request_pending` (a pending join\nrequest at this gym), `already_invited` (a pending member invitation of this gym).\n",
+                      "enum": [
+                        "ready",
+                        "missing_email",
+                        "invalid_email",
+                        "duplicate",
+                        "already_member",
+                        "request_pending",
+                        "already_invited"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "line",
+                    "email",
+                    "name_present",
+                    "outcome",
+                    "duplicate_of_line"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "summary": {
+                "additionalProperties": false,
+                "properties": {
+                  "already_invited": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "already_member": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "duplicate": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "invalid_email": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "missing_email": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "ready": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "request_pending": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "total": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "total",
+                  "ready",
+                  "missing_email",
+                  "invalid_email",
+                  "duplicate",
+                  "already_member",
+                  "request_pending",
+                  "already_invited"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "persisted",
+              "commit",
+              "delimiter",
+              "columns",
+              "summary",
+              "rows"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "preview"
+        ],
+        "title": "GymMemberImportPreviewResponse",
+        "type": "object"
+      },
+      "GymMemberInvitation": {
+        "additionalProperties": false,
+        "description": "A member invitation issued by this gym. The address is masked; the token and any account of the recipient\nare never shown. It grants nothing until its recipient accepts it.\n",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "gym_member_id": {
+            "description": "The membership an acceptance activated.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invited_by": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "staff_membership_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "last_sent_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "recipient_email": {
+            "description": "The invited address, masked (`m•••@example.com`).",
+            "type": "string"
+          },
+          "resends_remaining": {
+            "maximum": 3,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "responded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending` until answered, cancelled or expired (7 days after it was last sent, server time); `accepted`,\n`declined`, `cancelled` and `expired` are final. A `pending` invitation past its expiry is reported as\n`expired`.\n",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "status",
+          "recipient_email",
+          "invited_by",
+          "created_at",
+          "expires_at",
+          "last_sent_at",
+          "resends_remaining",
+          "responded_at",
+          "gym_member_id"
+        ],
+        "title": "GymMemberInvitation",
+        "type": "object"
+      },
+      "GymMemberInvitationCreateRequest": {
+        "description": "Exactly `email`; any other field (a name, a plan, a gym id) is a `422 validation_error`.",
+        "example": {
+          "email": "marta@example.com"
+        },
+        "properties": {
+          "email": {
+            "description": "The address to invite; normalized like a sign-in address.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "GymMemberInvitationCreateRequest",
+        "type": "object"
+      },
+      "GymMemberInvitationList": {
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymMemberInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor"
+        ],
+        "title": "GymMemberInvitationList",
+        "type": "object"
+      },
+      "GymMemberInvitationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/GymMemberInvitation"
+          }
+        },
+        "required": [
+          "invitation"
+        ],
+        "title": "GymMemberInvitationResponse",
+        "type": "object"
+      },
+      "GymMemberList": {
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymMember"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "members",
+          "next_cursor"
+        ],
+        "title": "GymMemberList",
+        "type": "object"
+      },
+      "GymMemberResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "member": {
+            "$ref": "#/components/schemas/GymMember"
+          }
+        },
+        "required": [
+          "member"
+        ],
+        "title": "GymMemberResponse",
         "type": "object"
       },
       "GymPrimaryLocationRequest": {
@@ -3730,6 +4459,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_enrollment_settings",
                     "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
@@ -4241,6 +4971,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_enrollment_settings",
                     "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
@@ -4757,6 +5488,281 @@
           "relationship"
         ],
         "title": "MyCoachRelationshipResponse",
+        "type": "object"
+      },
+      "MyGymInvitation": {
+        "additionalProperties": false,
+        "description": "A member invitation sent to one of the viewer's verified email addresses. Reading it changes nothing; only\nan explicit acceptance activates a gym membership.\n",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "gym": {
+            "additionalProperties": false,
+            "properties": {
+              "gym_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "gym_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "gym_member_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "invitation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invited_by": {
+            "additionalProperties": false,
+            "description": "Who invited: their first name from their account name and their role at the gym, nothing else.",
+            "properties": {
+              "first_name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "role": {
+                "description": "The fixed gym roles (D-G03): `owner`, `manager`, `coach`, `front_desk`.",
+                "enum": [
+                  "owner",
+                  "manager",
+                  "coach",
+                  "front_desk",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "first_name",
+              "role"
+            ],
+            "type": "object"
+          },
+          "responded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "sent_to": {
+            "description": "The viewer's own verified address the invitation was sent to.",
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending` until answered, cancelled or expired (7 days after it was last sent, server time); `accepted`,\n`declined`, `cancelled` and `expired` are final. A `pending` invitation past its expiry is reported as\n`expired`.\n",
+            "enum": [
+              "pending",
+              "accepted",
+              "declined",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitation_id",
+          "status",
+          "gym",
+          "invited_by",
+          "sent_to",
+          "created_at",
+          "expires_at",
+          "responded_at",
+          "gym_member_id"
+        ],
+        "title": "MyGymInvitation",
+        "type": "object"
+      },
+      "MyGymInvitationList": {
+        "additionalProperties": false,
+        "properties": {
+          "invitations": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/MyGymInvitation"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "invitations",
+          "next_cursor"
+        ],
+        "title": "MyGymInvitationList",
+        "type": "object"
+      },
+      "MyGymInvitationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "invitation": {
+            "$ref": "#/components/schemas/MyGymInvitation"
+          }
+        },
+        "required": [
+          "invitation"
+        ],
+        "title": "MyGymInvitationResponse",
+        "type": "object"
+      },
+      "MyGymMembership": {
+        "additionalProperties": false,
+        "description": "The viewer's membership of a gym, as a participant. It grants no gym workspace or staff permission and is\nunrelated to any Fighter or Coach profile.\n",
+        "properties": {
+          "auto_approved": {
+            "description": "Activated by the gym's auto-approval setting rather than by a staff member.",
+            "type": "boolean"
+          },
+          "ended_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_reason": {
+            "description": "`left` (by the member) or `removed` (by an owner or manager); `null` unless ended.",
+            "enum": [
+              "left",
+              "removed",
+              "account_deleted",
+              "gym_closed",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "gym": {
+            "additionalProperties": false,
+            "properties": {
+              "gym_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "gym_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "gym_member_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "joined_at": {
+            "description": "When it became active.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "joined_via": {
+            "description": "`join_code` (a request, possibly auto-approved) or `invitation` (an accepted E07).",
+            "enum": [
+              "join_code",
+              "invitation"
+            ],
+            "type": "string"
+          },
+          "requested_at": {
+            "description": "When the join request was made (`null` for an invitation).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "responded_at": {
+            "description": "When a request was rejected or cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`requested` (a join-code request waiting for the gym), `active`, `rejected` (by the gym; final),\n`cancelled` (by the requester; final) or `ended` (left or removed; final). Re-enrolling creates a new\nmembership.\n",
+            "enum": [
+              "requested",
+              "active",
+              "ended",
+              "rejected",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "gym",
+          "gym_member_id",
+          "status",
+          "joined_via",
+          "auto_approved",
+          "requested_at",
+          "joined_at",
+          "responded_at",
+          "ended_at",
+          "ended_reason"
+        ],
+        "title": "MyGymMembership",
+        "type": "object"
+      },
+      "MyGymMembershipList": {
+        "additionalProperties": false,
+        "properties": {
+          "memberships": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/MyGymMembership"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "memberships",
+          "next_cursor"
+        ],
+        "title": "MyGymMembershipList",
+        "type": "object"
+      },
+      "MyGymMembershipResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "membership": {
+            "$ref": "#/components/schemas/MyGymMembership"
+          }
+        },
+        "required": [
+          "membership"
+        ],
+        "title": "MyGymMembershipResponse",
         "type": "object"
       },
       "MyStaffInvitation": {
@@ -6380,6 +7386,126 @@
         ]
       }
     },
+    "/api/v1/gym-invitations/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "No sign-in needed: the gym's name, the inviter's first name and role, and the expiry. Reveals\nnothing about the recipient, the address or any account, and changes nothing. Every token that is not a\ncurrent pending one answers the same `410 invitation_unavailable`.\n\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "previewGymInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E07 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymInvitationPreviewResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "What a member invitation link shows",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gym-join/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "No sign-in needed: the gym's name and whether joining needs the gym's approval. Changes nothing.\n\n* `not_found` - an unknown, malformed or disabled code (one answer for all).\n* `rate_limited` - 20 previews and joins per 10 minutes per client.\n",
+        "operationId": "previewGymJoin",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymJoinRequest"
+              }
+            }
+          },
+          "description": "The join code",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymJoinPreviewResponse"
+                }
+              }
+            },
+            "description": "The gym"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "What a join code shows",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
     "/api/v1/gyms": {
       "post": {
         "callbacks": {},
@@ -6611,6 +7737,144 @@
         "summary": "Complete a gym's setup",
         "tags": [
           "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/enrollment": {
+      "get": {
+        "callbacks": {},
+        "description": "The join code (to show at the desk or share as `<web app>/join/<code>`) and whether auto-approval is on.\nOwner, managers and front desk; `can_manage` says whether the viewer may change them.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach.\n",
+        "operationId": "getGymEnrollmentSettings",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymEnrollmentSettingsResponse"
+                }
+              }
+            },
+            "description": "The enrollment settings"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's enrollment settings",
+        "tags": [
+          "Gym members"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Turns auto-approval of join-code requests on or off (off by default). Each change is audited; the same value\nagain changes nothing. Even when on, a joiner without a completed account and a verified sign-in identity\ngets a request. Owner and managers.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach or front desk.\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`).\n* `rate_limited` - 120 member administration requests per 10 minutes per user.\n\n* `validation_error` - `auto_approve` missing or not a boolean, or any other field.\n",
+        "operationId": "updateGymEnrollmentSettings",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymEnrollmentSettingsUpdateRequest"
+              }
+            }
+          },
+          "description": "The setting",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymEnrollmentSettingsResponse"
+                }
+              }
+            },
+            "description": "The enrollment settings"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Switch a gym's auto-approval",
+        "tags": [
+          "Gym members"
         ]
       }
     },
@@ -6870,6 +8134,1080 @@
         "summary": "Start the gym introduction",
         "tags": [
           "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/join-code/disable": {
+      "post": {
+        "callbacks": {},
+        "description": "Removes the join code: nobody can join by code until a new one is issued. Pending requests stay. Repeating\nit changes nothing. Owner and managers.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach or front desk.\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`).\n* `rate_limited` - 120 member administration requests per 10 minutes per user.\n\n",
+        "operationId": "disableGymJoinCode",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymEnrollmentSettingsResponse"
+                }
+              }
+            },
+            "description": "The enrollment settings"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Turn off joining by code",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/join-code/rotate": {
+      "post": {
+        "callbacks": {},
+        "description": "Issues a new join code and enables joining by code; the previous code stops working at once. Owner and\nmanagers.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach or front desk.\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`).\n* `rate_limited` - 120 member administration requests per 10 minutes per user.\n\n",
+        "operationId": "rotateGymJoinCode",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymEnrollmentSettingsResponse"
+                }
+              }
+            },
+            "description": "The enrollment settings"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Issue a new join code",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/join-requests": {
+      "get": {
+        "callbacks": {},
+        "description": "The join-code requests waiting for a decision, oldest first. Owner, managers and front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach.\n* `validation_error` - `limit` or `cursor` is invalid.\n",
+        "operationId": "listGymJoinRequests",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberList"
+                }
+              }
+            },
+            "description": "One page of requests"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's pending join requests",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/join-requests/{gym_member_id}/approve": {
+      "post": {
+        "callbacks": {},
+        "description": "`requested` -> `active`. Repeating it on an active membership returns it unchanged. Owner, managers and\nfront desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach.\n* `rate_limited` - 120 member administration requests per 10 minutes per user.\n\n* `conflict` - the request was rejected or cancelled, or the membership ended\n  (`details.gym_member: \"rejected\" | \"cancelled\" | \"ended\"`).\n",
+        "operationId": "approveGymJoinRequest",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A membership of this gym.",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Approve a join request",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/join-requests/{gym_member_id}/reject": {
+      "post": {
+        "callbacks": {},
+        "description": "`requested` -> `rejected` (final; the person may send a new request later). Repeating it returns it\nunchanged. Owner, managers and front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach.\n* `rate_limited` - 120 member administration requests per 10 minutes per user.\n\n* `conflict` - not a pending request (`details.gym_member: \"active\" | \"cancelled\" | \"ended\"`).\n",
+        "operationId": "rejectGymJoinRequest",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A membership of this gym.",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Reject a join request",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-imports/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Parses a CSV member list, maps its columns, validates and deduplicates the rows and classifies each against\nthis gym's own members, join requests and member invitations. **A dry run: nothing is stored, sent or\nlogged.** Committing the list (storing contacts of people without an account, bulk invitations) is not\navailable until an approved legal basis and retention rule exist (`commit.available: false`); invite people\none by one with `createGymMemberInvitation`. No account is created, verified, linked or matched by name.\nOwner, managers and front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach.\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`).\n* `validation_error` - `csv` missing, not UTF-8, empty, too large (1 MB, 1,000 rows, 30 columns, 500 bytes per\n  field) or malformed (`fields.csv` names the line); `mapping` names an unknown column or maps two fields to\n  one; no column for `email` (`email_column`); any other field.\n* `rate_limited` - 30 previews per 10 minutes per user.\n",
+        "operationId": "previewGymMemberImport",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymMemberImportPreviewRequest"
+              }
+            }
+          },
+          "description": "The list",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberImportPreviewResponse"
+                }
+              }
+            },
+            "description": "The preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Dry-run a member list",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-invitations": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's member invitations, newest first, with their effective status and a masked address. Owner,\nmanagers and front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - a coach.\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listGymMemberInvitations",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only invitations with this effective status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "accepted",
+                "declined",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same `status`).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberInvitationList"
+                }
+              }
+            },
+            "description": "One page of invitations"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's member invitations",
+        "tags": [
+          "Gym members"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Invites an email address to become a member of the gym and queues the E07 email, whose link carries a\none-time token in its fragment (`<web app>/invite/gym#token=…`). The invitation grants nothing: the recipient\nmust sign in with that address (a verified email identity) and accept it explicitly, within 7 days. Creating\nit creates no account and reveals nothing about one. Only a completed gym invites. Owner, managers and front\ndesk.\n\nThe same address while an invitation is pending returns that invitation with `200` (no new email). Another\ngym inviting the same address is independent. An address whose owner has a pending join request may be\ninvited: accepting approves the request.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - a coach.\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`), or the address belongs to an active member\n  of this gym (`details.gym_member: \"already_active\"`).\n* `validation_error` - `email` missing or invalid, or any other field.\n* `rate_limited` - 30 invitations per hour and 100 per day per user, 300 per day per gym, 3 per day per address\n  (any gym), 60 per 10 minutes per client, in rolling windows; repeats are not counted.\n",
+        "operationId": "createGymMemberInvitation",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymMemberInvitationCreateRequest"
+              }
+            }
+          },
+          "description": "Who and which role",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberInvitationResponse"
+                }
+              }
+            },
+            "description": "The pending invitation for this address and role"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Invite someone to become a member",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-invitations/{invitation_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "A pending invitation can no longer be accepted. Repeating it, or cancelling an expired invitation, returns\nthe invitation unchanged. Owner, managers and front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - a coach.\n* `conflict` - already accepted or declined (`details.member_invitation: \"accepted\" | \"declined\"`).\n* `rate_limited` - 120 member administration requests per 10 minutes per user.\n",
+        "operationId": "cancelGymMemberInvitation",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A member invitation of this gym.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel a member invitation",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-invitations/{invitation_id}/resend": {
+      "post": {
+        "callbacks": {},
+        "description": "Sends a pending invitation again with a new token (the previous link stops working at once) and a new\n7-day expiry. At most 3 resends, 60 seconds apart. Owner, managers and front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - a coach.\n* `conflict` - not pending (`details.member_invitation: \"not_pending\"`) or no resends left\n  (`details.resends: \"limit_reached\"`).\n* `rate_limited` - within 60 seconds of the last sending, or 120 member administration requests per 10\n  minutes per user.\n",
+        "operationId": "resendGymMemberInvitation",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A member invitation of this gym.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Send a member invitation again",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/members": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's active (default) or ended members, oldest first, with a short name and how they joined: never an\nemail, user id, profile or training data. Owner, managers and front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach (a coach's member access is limited to their own classes, which do not exist yet).\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listGymMembers",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`active` (default) or `ended`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "ended"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberList"
+                }
+              }
+            },
+            "description": "One page of members"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's members",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/members/{gym_member_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One membership of this gym in any status (requested, active, rejected, cancelled or ended). Owner, managers\nand front desk.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach.\n",
+        "operationId": "getGymMember",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A membership of this gym.",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One membership of a gym",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/members/{gym_member_id}/remove": {
+      "post": {
+        "callbacks": {},
+        "description": "Ends an active membership (`ended`, reason `removed`). The row is kept; the person may join again later.\nRepeating it returns the membership unchanged. Owner and managers.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a membership, also an unknown id or another gym's.\n\n* `forbidden` - a coach or front desk.\n* `conflict` - not active (`details.gym_member: \"requested\" | \"rejected\" | \"cancelled\" | \"ended\"`).\n* `rate_limited` - 120 member administration requests per 10 minutes per user.\n",
+        "operationId": "removeGymMember",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A membership of this gym.",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "End a gym membership",
+        "tags": [
+          "Gym members"
         ]
       }
     },
@@ -10081,6 +12419,738 @@
         ]
       }
     },
+    "/api/v1/me/gym-invitations": {
+      "get": {
+        "callbacks": {},
+        "description": "The member invitations sent to any email address the viewer verified with a code, newest first, with the\ngym's name, the inviter's first name and the effective status. Matched on the server from the\nsession's user: no address or user id is accepted, and a Google or Apple sign-in without an email identity\nhas an empty inbox. Reading changes nothing. Answer with `acceptMyGymInvitation` or\n`declineMyGymInvitation` (no token is needed or shown).\n\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyGymInvitations",
+        "parameters": [
+          {
+            "description": "Only invitations with this effective status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "accepted",
+                "declined",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same `status`).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymInvitationList"
+                }
+              }
+            },
+            "description": "One page of invitations"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Member invitations sent to me",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-invitations/accept": {
+      "post": {
+        "callbacks": {},
+        "description": "The explicit acceptance on the web page of an E07 link, with its token in the body. Holding the token is not\nenough. The viewer must be signed in with the invited address (an email identity they verified with a code; a Google\nor Apple sign-in alone does not count: add and verify the address first with `requestEmailIdentityLink`) and\nhave completed account registration. Nothing else is needed: no Coach or Fighter profile is required,\ncreated or changed, and no Coach–Fighter relationship is created. One transaction re-checks the session, the\ninvitation and the gym, activates the gym membership (or approves the viewer's pending join request at that\ngym), consumes the invitation and records the audit events; nothing changes if any step fails. A gym\nmembership gives no gym workspace or staff permission. Repeating a successful acceptance returns the same\nmembership (`outcome: already_accepted`).\n\n\n* `invitation_unavailable` (410) - not a current pending token (unknown, resent, used, declined, cancelled\n  or expired: one answer for all).\n* `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.\n* `validation_error` - `account_registration` `required` (acceptance only).\n* `conflict` - the viewer is already an active member of this gym (`details.gym_member: \"already_active\"`);\n  the invitation stays pending.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n\n",
+        "operationId": "acceptGymInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E07 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymInvitationAcceptResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Accept a member invitation link",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-invitations/decline": {
+      "post": {
+        "callbacks": {},
+        "description": "Declines on the web page of an E07 link, with its token in the body, for the signed-in recipient. Creates\nnothing.\n\n* `invitation_unavailable` (410) - not a current pending token.\n* `invitation_recipient_mismatch` (403) - the viewer is not signed in with the invited address.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "declineGymInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E07 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymInvitationResponse"
+                }
+              }
+            },
+            "description": "The declined invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Decline a member invitation link",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-invitations/{invitation_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One invitation from the viewer's inbox, in any status (so a client can say it expired, was cancelled or was\nalready accepted). Reading changes nothing.\n\n* `not_found` - an unknown id, or an invitation not sent to one of the viewer's verified addresses.\n",
+        "operationId": "getMyGymInvitation",
+        "parameters": [
+          {
+            "description": "An invitation from the viewer's inbox.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One member invitation sent to me",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-invitations/{invitation_id}/accept": {
+      "post": {
+        "callbacks": {},
+        "description": "The explicit acceptance of an invitation from the inbox, by id (no body). The viewer must be signed in with the invited address (an email identity they verified with a code; a Google\nor Apple sign-in alone does not count: add and verify the address first with `requestEmailIdentityLink`) and\nhave completed account registration. Nothing else is needed: no Coach or Fighter profile is required,\ncreated or changed, and no Coach–Fighter relationship is created. One transaction re-checks the session, the\ninvitation and the gym, activates the gym membership (or approves the viewer's pending join request at that\ngym), consumes the invitation and records the audit events; nothing changes if any step fails. A gym\nmembership gives no gym workspace or staff permission. Repeating a successful acceptance returns the same\nmembership (`outcome: already_accepted`).\n\n\n* `not_found` - an unknown id, or an invitation not sent to one of the viewer's verified addresses.\n* `invitation_unavailable` (410) - expired, cancelled, declined, or accepted by someone else.\n* `validation_error` - `account_registration` `required` (acceptance only).\n* `conflict` - the viewer is already an active member of this gym (`details.gym_member: \"already_active\"`);\n  the invitation stays pending.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n\n",
+        "operationId": "acceptMyGymInvitation",
+        "parameters": [
+          {
+            "description": "An invitation from the viewer's inbox.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymInvitationAcceptResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Accept a member invitation from my inbox",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-invitations/{invitation_id}/decline": {
+      "post": {
+        "callbacks": {},
+        "description": "Declines an invitation from the inbox, by id (no body). Creates nothing; a repeat returns the same answer.\n\n* `not_found` - an unknown id, or an invitation not sent to one of the viewer's verified addresses.\n* `invitation_unavailable` (410) - expired, cancelled or accepted.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "declineMyGymInvitation",
+        "parameters": [
+          {
+            "description": "An invitation from the viewer's inbox.",
+            "in": "path",
+            "name": "invitation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymInvitationResponse"
+                }
+              }
+            },
+            "description": "The declined invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Decline a member invitation from my inbox",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-memberships": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's memberships of gyms as a participant, in every status (requested, active, rejected, cancelled,\nended), newest first. Staff memberships are not listed (they are gym workspaces, `listMyGyms`).\n\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyGymMemberships",
+        "parameters": [
+          {
+            "description": "Only memberships with this status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "requested",
+                "active",
+                "ended",
+                "rejected",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same `status`).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymMembershipList"
+                }
+              }
+            },
+            "description": "One page of memberships"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My gym memberships",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-memberships/join": {
+      "post": {
+        "callbacks": {},
+        "description": "Sends a join request to the gym of the code: `201` with a `requested` membership that the gym's staff approve\nor reject. Only when the gym has explicitly enabled auto-approval, and the viewer holds a verified sign-in\nidentity, is the membership `active` at once (`auto_approved: true`). Needs a completed account and nothing\nelse: no Fighter or Coach profile is required, created or changed. A gym membership gives no gym workspace\nor staff permission. While a request is pending, joining again returns it with `200`.\n\n* `not_found` - an unknown, malformed or disabled code (one answer for all).\n* `conflict` - already an active member (`details.gym_member: \"already_active\"`).\n* `validation_error` - `account_registration` `required`.\n* `rate_limited` - 20 previews and joins per 10 minutes per client and 10 per user, counted on every attempt.\n",
+        "operationId": "joinGym",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymJoinRequest"
+              }
+            }
+          },
+          "description": "The join code",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymMembershipResponse"
+                }
+              }
+            },
+            "description": "The pending request"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymMembershipResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Join a gym by its code",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-memberships/{gym_member_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One of the viewer's memberships in any status.\n\n* `not_found` - an unknown id or someone else's membership.\n",
+        "operationId": "getMyGymMembership",
+        "parameters": [
+          {
+            "description": "One of the viewer's own memberships.",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymMembershipResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One of my gym memberships",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-memberships/{gym_member_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "`requested` -> `cancelled` (final; a new join sends a new request). Repeating it returns it unchanged.\n\n* `not_found` - an unknown id or someone else's membership.\n* `conflict` - not a pending request (`details.gym_member: \"active\" | \"rejected\" | \"ended\"`).\n",
+        "operationId": "cancelMyGymJoinRequest",
+        "parameters": [
+          {
+            "description": "One of the viewer's own memberships.",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymMembershipResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Withdraw my join request",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
+    "/api/v1/me/gym-memberships/{gym_member_id}/leave": {
+      "post": {
+        "callbacks": {},
+        "description": "Ends the viewer's active membership (`ended`, reason `left`). The row is kept; joining again later creates a\nnew membership. Repeating it returns it unchanged. Staff memberships at that gym are not affected.\n\n* `not_found` - an unknown id or someone else's membership.\n* `conflict` - not active (`details.gym_member: \"requested\" | \"rejected\" | \"cancelled\" | \"ended\"`).\n",
+        "operationId": "leaveGymMembership",
+        "parameters": [
+          {
+            "description": "One of the viewer's own memberships.",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymMembershipResponse"
+                }
+              }
+            },
+            "description": "The membership"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Leave a gym",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
     "/api/v1/me/gyms": {
       "get": {
         "callbacks": {},
@@ -10883,6 +13953,10 @@
     {
       "description": "A gym's staff roster, role changes and staff invitations, and the recipient's own invitations (ADR 0026, SF-93). Separate from Coach–Fighter invitations.",
       "name": "Gym staff"
+    },
+    {
+      "description": "A gym's members (participants): join codes and requests, auto-approval, member invitations (E07), the roster, leaving and removal, the member-list dry run, and the member's own memberships and invitations (ADR 0026, SF-95). Separate from staff and Coach–Fighter relationships.",
+      "name": "Gym members"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

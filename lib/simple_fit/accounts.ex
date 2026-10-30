@@ -117,6 +117,35 @@ defmodule SimpleFit.Accounts do
   end
 
   @doc """
+  The owners of the email identities among `addresses` (canonical), as
+  `%{address => user_id}`; addresses without an identity are absent. For a
+  gym classifying a member list against its own members only (SF-95):
+  callers must not reveal anything about accounts beyond that.
+  """
+  @spec users_by_email_identity([String.t()]) :: %{String.t() => Ecto.UUID.t()}
+  def users_by_email_identity([]), do: %{}
+
+  def users_by_email_identity(addresses) when is_list(addresses) do
+    from(i in Identity,
+      where: i.provider == :email and i.provider_subject in ^Enum.uniq(addresses),
+      select: {i.provider_subject, i.user_id}
+    )
+    |> Repo.all(@unlogged)
+    |> Map.new()
+  end
+
+  @doc """
+  Whether the user holds a verified sign-in identity (SF-95, D-G08): an
+  identity exists only once its control was proved (an email code, ADR
+  0012 / ADR 0024; a verified Google or Apple ID token, ADR 0013 / ADR
+  0014), so any identity counts. Never inferred from a provider's email
+  claim.
+  """
+  @spec verified_identity?(User.t()) :: boolean()
+  def verified_identity?(%User{id: user_id}) when is_binary(user_id),
+    do: Repo.exists?(from(i in Identity, where: i.user_id == ^user_id), @unlogged)
+
+  @doc """
   How colleagues and invitees see `user_ids` (ADR 0026, SF-93): from the
   account name, only the first name and the initial of the last word
   (`%{first_name: "Natalia", short_name: "Natalia W."}`), or `nil` without a

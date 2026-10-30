@@ -25,6 +25,7 @@ defmodule SimpleFit.Observability.RedactionTest do
       registration: "sfg_#{@marker}0123456789efgh",
       invitation: "sfi_#{@marker}0123456789ijkl",
       staff_invitation: "sfs_#{@marker}0123456789mnop",
+      member_invitation: "sgm_#{@marker}0123456789qrst",
       jwt: "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ#{@marker}.c2lnbmF0dXJl#{@marker}",
       email: "#{String.downcase(@marker)}@example.com",
       full_name: "Full #{@marker} Name",

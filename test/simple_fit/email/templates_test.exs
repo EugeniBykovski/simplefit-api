@@ -138,11 +138,11 @@ defmodule SimpleFit.Email.TemplatesTest do
       assert Map.keys(@footer_of) |> Enum.sort() ==
                implemented |> Enum.map(& &1.template) |> Enum.sort()
 
-      # SF-21 wires the triggers of E01 and E17, SF-93 the trigger of E06;
-      # every other trigger is deferred.
+      # SF-21 wires the triggers of E01 and E17, SF-93 the trigger of E06,
+      # SF-95 the trigger of E07; every other trigger is deferred.
       for entry <- implemented do
         expected =
-          if entry.id in ["E01", "E06", "E17"],
+          if entry.id in ["E01", "E06", "E07", "E17"],
             do: "IMPLEMENTED_TEMPLATE / TRIGGER_AVAILABLE",
             else: "IMPLEMENTED_TEMPLATE / TRIGGER_DEFERRED"
 
@@ -499,19 +499,38 @@ defmodule SimpleFit.Email.TemplatesTest do
       refute r.text =~ "location"
     end
 
-    test "E07 member invite with a presentation-only opt-out URL" do
+    test "E07 member invite with the C15 copy: no plan, payment or opt-out" do
       r = rendered!(:member_invite)
 
-      assert r.subject == "Simple Boxing Gym is now on SimpleFit"
-      assert r.preheader == "Claim your Unlimited membership — book and check in from your phone."
-      assert r.text =~ "Active until: Oct 31, 2026"
-      assert r.text =~ "✓ Check in with a QR — no card needed"
+      assert r.subject == "Simple Boxing Gym invited you to join on SimpleFit"
+      assert r.preheader == "Accept with this email address — nothing changes until you do."
+      assert r.html =~ "Hi Marta, you’re invited to join Simple Boxing Gym.</h1>"
+      assert r.text =~ "Home location: Wola"
+      assert r.text =~ "Invitation expires: Oct 31, 2026"
+      assert r.text =~ "the gym used your email address to invite you"
+      assert r.text =~ "https://app.simplefit.example/invite/gym#token=FIXTURE-INVITATION-TOKEN"
 
-      assert r.text =~
-               "Don’t want this? Opt out (https://app.simplefit.example/invite/member/opt-out?token=FIXTURE-INVITATION-TOKEN) and we delete the invite."
+      for gone <- [
+            "Unlimited",
+            "BLIK",
+            "or card",
+            "your name, email and plan",
+            "Opt out",
+            "payments"
+          ] do
+        refute r.html <> r.text =~ gone, gone
+      end
 
-      assert {:error, {:invalid_template_data, [opt_out_url: :invalid_url]}} =
-               render(:member_invite, %{opt_out_url: "javascript:alert(1)"})
+      assert {:error, {:invalid_template_data, [accept_url: :invalid_url]}} =
+               render(:member_invite, %{accept_url: "javascript:alert(1)"})
+    end
+
+    test "E07 without a name or home location (as SF-95 sends it)" do
+      {:ok, %Rendered{} = r} = render(:member_invite, %{member_name: nil, home_location: nil})
+
+      assert r.html =~ "You’re invited to join Simple Boxing Gym.</h1>"
+      refute r.html =~ "Hi "
+      refute r.text =~ "Home location"
     end
 
     test "E08 coach invite renders the coach's message as escaped plain text" do
@@ -760,8 +779,9 @@ defmodule SimpleFit.Email.TemplatesTest do
             {:gym_live, nil, 4, nil},
             {:gym_live, "no-verification", 3, "Verification"},
             {:gym_live, "minimal", 2, "Member invites"},
+            {:member_invite, nil, 3, nil},
             {:member_invite, "no-home-location", 2, "Home location"},
-            {:member_invite, "minimal", 1, "Active until"},
+            {:member_invite, "minimal", 2, "Hi Marta"},
             {:join_approved, "no-booking", 2, "Booked"},
             {:join_approved, "minimal", 1, "Next billing"},
             {:account_suspended, "no-previous-notices", 3, "Previous notices"},
