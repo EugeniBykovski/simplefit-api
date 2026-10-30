@@ -241,7 +241,7 @@ defmodule SimpleFit.Email.Templates.Inventory do
                  "SF-95 (copy correction C15 / R10; interim until the corrected artboard is published)",
                trigger_status: :available,
                deferred: [
-                 "C15's “book classes and check in” waits for the class and check-in domains; no opt-out link until an opt-out flow exists (CSV import, which would need one, is blocked: D-G08, T15)."
+                 "C15's “book classes and check in” waits for the class and check-in domains; no opt-out link until an opt-out flow exists (CSV import, which would need one, waits for the proposed decision D-G27)."
                ]
              },
              %{

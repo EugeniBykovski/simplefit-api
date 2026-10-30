@@ -69,8 +69,10 @@ defmodule SimpleFitWeb.GymMemberInvitationController do
 
     #{@access}
     * `forbidden` - a coach.
-    * `conflict` - the gym is a draft (`details.setup_status: "draft"`), or the address belongs to an active member
-      of this gym (`details.gym_member: "already_active"`).
+    * `conflict` - member invitations are not available on this deployment yet
+      (`details.member_invitation: "recipient_flow_unavailable"`: off in production until the `/invite/gym` page
+      exists); the gym is a draft (`details.setup_status: "draft"`); or the address belongs to an active member of
+      this gym (`details.gym_member: "already_active"`).
     * `validation_error` - `email` missing or invalid, or any other field.
     * `rate_limited` - 30 invitations per hour and 100 per day per user, 300 per day per gym, 3 per day per address
       (any gym), 60 per 10 minutes per client, in rolling windows; repeats are not counted.
@@ -173,8 +175,9 @@ defmodule SimpleFitWeb.GymMemberInvitationController do
 
     #{@access}
     * `forbidden` - a coach.
-    * `conflict` - not pending (`details.member_invitation: "not_pending"`) or no resends left
-      (`details.resends: "limit_reached"`).
+    * `conflict` - member invitations are not available on this deployment yet
+      (`details.member_invitation: "recipient_flow_unavailable"`); not pending
+      (`details.member_invitation: "not_pending"`); or no resends left (`details.resends: "limit_reached"`).
     * `rate_limited` - within 60 seconds of the last sending, or 120 member administration requests per 10
       minutes per user.
     """,

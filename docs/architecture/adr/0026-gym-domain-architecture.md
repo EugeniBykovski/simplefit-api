@@ -750,8 +750,23 @@ not undo it. A draft keeps `coming_later`.
 ## Amendment — SF-95 (2026-10-30): gym members, enrollment, member invitations and the member-list foundation
 
 SF-82 calls this backend scope "SF-89" (09 dependency matrix). It adds gym
-**members** (participants) as a domain of their own; no member UI is built
-(SF-91 owns `/me/gyms`, `/invite/gym` and `/join/:code`).
+**members** (participants) as a domain of their own; no member UI is built.
+The member screens (`/me/gyms`, `/invite/gym`, `/join/:code`, the mobile
+inbox entries and the members console) have **no Jira task yet**: SF-91 is
+the Gym Web First Run and SF-100 the member booking and attendance UI; the
+SF-82 numbers (SF-90/SF-91) for these screens were a superseded proposal.
+
+### D-G08 reconciliation
+
+`D-G08` keeps its approved meaning: request-based enrollment by join code,
+staff approval, auto-approval only when a gym explicitly enables it and
+never without a verified identity, and E07 acceptance only with a verified
+identity for the invited address. SF-95 implements exactly that. The
+register row's trailing note ("CSV import is future") is a scope note, not
+the decision that blocks importing: the member-list import commit, contact
+retention and lawful processing are the separate, **proposed** decision
+`D-G27` (10 §3), which is not approved. Earlier SF-95 text that cited
+`D-G08` as the import blocker is corrected here.
 
 ### Domain
 
@@ -904,12 +919,29 @@ queued, audited or logged; addresses come back masked; no user is created
 or verified, nothing is linked, merged or matched by name. The `csv`
 parameter is filtered from request logs and redacted from crash reports.
 
-**Blocked** until an approved legal basis and retention rule exist (SF-82
-D-G08 "CSV import is future", T15, OG12): the commit and its idempotency,
+**Blocked** until the proposed decision `D-G27` (lawful basis, retention,
+erasure, opt-out) is approved (threat model T15; OG12): the commit and its idempotency,
 "unclaimed contacts" (storing people without an account), storing names,
 phones, plans or start dates, and bulk E07 sending from a list. The
 response says so (`commit: {available: false, blocked_by:
 "legal_basis_pending"}`). No GDPR or marketing-consent policy was created.
+
+**Follow-up (Jira-ready): "Gym Member Import Commit & Contact Data
+Retention".** Entry condition: `D-G27` approved (lawful basis, retention
+period for unaccepted invitations, erasure path, E07 opt-out wording,
+controller/processor roles). Scope, if option B is approved: a commit of a
+previewed list that creates only member invitations (sealed address and
+digest; never names, phones, plans or dates), idempotent by a
+client-supplied key and a stored digest of the normalized list, re-validated
+at commit against the same classification; per-gym daily caps and the
+existing per-address limit; scheduled, throttled E07 sending; automatic
+expiry and purge of unaccepted invitations after the approved period; a
+public opt-out link and a suppression list that blocks future invitations to
+an address; audit events with counts only; real-commit race tests (double
+commit, commit vs manual invite, commit vs acceptance); real E2E. Out of
+scope: unclaimed contact records (option C), contact export, marketing
+consent. Depends on the recipient flow (`/invite/gym` and the in-app inbox),
+which must ship first.
 
 ### Email (E07)
 
@@ -921,6 +953,17 @@ Interim: C15's "book classes and check in" waits for those domains, and
 there is no opt-out link (no opt-out flow; ignoring the email lets it
 expire). Sent through the encrypted Oban outbox in the invitation's
 transaction. Production delivery settings are unchanged.
+
+**Launch gate.** The E07 link opens `/invite/gym`, which does not exist yet
+(web has only `/invite/coach`; mobile `/join/:code` and `/invite/staff/:token`
+are placeholders, and there is no in-app member inbox). So creating and
+resending member invitations are **off in production**: they answer `409
+member_invitation: recipient_flow_unavailable` after the usual access
+checks, unless `GYM_MEMBER_INVITATIONS=enabled` is set (fail closed; dev and
+test enable them in config). The backend capability (answering, preview,
+inbox API) is complete and tested; the recipient UI is a separate
+dependency. Joining by code has the same UI gap but sends no email, so it
+needs no gate: without a screen, nobody is directed to it.
 
 ### Entry and checklist
 
@@ -938,6 +981,11 @@ not undo it; a draft keeps `coming_later`.
    manager").
 3. No E09 "join approved" email is sent: E09's copy (plan, billing, QR)
    needs its own reconciliation.
-4. Member UI, `/invite/gym`, `/join/:code` and the mobile inbox entries are
-   SF-91's; until then an E07 link has no page.
+4. Member UI, `/invite/gym`, `/join/:code` and the mobile inbox entries
+   have no Jira task yet; until they ship, E07 stays gated off in
+   production (see "Launch gate").
 5. Coach-scoped roster (`own_classes`) waits for the class domain.
+6. Pre-existing, outside SF-95: E06 staff invitation links also point at a
+   web page (`/invite/staff`) that does not exist yet, and production sends
+   E06 today (SF-93). A recipient-flow ticket or the same gate for E06 is
+   recommended.

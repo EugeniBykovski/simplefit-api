@@ -411,4 +411,31 @@ defmodule SimpleFitWeb.GymMemberControllerTest do
     {coach, _} = joined_staff!(ctx.owner, ctx.gym.id, :coach)
     token(coach) |> authed() |> post(path, body(%{csv: csv})) |> error(403, "forbidden")
   end
+
+  test "public join preview: no gym id; unknown, malformed and disabled codes answer alike",
+       ctx do
+    code = join_code!(ctx.owner, ctx.gym.id)
+
+    preview =
+      anonymous()
+      |> post("/api/v1/gym-join/preview", body(%{code: code}))
+      |> ok("GymJoinPreviewResponse")
+
+    refute Jason.encode!(preview) =~ ctx.gym.id
+
+    strip = fn conn ->
+      conn |> json_response(404) |> update_in(["error"], &Map.delete(&1, "request_id"))
+    end
+
+    unknown =
+      anonymous() |> post("/api/v1/gym-join/preview", body(%{code: "ZZZZ-ZZZZ"})) |> strip.()
+
+    malformed = anonymous() |> post("/api/v1/gym-join/preview", body(%{code: "?"})) |> strip.()
+    {:ok, _} = SimpleFit.Gyms.disable_join_code(ctx.owner, ctx.gym.id)
+    disabled = anonymous() |> post("/api/v1/gym-join/preview", body(%{code: code})) |> strip.()
+
+    assert unknown == malformed
+    assert unknown == disabled
+    refute inspect(unknown) =~ String.replace(code, "-", "")
+  end
 end

@@ -17,6 +17,16 @@ defmodule SimpleFit.Gyms.MemberInvitations do
   says. An invitation grants nothing: only the recipient's acceptance
   activates a gym membership, in the transaction that consumes it.
 
+  ## Delivery gate (E07 launch readiness)
+
+  Creating and resending send E07, whose link opens the web page
+  `/invite/gym`. Until that page and the in-app inbox exist, both are off
+  unless `config :simple_fit, SimpleFit.Gyms, member_invitations: true` (dev
+  and test; production only with `GYM_MEMBER_INVITATIONS=enabled`), and
+  answer `409` (`member_invitation: recipient_flow_unavailable`) after the
+  usual access checks. Fail closed: anything but `true` is off. Answering,
+  previewing, listing and cancelling existing invitations are unaffected.
+
   ## Who
 
   Owner, managers and front desk (`manage_member_enrollment`) invite,
@@ -119,6 +129,7 @@ defmodule SimpleFit.Gyms.MemberInvitations do
       fn ->
         with {:ok, %{gym: gym, membership: inviter}} <-
                Access.authorize_locked(user, gym_id, :manage_member_enrollment),
+             :ok <- delivery_enabled(),
              {:ok, address} <- create_params(attrs),
              :ok <- completed(gym),
              digest = MemberSecrets.recipient_digest(address),
@@ -183,6 +194,7 @@ defmodule SimpleFit.Gyms.MemberInvitations do
       fn ->
         with {:ok, %{gym: gym}} <-
                Access.authorize_locked(user, gym_id, :manage_member_enrollment),
+             :ok <- delivery_enabled(),
              {:ok, invitation} <- lock_of_gym(gym.id, invitation_id),
              {:ok, updated, token, address} <- rotate(invitation),
              :ok <- Members.admin_limit(user) do
@@ -561,6 +573,17 @@ defmodule SimpleFit.Gyms.MemberInvitations do
           :error -> Changeset.add_error(changeset, :email, "is invalid", validation: :format)
         end
     end
+  end
+
+  @doc "Whether E07 member invitations may be sent (see the moduledoc)."
+  @spec delivery_enabled?() :: boolean()
+  def delivery_enabled?,
+    do: Application.get_env(:simple_fit, SimpleFit.Gyms, [])[:member_invitations] == true
+
+  defp delivery_enabled do
+    if delivery_enabled?(),
+      do: :ok,
+      else: {:error, {:conflict, %{member_invitation: "recipient_flow_unavailable"}}}
   end
 
   defp completed(%Gym{setup_status: :completed}), do: :ok

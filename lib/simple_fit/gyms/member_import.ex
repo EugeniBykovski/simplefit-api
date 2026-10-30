@@ -9,9 +9,9 @@ defmodule SimpleFit.Gyms.MemberImport do
 
   Storing a gym's list of third parties before they have an account (an
   "unclaimed contact"), and sending them email in bulk from it, needs an
-  approved legal basis and retention rule that do not exist: SF-82 keeps CSV
-  import FUTURE (D-G08 "CSV import is future"; threat model T15; 01 §4.5,
-  OG12). So the preview persists **nothing**: no row, contact, file, job,
+  approved lawful basis, retention and erasure rule that do not exist: the
+  proposed, unapproved decision D-G27 (SF-82 10 §3; threat model T15; OG12).
+  D-G08 (request-based enrollment) does not govern importing. So the preview persists **nothing**: no row, contact, file, job,
   cache or audit event, and no log line with the content. The commit (and
   its idempotency key), unclaimed contacts, storing names, phones, plans or
   start dates, and bulk E07 sending stay blocked until that decision is

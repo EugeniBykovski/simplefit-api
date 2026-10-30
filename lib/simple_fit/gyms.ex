@@ -606,6 +606,13 @@ defmodule SimpleFit.Gyms do
   any active staff membership (an active membership cannot lose its user),
   so no gym can be left without an owner; ended memberships keep their
   history with the user removed.
+
+  Gym members (SF-95) follow the same rule: a `requested` or `active` gym
+  membership blocks the user's deletion in the database. The workflow must
+  first cancel the user's pending join requests and end their active gym
+  memberships with reason `account_deleted` (a vocabulary the database
+  already accepts); final memberships then keep their history with
+  `user_id` set to NULL.
   """
   @spec check_account_deletion(User.t()) :: :ok | {:error, {:conflict, map()}}
   defdelegate check_account_deletion(user), to: Ownership
