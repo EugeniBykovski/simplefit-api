@@ -746,3 +746,246 @@ not undo it. A draft keeps `coming_later`.
    location, an invitee name); the SF-82 corrections R4, R7, R10, R11 and
    C10–C16 apply.
 4. Ownership transfer stays a domain function without an HTTP operation.
+
+## Amendment — SF-95 (2026-10-30): gym members, enrollment, member invitations and the member-list foundation
+
+SF-82 calls this backend scope "SF-89" (09 dependency matrix). It adds gym
+**members** (participants) as a domain of their own; no member UI is built.
+The member screens (`/me/gyms`, `/invite/gym`, `/join/:code`, the mobile
+inbox entries and the members console) have **no Jira task yet**: SF-91 is
+the Gym Web First Run and SF-100 the member booking and attendance UI; the
+SF-82 numbers (SF-90/SF-91) for these screens were a superseded proposal.
+
+### D-G08 reconciliation
+
+`D-G08` keeps its approved meaning: request-based enrollment by join code,
+staff approval, auto-approval only when a gym explicitly enables it and
+never without a verified identity, and E07 acceptance only with a verified
+identity for the invited address. SF-95 implements exactly that. The
+register row's trailing note ("CSV import is future") is a scope note, not
+the decision that blocks importing: the member-list import commit, contact
+retention and lawful processing are the separate, **proposed** decision
+`D-G27` (10 §3), which is not approved. Earlier SF-95 text that cited
+`D-G08` as the import blocker is corrected here.
+
+### Domain
+
+A gym membership (`gym_members`) is a user's participation in one gym. It is
+independent of staff memberships (a staff member may also be a member, in
+another row and table), of Fighter and Coach profiles and of Coach–Fighter
+relationships: no column refers to them, none is required, created or
+changed, and no gym permission or `GYM_WORKSPACE` derives from it (Policy
+and entry read staff memberships only). Joining needs a completed account
+and nothing else (D-G07).
+
+### Data (migration `20261031090000`, explicit up/down)
+
+* **`gym_members`**: `gym_id`, `user_id` (`ON DELETE SET NULL`), `status`,
+  `joined_via` (`join_code` | `invitation`), `auto_approved`,
+  `requested_at`, `activated_at`, `responded_at`, `ended_at`,
+  `ended_reason` (`left` | `removed` | `account_deleted` | `gym_closed`).
+  * partial unique "one `requested`-or-`active` row per gym and user"; any
+    number of final rows (re-enrollment keeps the history);
+  * checks: vocabularies, a user on every non-final row (so a current
+    membership blocks account deletion and a final one keeps its history
+    with `user_id` NULL), auto-approval only on join-code rows, and the
+    exact timestamps of each status;
+  * insert trigger: completed gym only; born `requested`, or `active` only
+    from an invitation or an auto-approval;
+  * update trigger: transitions `requested` → `active` | `rejected` |
+    `cancelled` and `active` → `ended` only; gym, user, origin, request and
+    creation immutable; final rows immutable (except the user removed by an
+    account deletion);
+  * delete trigger: **no physical deletion**, unless a maintenance session
+    sets `simple_fit.allow_gym_member_purge` (real-commit test cleanup; a
+    future approved retention job).
+* **`gym_member_invitations`**: as `gym_staff_invitations` without a role,
+  with `gym_member_id` (composite foreign key to `gym_members (gym_id,
+  id)`); the same pending-uniqueness, outcome-shape and guard triggers; an
+  acceptance must name an active membership of the gym.
+* **`gym_enrollment_settings`** (one row per gym, created by its first
+  change): `join_code_digest` (HMAC, unique), `join_code_sealed`
+  (encrypted, for staff display), `join_code_rotated_at`, `auto_approve`
+  (default `false`), `auto_approve_changed_at`; completed gyms only. No row:
+  no code, no auto-approval.
+* **`gym_audit_events`**: nullable `gym_member_id`, `member_invitation_id`
+  and `enabled`; types `member_join_requested`, `member_join_approved`,
+  `member_join_auto_approved`, `member_join_rejected`,
+  `member_join_cancelled`, `member_ended`, `member_invited`,
+  `member_invitation_cancelled`, `member_invitation_accepted`,
+  `member_invitation_declined`, `join_code_rotated`, `join_code_disabled`,
+  `member_auto_approval_changed`.
+
+### Enrollment (D-G08, T10)
+
+* **Join code:** 8 symbols of the Crockford base32 alphabet (40 bits), shown
+  `ABCD-EFGH`, typed forgivingly; stored only as a digest and an encrypted
+  copy. Joining creates a `requested` membership; owner, managers and front
+  desk approve or reject (`manage_member_enrollment`). Rotation stops the
+  old code at once; disabling removes it. A pending request joined again is
+  returned (`200`); an active member joining is `409 gym_member:
+  already_active`.
+* **Auto-approval:** off by default; an owner or manager switches it
+  (new permission `manage_enrollment_settings`: owner, manager), each change
+  audited with `enabled`. When on, a joiner starts `active` only with a
+  completed account **and** a verified sign-in identity
+  (`Accounts.verified_identity?/1`: an identity exists only after an email
+  code or a verified Google/Apple token); otherwise a request.
+* **Member invitation (E07):** owner, managers and front desk invite an
+  address (`sgm_` token, separate salts: never matches a staff or coach
+  secret). Recipient binding, inbox, token page, preview, decline, resend
+  and cancel exactly as staff invitations (D-G16/D-G22 rules). Accepting
+  inserts an `active` membership (`joined_via: invitation`) or approves the
+  recipient's pending join request. The invitation is the gym's: it stays
+  valid when the inviting staff member leaves.
+* **Expiry decision (SF-95):** a member invitation expires **7 days after it
+  was last sent** (server time), the D-G12 staff rule: no separate member
+  value was approved, and one rule for every gym invitation keeps E06 and E07
+  predictable. Resend restarts the 7 days (at most 3 resends, 60 s apart).
+
+### Lifecycle
+
+`requested` → `active` (approve, auto-approve, invitation) | `rejected`
+(staff) | `cancelled` (requester); `active` → `ended` (`left` by the member,
+`removed` by owner/manager: `change_member_status`). Each transition is
+idempotent for its own result and `409 gym_member: <status>` otherwise.
+Leaving as a member leaves a staff membership at the same gym untouched.
+Suspension (proposal 01's `suspended`) is deferred: no product need yet.
+
+### Roster and permissions
+
+The roster (`view_members`) shows a short name ("Marta K."), status, origin
+and dates: never an email, user id, profile or training data. Owner,
+managers and front desk see it; a coach's grant is `own_classes` and no
+class domain exists, so coaches are refused (`403`) rather than shown an
+empty list. Member contact data (`view_member_contact`) is not exposed by
+any SF-95 operation.
+
+### Lock order
+
+Staff decisions: gym row `FOR UPDATE` → staff membership → member row
+(SF-83 order). A member's own changes: user/session `FOR SHARE` → gym row
+`FOR SHARE` → enrollment settings `FOR SHARE` (joins) → member rows /
+invitation `FOR UPDATE`. Setting changes: gym `FOR UPDATE` → settings `FOR
+UPDATE`. The partial unique index settles simultaneous joins and
+acceptances (`ON CONFLICT DO NOTHING`, the loser answers with the winner's
+row). Real-commit race tests: 12 joins by one user, approve/reject/cancel on
+one request, 12 acceptances (inbox and token), join vs acceptance,
+joins vs the auto-approval switch, joins vs code rotation, leave vs removal.
+
+### API (tag "Gym members", all `no-store`)
+
+| Operation | Path | Who |
+| --- | --- | --- |
+| `listGymMembers`, `getGymMember` | `GET /api/v1/gyms/{gym_id}/members[/{gym_member_id}]` | owner, manager, front desk |
+| `removeGymMember` | `POST …/members/{gym_member_id}/remove` | owner, manager |
+| `listGymJoinRequests` | `GET /api/v1/gyms/{gym_id}/join-requests` | owner, manager, front desk |
+| `approveGymJoinRequest`, `rejectGymJoinRequest` | `POST …/join-requests/{gym_member_id}/approve`, `/reject` | owner, manager, front desk |
+| `getGymEnrollmentSettings` | `GET /api/v1/gyms/{gym_id}/enrollment` | owner, manager, front desk |
+| `updateGymEnrollmentSettings` | `PATCH /api/v1/gyms/{gym_id}/enrollment` | owner, manager |
+| `rotateGymJoinCode`, `disableGymJoinCode` | `POST /api/v1/gyms/{gym_id}/join-code/rotate`, `/disable` | owner, manager |
+| `previewGymMemberImport` | `POST /api/v1/gyms/{gym_id}/member-imports/preview` | owner, manager, front desk |
+| `createGymMemberInvitation`, `listGymMemberInvitations` | `POST`/`GET /api/v1/gyms/{gym_id}/member-invitations` | owner, manager, front desk |
+| `resendGymMemberInvitation`, `cancelGymMemberInvitation` | `POST …/member-invitations/{invitation_id}/resend`, `/cancel` | owner, manager, front desk |
+| `listMyGymMemberships`, `getMyGymMembership` | `GET /api/v1/me/gym-memberships[/{gym_member_id}]` | signed in (own) |
+| `joinGym` | `POST /api/v1/me/gym-memberships/join` | registered user |
+| `cancelMyGymJoinRequest`, `leaveGymMembership` | `POST /api/v1/me/gym-memberships/{gym_member_id}/cancel`, `/leave` | the member |
+| `listMyGymInvitations`, `getMyGymInvitation` | `GET /api/v1/me/gym-invitations[/{invitation_id}]` | signed in |
+| `acceptMyGymInvitation`, `declineMyGymInvitation` | `POST /api/v1/me/gym-invitations/{invitation_id}/accept`, `/decline` | the recipient |
+| `acceptGymInvitation`, `declineGymInvitation` | `POST /api/v1/me/gym-invitations/accept`, `/decline` (token in body) | the recipient |
+| `previewGymInvitation` | `POST /api/v1/gym-invitations/preview` (token in body) | anyone |
+| `previewGymJoin` | `POST /api/v1/gym-join/preview` (code in body) | anyone |
+
+### Rate limits (D-G25 open)
+
+Code previews and joins: 20 per 10 minutes per client, 10 per user, every
+attempt counted. Member invitation creation (rolling, counted when created):
+30 per hour and 100 per day per user, 300 per day per gym, 3 per day per
+address across gyms, 60 per 10 minutes per client. Invitation previews and
+answers: 30 per 10 minutes per client. Member administration (decisions,
+removal, settings, resend, cancel): 120 per 10 minutes per user. List
+previews: 30 per 10 minutes per user.
+
+### Member-list import (OG12): foundation only
+
+`previewGymMemberImport` parses a CSV (own strict RFC 4180 reader: UTF-8,
+`,`/`;`/tab, quotes; 1 MB, 1,000 rows, 30 columns, 500 bytes per field),
+suggests or takes a mapping (`email` required, `name` checked for presence
+only, every other column `not_imported`), validates and deduplicates by
+canonical email, and classifies rows against **this gym's own facts only**
+(`ready`, `missing_email`, `invalid_email`, `duplicate`, `already_member`,
+`request_pending`, `already_invited`). It is a dry run: nothing is stored,
+queued, audited or logged; addresses come back masked; no user is created
+or verified, nothing is linked, merged or matched by name. The `csv`
+parameter is filtered from request logs and redacted from crash reports.
+
+**Blocked** until the proposed decision `D-G27` (lawful basis, retention,
+erasure, opt-out) is approved (threat model T15; OG12): the commit and its idempotency,
+"unclaimed contacts" (storing people without an account), storing names,
+phones, plans or start dates, and bulk E07 sending from a list. The
+response says so (`commit: {available: false, blocked_by:
+"legal_basis_pending"}`). No GDPR or marketing-consent policy was created.
+
+**Follow-up (Jira-ready): "Gym Member Import Commit & Contact Data
+Retention".** Entry condition: `D-G27` approved (lawful basis, retention
+period for unaccepted invitations, erasure path, E07 opt-out wording,
+controller/processor roles). Scope, if option B is approved: a commit of a
+previewed list that creates only member invitations (sealed address and
+digest; never names, phones, plans or dates), idempotent by a
+client-supplied key and a stored digest of the normalized list, re-validated
+at commit against the same classification; per-gym daily caps and the
+existing per-address limit; scheduled, throttled E07 sending; automatic
+expiry and purge of unaccepted invitations after the approved period; a
+public opt-out link and a suppression list that blocks future invitations to
+an address; audit events with counts only; real-commit race tests (double
+commit, commit vs manual invite, commit vs acceptance); real E2E. Out of
+scope: unclaimed contact records (option C), contact export, marketing
+consent. Depends on the recipient flow (`/invite/gym` and the in-app inbox),
+which must ship first.
+
+### Email (E07)
+
+The E07 template now carries the approved C15/R10 copy: "{gym} invited you
+to join on SimpleFit", no membership plan, payment method or "shared your
+name, email and plan"; the privacy line "the gym used your email address to
+invite you"; the link `<web app>/invite/gym#token=sgm_…` (fragment only).
+Interim: C15's "book classes and check in" waits for those domains, and
+there is no opt-out link (no opt-out flow; ignoring the email lets it
+expire). Sent through the encrypted Oban outbox in the invitation's
+transaction. Production delivery settings are unchanged.
+
+**Launch gate.** The E07 link opens `/invite/gym`, which does not exist yet
+(web has only `/invite/coach`; mobile `/join/:code` and `/invite/staff/:token`
+are placeholders, and there is no in-app member inbox). So creating and
+resending member invitations are **off in production**: they answer `409
+member_invitation: recipient_flow_unavailable` after the usual access
+checks, unless `GYM_MEMBER_INVITATIONS=enabled` is set (fail closed; dev and
+test enable them in config). The backend capability (answering, preview,
+inbox API) is complete and tested; the recipient UI is a separate
+dependency. Joining by code has the same UI gap but sends no email, so it
+needs no gate: without a screen, nobody is directed to it.
+
+### Entry and checklist
+
+Members get no `GYM_WORKSPACE` (tested). The SF-90 `invite_members` item is
+`available` at a completed gym and `completed` once any membership of the
+gym became active (03 §3 "done when ≥ 1 member is active"); a later end does
+not undo it; a draft keeps `coming_later`.
+
+### Deviations and gaps
+
+1. Statuses follow the SF-95 brief (`rejected`, `cancelled`) rather than
+   proposal 01's `declined`; `suspended` is deferred.
+2. The join-code settings are read by the front desk (to show the code at
+   the desk, 02 §4) but changed only by owner and managers (11: "owner,
+   manager").
+3. No E09 "join approved" email is sent: E09's copy (plan, billing, QR)
+   needs its own reconciliation.
+4. Member UI, `/invite/gym`, `/join/:code` and the mobile inbox entries
+   have no Jira task yet; until they ship, E07 stays gated off in
+   production (see "Launch gate").
+5. Coach-scoped roster (`own_classes`) waits for the class domain.
+6. Pre-existing, outside SF-95: E06 staff invitation links also point at a
+   web page (`/invite/staff`) that does not exist yet, and production sends
+   E06 today (SF-93). A recipient-flow ticket or the same gate for E06 is
+   recommended.

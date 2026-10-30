@@ -41,7 +41,7 @@ defmodule SimpleFit.Gyms.FirstRun do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Audit, Gym, GymFirstRun, StaffInvitation}
+  alias SimpleFit.Gyms.{Access, Audit, Gym, GymFirstRun, Member, StaffInvitation}
   alias SimpleFit.Repo
 
   @type status :: :unavailable | :not_started | :in_progress | :completed | :dismissed
@@ -68,9 +68,9 @@ defmodule SimpleFit.Gyms.FirstRun do
   @type error :: :not_found | :forbidden | {:conflict, map()} | Changeset.t()
 
   # The approved opening-week checklist (SF-82 C7, D-G21), in design order.
-  # `create_gym` and `invite_staff` (SF-93) have their domains today; each
-  # other item derives from its own domain when that ships (classes,
-  # members and check-ins later), with no change to the first run.
+  # `create_gym`, `invite_staff` (SF-93) and `invite_members` (SF-95) have
+  # their domains today; each other item derives from its own domain when
+  # that ships (classes and check-ins later), with no change to the first run.
   @checklist [:create_gym, :add_class, :invite_staff, :invite_members, :first_check_in]
 
   @doc "The checklist keys, in order."
@@ -140,8 +140,22 @@ defmodule SimpleFit.Gyms.FirstRun do
     if accepted?, do: :completed, else: :available
   end
 
-  # No class, member or check-in domain exists yet (and a draft invites no
-  # staff yet).
+  # "Invite members" is done once a person became an active member (SF-82
+  # 03 §3: "done when ≥ 1 member is active"; SF-95): by an accepted
+  # invitation, an approved request or an auto-approval. Sending an
+  # invitation or receiving a request is not enough; a later end does not
+  # undo it (the gym's history), as for staff. A draft has no members.
+  defp item(:invite_members, %Gym{setup_status: :completed, id: gym_id}) do
+    joined? =
+      Repo.exists?(
+        from(m in Member, where: m.gym_id == ^gym_id and not is_nil(m.activated_at)),
+        log: false
+      )
+
+    if joined?, do: :completed, else: :available
+  end
+
+  # No class or check-in domain exists yet (and a draft invites nobody yet).
   defp item(_future, %Gym{}), do: :coming_later
 
   # -- Transitions ---------------------------------------------------------------

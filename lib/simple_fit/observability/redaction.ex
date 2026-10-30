@@ -10,7 +10,8 @@ defmodule SimpleFit.Observability.Redaction do
 
     * SimpleFit credentials by their format: access (`sfa_`), refresh
       (`sfr_`), email link (`sfv_`), registration (`sfg_`), coach
-      invitation (`sfi_`, SF-57) and gym staff invitation (`sfs_`, SF-93)
+      invitation (`sfi_`, SF-57), gym staff invitation (`sfs_`, SF-93) and gym
+      member invitation (`sgm_`, SF-95)
       tokens;
     * JSON Web Tokens (Google and Apple identity tokens);
     * `Bearer` / `Basic` authorization values;
@@ -27,7 +28,7 @@ defmodule SimpleFit.Observability.Redaction do
   @sensitive_keys ~w(password passwd secret token access_token refresh_token id_token
                      identity_token registration_token link_token authorization_code
                      authorization api_key apikey access_key code nonce cookie csrf email
-                     full_name date_of_birth)
+                     full_name date_of_birth csv join_code)
   @keys Enum.join(@sensitive_keys, "|")
 
   @redactions [
@@ -36,7 +37,7 @@ defmodule SimpleFit.Observability.Redaction do
     # Erlang-formatted terms (OTP crash reports): code => <<"...">>.
     {~r/(\b(?:#{@keys})\b\s*=>\s*)<<"(?:[^"\\]|\\.)*">>/i, "\\1<<\"[REDACTED]\">>"},
     {~r/\b(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]+/i, "\\1 [REDACTED]"},
-    {~r/\bsf[agirsv]_[A-Za-z0-9._~+\/=-]+/, "[REDACTED]"},
+    {~r/\b(?:sf[agirsv]|sgm)_[A-Za-z0-9._~+\/=-]+/, "[REDACTED]"},
     {~r/\beyJ[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]{2,}\.[A-Za-z0-9_-]*/, "[REDACTED]"},
     {~r/\b(X-Amz-(?:Signature|Credential|Security-Token))=[^&\s"']+/i, "\\1=[REDACTED]"},
     {~r/\b(#{@keys})(["']?\s*[:=]\s*["']?)[^\s&"',}\]]+/i, "\\1\\2[REDACTED]"},

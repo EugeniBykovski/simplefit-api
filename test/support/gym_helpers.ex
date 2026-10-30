@@ -12,7 +12,7 @@ defmodule SimpleFit.GymHelpers do
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.{Session, User}
   alias SimpleFit.{CoachingHelpers, EmailAuthHelpers, Gyms, Repo}
-  alias SimpleFit.Gyms.{AuditEvent, Gym, GymLocation, StaffInvitation, StaffMembership}
+  alias SimpleFit.Gyms.{AuditEvent, Gym, GymLocation, Member, StaffInvitation, StaffMembership}
 
   @doc "A user with completed account registration."
   @spec registered!(String.t()) :: User.t()
@@ -243,5 +243,90 @@ defmodule SimpleFit.GymHelpers do
         where: m.gym_id == ^gym_id and m.user_id == ^user_id and m.status == :active
       )
     )
+  end
+
+  ## Members (SF-95)
+
+  @doc "Issues a join code for the gym as `admin` and returns it as shown (`ABCD-EFGH`)."
+  @spec join_code!(User.t(), Ecto.UUID.t()) :: String.t()
+  def join_code!(%User{} = admin, gym_id) do
+    {:ok, %{join_code: code}} = Gyms.rotate_join_code(admin, gym_id)
+    code
+  end
+
+  @doc "Turns the gym's auto-approval on or off as `admin`."
+  @spec auto_approve!(User.t(), Ecto.UUID.t(), boolean()) :: map()
+  def auto_approve!(%User{} = admin, gym_id, value) do
+    {:ok, settings} = Gyms.update_enrollment_settings(admin, gym_id, %{"auto_approve" => value})
+    settings
+  end
+
+  @doc "Joins by `code` as `user` on a new session."
+  @spec join(User.t(), String.t()) :: term()
+  def join(%User{} = user, code), do: Gyms.join_gym(user, live_session!(user), code, client_ip())
+
+  @doc "A registered user with a pending join request at the gym of `code`."
+  @spec requester!(String.t(), String.t()) :: {User.t(), map()}
+  def requester!(code, full_name \\ "Marta Kowalska") do
+    user = email_user!(address("member"), full_name)
+    {:ok, view, :created} = join(user, code)
+    {user, view}
+  end
+
+  @doc "An active member of the gym: requested by code and approved by `admin`."
+  @spec active_member!(User.t(), Ecto.UUID.t(), String.t(), String.t()) :: {User.t(), map()}
+  def active_member!(%User{} = admin, gym_id, code, full_name \\ "Marta Kowalska") do
+    {user, view} = requester!(code, full_name)
+    {:ok, approved} = Gyms.approve_join_request(admin, gym_id, view.gym_member_id)
+    {user, approved}
+  end
+
+  @doc "Invites `email` to become a member through `SimpleFit.Gyms` (asserting success)."
+  @spec invite_member!(User.t(), Ecto.UUID.t(), String.t()) :: map()
+  def invite_member!(%User{} = inviter, gym_id, email) do
+    {:ok, view, _outcome} =
+      Gyms.create_member_invitation(inviter, gym_id, %{"email" => email}, client_ip())
+
+    view
+  end
+
+  @doc "The token of the latest E07 email sent to `email`."
+  @spec member_token_for(String.t()) :: String.t()
+  def member_token_for(email) do
+    message = EmailAuthHelpers.last_email_to(email)
+    [_, token] = Regex.run(~r"/invite/gym#token=(sgm_[A-Za-z0-9_-]{43})", message.text)
+    token
+  end
+
+  @doc "The stored membership."
+  @spec stored_member(Ecto.UUID.t()) :: Member.t()
+  def stored_member(id), do: Repo.get!(Member, id)
+
+  @doc "Every membership row of `user` at `gym_id`, oldest first."
+  @spec member_rows(Ecto.UUID.t(), User.t()) :: [Member.t()]
+  def member_rows(gym_id, %User{id: user_id}) do
+    Repo.all(
+      from(m in Member,
+        where: m.gym_id == ^gym_id and m.user_id == ^user_id,
+        order_by: [asc: m.inserted_at, asc: m.id]
+      )
+    )
+  end
+
+  @doc """
+  Deletes gyms committed outside the sandbox, with their members: gym
+  memberships are never deleted, so this sets the maintenance switch of
+  the delete guard for its own transaction only (real-commit tests).
+  """
+  @spec purge_gyms!([Ecto.UUID.t()]) :: :ok
+  def purge_gyms!(gym_ids) do
+    {:ok, _} =
+      Repo.transaction(fn ->
+        Repo.query!("SET LOCAL simple_fit.allow_gym_member_purge = 'on'")
+        Repo.delete_all(from(e in AuditEvent, where: e.gym_id in ^gym_ids))
+        Repo.delete_all(from(g in Gym, where: g.id in ^gym_ids))
+      end)
+
+    :ok
   end
 end

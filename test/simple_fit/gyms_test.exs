@@ -263,8 +263,8 @@ defmodule SimpleFit.GymsTest do
         manager:
           ~w(view_workspace view_staff view_staff_records edit_gym manage_locations invite_staff
              change_staff_role remove_staff
-             leave_gym manage_member_enrollment view_members view_member_contact change_member_status
-             manage_timetable cancel_occurrence view_rosters book_for_member record_check_in view_attendance)a,
+             leave_gym manage_member_enrollment manage_enrollment_settings view_members
+             view_member_contact change_member_status manage_timetable cancel_occurrence view_rosters book_for_member record_check_in view_attendance)a,
         coach:
           ~w(view_workspace view_staff leave_gym view_members cancel_occurrence view_rosters record_check_in
              view_attendance)a,

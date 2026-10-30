@@ -113,6 +113,20 @@ defmodule SimpleFit.Gyms.Access do
     lock_gym(gym_id)
   end
 
+  @doc """
+  Share-locks a gym row (`FOR SHARE`) inside the caller's transaction,
+  without any staff membership: for a person joining, accepting a member
+  invitation, cancelling a request or leaving (SF-95), who is not staff.
+  Staff writes lock the gym row for update first, so each such change
+  commits entirely before or after a staff decision at that gym, while
+  members' own changes do not wait on each other.
+  """
+  @spec lock_gym_shared!(Ecto.UUID.t()) :: Gym.t() | nil
+  def lock_gym_shared!(gym_id) do
+    true = Repo.in_transaction?()
+    Repo.one(from(g in Gym, where: g.id == ^gym_id, lock: "FOR SHARE"), log: false)
+  end
+
   @doc "Locks an active membership of `gym_id` by its id (`nil` if none)."
   @spec lock_staff_membership(Ecto.UUID.t(), term()) :: StaffMembership.t() | nil
   def lock_staff_membership(gym_id, membership_id) do

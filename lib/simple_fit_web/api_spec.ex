@@ -97,6 +97,13 @@ defmodule SimpleFitWeb.ApiSpec do
               "(ADR 0026, SF-93). Separate from Coach–Fighter invitations."
         },
         %Tag{
+          name: "Gym members",
+          description:
+            "A gym's members (participants): join codes and requests, auto-approval, member invitations (E07), " <>
+              "the roster, leaving and removal, the member-list dry run, and the member's own memberships and " <>
+              "invitations (ADR 0026, SF-95). Separate from staff and Coach–Fighter relationships."
+        },
+        %Tag{
           name: "Legal",
           description: "Published legal documents (versioned, per language; ADR 0022)."
         },

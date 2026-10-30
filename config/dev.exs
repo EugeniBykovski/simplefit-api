@@ -50,7 +50,10 @@ config :simple_fit, SimpleFit.Coaching.Invitations,
 # Development-only gym rate-limit key material (SF-83).
 config :simple_fit, SimpleFit.Gyms,
   secret_key_base: "8YBMJlfoU9bSnKqnNYznwMHi94VUVsNfWHLLiIFiB7Fhy1hpnhfVR+5rXnu+5LHW",
-  web_app_url: "http://localhost:3000"
+  web_app_url: "http://localhost:3000",
+  # SF-95: member invitations (E07) are sent locally (Log adapter); in
+  # production they stay off until the recipient flow exists.
+  member_invitations: true
 
 # Transactional email (ADR 0011): development-only payload key, http CTA
 # URLs for the local web app, and the template preview at /dev/emails.

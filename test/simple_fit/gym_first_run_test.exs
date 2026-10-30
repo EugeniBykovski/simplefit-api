@@ -17,13 +17,15 @@ defmodule SimpleFit.GymFirstRunTest do
   alias SimpleFit.{Entry, Gyms}
   alias SimpleFit.Gyms.{AuditEvent, Gym, GymFirstRun, StaffMembership}
 
-  @future [:add_class, :invite_members, :first_check_in]
+  @future [:add_class, :first_check_in]
 
-  # A completed gym with no accepted staff invitation (SF-93): inviting staff
-  # is available, every other future item is coming later.
+  # A completed gym with no accepted staff invitation (SF-93) and no member
+  # yet (SF-95): inviting staff and members is available, every other future
+  # item is coming later.
   @fresh Map.new([
            {:create_gym, :completed},
-           {:invite_staff, :available} | Enum.map(@future, &{&1, :coming_later})
+           {:invite_staff, :available},
+           {:invite_members, :available} | Enum.map(@future, &{&1, :coming_later})
          ])
 
   defp completed_with_owner do
@@ -71,6 +73,7 @@ defmodule SimpleFit.GymFirstRunTest do
       assert state.status == :unavailable
       assert statuses(state.checklist).create_gym == :available
       assert statuses(state.checklist).invite_staff == :coming_later
+      assert statuses(state.checklist).invite_members == :coming_later
       assert Enum.all?(@future, &(statuses(state.checklist)[&1] == :coming_later))
     end
 
