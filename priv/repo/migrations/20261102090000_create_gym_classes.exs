@@ -235,7 +235,10 @@ defmodule SimpleFit.Repo.Migrations.CreateGymClasses do
       timestamps(type: :utc_datetime_usec)
     end
 
-    create unique_index(:gym_class_series, [:gym_id, :id], name: :gym_class_series_gym_id_id_index)
+    create unique_index(:gym_class_series, [:gym_id, :id],
+             name: :gym_class_series_gym_id_id_index
+           )
+
     create unique_index(:gym_class_series, [:gym_id, :client_request_id])
     create index(:gym_class_series, [:gym_id, :starts_on])
 
@@ -671,9 +674,7 @@ defmodule SimpleFit.Repo.Migrations.CreateGymClasses do
   end
 
   def down do
-    execute(
-      "DELETE FROM gym_audit_events WHERE event_type IN (#{quoted(event_types(:new))})"
-    )
+    execute("DELETE FROM gym_audit_events WHERE event_type IN (#{quoted(event_types(:new))})")
 
     drop constraint(:gym_audit_events, :event_type_values)
 
