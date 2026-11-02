@@ -7,7 +7,10 @@ defmodule SimpleFit.GymFirstRunTest do
   `SimpleFit.GymFirstRunRaceTest`.
   """
 
-  use SimpleFit.DataCase, async: true
+  # Not async: the telemetry test attaches a global handler, and first-run
+  # events of concurrently running tests (whose metadata carries no gym, by
+  # design) would reach it.
+  use SimpleFit.DataCase, async: false
 
   import SimpleFit.CoachingHelpers, only: [complete_coach!: 2]
   import SimpleFit.FighterOnboardingHelpers
@@ -17,13 +20,14 @@ defmodule SimpleFit.GymFirstRunTest do
   alias SimpleFit.{Entry, Gyms}
   alias SimpleFit.Gyms.{AuditEvent, Gym, GymFirstRun, StaffMembership}
 
-  @future [:add_class, :first_check_in]
+  @future [:first_check_in]
 
-  # A completed gym with no accepted staff invitation (SF-93) and no member
-  # yet (SF-95): inviting staff and members is available, every other future
-  # item is coming later.
+  # A completed gym with no class (SF-97), no accepted staff invitation
+  # (SF-93) and no member yet (SF-95): adding a class and inviting staff and
+  # members is available, check-in is coming later.
   @fresh Map.new([
            {:create_gym, :completed},
+           {:add_class, :available},
            {:invite_staff, :available},
            {:invite_members, :available} | Enum.map(@future, &{&1, :coming_later})
          ])
@@ -74,6 +78,7 @@ defmodule SimpleFit.GymFirstRunTest do
       assert statuses(state.checklist).create_gym == :available
       assert statuses(state.checklist).invite_staff == :coming_later
       assert statuses(state.checklist).invite_members == :coming_later
+      assert statuses(state.checklist).add_class == :coming_later
       assert Enum.all?(@future, &(statuses(state.checklist)[&1] == :coming_later))
     end
 

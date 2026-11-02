@@ -204,6 +204,43 @@ defmodule SimpleFitWeb.Router do
          GymMemberInvitationController,
          :cancel
 
+    # SF-97: the gym timetable (venues, class templates, series, classes).
+    get "/gyms/:gym_id/venues", GymTimetableController, :venues
+    post "/gyms/:gym_id/venues", GymTimetableController, :create_venue
+    get "/gyms/:gym_id/venues/:venue_id", GymTimetableController, :venue
+    patch "/gyms/:gym_id/venues/:venue_id", GymTimetableController, :update_venue
+    post "/gyms/:gym_id/venues/:venue_id/deactivate", GymTimetableController, :deactivate_venue
+    get "/gyms/:gym_id/class-templates", GymTimetableController, :templates
+    post "/gyms/:gym_id/class-templates", GymTimetableController, :create_template
+    get "/gyms/:gym_id/class-templates/:template_id", GymTimetableController, :template
+    patch "/gyms/:gym_id/class-templates/:template_id", GymTimetableController, :update_template
+
+    post "/gyms/:gym_id/class-templates/:template_id/archive",
+         GymTimetableController,
+         :archive_template
+
+    get "/gyms/:gym_id/class-series", GymTimetableController, :series_index
+    post "/gyms/:gym_id/class-series", GymTimetableController, :create_series
+    get "/gyms/:gym_id/class-series/:series_id", GymTimetableController, :series
+    patch "/gyms/:gym_id/class-series/:series_id", GymTimetableController, :update_series
+    post "/gyms/:gym_id/class-series/:series_id/cancel", GymTimetableController, :cancel_series
+
+    post "/gyms/:gym_id/class-series/:series_id/generate",
+         GymTimetableController,
+         :generate_series
+
+    get "/gyms/:gym_id/class-occurrences", GymTimetableController, :occurrences
+    post "/gyms/:gym_id/class-occurrences", GymTimetableController, :create_occurrence
+    get "/gyms/:gym_id/class-occurrences/:occurrence_id", GymTimetableController, :occurrence
+
+    patch "/gyms/:gym_id/class-occurrences/:occurrence_id",
+          GymTimetableController,
+          :update_occurrence
+
+    post "/gyms/:gym_id/class-occurrences/:occurrence_id/cancel",
+         GymTimetableController,
+         :cancel_occurrence
+
     get "/me/gym-memberships", MyGymMembershipController, :index
     post "/me/gym-memberships/join", MyGymMembershipController, :join
     get "/me/gym-memberships/:gym_member_id", MyGymMembershipController, :show

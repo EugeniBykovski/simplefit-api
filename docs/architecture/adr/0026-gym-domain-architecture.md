@@ -989,3 +989,123 @@ not undo it; a draft keeps `coming_later`.
    web page (`/invite/staff`) that does not exist yet, and production sends
    E06 today (SF-93). A recipient-flow ticket or the same gate for E06 is
    recommended.
+
+## Amendment — SF-97 (2026-11-02): gym classes, venues and the timetable API
+
+### Scope
+
+Gym venues, class templates, bounded weekly series and class occurrences
+under `/api/v1/gyms/{gym_id}/…` (`D-G15`), separate from ADR 0023 training
+sessions (`D-G14`). No bookings, waitlists, attendance, check-ins,
+payments, notifications or timetable UI.
+
+### Decisions taken by this ticket
+
+1. **Venues exist now.** D-G02 kept rooms FUTURE; SF-97 is the ticket that
+   introduces them (`gym_venues`): a training area at one of the gym's own
+   non-archived locations, with an IANA zone (fixed) and an optional
+   capacity. Every class takes place in exactly one venue, and **every venue
+   is exclusive** (one scheduled class at a time). Non-exclusive areas are
+   future.
+2. **Zone.** The venue carries the zone (the place decides the wall clock);
+   a series and each occurrence copy it when created and never change it. A
+   one-time class is an RFC 3339 instant whose explicit offset must be the
+   zone's at that instant (ADR 0023's rule): a spring-gap time cannot be
+   sent, the two instants of an autumn repeated hour are chosen by offset.
+3. **Weekly series are bounded and fully materialized** (deviation from
+   SF-82 05's rolling 8-week window and Oban job): `starts_on` today or
+   later, `ends_on` at most 365 days after it and 366 days from today; every
+   class is written when the series is created or changed, so each one has
+   passed the venue and instructor constraints (no projected, unchecked
+   classes; no job; no gaps between windows). A longer schedule is extended
+   by changing `ends_on`. `POST …/generate` is an idempotent repair (normally
+   0 classes).
+4. **DST policy for series.** Local times are resolved date by date in the
+   zone (`scheduling_resolve_local/2`). A date whose local start time does
+   not exist (spring gap) **or exists twice** (autumn repeated hour) is
+   skipped and reported in `skipped_dates` (`nonexistent_local_time`,
+   `ambiguous_local_time`), never shifted or guessed; SF-82 05 approved
+   skipping the gap, and the ambiguous case gets the same treatment rather
+   than a silent choice. Such a class is scheduled as a one-time class with
+   an explicit offset. Duration is elapsed time.
+5. **Series change policy.** Only classes still to come that follow the
+   rule are rewritten: kept dates updated, lost dates cancelled
+   (`series_changed`, which a later rule may restore), new dates created.
+   Started classes, classes changed on their own (`rescheduled_at`) and
+   classes cancelled by staff stay. Series cancellation cancels every class
+   still to come (`series_cancelled`) and is final. Template edits change
+   only defaults; scheduled classes keep their title, duration, capacity,
+   venue and instructor.
+6. **Instructors.** An active owner, manager or coach membership of the gym
+   (front desk never; a CoachProfile alone never). One instructor per class.
+   A person instructs one scheduled class at a time **across all gyms**
+   (exclusion on `instructor_user_id`); the conflict answer is a bare
+   `instructor_unavailable` with no details, so no gym learns another's
+   schedule. Coach–Fighter training sessions are not part of the conflict
+   scope. When a membership ends (removal, leaving, transfer) or becomes
+   front desk, `Timetable.release_instructor!/4` clears it from the gym's
+   classes still to come (`needs_instructor`), its series and its template
+   defaults in the same transaction (audited `class_instructor_released`);
+   past classes keep it.
+7. **Permissions.** Read: every active staff role (`view_workspace`).
+   Create, change, regenerate, cancel series, venues and templates:
+   `manage_timetable` (owner, manager). Cancel one class:
+   `cancel_occurrence` (owner and manager any; coach `own_occurrences`, a
+   class they instruct). No new permission was added.
+8. **`add_class`** is completed once the gym has any class occurrence (one-time
+   or from a series); a template alone does not complete it, and a later
+   cancellation does not undo it.
+9. **Capacity** is the limit a future Booking domain enforces
+   (`active_bookings <= capacity`, counted from real booking rows in the same
+   transaction that locks the occurrence). A venue capacity caps its classes;
+   it may not drop below a class still to come. Nothing is reserved or
+   counted here.
+
+### Model and invariants
+
+`gym_venues`, `gym_class_templates`, `gym_class_series`,
+`gym_class_occurrences` (migration `20261102090000`). Every cross-reference
+is a composite foreign key including `gym_id`. Occurrences have one row per
+`(series_id, series_local_date)`; `ends_at - starts_at = duration`;
+`scheduled | cancelled` (`series_changed` the only revivable reason);
+exclusion constraints `gym_class_occurrences_venue_overlap` and
+`…_instructor_overlap` on `tsrange(starts_at, ends_at, '[)')` of scheduled
+rows (deferrable; series writes check them at the end of their own work).
+Triggers: completed gym, active venue at an active location, capacity within
+the venue's, an eligible instructor (the person derived by the database),
+fixed identity fields, cancelled final, no deletes (the SF-95 purge switch
+only). Extension `btree_gist`.
+
+### Writes and concurrency
+
+Every write holds the session (`FOR SHARE`), then the gym row and the
+actor's membership (`Access.authorize_locked/3`): one gym's timetable writes,
+staff revocations and role changes serialize. Two gyms inserting overlapping
+classes for one person can deadlock in the exclusion check; the losing
+transaction is retried (at most 3 times) and then meets the committed row as
+a conflict. Creates are idempotent by `client_request_id` per gym; changes
+take `expected_revision` (`422` missing, `409 revision: stale`). Rate limit:
+120 timetable writes per 10 minutes per user.
+
+### API
+
+Tag "Gym timetable": `listGymVenues`, `createGymVenue`, `getGymVenue`,
+`updateGymVenue`, `deactivateGymVenue`, `listGymClassTemplates`,
+`createGymClassTemplate`, `getGymClassTemplate`, `updateGymClassTemplate`,
+`archiveGymClassTemplate`, `listGymClassSeries`, `createGymClassSeries`,
+`getGymClassSeries`, `updateGymClassSeries`, `cancelGymClassSeries`,
+`generateGymClassSeries`, `listGymClassOccurrences` (`from`/`to`, at most 31
+days; filters venue, instructor, template, series, status; cursor pages),
+`createGymClassOccurrence`, `getGymClassOccurrence`,
+`updateGymClassOccurrence`, `cancelGymClassOccurrence`. Occurrences return
+UTC instants, the zone, wall-clock start and end, the offset and no booking
+or attendance figures.
+
+### Audit and telemetry
+
+Audit events (ids and counts only): `venue_created|updated|deactivated`,
+`class_template_created|updated|archived`,
+`class_series_created|updated|cancelled`,
+`class_occurrence_created|rescheduled|cancelled`, `class_instructor_changed`,
+`class_capacity_changed`, `class_instructor_released`. Telemetry
+`[:simple_fit, :gyms, :timetable, event]` with the outcome only.
