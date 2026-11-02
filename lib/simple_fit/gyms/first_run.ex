@@ -41,7 +41,7 @@ defmodule SimpleFit.Gyms.FirstRun do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Audit, Gym, GymFirstRun, Member, StaffInvitation}
+  alias SimpleFit.Gyms.{Access, Audit, Gym, GymFirstRun, Member, StaffInvitation, Timetable}
   alias SimpleFit.Repo
 
   @type status :: :unavailable | :not_started | :in_progress | :completed | :dismissed
@@ -68,9 +68,10 @@ defmodule SimpleFit.Gyms.FirstRun do
   @type error :: :not_found | :forbidden | {:conflict, map()} | Changeset.t()
 
   # The approved opening-week checklist (SF-82 C7, D-G21), in design order.
-  # `create_gym`, `invite_staff` (SF-93) and `invite_members` (SF-95) have
-  # their domains today; each other item derives from its own domain when
-  # that ships (classes and check-ins later), with no change to the first run.
+  # `create_gym`, `add_class` (SF-97), `invite_staff` (SF-93) and
+  # `invite_members` (SF-95) have their domains today; `first_check_in`
+  # derives from its own domain when check-ins ship, with no change to the
+  # first run.
   @checklist [:create_gym, :add_class, :invite_staff, :invite_members, :first_check_in]
 
   @doc "The checklist keys, in order."
@@ -155,7 +156,14 @@ defmodule SimpleFit.Gyms.FirstRun do
     if joined?, do: :completed, else: :available
   end
 
-  # No class or check-in domain exists yet (and a draft invites nobody yet).
+  # "Add your first class" is done once the gym has scheduled a real class
+  # (SF-97): any occurrence, one-time or from a series. A template alone is
+  # not a class; a later cancellation does not undo it (the gym's history).
+  # Only a completed gym schedules classes.
+  defp item(:add_class, %Gym{setup_status: :completed, id: gym_id}),
+    do: if(Timetable.any_class?(gym_id), do: :completed, else: :available)
+
+  # No check-in domain exists yet (and a draft invites nobody yet).
   defp item(_future, %Gym{}), do: :coming_later
 
   # -- Transitions ---------------------------------------------------------------

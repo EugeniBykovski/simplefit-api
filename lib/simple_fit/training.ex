@@ -60,7 +60,7 @@ defmodule SimpleFit.Training do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.{Coaching, Fighters, Repo}
+  alias SimpleFit.{Coaching, Fighters, Repo, Scheduling}
   alias SimpleFit.Training.TrainingSession
 
   # Session rows carry the coach's words about a person's training.
@@ -491,12 +491,9 @@ defmodule SimpleFit.Training do
     end
   end
 
-  defp valid_time_zone?(zone) do
-    %{rows: [[valid?]]} =
-      Repo.query!("SELECT training_sessions_valid_time_zone($1)", [zone], @unlogged)
-
-    valid?
-  end
+  # SF-97: the zone and offset rules live in `SimpleFit.Scheduling`, shared
+  # with gym classes (D-G14); the behaviour here is unchanged.
+  defp valid_time_zone?(zone), do: Scheduling.valid_time_zone?(zone)
 
   defp validate_window(changeset) do
     case Changeset.get_change(changeset, :starts_at) do
@@ -527,7 +524,7 @@ defmodule SimpleFit.Training do
     raw = Map.get(changeset.params || %{}, "starts_at")
 
     case (is_binary(raw) and Keyword.get_values(changeset.errors, :starts_at) == []) &&
-           DateTime.from_iso8601(raw) do
+           Scheduling.parse_instant(raw) do
       {:error, :missing_offset} ->
         Changeset.add_error(changeset, :starts_at, "needs an explicit UTC offset",
           type: :utc_datetime_usec
@@ -552,18 +549,7 @@ defmodule SimpleFit.Training do
     zone = Changeset.get_field(changeset, :time_zone)
 
     is_binary(zone) and Keyword.get_values(changeset.errors, :time_zone) == [] and
-      zone_offset(at, zone) != offset
-  end
-
-  defp zone_offset(at, zone) do
-    %{rows: [[seconds]]} =
-      Repo.query!(
-        "SELECT extract(epoch FROM ($1::timestamptz AT TIME ZONE $2) - ($1::timestamptz AT TIME ZONE 'UTC'))::integer",
-        [at, zone],
-        @unlogged
-      )
-
-    seconds
+      not Scheduling.offset_matches?(at, offset, zone)
   end
 
   ## Views

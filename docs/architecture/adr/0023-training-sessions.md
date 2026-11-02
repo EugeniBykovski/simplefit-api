@@ -262,3 +262,13 @@ reads during completion (planned or completed, never a half state).
 
 Telemetry `[:simple_fit, :training, :session, :completed]` with `outcome:
 completed | already_completed` only.
+
+## Amendment — SF-97 (2026-11-02): shared scheduling rules
+
+The zone and offset rules of "Scheduling and time zones" moved, unchanged,
+into `SimpleFit.Scheduling` (SF-82 05, D-G14), shared with gym classes:
+`valid_time_zone?/1` (the same PostgreSQL rule, as
+`scheduling_valid_time_zone/1`; the `training_sessions_valid_time_zone/1`
+function and trigger stay), `parse_instant/1` and `offset_matches?/3`.
+Training sessions keep their behaviour, their table and their API; their
+tests are the regression suite. Nothing here references gym classes.

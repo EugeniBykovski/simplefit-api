@@ -34,7 +34,17 @@ defmodule SimpleFit.Gyms.Staff do
   alias Ecto.Changeset
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Audit, Policy, StaffInvitations, StaffMembership}
+
+  alias SimpleFit.Gyms.{
+    Access,
+    Audit,
+    Policy,
+    Schedule,
+    StaffInvitations,
+    StaffMembership,
+    Timetable
+  }
+
   alias SimpleFit.Repo
 
   @unlogged [log: false]
@@ -139,6 +149,11 @@ defmodule SimpleFit.Gyms.Staff do
       |> Repo.update!(@unlogged)
 
     StaffInvitations.cancel_issued_by!(target, role, actor_id, now)
+
+    # SF-97: a role that does not instruct (front desk) leaves its classes
+    # still to come without an instructor.
+    if role not in Schedule.instructor_roles(),
+      do: Timetable.release_instructor!(target.gym_id, target.id, actor_id, now)
 
     Audit.record!(
       %{

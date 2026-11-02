@@ -3329,6 +3329,972 @@
         "title": "GymChecklistItem",
         "type": "object"
       },
+      "GymClassOccurrence": {
+        "additionalProperties": false,
+        "description": "An actual dated class of the gym. Not a training session and never a booking; no participant counts exist.\n",
+        "properties": {
+          "cancel_reason": {
+            "description": "`cancelled` (by staff; final), `series_changed` (the series rule no longer has the date) or `series_cancelled`.",
+            "enum": [
+              "cancelled",
+              "series_changed",
+              "series_cancelled",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_at": {
+            "description": "When it was cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "When it was scheduled.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "ends_at": {
+            "description": "End, UTC: exactly `duration_minutes` after the start.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "gym_id": {
+            "description": "Its gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "instructor": {
+            "additionalProperties": false,
+            "description": "The instructor: an active owner, manager or coach of the gym, as a short name (\"Tomasz Z.\"); never an email or profile. `null` without one.",
+            "nullable": true,
+            "properties": {
+              "name": {
+                "description": "First name and last initial.",
+                "nullable": true,
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "description": "Their staff membership at this gym.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "staff_membership_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "local_ends_at": {
+            "description": "The wall-clock end in `time_zone`.",
+            "type": "string"
+          },
+          "local_starts_at": {
+            "description": "The wall-clock start in `time_zone` (`YYYY-MM-DDTHH:MM:SS`, no offset).",
+            "example": "2026-11-02T18:00:00",
+            "type": "string"
+          },
+          "needs_instructor": {
+            "description": "Its instructor lost their staff access or eligibility and was taken off; assign another.",
+            "type": "boolean"
+          },
+          "occurrence_id": {
+            "description": "The class.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "rescheduled": {
+            "description": "A series class changed on its own: later series changes leave it as it is.",
+            "type": "boolean"
+          },
+          "revision": {
+            "description": "Increases with every change of this record.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "series_id": {
+            "description": "Its series; `null` for a one-time class.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "series_local_date": {
+            "description": "Its date in the series (its identity there, kept if it is moved); `null` for a one-time class.",
+            "format": "date",
+            "nullable": true,
+            "type": "string"
+          },
+          "starts_at": {
+            "description": "Start, UTC.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "Nothing is inferred from the clock: no completed or attendance state.",
+            "enum": [
+              "scheduled",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "template_id": {
+            "description": "Its class template.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "An IANA zone id (`Europe/Warsaw`) or `UTC`, never a fixed offset or an abbreviation.",
+            "example": "Europe/Warsaw",
+            "type": "string"
+          },
+          "title": {
+            "description": "The title it was scheduled with.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When it last changed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "utc_offset_minutes": {
+            "description": "The zone's offset at the start (it tells the two instants of a repeated hour apart).",
+            "type": "integer"
+          },
+          "venue": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "venue_id": {
+                "description": "The venue.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "venue_id",
+              "name"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "occurrence_id",
+          "gym_id",
+          "template_id",
+          "series_id",
+          "series_local_date",
+          "title",
+          "status",
+          "starts_at",
+          "ends_at",
+          "time_zone",
+          "local_starts_at",
+          "local_ends_at",
+          "utc_offset_minutes",
+          "duration_minutes",
+          "capacity",
+          "venue",
+          "instructor",
+          "needs_instructor",
+          "rescheduled",
+          "cancelled_at",
+          "cancel_reason",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GymClassOccurrence",
+        "type": "object"
+      },
+      "GymClassOccurrenceCreateRequest": {
+        "description": "`venue_id`, `instructor_staff_membership_id`, `duration_minutes` and `capacity` default to the template's. Any other field is a `422`.\n",
+        "example": {
+          "client_request_id": "a8098c1a-f86e-11da-bd1a-00112444be1e",
+          "starts_at": "2026-11-07T10:00:00+01:00",
+          "template_id": "1b4e28ba-2fa1-11d2-883f-0016d3cca427"
+        },
+        "properties": {
+          "capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "instructor_staff_membership_id": {
+            "description": "An active owner, manager or coach of this gym; `null`: none.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "starts_at": {
+            "description": "RFC 3339 with an explicit offset that is the venue zone's offset at that instant (or `Z`): a time in a\nspring-forward gap cannot be sent; the two instants of a repeated autumn hour are told apart by the\noffset. In the future, at most a year ahead.\n",
+            "example": "2026-11-02T18:00:00+01:00",
+            "format": "date-time",
+            "type": "string"
+          },
+          "template_id": {
+            "description": "An active class template of this gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "venue_id": {
+            "description": "An active venue of this gym.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "template_id",
+          "starts_at"
+        ],
+        "title": "GymClassOccurrenceCreateRequest",
+        "type": "object"
+      },
+      "GymClassOccurrenceList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "occurrences": {
+            "description": "By start time.",
+            "items": {
+              "$ref": "#/components/schemas/GymClassOccurrence"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "occurrences",
+          "next_cursor"
+        ],
+        "title": "GymClassOccurrenceList",
+        "type": "object"
+      },
+      "GymClassOccurrenceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "occurrence": {
+            "$ref": "#/components/schemas/GymClassOccurrence"
+          }
+        },
+        "required": [
+          "occurrence"
+        ],
+        "title": "GymClassOccurrenceResponse",
+        "type": "object"
+      },
+      "GymClassOccurrenceUpdateRequest": {
+        "description": "Only the fields sent change; `null` removes the instructor. Every rule and conflict is checked again.\n",
+        "properties": {
+          "capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "expected_revision": {
+            "description": "The `revision` the change is based on. Required; another one is a `409 conflict` (`details.revision: \"stale\"`, `details.current_revision`) and nothing changes.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "instructor_staff_membership_id": {
+            "description": "An active owner, manager or coach of this gym; `null`: none.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "starts_at": {
+            "description": "RFC 3339 with an explicit offset that is the venue zone's offset at that instant (or `Z`): a time in a\nspring-forward gap cannot be sent; the two instants of a repeated autumn hour are told apart by the\noffset. In the future, at most a year ahead.\n",
+            "example": "2026-11-02T18:00:00+01:00",
+            "format": "date-time",
+            "type": "string"
+          },
+          "venue_id": {
+            "description": "An active venue of this gym in the same zone.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "GymClassOccurrenceUpdateRequest",
+        "type": "object"
+      },
+      "GymClassSeries": {
+        "additionalProperties": false,
+        "description": "A bounded weekly rule in its venue's zone, fully materialized into class occurrences (one per date).\n",
+        "properties": {
+          "cancelled_count": {
+            "description": "Its cancelled classes. Detail views only.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "When it was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "ends_on": {
+            "description": "The last date (at most a year after the first).",
+            "format": "date",
+            "type": "string"
+          },
+          "gym_id": {
+            "description": "Its gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "instructor": {
+            "additionalProperties": false,
+            "description": "The instructor: an active owner, manager or coach of the gym, as a short name (\"Tomasz Z.\"); never an email or profile. `null` without one.",
+            "nullable": true,
+            "properties": {
+              "name": {
+                "description": "First name and last initial.",
+                "nullable": true,
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "description": "Their staff membership at this gym.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "staff_membership_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "local_start_time": {
+            "description": "A wall-clock time in the venue's zone (`HH:MM`).",
+            "example": "18:00",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:00)?$",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Increases with every change of this record.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "scheduled_count": {
+            "description": "Its scheduled classes (past and future). Detail views only.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "series_id": {
+            "description": "The series.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "skipped_dates": {
+            "description": "Dates of the rule on which the local start time does not exist (`nonexistent_local_time`, a spring-forward\ngap) or exists twice (`ambiguous_local_time`, an autumn repeated hour): no class is scheduled on them;\nschedule one as a one-time class with an explicit offset if wanted. Detail views only.\n",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "local_date": {
+                  "format": "date",
+                  "type": "string"
+                },
+                "reason": {
+                  "enum": [
+                    "nonexistent_local_time",
+                    "ambiguous_local_time"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "local_date",
+                "reason"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "starts_on": {
+            "description": "The first date (in the venue's zone).",
+            "format": "date",
+            "type": "string"
+          },
+          "status": {
+            "description": "`cancelled` is final.",
+            "enum": [
+              "active",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "template_id": {
+            "description": "Its class template.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "An IANA zone id (`Europe/Warsaw`) or `UTC`, never a fixed offset or an abbreviation.",
+            "example": "Europe/Warsaw",
+            "type": "string"
+          },
+          "title": {
+            "description": "The template's title.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When it last changed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "venue": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "venue_id": {
+                "description": "The venue.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "venue_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "weekdays": {
+            "description": "ISO weekdays: 1 = Monday … 7 = Sunday (sorted, no repeats).",
+            "example": [
+              1,
+              3,
+              5
+            ],
+            "items": {
+              "maximum": 7,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "series_id",
+          "gym_id",
+          "template_id",
+          "title",
+          "venue",
+          "instructor",
+          "time_zone",
+          "weekdays",
+          "local_start_time",
+          "duration_minutes",
+          "capacity",
+          "starts_on",
+          "ends_on",
+          "status",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GymClassSeries",
+        "type": "object"
+      },
+      "GymClassSeriesCreateRequest": {
+        "description": "`venue_id`, `instructor_staff_membership_id`, `duration_minutes` and `capacity` default to the template's. Any other field is a `422`.\n",
+        "example": {
+          "client_request_id": "6fa459ea-ee8a-3ca4-894e-db77e160355e",
+          "ends_on": "2027-01-31",
+          "local_start_time": "18:00",
+          "starts_on": "2026-11-02",
+          "template_id": "1b4e28ba-2fa1-11d2-883f-0016d3cca427",
+          "weekdays": [
+            1,
+            3,
+            5
+          ]
+        },
+        "properties": {
+          "capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "ends_on": {
+            "format": "date",
+            "type": "string"
+          },
+          "instructor_staff_membership_id": {
+            "description": "An active owner, manager or coach of this gym; `null`: none.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "local_start_time": {
+            "description": "A wall-clock time in the venue's zone (`HH:MM`).",
+            "example": "18:00",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:00)?$",
+            "type": "string"
+          },
+          "starts_on": {
+            "description": "Today or later, in the venue's zone.",
+            "format": "date",
+            "type": "string"
+          },
+          "template_id": {
+            "description": "An active class template of this gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "venue_id": {
+            "description": "An active venue of this gym (on a change: in the same zone).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "weekdays": {
+            "description": "ISO weekdays: 1 = Monday … 7 = Sunday (sorted, no repeats).",
+            "example": [
+              1,
+              3,
+              5
+            ],
+            "items": {
+              "maximum": 7,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "template_id",
+          "weekdays",
+          "local_start_time",
+          "starts_on",
+          "ends_on"
+        ],
+        "title": "GymClassSeriesCreateRequest",
+        "type": "object"
+      },
+      "GymClassSeriesGenerateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "created_count": {
+            "description": "Classes created now (normally 0: a series is materialized when written).",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "series": {
+            "$ref": "#/components/schemas/GymClassSeries"
+          }
+        },
+        "required": [
+          "series",
+          "created_count"
+        ],
+        "title": "GymClassSeriesGenerateResponse",
+        "type": "object"
+      },
+      "GymClassSeriesList": {
+        "additionalProperties": false,
+        "properties": {
+          "series": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymClassSeries"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "title": "GymClassSeriesList",
+        "type": "object"
+      },
+      "GymClassSeriesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "series": {
+            "$ref": "#/components/schemas/GymClassSeries"
+          }
+        },
+        "required": [
+          "series"
+        ],
+        "title": "GymClassSeriesResponse",
+        "type": "object"
+      },
+      "GymClassSeriesUpdateRequest": {
+        "description": "Only the fields sent change. The template, zone and first date never change. Its classes still to come that were not changed or cancelled on their own are rewritten; see the operation.\n",
+        "properties": {
+          "capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "ends_on": {
+            "format": "date",
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` the change is based on. Required; another one is a `409 conflict` (`details.revision: \"stale\"`, `details.current_revision`) and nothing changes.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "instructor_staff_membership_id": {
+            "description": "An active owner, manager or coach of this gym; `null`: none.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "local_start_time": {
+            "description": "A wall-clock time in the venue's zone (`HH:MM`).",
+            "example": "18:00",
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9](:00)?$",
+            "type": "string"
+          },
+          "venue_id": {
+            "description": "An active venue of this gym (on a change: in the same zone).",
+            "format": "uuid",
+            "type": "string"
+          },
+          "weekdays": {
+            "description": "ISO weekdays: 1 = Monday … 7 = Sunday (sorted, no repeats).",
+            "example": [
+              1,
+              3,
+              5
+            ],
+            "items": {
+              "maximum": 7,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "GymClassSeriesUpdateRequest",
+        "type": "object"
+      },
+      "GymClassTemplate": {
+        "additionalProperties": false,
+        "description": "A reusable class definition. Not a scheduled class; editing it never changes classes already scheduled.\n",
+        "properties": {
+          "created_at": {
+            "description": "When it was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "default_capacity": {
+            "description": "Default for new classes.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "default_duration_minutes": {
+            "description": "Default for new classes.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "default_instructor": {
+            "additionalProperties": false,
+            "description": "The instructor: an active owner, manager or coach of the gym, as a short name (\"Tomasz Z.\"); never an email or profile. `null` without one.",
+            "nullable": true,
+            "properties": {
+              "name": {
+                "description": "First name and last initial.",
+                "nullable": true,
+                "type": "string"
+              },
+              "staff_membership_id": {
+                "description": "Their staff membership at this gym.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "staff_membership_id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "default_venue_id": {
+            "description": "Default venue for new classes.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "description": {
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_id": {
+            "description": "Its gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Increases with every change of this record.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "description": "`archived` takes no new classes and is final.",
+            "enum": [
+              "active",
+              "archived"
+            ],
+            "type": "string"
+          },
+          "template_id": {
+            "description": "The template.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "description": "1–80 characters.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When it last changed.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template_id",
+          "gym_id",
+          "title",
+          "description",
+          "default_duration_minutes",
+          "default_capacity",
+          "default_venue_id",
+          "default_instructor",
+          "status",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GymClassTemplate",
+        "type": "object"
+      },
+      "GymClassTemplateCreateRequest": {
+        "description": "Any other field is a `422 validation_error`.\n",
+        "example": {
+          "client_request_id": "1b4e28ba-2fa1-11d2-883f-0016d3cca427",
+          "default_capacity": 16,
+          "default_duration_minutes": 90,
+          "title": "Boxing Fundamentals"
+        },
+        "properties": {
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "default_capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "default_duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "default_instructor_staff_membership_id": {
+            "description": "An active owner, manager or coach of this gym.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "default_venue_id": {
+            "description": "An active venue of this gym that holds the default capacity.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 1000,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "title",
+          "default_duration_minutes",
+          "default_capacity"
+        ],
+        "title": "GymClassTemplateCreateRequest",
+        "type": "object"
+      },
+      "GymClassTemplateList": {
+        "additionalProperties": false,
+        "properties": {
+          "templates": {
+            "description": "By title.",
+            "items": {
+              "$ref": "#/components/schemas/GymClassTemplate"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "templates"
+        ],
+        "title": "GymClassTemplateList",
+        "type": "object"
+      },
+      "GymClassTemplateResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "template": {
+            "$ref": "#/components/schemas/GymClassTemplate"
+          }
+        },
+        "required": [
+          "template"
+        ],
+        "title": "GymClassTemplateResponse",
+        "type": "object"
+      },
+      "GymClassTemplateUpdateRequest": {
+        "description": "Only the fields sent change; `null` clears an optional default. Scheduled classes are not changed.\n",
+        "properties": {
+          "default_capacity": {
+            "description": "The most participants (1–500). Not a booking count: nothing is booked here.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "default_duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "default_instructor_staff_membership_id": {
+            "description": "An active owner, manager or coach of this gym.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "default_venue_id": {
+            "description": "An active venue of this gym that holds the default capacity.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 1000,
+            "nullable": true,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` the change is based on. Required; another one is a `409 conflict` (`details.revision: \"stale\"`, `details.current_revision`) and nothing changes.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "title": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "GymClassTemplateUpdateRequest",
+        "type": "object"
+      },
       "GymCreateRequest": {
         "additionalProperties": false,
         "description": "The first valid submission of gym creation. The viewer becomes the owner; no owner, role, status or other\nfield is accepted.\n",
@@ -4319,6 +5285,20 @@
         "title": "GymResponse",
         "type": "object"
       },
+      "GymRevisionRequest": {
+        "properties": {
+          "expected_revision": {
+            "description": "The `revision` the change is based on. Required; another one is a `409 conflict` (`details.revision: \"stale\"`, `details.current_revision`) and nothing changes.",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "GymRevisionRequest",
+        "type": "object"
+      },
       "GymSetup": {
         "additionalProperties": false,
         "description": "A gym's setup as one of its active staff sees it.",
@@ -5023,6 +6003,202 @@
           "viewer"
         ],
         "title": "GymSummary",
+        "type": "object"
+      },
+      "GymVenue": {
+        "additionalProperties": false,
+        "description": "A training area of the gym (room, ring, hall) at one of its locations. Every class takes place in one venue, and a venue holds one scheduled class at a time.\n",
+        "properties": {
+          "capacity": {
+            "description": "The most people it holds; caps every class in it. `null`: no venue limit.",
+            "maximum": 500,
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "When it was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_id": {
+            "description": "Its gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "gym_location_id": {
+            "description": "The gym location it is at.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "1–80 characters, unique among the gym's active venues.",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Increases with every change of this record.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "description": "`inactive` takes no new classes and is final.",
+            "enum": [
+              "active",
+              "inactive"
+            ],
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "An IANA zone id (`Europe/Warsaw`) or `UTC`, never a fixed offset or an abbreviation.",
+            "example": "Europe/Warsaw",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When it last changed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "venue_id": {
+            "description": "The venue.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "venue_id",
+          "gym_id",
+          "gym_location_id",
+          "name",
+          "description",
+          "capacity",
+          "time_zone",
+          "status",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GymVenue",
+        "type": "object"
+      },
+      "GymVenueCreateRequest": {
+        "description": "Any other field is a `422 validation_error`. The zone never changes later.\n",
+        "example": {
+          "capacity": 20,
+          "client_request_id": "0f8fad5b-d9cb-469f-a165-70867728950e",
+          "gym_location_id": "6a0f1c2e-1b2a-4c3d-9e8f-1a2b3c4d5e6f",
+          "name": "Ring 1",
+          "time_zone": "Europe/Warsaw"
+        },
+        "properties": {
+          "capacity": {
+            "maximum": 500,
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          },
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_location_id": {
+            "description": "An active location of this gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "An IANA zone id (`Europe/Warsaw`) or `UTC`, never a fixed offset or an abbreviation.",
+            "example": "Europe/Warsaw",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "gym_location_id",
+          "name",
+          "time_zone"
+        ],
+        "title": "GymVenueCreateRequest",
+        "type": "object"
+      },
+      "GymVenueList": {
+        "additionalProperties": false,
+        "properties": {
+          "venues": {
+            "description": "By name.",
+            "items": {
+              "$ref": "#/components/schemas/GymVenue"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "venues"
+        ],
+        "title": "GymVenueList",
+        "type": "object"
+      },
+      "GymVenueResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "venue": {
+            "$ref": "#/components/schemas/GymVenue"
+          }
+        },
+        "required": [
+          "venue"
+        ],
+        "title": "GymVenueResponse",
+        "type": "object"
+      },
+      "GymVenueUpdateRequest": {
+        "description": "Only the fields sent change; `null` clears `description` or `capacity`. Any other field is a `422`.\n",
+        "properties": {
+          "capacity": {
+            "maximum": 500,
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          },
+          "description": {
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` the change is based on. Required; another one is a `409 conflict` (`details.revision: \"stale\"`, `details.current_revision`) and nothing changes.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "gym_location_id": {
+            "description": "An active location of this gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "GymVenueUpdateRequest",
         "type": "object"
       },
       "HealthResponse": {
@@ -7682,6 +8858,1437 @@
         ]
       }
     },
+    "/api/v1/gyms/{gym_id}/class-occurrences": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's classes starting in `[from, to)` (at most 31 days), by start time, with UTC instants, the zone and wall-clock times. No booking or attendance counts exist. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "listGymClassOccurrences",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Window start: an RFC 3339 instant with an offset.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Window end (exclusive), at most 31 days after `from`.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only `scheduled` or `cancelled` classes (default: both).",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "scheduled",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this venue's classes.",
+            "in": "query",
+            "name": "venue_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this instructor's classes.",
+            "in": "query",
+            "name": "instructor_staff_membership_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this template's classes.",
+            "in": "query",
+            "name": "template_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only this series' classes.",
+            "in": "query",
+            "name": "series_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassOccurrenceList"
+                }
+              }
+            },
+            "description": "A gym's timetable"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's timetable",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Schedules one class at an explicit instant (its offset must be the venue zone's at that instant). Creates no training session, membership, booking or attendance. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "createGymClassOccurrence",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassOccurrenceCreateRequest"
+              }
+            }
+          },
+          "description": "Schedule a one-time class",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassOccurrenceResponse"
+                }
+              }
+            },
+            "description": "The one this `client_request_id` already created"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassOccurrenceResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Schedule a one-time class",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-occurrences/{occurrence_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One class of the gym. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "getGymClassOccurrence",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class of this gym.",
+            "in": "path",
+            "name": "occurrence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassOccurrenceResponse"
+                }
+              }
+            },
+            "description": "One class"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One class",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Reschedules one class still to come (time, duration, venue in the same zone, instructor, capacity); every rule and conflict is checked again. A series class changed this way is an exception (`rescheduled`): later series changes leave it. A cancelled or started class is a `409` (`details.class_occurrence`). Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "updateGymClassOccurrence",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class of this gym.",
+            "in": "path",
+            "name": "occurrence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassOccurrenceUpdateRequest"
+              }
+            }
+          },
+          "description": "Change one class",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassOccurrenceResponse"
+                }
+              }
+            },
+            "description": "Change one class"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change one class",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-occurrences/{occurrence_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "Cancels one class still to come (final): it stays as a cancelled record and frees its venue and instructor. Owner and managers any class; a coach only a class they instruct (`cancel_occurrence`). A started class is a `409`. Repeating it returns it unchanged.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "cancelGymClassOccurrence",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class of this gym.",
+            "in": "path",
+            "name": "occurrence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymRevisionRequest"
+              }
+            }
+          },
+          "description": "Cancel one class",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassOccurrenceResponse"
+                }
+              }
+            },
+            "description": "Cancel one class"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel one class",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-series": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's active (default) or cancelled weekly series, newest first. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "listGymClassSeries",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`active` (default) or `cancelled`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassSeriesList"
+                }
+              }
+            },
+            "description": "A gym's class series"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's class series",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Creates a bounded weekly rule (weekdays, a wall-clock start time in the venue's zone, first and last dates at\nmost a year apart) and schedules all its classes still to come at once, each checked against the venue and the\ninstructor. Dates whose local start time does not exist (spring-forward gap) or exists twice (autumn repeated\nhour) are skipped and listed in `skipped_dates`, never shifted. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "createGymClassSeries",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassSeriesCreateRequest"
+              }
+            }
+          },
+          "description": "Create a weekly class series",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassSeriesResponse"
+                }
+              }
+            },
+            "description": "The one this `client_request_id` already created"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassSeriesResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create a weekly class series",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-series/{series_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One series of the gym, with its class counts and skipped dates. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "getGymClassSeries",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class series of this gym.",
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassSeriesResponse"
+                }
+              }
+            },
+            "description": "One class series"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One class series",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Changes a series and rewrites its classes still to come that were not changed or cancelled on their own: a\ndate the rule keeps is updated, a date it loses is cancelled (`series_changed`), a new date is scheduled. Started\nclasses, classes changed on their own and classes cancelled by staff stay as they are. The whole change is\nrefused if any rewritten class would conflict. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "updateGymClassSeries",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class series of this gym.",
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassSeriesUpdateRequest"
+              }
+            }
+          },
+          "description": "Change a weekly class series",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassSeriesResponse"
+                }
+              }
+            },
+            "description": "Change a weekly class series"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change a weekly class series",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-series/{series_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "Cancels a series (final) and all its classes still to come (`series_cancelled`); past classes stay. Repeating it returns it unchanged. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "cancelGymClassSeries",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class series of this gym.",
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymRevisionRequest"
+              }
+            }
+          },
+          "description": "Cancel a weekly class series",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassSeriesResponse"
+                }
+              }
+            },
+            "description": "Cancel a weekly class series"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel a weekly class series",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-series/{series_id}/generate": {
+      "post": {
+        "callbacks": {},
+        "description": "Schedules any date of an active series' rule that has no class yet (normally none). Idempotent: never duplicates a date and never brings back a cancelled class. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "generateGymClassSeries",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class series of this gym.",
+            "in": "path",
+            "name": "series_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassSeriesGenerateResponse"
+                }
+              }
+            },
+            "description": "The series and how many classes were created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Schedule a series' missing dates",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-templates": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's active (default) or archived class templates, by title. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "listGymClassTemplates",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`active` (default) or `archived`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "archived"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassTemplateList"
+                }
+              }
+            },
+            "description": "A gym's class templates"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's class templates",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Creates a reusable class definition with defaults for new classes. Not a scheduled class (it does not complete `add_class`). Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "createGymClassTemplate",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassTemplateCreateRequest"
+              }
+            }
+          },
+          "description": "Create a class template",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassTemplateResponse"
+                }
+              }
+            },
+            "description": "The one this `client_request_id` already created"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassTemplateResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create a class template",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-templates/{template_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One class template of the gym. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "getGymClassTemplate",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class template of this gym.",
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassTemplateResponse"
+                }
+              }
+            },
+            "description": "One class template"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One class template",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Changes a template's title, description and defaults. Classes already scheduled keep what they were scheduled with. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "updateGymClassTemplate",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class template of this gym.",
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassTemplateUpdateRequest"
+              }
+            }
+          },
+          "description": "Change a class template",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassTemplateResponse"
+                }
+              }
+            },
+            "description": "Change a class template"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change a class template",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-templates/{template_id}/archive": {
+      "post": {
+        "callbacks": {},
+        "description": "Archives a template (final): no new classes from it; its scheduled classes stay. Repeating it returns it unchanged. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "archiveGymClassTemplate",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class template of this gym.",
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymRevisionRequest"
+              }
+            }
+          },
+          "description": "Archive a class template",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassTemplateResponse"
+                }
+              }
+            },
+            "description": "Archive a class template"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Archive a class template",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
     "/api/v1/gyms/{gym_id}/complete-setup": {
       "post": {
         "callbacks": {},
@@ -10022,6 +12629,431 @@
         "summary": "Change a staff member's role",
         "tags": [
           "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/venues": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's active (default) or inactive venues, by name. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "listGymVenues",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`active` (default) or `inactive`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "active",
+                "inactive"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymVenueList"
+                }
+              }
+            },
+            "description": "A gym's venues"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's venues",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Creates a training area at one of the gym's active locations, with its IANA zone (fixed) and an optional capacity. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "createGymVenue",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymVenueCreateRequest"
+              }
+            }
+          },
+          "description": "Create a venue",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymVenueResponse"
+                }
+              }
+            },
+            "description": "The one this `client_request_id` already created"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymVenueResponse"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create a venue",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/venues/{venue_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One venue of the gym. Any active staff member of the gym (owner, manager, coach, front desk).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `validation_error` - an invalid filter, `limit` or `cursor`.\n",
+        "operationId": "getGymVenue",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A venue of this gym.",
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymVenueResponse"
+                }
+              }
+            },
+            "description": "One venue"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One venue",
+        "tags": [
+          "Gym timetable"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Changes a venue's name, description, capacity or location. A capacity below a class still to come in it is a `409` (`details.venue: \"capacity_below_upcoming_class\"`). An inactive venue is a `409` (`details.venue: \"inactive\"`). Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "updateGymVenue",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A venue of this gym.",
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymVenueUpdateRequest"
+              }
+            }
+          },
+          "description": "Change a venue",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymVenueResponse"
+                }
+              }
+            },
+            "description": "Change a venue"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change a venue",
+        "tags": [
+          "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/venues/{venue_id}/deactivate": {
+      "post": {
+        "callbacks": {},
+        "description": "Deactivates a venue (final): it takes no new classes. Refused while classes are still to come in it (`409`, `details.venue: \"has_upcoming_classes\"`). Repeating it returns it unchanged. Owner and managers (`manage_timetable`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a venue, template, series or class, also an unknown id or another gym's.\n\n* `forbidden` - the viewer's role may not do this.\n* `conflict` - `details.schedule: \"venue_unavailable\"` (another scheduled class overlaps in the venue;\n  `details.local_dates` names this gym's dates for a series) or `\"instructor_unavailable\"` (the instructor\n  teaches another overlapping class, possibly at another gym: no details); a stale `expected_revision`\n  (`details.revision: \"stale\"`); a draft gym (`details.setup_status: \"draft\"`).\n\n* `validation_error` - an invalid or unknown field.\n* `rate_limited` - 120 timetable changes per 10 minutes per user.\n",
+        "operationId": "deactivateGymVenue",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A venue of this gym.",
+            "in": "path",
+            "name": "venue_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymRevisionRequest"
+              }
+            }
+          },
+          "description": "Deactivate a venue",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymVenueResponse"
+                }
+              }
+            },
+            "description": "Deactivate a venue"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Deactivate a venue",
+        "tags": [
+          "Gym timetable"
         ]
       }
     },
@@ -13957,6 +16989,10 @@
     {
       "description": "A gym's members (participants): join codes and requests, auto-approval, member invitations (E07), the roster, leaving and removal, the member-list dry run, and the member's own memberships and invitations (ADR 0026, SF-95). Separate from staff and Coach–Fighter relationships.",
       "name": "Gym members"
+    },
+    {
+      "description": "A gym's venues, class templates, bounded weekly series and class occurrences, in IANA zones with DST-safe wall-clock rules and database-enforced venue and instructor conflicts (ADR 0026, SF-97). Separate from Coach–Fighter training sessions; no bookings or attendance.",
+      "name": "Gym timetable"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

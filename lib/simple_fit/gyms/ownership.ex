@@ -15,7 +15,7 @@ defmodule SimpleFit.Gyms.Ownership do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Audit, Gym, Policy, StaffInvitations, StaffMembership}
+  alias SimpleFit.Gyms.{Access, Audit, Gym, Policy, StaffInvitations, StaffMembership, Timetable}
   alias SimpleFit.Repo
 
   @type previous_owner :: :stay_as_manager | :leave
@@ -74,6 +74,8 @@ defmodule SimpleFit.Gyms.Ownership do
         now = DateTime.utc_now()
         ended = end!(target, reason, now)
         StaffInvitations.cancel_issued_by!(target, nil, actor.id, now)
+        # SF-97: an ended membership instructs no class still to come.
+        Timetable.release_instructor!(gym.id, target.id, actor.id, now)
 
         Audit.record!(
           %{
@@ -136,6 +138,7 @@ defmodule SimpleFit.Gyms.Ownership do
     now = DateTime.utc_now()
     %StaffMembership{} = end!(owner, :transferred, now)
     StaffInvitations.cancel_issued_by!(owner, nil, actor_id, now)
+    Timetable.release_instructor!(gym.id, owner.id, actor_id, now)
     promoted = target |> Changeset.change(role: :owner) |> Repo.update!()
 
     stayed =

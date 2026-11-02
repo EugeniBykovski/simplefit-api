@@ -45,6 +45,7 @@ defmodule SimpleFit.Gyms do
 
   alias SimpleFit.Gyms.{
     Access,
+    ClassTemplates,
     Creation,
     FirstRun,
     Gym,
@@ -57,7 +58,9 @@ defmodule SimpleFit.Gyms do
     Setup,
     Staff,
     StaffInvitations,
-    StaffMembership
+    StaffMembership,
+    Timetable,
+    Venues
   }
 
   alias SimpleFit.Accounts.Session
@@ -589,6 +592,80 @@ defmodule SimpleFit.Gyms do
   @doc "A dry-run preview of a member list (see `SimpleFit.Gyms.MemberImport`)."
   @spec preview_member_import(User.t(), term(), map()) :: {:ok, map()} | {:error, term()}
   defdelegate preview_member_import(user, gym_id, attrs), to: MemberImport, as: :preview
+
+  ## Timetable (SF-97)
+
+  @doc "See `SimpleFit.Gyms.Venues.list/3`."
+  defdelegate list_venues(user, gym_id, params), to: Venues, as: :list
+  @doc "See `SimpleFit.Gyms.Venues.get/3`."
+  defdelegate get_venue(user, gym_id, venue_id), to: Venues, as: :get
+  @doc "See `SimpleFit.Gyms.Venues.create/4`."
+  defdelegate create_venue(user, session, gym_id, attrs), to: Venues, as: :create
+  @doc "See `SimpleFit.Gyms.Venues.update/5`."
+  defdelegate update_venue(user, session, gym_id, venue_id, attrs), to: Venues, as: :update
+  @doc "See `SimpleFit.Gyms.Venues.deactivate/5`."
+  defdelegate deactivate_venue(user, session, gym_id, venue_id, attrs),
+    to: Venues,
+    as: :deactivate
+
+  @doc "See `SimpleFit.Gyms.ClassTemplates.list/3`."
+  defdelegate list_class_templates(user, gym_id, params), to: ClassTemplates, as: :list
+  @doc "See `SimpleFit.Gyms.ClassTemplates.get/3`."
+  defdelegate get_class_template(user, gym_id, template_id), to: ClassTemplates, as: :get
+  @doc "See `SimpleFit.Gyms.ClassTemplates.create/4`."
+  defdelegate create_class_template(user, session, gym_id, attrs), to: ClassTemplates, as: :create
+  @doc "See `SimpleFit.Gyms.ClassTemplates.update/5`."
+  defdelegate update_class_template(user, session, gym_id, template_id, attrs),
+    to: ClassTemplates,
+    as: :update
+
+  @doc "See `SimpleFit.Gyms.ClassTemplates.archive/5`."
+  defdelegate archive_class_template(user, session, gym_id, template_id, attrs),
+    to: ClassTemplates,
+    as: :archive
+
+  @doc "See `SimpleFit.Gyms.Timetable.list_series/3`."
+  defdelegate list_class_series(user, gym_id, params), to: Timetable, as: :list_series
+  @doc "See `SimpleFit.Gyms.Timetable.get_series/3`."
+  defdelegate get_class_series(user, gym_id, series_id), to: Timetable, as: :get_series
+  @doc "See `SimpleFit.Gyms.Timetable.create_series/4`."
+  defdelegate create_class_series(user, session, gym_id, attrs), to: Timetable, as: :create_series
+  @doc "See `SimpleFit.Gyms.Timetable.update_series/5`."
+  defdelegate update_class_series(user, session, gym_id, series_id, attrs),
+    to: Timetable,
+    as: :update_series
+
+  @doc "See `SimpleFit.Gyms.Timetable.cancel_series/5`."
+  defdelegate cancel_class_series(user, session, gym_id, series_id, attrs),
+    to: Timetable,
+    as: :cancel_series
+
+  @doc "See `SimpleFit.Gyms.Timetable.generate_series/4`."
+  defdelegate generate_class_series(user, session, gym_id, series_id),
+    to: Timetable,
+    as: :generate_series
+
+  @doc "See `SimpleFit.Gyms.Timetable.list_occurrences/3`."
+  defdelegate list_class_occurrences(user, gym_id, params), to: Timetable, as: :list_occurrences
+  @doc "See `SimpleFit.Gyms.Timetable.get_occurrence/3`."
+  defdelegate get_class_occurrence(user, gym_id, occurrence_id),
+    to: Timetable,
+    as: :get_occurrence
+
+  @doc "See `SimpleFit.Gyms.Timetable.create_occurrence/4`."
+  defdelegate create_class_occurrence(user, session, gym_id, attrs),
+    to: Timetable,
+    as: :create_occurrence
+
+  @doc "See `SimpleFit.Gyms.Timetable.update_occurrence/5`."
+  defdelegate update_class_occurrence(user, session, gym_id, occurrence_id, attrs),
+    to: Timetable,
+    as: :update_occurrence
+
+  @doc "See `SimpleFit.Gyms.Timetable.cancel_occurrence/5`."
+  defdelegate cancel_class_occurrence(user, session, gym_id, occurrence_id, attrs),
+    to: Timetable,
+    as: :cancel_occurrence
 
   ## Account deletion
 

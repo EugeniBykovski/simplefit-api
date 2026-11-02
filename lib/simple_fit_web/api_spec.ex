@@ -104,6 +104,13 @@ defmodule SimpleFitWeb.ApiSpec do
               "invitations (ADR 0026, SF-95). Separate from staff and Coach–Fighter relationships."
         },
         %Tag{
+          name: "Gym timetable",
+          description:
+            "A gym's venues, class templates, bounded weekly series and class occurrences, in IANA zones with " <>
+              "DST-safe wall-clock rules and database-enforced venue and instructor conflicts (ADR 0026, " <>
+              "SF-97). Separate from Coach–Fighter training sessions; no bookings or attendance."
+        },
+        %Tag{
           name: "Legal",
           description: "Published legal documents (versioned, per language; ADR 0022)."
         },

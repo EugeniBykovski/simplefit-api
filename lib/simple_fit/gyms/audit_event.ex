@@ -4,8 +4,10 @@ defmodule SimpleFit.Gyms.AuditEvent do
   who (`actor_user_id`), what (`event_type`), which staff membership, staff
   invitation, gym membership or member invitation (SF-95), the roles
   involved, the end reason and the new value of a boolean setting
-  (`enabled`, auto-approval). Nothing else: no names, emails, join codes,
-  tokens or profile data. Written by `SimpleFit.Gyms` in the same
+  (`enabled`, auto-approval); for the timetable (SF-97) the venue, class
+  template, series or occurrence and how many occurrences a series change
+  touched (`occurrence_count`). Nothing else: no names, emails, join codes,
+  tokens, titles, times or profile data. Written by `SimpleFit.Gyms` in the same
   transaction as the transition it records, so only committed actions are
   recorded. The database rejects updates; no foreign keys, so events outlive
   the rows they name (retention waits for an approved policy).
@@ -43,6 +45,21 @@ defmodule SimpleFit.Gyms.AuditEvent do
           | :join_code_rotated
           | :join_code_disabled
           | :member_auto_approval_changed
+          | :venue_created
+          | :venue_updated
+          | :venue_deactivated
+          | :class_template_created
+          | :class_template_updated
+          | :class_template_archived
+          | :class_series_created
+          | :class_series_updated
+          | :class_series_cancelled
+          | :class_occurrence_created
+          | :class_occurrence_rescheduled
+          | :class_occurrence_cancelled
+          | :class_instructor_changed
+          | :class_capacity_changed
+          | :class_instructor_released
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -54,6 +71,11 @@ defmodule SimpleFit.Gyms.AuditEvent do
           gym_member_id: Ecto.UUID.t() | nil,
           member_invitation_id: Ecto.UUID.t() | nil,
           enabled: boolean() | nil,
+          venue_id: Ecto.UUID.t() | nil,
+          class_template_id: Ecto.UUID.t() | nil,
+          class_series_id: Ecto.UUID.t() | nil,
+          class_occurrence_id: Ecto.UUID.t() | nil,
+          occurrence_count: non_neg_integer() | nil,
           from_role: StaffMembership.role() | nil,
           to_role: StaffMembership.role() | nil,
           reason: StaffMembership.ended_reason() | nil,
@@ -95,7 +117,22 @@ defmodule SimpleFit.Gyms.AuditEvent do
         :member_invitation_declined,
         :join_code_rotated,
         :join_code_disabled,
-        :member_auto_approval_changed
+        :member_auto_approval_changed,
+        :venue_created,
+        :venue_updated,
+        :venue_deactivated,
+        :class_template_created,
+        :class_template_updated,
+        :class_template_archived,
+        :class_series_created,
+        :class_series_updated,
+        :class_series_cancelled,
+        :class_occurrence_created,
+        :class_occurrence_rescheduled,
+        :class_occurrence_cancelled,
+        :class_instructor_changed,
+        :class_capacity_changed,
+        :class_instructor_released
       ]
 
     field :staff_membership_id, :binary_id
@@ -103,6 +140,11 @@ defmodule SimpleFit.Gyms.AuditEvent do
     field :gym_member_id, :binary_id
     field :member_invitation_id, :binary_id
     field :enabled, :boolean
+    field :venue_id, :binary_id
+    field :class_template_id, :binary_id
+    field :class_series_id, :binary_id
+    field :class_occurrence_id, :binary_id
+    field :occurrence_count, :integer
     field :from_role, Ecto.Enum, values: StaffMembership.roles()
     field :to_role, Ecto.Enum, values: StaffMembership.roles()
 
