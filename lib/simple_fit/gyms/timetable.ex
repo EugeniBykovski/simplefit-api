@@ -71,6 +71,7 @@ defmodule SimpleFit.Gyms.Timetable do
   alias SimpleFit.Gyms.{
     Access,
     Audit,
+    Bookings,
     ClassOccurrence,
     ClassSeries,
     ClassTemplate,
@@ -295,6 +296,7 @@ defmodule SimpleFit.Gyms.Timetable do
          capacity = params[:capacity] || occurrence.capacity,
          duration = params[:duration_minutes] || occurrence.duration_minutes,
          :ok <- fits(venue, capacity),
+         :ok <- holds_bookings(occurrence, capacity),
          {:ok, starts_at} <-
            if(Map.has_key?(attrs, "starts_at"),
              do: instant(attrs["starts_at"], params[:starts_at], occurrence.time_zone),
@@ -394,6 +396,8 @@ defmodule SimpleFit.Gyms.Timetable do
          :ok <- changeable(occurrence),
          :ok <- Schedule.revision(attrs, occurrence.revision) do
       now = DateTime.utc_now()
+      # SF-99: its confirmed bookings are released first (same transaction).
+      Bookings.release_occurrences!(access.gym.id, [occurrence.id], user.id, now)
 
       cancelled =
         occurrence
@@ -683,10 +687,24 @@ defmodule SimpleFit.Gyms.Timetable do
       now = DateTime.utc_now()
       clock = Clock.utc_now()
 
+      # SF-99: the confirmed bookings of the classes it cancels are released
+      # first (same transaction; the classes are locked).
+      ids =
+        Repo.all(
+          from(o in ClassOccurrence,
+            where: o.series_id == ^series.id and o.status == :scheduled and o.starts_at > ^clock,
+            select: o.id,
+            lock: "FOR UPDATE"
+          ),
+          @unlogged
+        )
+
+      Bookings.release_occurrences!(gym.id, ids, user.id, now)
+
       {count, _} =
         Repo.update_all(
           from(o in ClassOccurrence,
-            where: o.series_id == ^series.id and o.status == :scheduled and o.starts_at > ^clock,
+            where: o.id in ^ids,
             update: [
               set: [
                 status: :cancelled,
@@ -755,6 +773,11 @@ defmodule SimpleFit.Gyms.Timetable do
 
     with :ok <- venue_free(next, followed ++ new, Enum.map(rows, & &1.id)),
          :ok <-
+           series_holds_bookings(
+             Enum.filter(rows, &Map.has_key?(wanted_by_date, &1.series_local_date)),
+             next.capacity
+           ),
+         :ok <-
            deferred(fn ->
              Enum.each(
                rows,
@@ -764,6 +787,37 @@ defmodule SimpleFit.Gyms.Timetable do
              insert_all!(next, template, new, actor_id)
            end) do
       {:ok, length(rows) + length(new)}
+    end
+  end
+
+  # SF-99: a class never gets fewer places than its confirmed bookings.
+  defp holds_bookings(%ClassOccurrence{capacity: capacity}, capacity), do: :ok
+
+  defp holds_bookings(%ClassOccurrence{id: id}, capacity) do
+    confirmed = Map.get(Bookings.confirmed_counts([id]), id, 0)
+
+    if capacity >= confirmed,
+      do: :ok,
+      else:
+        {:error,
+         {:conflict,
+          %{class_occurrence: "capacity_below_bookings", confirmed_bookings: confirmed}}}
+  end
+
+  defp series_holds_bookings(rows, capacity) do
+    counts = Bookings.confirmed_counts(Enum.map(rows, & &1.id))
+
+    case rows |> Enum.filter(&(Map.get(counts, &1.id, 0) > capacity)) do
+      [] ->
+        :ok
+
+      over ->
+        {:error,
+         {:conflict,
+          %{
+            class_series: "capacity_below_bookings",
+            local_dates: over |> Enum.map(&Date.to_iso8601(&1.series_local_date)) |> Enum.sort()
+          }}}
     end
   end
 
@@ -805,6 +859,8 @@ defmodule SimpleFit.Gyms.Timetable do
   defp drop!(%ClassOccurrence{status: :cancelled}, _actor_id, _now), do: :ok
 
   defp drop!(%ClassOccurrence{} = row, actor_id, now) do
+    Bookings.release_occurrences!(row.gym_id, [row.id], actor_id, now)
+
     row
     |> Changeset.change(
       status: :cancelled,
@@ -1334,6 +1390,20 @@ defmodule SimpleFit.Gyms.Timetable do
         :ok
     end
   end
+
+  @doc false
+  # The `from`/`to` window of a class list (SF-99 member classes): RFC 3339
+  # instants at most #{@max_days} days apart.
+  @spec class_window(map()) :: {:ok, %{from: DateTime.t(), to: DateTime.t()}} | {:error, term()}
+  def class_window(params) do
+    with {:ok, filters} <- list_filters(Map.take(params, ["from", "to"])),
+         do: {:ok, Map.take(filters, [:from, :to])}
+  end
+
+  @doc false
+  # The staff views of classes (wall times computed in their zone), for SF-99.
+  @spec views([ClassOccurrence.t()]) :: [map()]
+  def views(rows), do: occurrence_views(rows)
 
   ## Views
 

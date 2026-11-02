@@ -45,6 +45,7 @@ defmodule SimpleFit.Gyms do
 
   alias SimpleFit.Gyms.{
     Access,
+    Bookings,
     ClassTemplates,
     Creation,
     FirstRun,
@@ -667,6 +668,41 @@ defmodule SimpleFit.Gyms do
     to: Timetable,
     as: :cancel_occurrence
 
+  ## Class bookings and check-ins (SF-99)
+
+  @doc "See `SimpleFit.Gyms.Bookings.list_classes/3`."
+  defdelegate list_member_classes(user, member_id, params), to: Bookings, as: :list_classes
+
+  @doc "See `SimpleFit.Gyms.Bookings.book/4`."
+  defdelegate book_class(user, session, member_id, attrs), to: Bookings, as: :book
+
+  @doc "See `SimpleFit.Gyms.Bookings.list_mine/2`."
+  defdelegate list_my_class_bookings(user, params), to: Bookings, as: :list_mine
+
+  @doc "See `SimpleFit.Gyms.Bookings.get_mine/2`."
+  defdelegate get_my_class_booking(user, booking_id), to: Bookings, as: :get_mine
+
+  @doc "See `SimpleFit.Gyms.Bookings.cancel_mine/3`."
+  defdelegate cancel_my_class_booking(user, session, booking_id), to: Bookings, as: :cancel_mine
+
+  @doc "See `SimpleFit.Gyms.Bookings.roster/4`."
+  defdelegate class_roster(user, gym_id, occurrence_id, params), to: Bookings, as: :roster
+
+  @doc "See `SimpleFit.Gyms.Bookings.book_for/5`."
+  defdelegate book_class_for_member(user, session, gym_id, occurrence_id, attrs),
+    to: Bookings,
+    as: :book_for
+
+  @doc "See `SimpleFit.Gyms.Bookings.cancel_for/4`."
+  defdelegate cancel_class_booking(user, session, gym_id, booking_id),
+    to: Bookings,
+    as: :cancel_for
+
+  @doc "See `SimpleFit.Gyms.Bookings.check_in/4`."
+  defdelegate check_in_class_booking(user, session, gym_id, booking_id),
+    to: Bookings,
+    as: :check_in
+
   ## Account deletion
 
   @doc """
@@ -689,7 +725,10 @@ defmodule SimpleFit.Gyms do
   first cancel the user's pending join requests and end their active gym
   memberships with reason `account_deleted` (a vocabulary the database
   already accepts); final memberships then keep their history with
-  `user_id` set to NULL.
+  `user_id` set to NULL. Ending them must also release their class bookings
+  still to come (`SimpleFit.Gyms.Bookings.release_member!/3`, as SF-95's own
+  endings do); bookings and check-ins belong to the membership row, never to
+  the user, so they keep their history without any personal field.
   """
   @spec check_account_deletion(User.t()) :: :ok | {:error, {:conflict, map()}}
   defdelegate check_account_deletion(user), to: Ownership

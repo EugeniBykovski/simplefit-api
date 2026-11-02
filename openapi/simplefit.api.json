@@ -3329,6 +3329,161 @@
         "title": "GymChecklistItem",
         "type": "object"
       },
+      "GymClassAvailability": {
+        "additionalProperties": false,
+        "description": "Counted from the confirmed bookings when the answer was made.",
+        "properties": {
+          "capacity": {
+            "description": "The most participants.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "confirmed_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "remaining_capacity": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "capacity",
+          "confirmed_count",
+          "remaining_capacity"
+        ],
+        "title": "GymClassAvailability",
+        "type": "object"
+      },
+      "GymClassBookingForMemberRequest": {
+        "additionalProperties": false,
+        "description": "Any other field is a `422`.",
+        "properties": {
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "gym_member_id": {
+            "description": "An active member of this gym.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gym_member_id",
+          "client_request_id"
+        ],
+        "title": "GymClassBookingForMemberRequest",
+        "type": "object"
+      },
+      "GymClassBookingRequest": {
+        "additionalProperties": false,
+        "description": "Any other field is a `422`.",
+        "properties": {
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "occurrence_id": {
+            "description": "A class of this membership's gym.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "occurrence_id",
+          "client_request_id"
+        ],
+        "title": "GymClassBookingRequest",
+        "type": "object"
+      },
+      "GymClassBookingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "booking": {
+            "$ref": "#/components/schemas/GymClassRosterEntry"
+          },
+          "occurrence_id": {
+            "description": "The class.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GymClassRosterSummary"
+          }
+        },
+        "required": [
+          "booking",
+          "occurrence_id",
+          "summary"
+        ],
+        "title": "GymClassBookingResponse",
+        "type": "object"
+      },
+      "GymClassCheckIn": {
+        "additionalProperties": false,
+        "description": "Staff recorded that the member of a confirmed booking came. Participation only: no result, note or training data.",
+        "properties": {
+          "booking_id": {
+            "description": "The booking.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "check_in_id": {
+            "description": "The check-in.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "checked_in_at": {
+            "description": "When it was recorded.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "gym_member_id": {
+            "description": "The member of this gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "method": {
+            "description": "Recorded by hand (no pass scan exists).",
+            "enum": [
+              "manual"
+            ],
+            "type": "string"
+          },
+          "occurrence_id": {
+            "description": "The class.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "check_in_id",
+          "booking_id",
+          "occurrence_id",
+          "gym_member_id",
+          "method",
+          "checked_in_at"
+        ],
+        "title": "GymClassCheckIn",
+        "type": "object"
+      },
+      "GymClassCheckInResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "check_in": {
+            "$ref": "#/components/schemas/GymClassCheckIn"
+          }
+        },
+        "required": [
+          "check_in"
+        ],
+        "title": "GymClassCheckInResponse",
+        "type": "object"
+      },
       "GymClassOccurrence": {
         "additionalProperties": false,
         "description": "An actual dated class of the gym. Not a training session and never a booking; no participant counts exist.\n",
@@ -3656,6 +3811,145 @@
           "expected_revision"
         ],
         "title": "GymClassOccurrenceUpdateRequest",
+        "type": "object"
+      },
+      "GymClassRoster": {
+        "additionalProperties": false,
+        "properties": {
+          "bookings": {
+            "description": "Oldest confirmation first.",
+            "items": {
+              "$ref": "#/components/schemas/GymClassRosterEntry"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/GymClassRosterSummary"
+          }
+        },
+        "required": [
+          "summary",
+          "bookings",
+          "next_cursor"
+        ],
+        "title": "GymClassRoster",
+        "type": "object"
+      },
+      "GymClassRosterEntry": {
+        "additionalProperties": false,
+        "description": "What the gym's staff see of a booking: a short name and booking facts. Never an email, user id, profile, other gym or training data.",
+        "properties": {
+          "booked_via": {
+            "description": "The member themselves or a staff member for them.",
+            "enum": [
+              "member",
+              "staff"
+            ],
+            "type": "string"
+          },
+          "booking_id": {
+            "description": "The booking.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "cancel_reason": {
+            "description": "`member_cancelled`, `staff_cancelled`, `occurrence_cancelled` (the class was cancelled) or `membership_ended` (the membership ended before the class).",
+            "enum": [
+              "member_cancelled",
+              "staff_cancelled",
+              "occurrence_cancelled",
+              "membership_ended",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_at": {
+            "description": "When it was cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "checked_in_at": {
+            "description": "When staff recorded the arrival.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "confirmed_at": {
+            "description": "When it was confirmed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "gym_member_id": {
+            "description": "The member of this gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "description": "First name and last initial (\"Marta K.\"); `null` without one.",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`confirmed` holds a place; `cancelled` is history (final) and holds none.",
+            "enum": [
+              "confirmed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "gym_member_id",
+          "name",
+          "status",
+          "booked_via",
+          "confirmed_at",
+          "cancelled_at",
+          "cancel_reason",
+          "checked_in_at"
+        ],
+        "title": "GymClassRosterEntry",
+        "type": "object"
+      },
+      "GymClassRosterSummary": {
+        "additionalProperties": false,
+        "description": "Counted from the booking and check-in rows when the answer was made.",
+        "properties": {
+          "capacity": {
+            "description": "The most participants.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "checked_in_count": {
+            "description": "Confirmed bookings with a recorded check-in.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "confirmed_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "remaining_capacity": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "capacity",
+          "confirmed_count",
+          "remaining_capacity",
+          "checked_in_count"
+        ],
+        "title": "GymClassRosterSummary",
         "type": "object"
       },
       "GymClassSeries": {
@@ -4827,6 +5121,176 @@
           "ended_reason"
         ],
         "title": "GymMember",
+        "type": "object"
+      },
+      "GymMemberClass": {
+        "additionalProperties": false,
+        "description": "One class of the gym with the places left and the viewer's own booking. Never another participant.",
+        "properties": {
+          "booking": {
+            "additionalProperties": false,
+            "description": "The viewer's booking of this class (the confirmed one, else the latest); `null`.",
+            "nullable": true,
+            "properties": {
+              "booking_id": {
+                "description": "The viewer's booking.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "checked_in_at": {
+                "description": "When staff recorded the viewer's arrival.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "status": {
+                "description": "`confirmed` holds a place; `cancelled` is history (final) and holds none.",
+                "enum": [
+                  "confirmed",
+                  "cancelled"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "booking_id",
+              "status",
+              "checked_in_at"
+            ],
+            "type": "object"
+          },
+          "capacity": {
+            "description": "The most participants.",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "duration_minutes": {
+            "description": "Elapsed minutes (5–480): the class ends exactly this long after it starts.",
+            "maximum": 480,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "ends_at": {
+            "description": "End, UTC.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "instructor": {
+            "additionalProperties": false,
+            "description": "The instructor; `null` without one.",
+            "nullable": true,
+            "properties": {
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "local_ends_at": {
+            "description": "The wall-clock end in `time_zone`.",
+            "type": "string"
+          },
+          "local_starts_at": {
+            "description": "The wall-clock start in `time_zone` (`YYYY-MM-DDTHH:MM:SS`, no offset).",
+            "type": "string"
+          },
+          "occurrence_id": {
+            "description": "The class.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "remaining_capacity": {
+            "description": "Places left (capacity minus confirmed bookings); `0` for a cancelled class.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "starts_at": {
+            "description": "Start, UTC.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "A cancelled class takes no booking.",
+            "enum": [
+              "scheduled",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "An IANA zone id (`Europe/Warsaw`) or `UTC`, never a fixed offset or an abbreviation.",
+            "example": "Europe/Warsaw",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "utc_offset_minutes": {
+            "description": "The zone's offset at the start.",
+            "type": "integer"
+          },
+          "venue": {
+            "additionalProperties": false,
+            "description": "The venue.",
+            "nullable": false,
+            "properties": {
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "occurrence_id",
+          "title",
+          "status",
+          "starts_at",
+          "ends_at",
+          "time_zone",
+          "local_starts_at",
+          "local_ends_at",
+          "utc_offset_minutes",
+          "duration_minutes",
+          "venue",
+          "instructor",
+          "capacity",
+          "remaining_capacity",
+          "booking"
+        ],
+        "title": "GymMemberClass",
+        "type": "object"
+      },
+      "GymMemberClassList": {
+        "additionalProperties": false,
+        "properties": {
+          "classes": {
+            "description": "By start time.",
+            "items": {
+              "$ref": "#/components/schemas/GymMemberClass"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "classes",
+          "next_cursor"
+        ],
+        "title": "GymMemberClassList",
         "type": "object"
       },
       "GymMemberImportPreviewRequest": {
@@ -6664,6 +7128,230 @@
           "relationship"
         ],
         "title": "MyCoachRelationshipResponse",
+        "type": "object"
+      },
+      "MyGymClassBooking": {
+        "additionalProperties": false,
+        "description": "A place the viewer holds (or held) in a gym class. No price, payment or entitlement exists.",
+        "properties": {
+          "availability": {
+            "$ref": "#/components/schemas/GymClassAvailability"
+          },
+          "booked_via": {
+            "description": "The member themselves or a staff member for them.",
+            "enum": [
+              "member",
+              "staff"
+            ],
+            "type": "string"
+          },
+          "booking_id": {
+            "description": "The booking.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "cancel_reason": {
+            "description": "`member_cancelled`, `staff_cancelled`, `occurrence_cancelled` (the class was cancelled) or `membership_ended` (the membership ended before the class).",
+            "enum": [
+              "member_cancelled",
+              "staff_cancelled",
+              "occurrence_cancelled",
+              "membership_ended",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_at": {
+            "description": "When it was cancelled.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "checked_in_at": {
+            "description": "When staff recorded the viewer's arrival.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "class": {
+            "additionalProperties": false,
+            "properties": {
+              "ends_at": {
+                "description": "End, UTC.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "gym": {
+                "additionalProperties": false,
+                "properties": {
+                  "gym_id": {
+                    "description": "The gym.",
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "name": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "gym_id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "instructor": {
+                "additionalProperties": false,
+                "description": "The instructor; `null` without one.",
+                "nullable": true,
+                "properties": {
+                  "name": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              },
+              "local_ends_at": {
+                "description": "The wall-clock end in `time_zone`.",
+                "type": "string"
+              },
+              "local_starts_at": {
+                "description": "The wall-clock start in `time_zone` (`YYYY-MM-DDTHH:MM:SS`, no offset).",
+                "type": "string"
+              },
+              "occurrence_id": {
+                "description": "The class.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "starts_at": {
+                "description": "Start, UTC.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "scheduled",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              "time_zone": {
+                "description": "An IANA zone id (`Europe/Warsaw`) or `UTC`, never a fixed offset or an abbreviation.",
+                "example": "Europe/Warsaw",
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "utc_offset_minutes": {
+                "description": "The zone's offset at the start.",
+                "type": "integer"
+              },
+              "venue": {
+                "additionalProperties": false,
+                "description": "The venue.",
+                "nullable": false,
+                "properties": {
+                  "name": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "occurrence_id",
+              "gym",
+              "title",
+              "status",
+              "starts_at",
+              "ends_at",
+              "time_zone",
+              "local_starts_at",
+              "local_ends_at",
+              "utc_offset_minutes",
+              "venue",
+              "instructor"
+            ],
+            "type": "object"
+          },
+          "confirmed_at": {
+            "description": "When it was confirmed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "gym_member_id": {
+            "description": "The viewer's membership it belongs to.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "description": "`confirmed` holds a place; `cancelled` is history (final) and holds none.",
+            "enum": [
+              "confirmed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "booking_id",
+          "gym_member_id",
+          "status",
+          "booked_via",
+          "confirmed_at",
+          "cancelled_at",
+          "cancel_reason",
+          "checked_in_at",
+          "class"
+        ],
+        "title": "MyGymClassBooking",
+        "type": "object"
+      },
+      "MyGymClassBookingList": {
+        "additionalProperties": false,
+        "properties": {
+          "bookings": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/MyGymClassBooking"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "bookings",
+          "next_cursor"
+        ],
+        "title": "MyGymClassBookingList",
+        "type": "object"
+      },
+      "MyGymClassBookingResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "booking": {
+            "$ref": "#/components/schemas/MyGymClassBooking"
+          }
+        },
+        "required": [
+          "booking"
+        ],
+        "title": "MyGymClassBookingResponse",
         "type": "object"
       },
       "MyGymInvitation": {
@@ -8858,6 +9546,184 @@
         ]
       }
     },
+    "/api/v1/gyms/{gym_id}/class-bookings/{booking_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "Cancels a booking as the gym (`staff_cancelled`) until its class starts; its place is free again. Repeating\nit returns it unchanged. No penalty, refund or notification exists. Owner, managers and front desk\n(`book_for_member`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a class or booking, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - `details.class_booking: \"checked_in\"` or `\"cancelled\"` (otherwise; `details.cancel_reason`);\n  `details.class_occurrence: \"started\"`.\n* `rate_limited` - 120 changes per 10 minutes per user.\n",
+        "operationId": "cancelGymClassBooking",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A booking of this gym.",
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassBookingResponse"
+                }
+              }
+            },
+            "description": "The booking"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel a member's booking",
+        "tags": [
+          "Gym bookings"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-bookings/{booking_id}/check-in": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the member of a confirmed booking came, on the class's own local day (in its venue's zone). One\nper booking: repeating it returns the same check-in (`200`). Nothing is inferred from the clock or the\nbooking alone. Any active staff member (`record_check_in`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a class or booking, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - `details.class_booking: \"cancelled\"`; `details.class_occurrence: \"cancelled\"` or `\"not_today\"`\n  (outside the class's local day).\n* `rate_limited` - 120 changes per 10 minutes per user.\n",
+        "operationId": "checkInGymClassBooking",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A booking of this gym.",
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassCheckInResponse"
+                }
+              }
+            },
+            "description": "Already recorded"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassCheckInResponse"
+                }
+              }
+            },
+            "description": "Recorded"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Record a check-in",
+        "tags": [
+          "Gym bookings"
+        ]
+      }
+    },
     "/api/v1/gyms/{gym_id}/class-occurrences": {
       "get": {
         "callbacks": {},
@@ -9251,6 +10117,210 @@
         "summary": "Change one class",
         "tags": [
           "Gym timetable"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/class-occurrences/{occurrence_id}/bookings": {
+      "get": {
+        "callbacks": {},
+        "description": "The bookings of one class (confirmed by default, or cancelled), oldest confirmation first, with the class's\ncounts: a short name and booking facts per member, never an email, profile, other gym or training data.\nOwner, managers and front desk; a coach only for a class they instruct (`view_rosters`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a class or booking, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "getGymClassRoster",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class of this gym.",
+            "in": "path",
+            "name": "occurrence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "`confirmed` (default) or `cancelled` bookings.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "confirmed",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassRoster"
+                }
+              }
+            },
+            "description": "The roster"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A class roster",
+        "tags": [
+          "Gym bookings"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Books one place for an active member of this gym in one of its classes, with the same rules as the member's\nown booking (scheduled, not started, a place left, one confirmed booking per member). The same\n`client_request_id` again returns that booking (`200`). Owner, managers and front desk (`book_for_member`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a class or booking, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - `details.class_occurrence: \"full\"` (no place left; `details.capacity`), `\"cancelled\"` or\n  `\"started\"`; `details.class_booking: \"already_booked\"` (a confirmed booking of this class exists for the\n  member); `details.client_request_id: \"reused\"` (the key named another booking); a draft gym\n  (`details.setup_status`).\n\n* `validation_error` - a missing, invalid or unknown field; `gym_member_id` not a member of this gym.\n* `rate_limited` - 120 changes per 10 minutes per user.\n",
+        "operationId": "bookGymClassForMember",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A class of this gym.",
+            "in": "path",
+            "name": "occurrence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassBookingForMemberRequest"
+              }
+            }
+          },
+          "description": "The member",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassBookingResponse"
+                }
+              }
+            },
+            "description": "The booking this `client_request_id` already made"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymClassBookingResponse"
+                }
+              }
+            },
+            "description": "The booking"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Book a place for a member",
+        "tags": [
+          "Gym bookings"
         ]
       }
     },
@@ -13292,6 +14362,198 @@
         ]
       }
     },
+    "/api/v1/me/class-bookings": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's class bookings at every gym, newest first.\n\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyGymClassBookings",
+        "parameters": [
+          {
+            "description": "Only `confirmed` or `cancelled` bookings (default: both).",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "confirmed",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymClassBookingList"
+                }
+              }
+            },
+            "description": "The bookings"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My class bookings",
+        "tags": [
+          "Gym bookings"
+        ]
+      }
+    },
+    "/api/v1/me/class-bookings/{booking_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One of the viewer's own bookings.\n\n* `not_found` - unknown, or not the viewer's.\n",
+        "operationId": "getMyGymClassBooking",
+        "parameters": [
+          {
+            "description": "One of the viewer's own bookings.",
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymClassBookingResponse"
+                }
+              }
+            },
+            "description": "The booking"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One of my class bookings",
+        "tags": [
+          "Gym bookings"
+        ]
+      }
+    },
+    "/api/v1/me/class-bookings/{booking_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "Cancels one of the viewer's own bookings until its class starts (`member_cancelled`); its place is free\nagain. Final: booking again is a new booking. Repeating it returns it unchanged. No penalty or refund exists.\n\n* `not_found` - unknown, or not the viewer's.\n* `conflict` - `details.class_booking: \"checked_in\"` (attended) or `\"cancelled\"` (cancelled otherwise;\n  `details.cancel_reason`); `details.class_occurrence: \"started\"`.\n* `rate_limited` - 60 bookings and cancellations per 10 minutes per user.\n",
+        "operationId": "cancelMyGymClassBooking",
+        "parameters": [
+          {
+            "description": "One of the viewer's own bookings.",
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymClassBookingResponse"
+                }
+              }
+            },
+            "description": "The booking"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel my class booking",
+        "tags": [
+          "Gym bookings"
+        ]
+      }
+    },
     "/api/v1/me/coach-invitations": {
       "get": {
         "callbacks": {},
@@ -16131,6 +17393,209 @@
         ]
       }
     },
+    "/api/v1/me/gym-memberships/{gym_member_id}/class-bookings": {
+      "post": {
+        "callbacks": {},
+        "description": "Books one place for the viewer in a class of the gym of their own active membership, while the class is\nscheduled and has not started and a place is left. The same `client_request_id` again returns that booking\n(`200`), even after it was cancelled, and takes no place. No waitlist exists: a full class is a `409`.\nCreates no training session, relationship, payment or entitlement.\n\n* `not_found` - not one of the viewer's own memberships (or bookings), or an unknown or another gym's class.\n* `conflict` - `details.gym_member` is the membership's status when it is not `active` (a request, an ended,\n  rejected or cancelled membership books nothing).\n\n* `conflict` - `details.class_occurrence: \"full\"` (no place left; `details.capacity`), `\"cancelled\"` or\n  `\"started\"`; `details.class_booking: \"already_booked\"` (a confirmed booking of this class exists for the\n  member); `details.client_request_id: \"reused\"` (the key named another booking); a draft gym\n  (`details.setup_status`).\n\n* `validation_error` - a missing, invalid or unknown field.\n* `rate_limited` - 60 bookings and cancellations per 10 minutes per user.\n",
+        "operationId": "bookMyGymClass",
+        "parameters": [
+          {
+            "description": "One of the viewer's own memberships (it must be active).",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymClassBookingRequest"
+              }
+            }
+          },
+          "description": "The class",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymClassBookingResponse"
+                }
+              }
+            },
+            "description": "The booking this `client_request_id` already made"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymClassBookingResponse"
+                }
+              }
+            },
+            "description": "The booking"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Book a place in a class",
+        "tags": [
+          "Gym bookings"
+        ]
+      }
+    },
+    "/api/v1/me/gym-memberships/{gym_member_id}/classes": {
+      "get": {
+        "callbacks": {},
+        "description": "The classes of the gym of one of the viewer's own active memberships starting in `[from, to)` (at most 31\ndays), by start time, with the places left and the viewer's own booking. Never another participant.\n\n* `not_found` - not one of the viewer's own memberships (or bookings), or an unknown or another gym's class.\n* `conflict` - `details.gym_member` is the membership's status when it is not `active` (a request, an ended,\n  rejected or cancelled membership books nothing).\n\n* `validation_error` - an invalid window, `status`, `limit` or `cursor`.\n",
+        "operationId": "listMyGymClasses",
+        "parameters": [
+          {
+            "description": "One of the viewer's own memberships (it must be active).",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Window start: an RFC 3339 instant with an offset.",
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Window end (exclusive), at most 31 days after `from`.",
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only `scheduled` or `cancelled` classes (default: both).",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "scheduled",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberClassList"
+                }
+              }
+            },
+            "description": "The classes"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The classes of my gym",
+        "tags": [
+          "Gym bookings"
+        ]
+      }
+    },
     "/api/v1/me/gym-memberships/{gym_member_id}/leave": {
       "post": {
         "callbacks": {},
@@ -16991,8 +18456,12 @@
       "name": "Gym members"
     },
     {
-      "description": "A gym's venues, class templates, bounded weekly series and class occurrences, in IANA zones with DST-safe wall-clock rules and database-enforced venue and instructor conflicts (ADR 0026, SF-97). Separate from Coach–Fighter training sessions; no bookings or attendance.",
+      "description": "A gym's venues, class templates, bounded weekly series and class occurrences, in IANA zones with DST-safe wall-clock rules and database-enforced venue and instructor conflicts (ADR 0026, SF-97). Separate from Coach–Fighter training sessions. Bookings and check-ins are \"Gym bookings\".",
       "name": "Gym timetable"
+    },
+    {
+      "description": "Places in gym classes: a member's own bookings of their gym's classes, staff booking for members, class rosters and manual check-ins, with database-enforced capacity and idempotent requests (ADR 0026, SF-99). No waitlist, payment, entitlement or penalty.",
+      "name": "Gym bookings"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

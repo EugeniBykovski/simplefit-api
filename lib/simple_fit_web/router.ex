@@ -241,11 +241,31 @@ defmodule SimpleFitWeb.Router do
          GymTimetableController,
          :cancel_occurrence
 
+    get "/gyms/:gym_id/class-occurrences/:occurrence_id/bookings",
+        GymClassBookingController,
+        :roster
+
+    post "/gyms/:gym_id/class-occurrences/:occurrence_id/bookings",
+         GymClassBookingController,
+         :create
+
+    post "/gyms/:gym_id/class-bookings/:booking_id/cancel", GymClassBookingController, :cancel
+    post "/gyms/:gym_id/class-bookings/:booking_id/check-in", GymClassBookingController, :check_in
+
     get "/me/gym-memberships", MyGymMembershipController, :index
     post "/me/gym-memberships/join", MyGymMembershipController, :join
     get "/me/gym-memberships/:gym_member_id", MyGymMembershipController, :show
     post "/me/gym-memberships/:gym_member_id/cancel", MyGymMembershipController, :cancel
     post "/me/gym-memberships/:gym_member_id/leave", MyGymMembershipController, :leave
+    get "/me/gym-memberships/:gym_member_id/classes", MyGymClassBookingController, :classes
+
+    post "/me/gym-memberships/:gym_member_id/class-bookings",
+         MyGymClassBookingController,
+         :create
+
+    get "/me/class-bookings", MyGymClassBookingController, :index
+    get "/me/class-bookings/:booking_id", MyGymClassBookingController, :show
+    post "/me/class-bookings/:booking_id/cancel", MyGymClassBookingController, :cancel
     get "/me/gym-invitations", GymInvitationResponseController, :index
     post "/me/gym-invitations/accept", GymInvitationResponseController, :accept_by_token
     post "/me/gym-invitations/decline", GymInvitationResponseController, :decline_by_token
