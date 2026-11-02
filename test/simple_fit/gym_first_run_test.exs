@@ -20,17 +20,16 @@ defmodule SimpleFit.GymFirstRunTest do
   alias SimpleFit.{Entry, Gyms}
   alias SimpleFit.Gyms.{AuditEvent, Gym, GymFirstRun, StaffMembership}
 
-  @future [:first_check_in]
-
   # A completed gym with no class (SF-97), no accepted staff invitation
-  # (SF-93) and no member yet (SF-95): adding a class and inviting staff and
-  # members is available, check-in is coming later.
-  @fresh Map.new([
-           {:create_gym, :completed},
-           {:add_class, :available},
-           {:invite_staff, :available},
-           {:invite_members, :available} | Enum.map(@future, &{&1, :coming_later})
-         ])
+  # (SF-93), no member yet (SF-95) and no check-in (SF-99): every step after
+  # creating the gym is available, none is coming later any more.
+  @fresh %{
+    create_gym: :completed,
+    add_class: :available,
+    invite_staff: :available,
+    invite_members: :available,
+    first_check_in: :available
+  }
 
   defp completed_with_owner do
     owner = registered!("first-run")
@@ -79,7 +78,7 @@ defmodule SimpleFit.GymFirstRunTest do
       assert statuses(state.checklist).invite_staff == :coming_later
       assert statuses(state.checklist).invite_members == :coming_later
       assert statuses(state.checklist).add_class == :coming_later
-      assert Enum.all?(@future, &(statuses(state.checklist)[&1] == :coming_later))
+      assert statuses(state.checklist).first_check_in == :coming_later
     end
 
     test "completing the setup through SF-85 is what completes create_gym" do

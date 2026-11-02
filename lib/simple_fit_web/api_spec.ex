@@ -108,7 +108,15 @@ defmodule SimpleFitWeb.ApiSpec do
           description:
             "A gym's venues, class templates, bounded weekly series and class occurrences, in IANA zones with " <>
               "DST-safe wall-clock rules and database-enforced venue and instructor conflicts (ADR 0026, " <>
-              "SF-97). Separate from Coach–Fighter training sessions; no bookings or attendance."
+              "SF-97). Separate from Coach–Fighter training sessions. Bookings and check-ins are " <>
+              "\"Gym bookings\"."
+        },
+        %Tag{
+          name: "Gym bookings",
+          description:
+            "Places in gym classes: a member's own bookings of their gym's classes, staff booking for " <>
+              "members, class rosters and manual check-ins, with database-enforced capacity and " <>
+              "idempotent requests (ADR 0026, SF-99). No waitlist, payment, entitlement or penalty."
         },
         %Tag{
           name: "Legal",

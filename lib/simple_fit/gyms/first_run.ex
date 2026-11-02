@@ -41,7 +41,18 @@ defmodule SimpleFit.Gyms.FirstRun do
 
   alias Ecto.Changeset
   alias SimpleFit.Accounts.User
-  alias SimpleFit.Gyms.{Access, Audit, Gym, GymFirstRun, Member, StaffInvitation, Timetable}
+
+  alias SimpleFit.Gyms.{
+    Access,
+    Audit,
+    Bookings,
+    Gym,
+    GymFirstRun,
+    Member,
+    StaffInvitation,
+    Timetable
+  }
+
   alias SimpleFit.Repo
 
   @type status :: :unavailable | :not_started | :in_progress | :completed | :dismissed
@@ -68,10 +79,9 @@ defmodule SimpleFit.Gyms.FirstRun do
   @type error :: :not_found | :forbidden | {:conflict, map()} | Changeset.t()
 
   # The approved opening-week checklist (SF-82 C7, D-G21), in design order.
-  # `create_gym`, `add_class` (SF-97), `invite_staff` (SF-93) and
-  # `invite_members` (SF-95) have their domains today; `first_check_in`
-  # derives from its own domain when check-ins ship, with no change to the
-  # first run.
+  # Each derives from its own domain: `create_gym`, `add_class` (SF-97),
+  # `invite_staff` (SF-93), `invite_members` (SF-95) and `first_check_in`
+  # (SF-99, a recorded class check-in).
   @checklist [:create_gym, :add_class, :invite_staff, :invite_members, :first_check_in]
 
   @doc "The checklist keys, in order."
@@ -162,6 +172,10 @@ defmodule SimpleFit.Gyms.FirstRun do
   # Only a completed gym schedules classes.
   defp item(:add_class, %Gym{setup_status: :completed, id: gym_id}),
     do: if(Timetable.any_class?(gym_id), do: :completed, else: :available)
+
+  # SF-99: done once staff recorded a real check-in (never a booking alone).
+  defp item(:first_check_in, %Gym{setup_status: :completed, id: gym_id}),
+    do: if(Bookings.any_check_in?(gym_id), do: :completed, else: :available)
 
   # No check-in domain exists yet (and a draft invites nobody yet).
   defp item(_future, %Gym{}), do: :coming_later

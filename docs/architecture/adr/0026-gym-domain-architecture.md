@@ -1109,3 +1109,123 @@ Audit events (ids and counts only): `venue_created|updated|deactivated`,
 `class_occurrence_created|rescheduled|cancelled`, `class_instructor_changed`,
 `class_capacity_changed`, `class_instructor_released`. Telemetry
 `[:simple_fit, :gyms, :timetable, event]` with the outcome only.
+
+## Amendment — SF-99 (2026-11-02): class bookings, attendance and the participant roster API
+
+### Scope
+
+Bookings of SF-97 class occurrences by active SF-95 gym members, staff
+booking on a member's behalf, the privacy-safe class roster and manual staff
+check-in, under `/api/v1/me/…` and `/api/v1/gyms/{gym_id}/…`. Separate from
+ADR 0023 training sessions (`D-G14`); no FighterProfile or CoachProfile is
+needed or created. No waitlist, payments, entitlements, credits, QR or
+self check-in, notifications, no-show penalties or UI (SF-100).
+
+### Decisions taken by this ticket
+
+1. **Booking window.** A class is bookable while it is `scheduled` and has
+   not started (`409 class_occurrence: cancelled | started`). No opening
+   time or cutoff before the start.
+2. **Cancellation window.** A confirmed booking is cancelled, by the member
+   or by staff, until the class starts (`409 class_occurrence: started`).
+   A checked-in booking is never cancelled (`409 class_booking: checked_in`).
+   A cancelled booking is final and keeps its row (`cancel_reason`
+   `member_cancelled | staff_cancelled | occurrence_cancelled |
+   membership_ended`, `cancelled_at`, `cancelled_by_user_id`); booking the
+   class again is a new booking.
+3. **One current booking per member and class**, partial unique index on
+   `(occurrence_id, gym_member_id) WHERE status = 'confirmed'`; a second
+   attempt is `409 class_booking: already_booked`.
+4. **Idempotency.** `client_request_id` is unique per gym and names one
+   logical booking for ever: the same key again returns that booking
+   (`200`), even after it was cancelled, and takes no new seat; the same key
+   for another member or class is `409 client_request_id: reused`.
+5. **Capacity.** `confirmed bookings <= capacity`, counted under the
+   occurrence row lock (`FOR UPDATE`) and checked again by the
+   `gym_class_bookings_guard` trigger. Full is `409 class_occurrence: full`
+   with the capacity. No overbooking or staff override.
+6. **SF-97 lifecycle.** Cancelling a class or a series releases its
+   confirmed bookings (`occurrence_cancelled`, one `class_bookings_released`
+   audit event per class with the count) in the same transaction, before
+   the status changes; the database refuses to cancel a class that still
+   holds confirmed bookings. A capacity below the confirmed bookings is
+   refused (`409 class_occurrence: capacity_below_bookings` with
+   `confirmed_bookings`; for a series, `class_series:
+   capacity_below_bookings` with the affected `local_dates`), by the app
+   and by a trigger. Rescheduling keeps the bookings.
+7. **SF-95 lifecycle.** A membership that ends (removal, leaving, account
+   deletion) releases, in the same transaction, the member's confirmed
+   bookings of classes still to come with no check-in
+   (`membership_ended`); history stays. A requested, rejected, cancelled or
+   ended membership books nothing (`409 gym_member`).
+8. **Check-in** is manual, by staff only, on a confirmed booking of a
+   scheduled class, on the class's own local day in its venue's zone (`409
+   class_occurrence: not_today`; also after the class has ended that day).
+   One per booking (unique `booking_id`): a repeat returns the same event
+   (`200`) and writes nothing. No correction or undo.
+9. **Permissions** (existing `Gyms.Policy`, nothing added): roster
+   `view_rosters` (owner, manager, front desk any class; coach only a class
+   they instruct, else `403`); book and cancel for a member
+   `book_for_member` (owner, manager, front desk); check-in
+   `record_check_in` (every active staff role). A member reaches only their
+   own bookings (anyone else's is `404`).
+10. **`first_check_in`** is completed once the gym has a real check-in; a
+    booking alone does not complete it.
+
+**Proposed, not implemented (FUTURE):** waitlist and promotion, booking
+opening times and cancellation cutoffs, late-cancel and no-show policies,
+check-in correction, self or QR check-in, capacity overrides, paid or
+entitlement-gated booking, notifications.
+
+### Model and invariants
+
+`gym_class_bookings` and `gym_class_check_ins` (migration
+`20261104090000`, explicit up/down). Every cross-reference is a composite
+foreign key including `gym_id`; a check-in references
+`(booking_id, occurrence_id, gym_member_id)` of its booking. Triggers:
+insert only for a scheduled class, an active member and a free seat (the
+trigger locks the occurrence row); `confirmed → cancelled` the only
+transition, identity fields fixed; check-ins immutable (only the recorder's
+user reference is nulled on account deletion) and only for a confirmed
+booking of a scheduled class; occurrence capacity and cancellation guarded
+against confirmed bookings; no deletes (the SF-95 purge switch only).
+
+### Writes and concurrency
+
+Lock order: session (`FOR SHARE`) → gym → staff membership → member →
+occurrence (`FOR UPDATE`) → booking. A member's booking or cancellation
+holds the gym `FOR SHARE`; staff writes and every SF-97 timetable write hold
+it `FOR UPDATE` (`Schedule.write/5`), so a class change, cancellation,
+member removal or staff revocation commits entirely before or after a
+booking, and bookings of one class serialize on its row. Verified by real
+PostgreSQL race tests (committed transactions): 20 members for the last
+seat, 30 for 5 seats, one key 20 times, booking against cancellation,
+class and series cancellation, capacity reduction, member removal and
+session revocation, two gyms, 20 concurrent check-ins, check-in against
+cancellation and against class cancellation with staff revocation. Rate
+limit: 60 bookings and cancellations per 10 minutes per user
+(`gym_booking_user`; a replayed key answers before it counts); staff writes
+also take the 120 per 10 minutes timetable limit.
+
+### API
+
+Tag "Gym bookings", all `no-store`. Member: `listMyGymClasses` (`GET
+/me/gym-memberships/{gym_member_id}/classes`, window as the timetable, seats
+left and the caller's own booking), `bookMyGymClass` (`POST
+…/class-bookings`), `listMyGymClassBookings`, `getMyGymClassBooking`,
+`cancelMyGymClassBooking` (`/me/class-bookings…`). Staff:
+`getGymClassRoster` (`GET /gyms/{gym_id}/class-occurrences/{occurrence_id}/bookings`,
+summary `capacity`, `confirmed_count`, `remaining_capacity`,
+`checked_in_count`; entries carry the member's short name, booking status,
+times and check-in time, never an email, user id, profile or training
+data), `bookGymClassForMember`, `cancelGymClassBooking`,
+`checkInGymClassBooking` (`/gyms/{gym_id}/class-bookings/{booking_id}/…`).
+Errors `401`, `403`, `404` (another gym, a booking that is not the
+caller's), `409` (details above), `422` (unknown or invalid fields), `429`.
+
+### Audit and telemetry
+
+Audit events (ids and counts only, new columns `class_booking_id`,
+`booking_count`): `class_booking_created`, `class_booking_cancelled`,
+`class_bookings_released`, `class_check_in_recorded`. Telemetry
+`[:simple_fit, :gyms, :booking, event]` with the outcome only.

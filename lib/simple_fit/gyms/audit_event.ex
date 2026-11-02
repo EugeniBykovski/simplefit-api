@@ -60,6 +60,10 @@ defmodule SimpleFit.Gyms.AuditEvent do
           | :class_instructor_changed
           | :class_capacity_changed
           | :class_instructor_released
+          | :class_booking_created
+          | :class_booking_cancelled
+          | :class_bookings_released
+          | :class_check_in_recorded
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -76,6 +80,8 @@ defmodule SimpleFit.Gyms.AuditEvent do
           class_series_id: Ecto.UUID.t() | nil,
           class_occurrence_id: Ecto.UUID.t() | nil,
           occurrence_count: non_neg_integer() | nil,
+          class_booking_id: Ecto.UUID.t() | nil,
+          booking_count: non_neg_integer() | nil,
           from_role: StaffMembership.role() | nil,
           to_role: StaffMembership.role() | nil,
           reason: StaffMembership.ended_reason() | nil,
@@ -132,7 +138,11 @@ defmodule SimpleFit.Gyms.AuditEvent do
         :class_occurrence_cancelled,
         :class_instructor_changed,
         :class_capacity_changed,
-        :class_instructor_released
+        :class_instructor_released,
+        :class_booking_created,
+        :class_booking_cancelled,
+        :class_bookings_released,
+        :class_check_in_recorded
       ]
 
     field :staff_membership_id, :binary_id
@@ -145,6 +155,8 @@ defmodule SimpleFit.Gyms.AuditEvent do
     field :class_series_id, :binary_id
     field :class_occurrence_id, :binary_id
     field :occurrence_count, :integer
+    field :class_booking_id, :binary_id
+    field :booking_count, :integer
     field :from_role, Ecto.Enum, values: StaffMembership.roles()
     field :to_role, Ecto.Enum, values: StaffMembership.roles()
 
