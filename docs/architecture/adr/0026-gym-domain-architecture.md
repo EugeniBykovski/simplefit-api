@@ -1388,3 +1388,166 @@ registered key only. Request logs filter `card`, `cvc`, `cvv`, `iban`,
 its webhooks, checkout, invoices and tax, refunds and proration, renewals,
 trials, class admission debit, entitlement enforcement and grandfathering,
 member product purchase UI.
+
+## Amendment — SF-102 (2026-11-03): Stripe payments for SimpleFit SaaS billing
+
+### Decision and scope
+
+Stripe is the payment provider (product decision in the SF-102 ticket): Stripe
+Checkout (hosted) to collect, Stripe Billing for the gym's SaaS subscription,
+the Stripe Customer Portal for payment methods and invoices, signed webhooks
+for lifecycle, Stripe invoices as the billing history, and a Stripe Connect
+**foundation** for future gym member payments. The SF-101 domain stays
+provider-neutral and authoritative for gyms, plans, prices, lifecycle and
+entitlements; Stripe is authoritative only for its own objects. No microservice,
+broker or second database; no Stripe SDK (ADR 0004).
+
+**Test mode only until a release approval.** Live mode is refused outside a
+production build, needs `STRIPE_LIVE_APPROVAL`, and never sells a draft or
+`provisional` price. Disabled or misconfigured means no checkout and no paid
+state (never a substituted success). Commercial enforcement stays off
+(`enforced: false`): no gym workspace is locked out.
+
+### Two financial flows
+
+* **SaaS billing** (payer: the gym; seller: SimpleFit): implemented.
+* **Gym member payments** (payer: a member; seller: the gym, Direct Charges on
+  its connected account as the candidate model): **disabled.** Only an
+  operator-linked, test-mode connected account mapping and its synced
+  capability summary exist (`stripe_connected_accounts`, `SimpleFit.Billing.Connect`).
+  Nothing creates an account, onboarding link, charge, transfer or payout.
+  Open decisions: merchant of record, account type and capabilities, country
+  availability, legal seller, KYB/KYC, platform fees and currency,
+  refund/dispute and negative-balance liability, tax responsibility, payouts,
+  offboarding.
+
+### Configuration (`SimpleFit.Billing.Stripe.Config`)
+
+`STRIPE_BILLING_ENABLED`, `STRIPE_MODE` (`test`|`live`), `STRIPE_SECRET_KEY`
+(`sk_`/`rk_` of the mode; a key of the other mode fails boot),
+`STRIPE_WEBHOOK_SECRET` (`whsec_`), `STRIPE_ACCOUNT_ID`, `STRIPE_API_VERSION`
+(default pinned **`2026-10-28.endive`**; preview versions refused),
+`STRIPE_PORTAL_CONFIGURATION_ID`, `STRIPE_CONNECT_ENABLED`,
+`STRIPE_LIVE_APPROVAL`. No publishable key is read; no secret reaches a
+client. `SimpleFit.Billing.Stripe.Provider` is a trusted activation provider
+only where the integration is configured.
+
+API version notes (`2026-10-28.endive`): billing periods live on subscription
+items (`items.data[].current_period_*`), an invoice names its subscription
+under `parent.subscription_details.subscription`, invoice payments are
+`invoice_payment` objects, Checkout's `payment_method_types` is gone and
+`ui_mode` defaults to `hosted_page`.
+
+### Model (migration `20261108090000`, explicit up/down)
+
+`stripe_customers` (gym ↔ customer per mode, immutable), `stripe_prices`
+(price version ↔ Stripe Price per mode with the amount, currency and interval
+Stripe confirmed; immutable), `stripe_checkouts` (`creating | open |
+completed | expired | failed`, idempotency key, one `creating`/`open` per
+subscription), `stripe_subscriptions` (link, provider status, period,
+`discrepancy` code), `stripe_invoices` (status, payment status, minor-unit
+amounts, refunded amount, dispute flag, Stripe-hosted URLs), `stripe_refunds`
+(operator or provider origin; one operator refund in flight per invoice),
+`stripe_disputes`, `stripe_webhook_events` (inbox: ids and type, **never the
+payload**), `stripe_connected_accounts`. Every row names its mode; provider ids
+are unique per mode; mappings keep their mode and gym; financial rows are never
+deleted (SF-95 purge switch excepted). Audit: gym events
+`saas_checkout_started | saas_subscription_renewed |
+saas_subscription_reactivated | saas_payment_failed | saas_refund_recorded |
+saas_dispute_recorded` (ids only, `billing_record_id`); operator events
+`stripe_price_mapped | stripe_refund_requested |
+stripe_connected_account_linked`.
+
+SF-101 amendments (explicit): the subscription guard allows
+`cancellation_scheduled → active` (a cancellation withdrawn at the provider,
+applied only from reconciled state); cancel reason `provider_initiated` (the
+provider ended or scheduled the end outside SimpleFit); `advance/1` leaves a
+subscription with a live Stripe link to reconciliation (entitlements still
+lapse at the period end). Down migration restores both.
+
+### Flows
+
+* **Price mapping** (operator, `mix billing.stripe map-price`): Product + Price
+  created idempotently per price version and mode, checked against Stripe's
+  answer. Clients select internal plan/price versions; the backend resolves the
+  Stripe Price and refuses `not_mapped`/`mismatch`.
+* **Checkout** (`createGymSaasCheckoutSession`, owner only): gym write
+  transaction (session held, gym and staff membership locked, subscription
+  `FOR UPDATE`) validates the pending intent and its mapping, reuses an
+  `open`/`creating` row or writes one with a fresh idempotency key; outside it
+  the customer is created once (key per gym and mode) and the session with the
+  row's key, so a lost answer retried returns the same session. A `creating`
+  row past its window is `failed` (nobody holds its URL).
+* **Return** (`reconcileGymSaasSubscription`): reads Stripe; a redirect is
+  never proof of payment.
+* **Webhooks** (`POST /api/webhooks/stripe`): signature over the exact raw
+  body (`SimpleFitWeb.RawBody`, only this route keeps it), 300 s tolerance in
+  both directions, configured mode, no Connect `account`; inbox row and Oban
+  job in one transaction; duplicates change nothing; `2xx` only after commit,
+  `503` when disabled or the inbox is unavailable. Handled types:
+  `mix billing.stripe webhook-events`.
+* **Reconciliation** (`SimpleFit.Billing.Reconciliation`): the only path from
+  Stripe to SF-101. Every decision re-reads the object from the Stripe API, so
+  event order and content never matter. Lock order gym `FOR SHARE` →
+  subscription `FOR UPDATE` (as every gym write; locking the subscription first
+  deadlocked against a cancellation in the race tests), Stripe fetched inside
+  the lock. A link is created only from SimpleFit's own checkout row whose
+  session (read from Stripe) is complete, names the subscription and the gym's
+  customer; metadata never creates identity. Activation and renewal only from
+  a `paid` invoice of the linked Stripe Subscription and customer, in the price
+  version's currency and exact amount, with a current subscription-line period
+  (`VerifiedInvoice` → evidence `<mode>:<invoice id>`, unique). Anything else
+  records a `discrepancy` and grants nothing. SCA and failed payments stay
+  pending (payment status read from the PaymentIntent); failed renewals are
+  `past_due` with the paid period kept; Stripe's own retries are the recovery
+  engine. Stripe ending it: `expired` (payment failed) or `cancelled`.
+* **Sweep** (`SweepWorker`, hourly): live links not synced for 6 h, past their
+  period or pending, and pending checkouts.
+* **Cancellation** (`cancelGymSaasSubscription`): Stripe first (`immediate`:
+  delete, no proration, no refund; `period_end`: `cancel_at_period_end`; a
+  pending intent's checkout is expired; a completed one is `409 checkout:
+  completed`), then SF-101. Stripe unreachable: nothing changes (`503`).
+* **Portal** (`createGymBillingPortalSession`): short-lived, never stored; the
+  configuration (`mix billing.stripe setup-portal`) enables payment method
+  update, invoice history and billing details, **not** plan change or
+  cancellation (SimpleFit owns both).
+* **Refunds** (operator, `mix billing.stripe refund`, approval reference):
+  full refunds only (partial: not approved), one per invoice under the invoice
+  lock, idempotent at Stripe (a lost answer is retried with its key),
+  reconciled from Stripe; refunds made at Stripe are recorded with their real
+  amount. No gym staff can refund. **Disputes** are recorded as disputes, never
+  as refunds. Neither revokes an entitlement by itself (no approved rule).
+* **Invoices** (`listGymBillingInvoices`): Stripe's invoices as reconciled;
+  SimpleFit renders no PDF and computes no tax; a draft or open invoice is never
+  shown as paid.
+
+### Tax and invoicing boundary
+
+Stripe Tax is **not** enabled and no VAT rate is configured. Open questions
+before any legally presented invoice: SimpleFit's seller entity and VAT
+registration, B2B/B2C treatment and reverse charge, the gym's billing address
+and tax id collection, Polish invoicing obligations (KSeF e-invoicing,
+invoice numbering, correction invoices/credit notes), retention, and the
+accounting export. The integration boundary for accounting is
+`stripe_invoices` (ids, amounts, periods, statuses) and Stripe's own records.
+
+### Security and observability
+
+Secrets only in env and the `authorization` header; Stripe ids validated
+before entering a URL; every answered object must carry the configured mode's
+`livemode`; no card, bank, email, address or tax data is stored or rendered;
+logs carry the provider, a status and a reason code only. Telemetry:
+`[:simple_fit, :billing, :webhook]` (stage, outcome),
+`[:simple_fit, :billing, :stripe_request]` (method, result) and the SF-101
+subscription events.
+
+### Verification
+
+ExUnit against `SimpleFit.StripeFake` (a deterministic Req.Test fake of the
+documented endpoints with idempotency semantics and fault injection) and real
+PostgreSQL race tests (20 concurrent checkouts → one session, 20 concurrent
+deliveries → one inbox row, 10 concurrent reconciliations → one activation,
+10 concurrent refunds → one Stripe refund, cancellation racing renewal and
+checkout completion). **Real Stripe test-mode journeys need test credentials
+and were not verified in SF-102.**
+

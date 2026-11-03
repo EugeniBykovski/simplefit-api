@@ -36,10 +36,13 @@ defmodule SimpleFitWeb.Endpoint do
 
   # Only JSON bodies are accepted. Any other content type is rejected with
   # 415 unsupported_media_type before reaching the router.
+  # The Stripe webhook route also keeps its raw body for signature
+  # verification (SimpleFitWeb.RawBody, SF-102); no other route does.
   @parsers Plug.Parsers.init(
              parsers: [:json],
              pass: [],
-             json_decoder: Phoenix.json_library()
+             json_decoder: Phoenix.json_library(),
+             body_reader: {SimpleFitWeb.RawBody, :read_body, []}
            )
 
   plug :parse_body

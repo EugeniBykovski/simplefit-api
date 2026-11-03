@@ -88,6 +88,25 @@ defmodule SimpleFit.Gyms.Access do
   end
 
   @doc """
+  Share-locks the gym row alone (`FOR SHARE`, its own statement) inside the
+  caller's transaction, for system writers without an actor (SF-102 billing
+  reconciliation) that then lock and write rows of the gym: the same first
+  step as every gym write, so they never wait on each other in opposite
+  order. `:ok` or `{:error, :not_found}`.
+  """
+  @spec lock_gym_shared(Ecto.UUID.t()) :: :ok | {:error, :not_found}
+  def lock_gym_shared(gym_id) do
+    true = Repo.in_transaction?()
+
+    case Repo.one(from(g in Gym, where: g.id == ^gym_id, lock: "FOR SHARE", select: g.id),
+           log: false
+         ) do
+      nil -> {:error, :not_found}
+      _id -> :ok
+    end
+  end
+
+  @doc """
   `lock_shared/2` plus the permission check: for operations that write rows
   of their own under a gym (not the gym or its staff), such as the first
   run. A transfer or revocation (which lock the gym row for update) commits

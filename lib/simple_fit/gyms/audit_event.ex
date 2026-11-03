@@ -158,7 +158,14 @@ defmodule SimpleFit.Gyms.AuditEvent do
         :member_product_subscription_activated,
         :member_product_subscription_cancellation_scheduled,
         :member_product_subscription_cancelled,
-        :member_product_subscription_expired
+        :member_product_subscription_expired,
+        # SF-102: Stripe-backed billing of the gym's SaaS subscription.
+        :saas_checkout_started,
+        :saas_subscription_renewed,
+        :saas_subscription_reactivated,
+        :saas_payment_failed,
+        :saas_refund_recorded,
+        :saas_dispute_recorded
       ]
 
     field :staff_membership_id, :binary_id
@@ -178,6 +185,7 @@ defmodule SimpleFit.Gyms.AuditEvent do
     field :member_product_version_id, :binary_id
     field :member_price_version_id, :binary_id
     field :member_product_subscription_id, :binary_id
+    field :billing_record_id, :binary_id
     field :from_role, Ecto.Enum, values: StaffMembership.roles()
     field :to_role, Ecto.Enum, values: StaffMembership.roles()
 

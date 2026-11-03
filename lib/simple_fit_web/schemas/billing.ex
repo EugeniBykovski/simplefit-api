@@ -48,9 +48,9 @@ defmodule SimpleFitWeb.Schemas.CommerceFields do
       type: :string,
       enum: ["pending_activation", "active", "cancellation_scheduled", "cancelled", "expired"],
       description:
-        "`pending_activation` is an intent and grants nothing; only verified provider evidence activates " <>
-          "(none exists yet). `cancellation_scheduled` stays in force until `cancellation_effective_at`. " <>
-          "`cancelled` and `expired` are final."
+        "`pending_activation` is an intent and grants nothing; only verified provider evidence (a paid Stripe " <>
+          "invoice, SF-102) activates. `cancellation_scheduled` stays in force until " <>
+          "`cancellation_effective_at`. `cancelled` and `expired` are final."
     }
   end
 
@@ -89,7 +89,8 @@ defmodule SimpleFitWeb.Schemas.CommerceFields do
   def cancel_rules do
     """
     `immediate` ends it now; `period_end` schedules the end at the current period's end (an intent is always
-    cancelled at once). Repeating the request returns it unchanged. No refund, proration or invoice exists.
+    cancelled at once). Repeating the request returns it unchanged. A Stripe-backed subscription is cancelled
+    at Stripe first (no proration, no refund); if Stripe cannot be reached nothing changes (`503`).
     """
   end
 end
@@ -228,7 +229,7 @@ defmodule SimpleFitWeb.Schemas.GymSaasSubscription do
       title: "GymSaasSubscription",
       description:
         "The gym (not a person) is the subscriber. It keeps the plan and price version it chose. No provider " <>
-          "reference, payment or invoice is exposed.",
+          "reference or payment detail is exposed (invoices: `listGymBillingInvoices`).",
       type: :object,
       additionalProperties: false,
       required:
@@ -254,7 +255,9 @@ defmodule SimpleFitWeb.Schemas.GymSaasSubscription do
           cancel_reason: %Schema{
             type: :string,
             nullable: true,
-            enum: ["requested_by_gym", "gym_closed", nil]
+            enum: ["requested_by_gym", "gym_closed", "provider_initiated", nil],
+            description:
+              "`provider_initiated` (SF-102): the payment provider ended or scheduled the end outside SimpleFit."
           }
         })
     },

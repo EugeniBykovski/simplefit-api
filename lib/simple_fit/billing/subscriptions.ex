@@ -23,9 +23,14 @@ defmodule SimpleFit.Billing.Subscriptions do
     request returns the subscription unchanged (`200`, one audit event).
     No refund, proration or invoice is computed or recorded.
   * **Period end** (`advance/1`): an active subscription whose period ended
-    becomes `expired` (there is no renewal source: periods are never
-    created without verified evidence), and a scheduled cancellation becomes
-    `cancelled` when it takes effect.
+    becomes `expired` (periods are never created without verified
+    evidence), and a scheduled cancellation becomes `cancelled` when it
+    takes effect. SF-102: a subscription whose Stripe subscription is still
+    live is left to reconciliation (a renewal may be in its retry window;
+    entitlements already lapse at the period end).
+  * **Provider transitions** (SF-102, `*_locked`): activation, renewal,
+    a provider-scheduled or withdrawn cancellation and a provider end, all
+    from reconciled provider state inside the reconciliation transaction.
 
   Concurrent requests serialize on the gym row (the gym write transaction)
   and the subscription row (`FOR UPDATE`): one outcome, one event.
@@ -46,10 +51,13 @@ defmodule SimpleFit.Billing.Subscriptions do
     SubscriptionPeriod
   }
 
+  alias SimpleFit.Billing.Stripe.SubscriptionLink
+
   @unlogged [log: false]
   @request_fields ["plan_version_id", "price_version_id", "client_request_id"]
   @cancel_fields ["mode"]
   @current [:pending_activation, :active, :cancellation_scheduled]
+  @provider_final [:canceled, :incomplete_expired]
 
   @type error ::
           :not_found
@@ -111,33 +119,7 @@ defmodule SimpleFit.Billing.Subscriptions do
     Repo.transaction(
       fn ->
         with {:ok, subscription} <- lock_any(subscription_id),
-             :ok <- pending(subscription),
-             {:ok, evidence} <- Activation.record(provider, payload, :saas_subscription, now) do
-          activated =
-            subscription
-            |> Changeset.change(
-              status: :active,
-              activation_evidence_id: evidence.id,
-              activated_at: now,
-              current_period_start: evidence.period_start,
-              current_period_end: evidence.period_end,
-              revision: subscription.revision + 1
-            )
-            |> Repo.update!(@unlogged)
-
-          Repo.insert!(
-            %SubscriptionPeriod{
-              gym_id: subscription.gym_id,
-              subscription_id: subscription.id,
-              period_start: evidence.period_start,
-              period_end: evidence.period_end,
-              source: :activation,
-              activation_evidence_id: evidence.id
-            },
-            @unlogged
-          )
-
-          audit!(activated, nil, :saas_subscription_activated, now)
+             {:ok, activated} <- activate_locked(subscription, provider, payload, now) do
           activated
         else
           {:error, reason} -> Repo.rollback(reason)
@@ -146,6 +128,211 @@ defmodule SimpleFit.Billing.Subscriptions do
       @unlogged
     )
     |> tap(&emit(:activation, &1))
+  end
+
+  ## Provider-backed transitions (SF-102)
+  #
+  # Called by `SimpleFit.Billing.Reconciliation` inside its transaction, with
+  # the subscription locked (`lock_for_provider/1`), from provider state it
+  # fetched from the provider's API. None is reachable over HTTP.
+
+  @doc """
+  Locks any gym's subscription for reconciliation (inside a transaction), in
+  the gym write lock order: the gym row `FOR SHARE` first, then the
+  subscription `FOR UPDATE`. (Locking the subscription first deadlocked
+  against an owner's cancellation, which holds the gym row, once
+  reconciliation wrote a row referencing the gym.)
+  """
+  @spec lock_for_provider(term()) :: {:ok, GymSubscription.t()} | {:error, :not_found}
+  def lock_for_provider(subscription_id) do
+    true = Repo.in_transaction?()
+
+    with {:ok, id} <- Ecto.UUID.cast(subscription_id),
+         gym_id when is_binary(gym_id) <-
+           Repo.one(from(s in GymSubscription, where: s.id == ^id, select: s.gym_id), @unlogged),
+         :ok <- Gyms.lock_gym_shared(gym_id) do
+      lock_any(id)
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  Activates a locked pending subscription from verified evidence (the
+  SF-101 activation, inside the caller's transaction).
+  """
+  @spec activate_locked(GymSubscription.t(), module(), term(), DateTime.t()) ::
+          {:ok, GymSubscription.t()} | {:error, atom() | {:conflict, map()}}
+  def activate_locked(%GymSubscription{} = subscription, provider, payload, now) do
+    with :ok <- pending(subscription),
+         {:ok, evidence} <- Activation.record(provider, payload, :saas_subscription, now) do
+      activated =
+        subscription
+        |> Changeset.change(
+          status: :active,
+          activation_evidence_id: evidence.id,
+          activated_at: now,
+          current_period_start: evidence.period_start,
+          current_period_end: evidence.period_end,
+          revision: subscription.revision + 1
+        )
+        |> Repo.update!(@unlogged)
+
+      insert_period!(activated, evidence, :activation)
+      audit!(activated, nil, :saas_subscription_activated, now)
+      {:ok, activated}
+    end
+  end
+
+  @doc """
+  Renews a locked active subscription for a later paid period from verified
+  evidence: a `renewal` period row and the new current period. A period
+  that does not extend the current one is refused (`:stale_period`).
+  """
+  @spec renew_locked(GymSubscription.t(), module(), term(), DateTime.t()) ::
+          {:ok, GymSubscription.t()} | {:error, atom() | {:conflict, map()}}
+  def renew_locked(%GymSubscription{status: :active} = subscription, provider, payload, now) do
+    with {:ok, %{period_end: ends}} <- provider.verify(payload),
+         :ok <- later(ends, subscription.current_period_end),
+         {:ok, evidence} <- Activation.record(provider, payload, :saas_subscription, now) do
+      renewed =
+        subscription
+        |> Changeset.change(
+          current_period_start: evidence.period_start,
+          current_period_end: evidence.period_end,
+          revision: subscription.revision + 1
+        )
+        |> Repo.update!(@unlogged)
+
+      insert_period!(renewed, evidence, :renewal)
+      audit!(renewed, nil, :saas_subscription_renewed, now)
+      {:ok, renewed}
+    end
+  end
+
+  def renew_locked(%GymSubscription{status: status}, _provider, _payload, _now),
+    do: {:error, {:conflict, %{saas_subscription: Atom.to_string(status)}}}
+
+  @doc """
+  A cancellation the provider scheduled at `effective_at` (the end of the
+  paid period). Already scheduled: unchanged. A cancellation requested
+  outside SimpleFit records `provider_initiated`.
+  """
+  @spec schedule_by_provider_locked(GymSubscription.t(), DateTime.t(), DateTime.t()) ::
+          {:ok, GymSubscription.t()}
+  def schedule_by_provider_locked(%GymSubscription{status: :active} = s, effective_at, now) do
+    scheduled =
+      s
+      |> Changeset.change(
+        status: :cancellation_scheduled,
+        cancel_mode: :period_end,
+        cancel_reason: :provider_initiated,
+        cancellation_requested_at: now,
+        cancellation_effective_at: effective_at,
+        revision: s.revision + 1
+      )
+      |> Repo.update!(@unlogged)
+
+    audit!(scheduled, nil, :saas_subscription_cancellation_scheduled, now)
+    {:ok, scheduled}
+  end
+
+  def schedule_by_provider_locked(%GymSubscription{} = s, _effective_at, _now), do: {:ok, s}
+
+  @doc """
+  A scheduled cancellation the provider withdrew: the subscription is active
+  again (the one SF-102 transition `cancellation_scheduled -> active`).
+  """
+  @spec reactivate_locked(GymSubscription.t(), DateTime.t()) :: {:ok, GymSubscription.t()}
+  def reactivate_locked(%GymSubscription{status: :cancellation_scheduled} = s, now) do
+    active =
+      s
+      |> Changeset.change(
+        status: :active,
+        cancel_mode: nil,
+        cancel_reason: nil,
+        cancellation_requested_at: nil,
+        cancellation_effective_at: nil,
+        cancelled_by_user_id: nil,
+        revision: s.revision + 1
+      )
+      |> Repo.update!(@unlogged)
+
+    audit!(active, nil, :saas_subscription_reactivated, now)
+    {:ok, active}
+  end
+
+  def reactivate_locked(%GymSubscription{} = s, _now), do: {:ok, s}
+
+  @doc """
+  The provider ended the subscription: `:expired` (unpaid, its period
+  ended) or `:cancelled` (a cancellation took effect; a scheduled one keeps
+  its reason, otherwise `provider_initiated`). A pending intent is
+  cancelled. Final subscriptions are unchanged.
+  """
+  @spec end_by_provider_locked(GymSubscription.t(), :cancelled | :expired, DateTime.t()) ::
+          {:ok, GymSubscription.t()}
+  def end_by_provider_locked(%GymSubscription{status: status} = s, _outcome, _now)
+      when status in [:cancelled, :expired],
+      do: {:ok, s}
+
+  def end_by_provider_locked(%GymSubscription{status: status} = s, :expired, now)
+      when status in [:active, :cancellation_scheduled] do
+    finish(s, :expired, nil, now)
+    {:ok, Repo.reload!(s, @unlogged)}
+  end
+
+  def end_by_provider_locked(%GymSubscription{} = s, _outcome, now) do
+    cancelled =
+      s
+      |> Changeset.change(
+        status: :cancelled,
+        cancel_mode: s.cancel_mode || :immediate,
+        cancel_reason: s.cancel_reason || :provider_initiated,
+        cancellation_requested_at: s.cancellation_requested_at || now,
+        cancellation_effective_at: now,
+        ended_at: now,
+        revision: s.revision + 1
+      )
+      |> Repo.update!(@unlogged)
+
+    audit!(cancelled, nil, :saas_subscription_cancelled, now)
+    {:ok, cancelled}
+  end
+
+  @doc "Records a provider-side billing event on the gym's audit trail (ids only)."
+  @spec audit_billing!(GymSubscription.t(), atom(), Ecto.UUID.t() | nil, DateTime.t()) :: :ok
+  def audit_billing!(%GymSubscription{} = s, event, record_id, now) do
+    Gyms.record_commerce_event!(
+      %{
+        gym_id: s.gym_id,
+        actor_user_id: nil,
+        event_type: event,
+        saas_subscription_id: s.id,
+        billing_record_id: record_id
+      },
+      now
+    )
+
+    emit(event, {:ok, s})
+  end
+
+  defp later(ends, current) do
+    if DateTime.compare(ends, current) == :gt, do: :ok, else: {:error, :stale_period}
+  end
+
+  defp insert_period!(subscription, evidence, source) do
+    Repo.insert!(
+      %SubscriptionPeriod{
+        gym_id: subscription.gym_id,
+        subscription_id: subscription.id,
+        period_start: evidence.period_start,
+        period_end: evidence.period_end,
+        source: source,
+        activation_evidence_id: evidence.id
+      },
+      @unlogged
+    )
   end
 
   @doc """
@@ -158,9 +345,12 @@ defmodule SimpleFit.Billing.Subscriptions do
     ids =
       Repo.all(
         from(s in GymSubscription,
+          left_join: l in SubscriptionLink,
+          on: l.subscription_id == s.id and l.provider_status not in ^@provider_final,
           where:
-            (s.status == :active and s.current_period_end <= ^now) or
-              (s.status == :cancellation_scheduled and s.cancellation_effective_at <= ^now),
+            is_nil(l.id) and
+              ((s.status == :active and s.current_period_end <= ^now) or
+                 (s.status == :cancellation_scheduled and s.cancellation_effective_at <= ^now)),
           select: s.id
         ),
         @unlogged

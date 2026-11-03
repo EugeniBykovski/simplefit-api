@@ -5,6 +5,10 @@ defmodule SimpleFit.Billing.GymSubscription do
   `cancellation_scheduled` (ends at the period end), `cancelled` or
   `expired`. It references the price version the gym agreed to, which never
   changes when a newer plan version is published.
+
+  SF-102: a subscription paid through Stripe is reconciled from provider
+  state (`SimpleFit.Billing.Reconciliation`); `provider_initiated` is the
+  cancel reason when the provider ended it outside SimpleFit.
   """
   use Ecto.Schema
 
@@ -32,7 +36,7 @@ defmodule SimpleFit.Billing.GymSubscription do
     field :current_period_start, :utc_datetime_usec
     field :current_period_end, :utc_datetime_usec
     field :cancel_mode, Ecto.Enum, values: [:immediate, :period_end]
-    field :cancel_reason, Ecto.Enum, values: [:requested_by_gym, :gym_closed]
+    field :cancel_reason, Ecto.Enum, values: [:requested_by_gym, :gym_closed, :provider_initiated]
     field :cancellation_requested_at, :utc_datetime_usec
     field :cancellation_effective_at, :utc_datetime_usec
     field :cancelled_by_user_id, :binary_id

@@ -323,7 +323,19 @@ defmodule SimpleFit.BillingTest do
       plan = published_plan!()
       subscription = pending_saas!(ctx.owner, ctx.gym.id, plan)
 
-      assert Activation.trusted_providers() == [SimpleFit.BillingTestProvider]
+      # SF-102: the test build also trusts Stripe, whose payload is only a
+      # reconciled VerifiedInvoice (never a request).
+      assert Activation.trusted_providers() == [
+               SimpleFit.BillingTestProvider,
+               SimpleFit.Billing.Stripe.Provider
+             ]
+
+      assert {:error, :invalid_request} =
+               Subscriptions.activate(
+                 subscription.id,
+                 SimpleFit.Billing.Stripe.Provider,
+                 evidence(@now, @period_end)
+               )
 
       assert {:error, :untrusted_provider} =
                Subscriptions.activate(subscription.id, __MODULE__, evidence(@now, @period_end))
@@ -501,7 +513,7 @@ defmodule SimpleFit.BillingTest do
   end
 
   describe "boundaries" do
-    test "no invoice, refund, payment or credit record exists, and no coaching data is created",
+    test "only Stripe's reconciled invoices and refunds exist (no ledger, payout or credit), and no coaching data is created",
          ctx do
       relationships = Repo.aggregate("coach_fighter_relationships", :count)
       fighters = Repo.aggregate("fighter_profiles", :count)
@@ -523,7 +535,12 @@ defmodule SimpleFit.BillingTest do
             "tablename ~ '(invoice|refund|payment|payout|credit|ledger|receipt)'"
         )
 
-      assert tables == []
+      # SF-102: Stripe's invoices and refunds as last reconciled; no local
+      # ledger, payout, credit or receipt table, and nothing was written
+      # for a subscription that never went through Stripe.
+      assert Enum.sort(tables) == [["stripe_invoices"], ["stripe_refunds"]]
+      assert Repo.aggregate("stripe_invoices", :count) == 0
+      assert Repo.aggregate("stripe_refunds", :count) == 0
       assert Repo.aggregate("coach_fighter_relationships", :count) == relationships
       assert Repo.aggregate("fighter_profiles", :count) == fighters
     end

@@ -86,7 +86,21 @@ config :opentelemetry,
 # Providers never reach the network in tests. Adapter tests stub HTTP with
 # Req.Test; everything else uses these deterministic adapters.
 # SF-101: the test environment's only trusted provider (test/support).
-config :simple_fit, SimpleFit.Billing, trusted_providers: [SimpleFit.BillingTestProvider]
+config :simple_fit, SimpleFit.Billing,
+  trusted_providers: [SimpleFit.BillingTestProvider, SimpleFit.Billing.Stripe.Provider]
+
+# SF-102: Stripe in test mode against a deterministic in-process fake of
+# the Stripe API (test/support/stripe_fake.ex, Req.Test); never the network.
+# The keys below are placeholders, not credentials.
+config :simple_fit, SimpleFit.Billing.Stripe,
+  enabled: true,
+  mode: :test,
+  secret_key: "sk_test_notarealkey",
+  webhook_secret: "whsec_notarealsecret",
+  account_id: "acct_simplefittest",
+  portal_configuration_id: "bpc_simplefittest",
+  connect_enabled: true,
+  req_options: [plug: {Req.Test, SimpleFit.StripeFake}]
 
 config :simple_fit, SimpleFit.Storage,
   adapter: SimpleFit.Storage.Fake,

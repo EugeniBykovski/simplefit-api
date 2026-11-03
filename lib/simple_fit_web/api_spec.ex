@@ -122,9 +122,10 @@ defmodule SimpleFitWeb.ApiSpec do
           name: "SimpleFit plans",
           description:
             "SimpleFit's SaaS plans for gyms, a gym's subscription intent and cancellation, and its " <>
-              "backend-owned entitlements (ADR 0026, SF-101). Prices are immutable versions in integer " <>
-              "minor units, rendered as decimal strings. No payment, invoice or provider exists: an intent " <>
-              "grants nothing, and no endpoint activates a subscription. No gym feature is gated."
+              "backend-owned entitlements (ADR 0026, SF-101); its Stripe-backed billing (SF-102): hosted " <>
+              "checkout, the Customer Portal, reconciled payment state and Stripe invoices. Prices are " <>
+              "immutable versions in integer minor units, rendered as decimal strings. An intent grants " <>
+              "nothing; only a paid Stripe invoice reconciled by the backend activates. No gym feature is gated."
         },
         %Tag{
           name: "Gym member products",
@@ -132,6 +133,12 @@ defmodule SimpleFitWeb.ApiSpec do
             "A gym's own products for its members (single visits, class packs, unlimited periods) with " <>
               "immutable versions and append-only prices, and its members' product subscription intents " <>
               "(ADR 0026, SF-101). Separate from SimpleFit plans. No payment, credit debit or booking rule."
+        },
+        %Tag{
+          name: "Payment provider webhooks",
+          description:
+            "Inbound Stripe webhooks (SF-102), authenticated by the Stripe-Signature header over the raw body, " <>
+              "never by a session. Not for clients."
         },
         %Tag{
           name: "Legal",

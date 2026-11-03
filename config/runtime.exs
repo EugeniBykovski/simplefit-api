@@ -83,6 +83,27 @@ email_env = fn ->
   ]
 end
 
+# SF-102: Stripe (SimpleFit.Billing.Stripe.Config, .env.example). A
+# malformed or contradictory value (a key of the other mode, live mode
+# without approval or outside production) fails boot. Stripe.Provider is
+# trusted only when the integration is enabled and configured.
+stripe_env = fn ->
+  SimpleFit.Billing.Stripe.Config.parse!(
+    Map.new(
+      ~w(STRIPE_BILLING_ENABLED STRIPE_MODE STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET STRIPE_ACCOUNT_ID
+         STRIPE_API_VERSION STRIPE_PORTAL_CONFIGURATION_ID STRIPE_CONNECT_ENABLED STRIPE_LIVE_APPROVAL),
+      &{&1, get_env.(&1)}
+    ),
+    config_env()
+  )
+end
+
+stripe_trusted = fn stripe ->
+  if stripe[:enabled] and is_binary(stripe[:secret_key]),
+    do: [SimpleFit.Billing.Stripe.Provider],
+    else: []
+end
+
 # ## Using releases
 #
 # If you use `mix release`, you need to explicitly enable the server
@@ -210,6 +231,11 @@ case config_env() do
 
     config :simple_fit, SimpleFitWeb.ClientIP,
       trusted_proxy_hops: SimpleFitWeb.ClientIP.parse_hops!(System.get_env("TRUSTED_PROXY_HOPS"))
+
+    # Stripe test mode only (live is refused outside production).
+    stripe = stripe_env.()
+    config :simple_fit, SimpleFit.Billing.Stripe, stripe
+    config :simple_fit, SimpleFit.Billing, trusted_providers: stripe_trusted.(stripe)
 
     # Google sign-in (ADR 0013): unset means Google sign-in answers 503.
     config :simple_fit, SimpleFit.Identity.Google,
@@ -375,10 +401,13 @@ case config_env() do
           require_https: true
         )
 
-    # SF-101: no payment provider exists (D-G10); production trusts none,
-    # whatever the compile-time configuration says. A real adapter is added
-    # here, by code, with its own credentials.
-    config :simple_fit, SimpleFit.Billing, trusted_providers: []
+    # SF-101/SF-102: production trusts no provider except Stripe, and only
+    # when STRIPE_BILLING_ENABLED with a key of STRIPE_MODE (live also needs
+    # STRIPE_LIVE_APPROVAL, the separate release approval). Whatever the
+    # compile-time configuration says, no test provider is ever trusted.
+    stripe = stripe_env.()
+    config :simple_fit, SimpleFit.Billing.Stripe, stripe
+    config :simple_fit, SimpleFit.Billing, trusted_providers: stripe_trusted.(stripe)
 
     # Encrypted email job payloads use the same secret (ADR 0011).
     config :simple_fit, SimpleFit.Email, [

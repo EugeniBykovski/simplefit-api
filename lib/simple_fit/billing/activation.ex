@@ -9,8 +9,9 @@ defmodule SimpleFit.Billing.Activation do
 
       config :simple_fit, SimpleFit.Billing, trusted_providers: [MyProvider]
 
-  No payment provider is selected yet (D-G10), so the list is empty in
-  every deployed environment and **nothing can activate a subscription**:
+  SF-102: `SimpleFit.Billing.Stripe.Provider` is listed only where the
+  Stripe integration is configured (`config/runtime.exs`); without it the
+  list is empty and **nothing can activate a subscription**:
   `pending_activation` stays an intent with no access. There is no HTTP
   endpoint that accepts a receipt, a payment status or an activation from a
   client, and a provider can never be named by a request. Only the test
@@ -24,6 +25,8 @@ defmodule SimpleFit.Billing.Activation do
   row is unique per provider and reference: a replayed provider event
   activates nothing twice.
   """
+
+  import Ecto.Query, only: [from: 2]
 
   alias SimpleFit.Billing.ActivationEvidence
   alias SimpleFit.Repo
@@ -63,7 +66,8 @@ defmodule SimpleFit.Billing.Activation do
 
     with :ok <- trusted(provider),
          {:ok, verified} <- provider.verify(payload),
-         :ok <- valid(verified) do
+         :ok <- valid(verified),
+         :ok <- not_recorded(provider, verified.reference) do
       %ActivationEvidence{
         provider: inspect(provider),
         provider_reference: verified.reference,
@@ -82,6 +86,18 @@ defmodule SimpleFit.Billing.Activation do
         {:error, _} -> {:error, :evidence_replayed}
       end
     end
+  end
+
+  # A replay is refused before the insert, so the caller's transaction is not
+  # aborted by the unique violation (a concurrent replay still hits it).
+  defp not_recorded(provider, reference) do
+    if Repo.exists?(
+         from(e in ActivationEvidence,
+           where: e.provider == ^inspect(provider) and e.provider_reference == ^reference
+         )
+       ),
+       do: {:error, :evidence_replayed},
+       else: :ok
   end
 
   defp trusted(provider) do
