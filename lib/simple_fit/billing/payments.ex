@@ -24,6 +24,10 @@ defmodule SimpleFit.Billing.Payments do
      whose answer was lost past its window can never be paid (nobody holds
      its URL) and is marked `failed` by reconciliation.
 
+  Authorization comes first in every operation: a role without
+  `manage_billing` gets `403` (a stranger `404`) whatever the provider's
+  state, so the provider state is never disclosed to them.
+
   A redirect back from Stripe is not a payment: the browser asks
   `reconcile/4`, which reads Stripe; only a paid invoice activates.
 
@@ -106,7 +110,8 @@ defmodule SimpleFit.Billing.Payments do
   @spec create_checkout(User.t(), Session.t(), term(), term()) ::
           {:ok, {Checkout.t(), :created | :existing}} | {:error, error()}
   def create_checkout(%User{} = user, %Session{} = session, gym_id, subscription_id) do
-    with {:ok, config} <- provider(),
+    with {:ok, _access} <- Gyms.authorize(user, gym_id, :manage_billing),
+         {:ok, config} <- provider(),
          {:ok, plan} <-
            Gyms.billing_write(
              user,
@@ -308,7 +313,8 @@ defmodule SimpleFit.Billing.Payments do
   @spec create_portal_session(User.t(), Session.t(), term()) ::
           {:ok, String.t()} | {:error, error()}
   def create_portal_session(%User{} = user, %Session{} = session, gym_id) do
-    with {:ok, config} <- provider(),
+    with {:ok, _access} <- Gyms.authorize(user, gym_id, :manage_billing),
+         {:ok, config} <- provider(),
          {:ok, customer} <-
            Gyms.billing_write(user, session, gym_id, :manage_billing, &gym_customer(&1, config)),
          :ok <- portal_configured(config),
@@ -345,7 +351,8 @@ defmodule SimpleFit.Billing.Payments do
   """
   @spec reconcile(User.t(), Session.t(), term(), term()) :: {:ok, map()} | {:error, error()}
   def reconcile(%User{} = user, %Session{} = session, gym_id, subscription_id) do
-    with {:ok, _config} <- provider(),
+    with {:ok, _access} <- Gyms.authorize(user, gym_id, :manage_billing),
+         {:ok, _config} <- provider(),
          {:ok, subscription} <-
            Gyms.billing_write(user, session, gym_id, :manage_billing, fn access ->
              find_subscription(access.gym.id, subscription_id)

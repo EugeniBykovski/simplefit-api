@@ -185,6 +185,33 @@ defmodule SimpleFitWeb.GymBillingStripeControllerTest do
     |> error(404, "not_found")
   end
 
+  test "authorization comes before the provider state: a disabled provider is never disclosed",
+       ctx do
+    sub = intent!(ctx)
+    manager = registered!("stripe-http-mgr2")
+    staff!(ctx.gym.id, manager, :manager)
+    stranger = registered!("stripe-http-x2")
+    path = "#{ctx.base}/saas-subscriptions/#{sub["subscription_id"]}"
+    original = Application.get_env(:simple_fit, SimpleFit.Billing.Stripe)
+
+    Application.put_env(
+      :simple_fit,
+      SimpleFit.Billing.Stripe,
+      Keyword.put(original, :enabled, false)
+    )
+
+    try do
+      for {user, status, code} <- [{manager, 403, "forbidden"}, {stranger, 404, "not_found"}] do
+        t = token(user)
+        t |> authed() |> post("#{path}/checkout-session") |> error(status, code)
+        t |> authed() |> post("#{path}/reconcile") |> error(status, code)
+        t |> authed() |> post("#{ctx.base}/billing/portal-session") |> error(status, code)
+      end
+    after
+      Application.put_env(:simple_fit, SimpleFit.Billing.Stripe, original)
+    end
+  end
+
   test "409 when unmapped or provider disabled, 503 when Stripe is down, 429 when rate limited",
        ctx do
     sub = intent!(ctx)
