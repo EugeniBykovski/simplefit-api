@@ -1229,3 +1229,162 @@ Audit events (ids and counts only, new columns `class_booking_id`,
 `booking_count`): `class_booking_created`, `class_booking_cancelled`,
 `class_bookings_released`, `class_check_in_recorded`. Telemetry
 `[:simple_fit, :gyms, :booking, event]` with the outcome only.
+
+## Amendment — SF-101 (2026-11-03): SimpleFit plans, gym member products and entitlements
+
+### Scope
+
+A provider-independent commercial domain: SimpleFit's SaaS plans sold to
+gyms (`SimpleFit.Billing`), a gym's own products sold to its members
+(`SimpleFit.Gyms.Commerce`, internal to `SimpleFit.Gyms`), and
+backend-owned entitlements (`SimpleFit.Entitlements`). Two separate domains
+with no shared table, state or entitlement. No payment provider, payment,
+invoice, tax, refund, payout, credit redemption, renewal charge, checkout UI
+or feature gating.
+
+### D-G09 reconciliation and price sources
+
+The SF-82 register (D-G09 SaaS pricing, D-G10 payments and member commerce,
+D-G11 KYB) said no plan or price is stored. SF-101 is the product decision
+that amends **D-G09 only so far as storing drafts**: plans and prices exist
+as versioned data, and nothing is offered until an operator publishes a
+version under an approval reference. D-G10 and D-G11 stay open: no provider,
+no payment and no KYB; activation is impossible outside tests.
+
+Price source priority: approved design → ADR/Jira decision → the SF-101
+provisional catalog. Design v112 (`1793198527-a0fc`) shows illustrative EUR
+tiers (Free €0, Starter €39, Pro €89 with a 14-day trial, Business €179,
+Club+ €299, Multi-location from €499; "VAT added at checkout") on boards
+labelled FUTURE / D-G09, and inconsistent złoty member prices on OG8, WG6,
+GC2 and GC6: not approved. So the provisional catalog is stored, **as drafts
+only** (`price_source: provisional`): Starter 149 / 1490 PLN, Growth 349 /
+3490, Pro 699 / 6990 (month / year), Enterprise `quote_required` (no amount,
+never zero), no Free plan, a 14-day trial **proposal** (`proposed_trial_days`,
+never granted), no entitlements. The provisional member examples (Single
+Class 49, 4-Class Pack 169, 8-Class Pack 299, Unlimited Monthly 399 PLN) are
+not seeded at all. **Unresolved:** EUR tiers in design and on the public site
+(SF-43) versus the PLN provisional catalog; feature mapping per plan;
+commercial caps; trial policy; VAT presentation; grandfathering.
+
+### Decisions taken by this ticket
+
+1. **Money.** Integer minor units (`bigint`, `>= 0`, at most 10^12) with an
+   ISO 4217 code from a supported list (PLN EUR USD GBP CHF CZK SEK NOK DKK
+   HUF UAH JPY; JPY has no minor unit). Input is a decimal string (or a
+   `Decimal`), never a JSON number: floats, integers, negatives, exponents
+   and excess precision are `422`. Output is the decimal string, the currency
+   and `amount_minor`. No conversion, VAT or discount. Zero is a price
+   (free); a missing price is not.
+2. **Plan catalog (operator workflow).** `saas_plans` (stable key) →
+   `saas_plan_versions` (`draft | archived | published | superseded |
+   retired`, one draft and one published per plan, approval reference and
+   operator name required to publish, a provisional draft also needs an
+   explicit confirmation) → `saas_price_versions` (month / year × currency,
+   `fixed` or `quote_required`) and `saas_plan_entitlements` (registry keys).
+   Written only by `mix billing.catalog` (no HTTP write), audited in
+   `billing_audit_events` with the operator's name. Publishing supersedes the
+   previous published version, which stays immutable with its subscriptions.
+3. **Gym SaaS subscription.** The gym is the subscriber; its owner acts for
+   it (existing `manage_billing`, owner only; an ownership transfer moves the
+   authority, not the subscription). An intent (`pending_activation`) names a
+   published version's `fixed` price and grants nothing; one current
+   (`pending_activation | active | cancellation_scheduled`) subscription per
+   gym. Cancellation `immediate` or `period_end` (an intent is always
+   cancelled at once), idempotent. Period end: an active subscription
+   expires (no renewal source exists), a scheduled cancellation takes effect.
+4. **Member products.** A gym's `gym_member_products` (key, type
+   `single_visit | class_pack | unlimited_period`, `active | retired`) →
+   immutable versions (name, admissions, validity; one draft, one published)
+   → append-only prices per currency (`sequence`; the highest is current, an
+   earlier subscription keeps its own). Owner and managers manage
+   (`manage_member_products`), front desk reads (`view_member_products`,
+   `view_member_product_subscriptions`), coaches hold no commercial
+   permission. An active member asks for the published version at its
+   current price (`pending_activation`, nothing granted, a superseded price
+   is `409`); cancelling is immediate and idempotent; a membership that ends
+   cancels its product subscriptions (`membership_ended`) in the same
+   transaction. A staff membership is not a member product, and a gym
+   membership is not a paid subscription. No FighterProfile is needed.
+5. **Payment verification boundary.** The only way to `active` is
+   `SimpleFit.Billing.Activation.record/4`: a provider module listed in
+   `config :simple_fit, SimpleFit.Billing, trusted_providers:` verifies a
+   payload into a reference and a paid period; the evidence row
+   (`billing_activation_evidence`, unique provider reference, append-only)
+   and the period (`gym_saas_subscription_periods`) are written with the
+   transition. The list is empty in every environment except test
+   (`SimpleFit.BillingTestProvider`, in `test/support`). No HTTP endpoint
+   activates; a `status`, `receipt` or payment field is `422`; a replayed
+   reference is refused. A future provider adds a module and webhook
+   verification without replacing the subscription domain.
+6. **Entitlements.** `Entitlements.gym_feature/3` fails closed: entitled
+   only through an `active` (or `cancellation_scheduled`) subscription with
+   evidence, inside its paid period, whose plan version includes the key;
+   otherwise `no_subscription | pending_activation | not_in_force |
+   not_in_plan | unknown_feature`. **No endpoint gates on an entitlement**
+   (`enforced: false`): every SF-83–SF-100 feature stays available to every
+   gym until a rollout and grandfathering policy are approved. Booking needs
+   no product (`class_admission/3` is `:not_required`); no admission is
+   issued or debited.
+
+### Model and invariants
+
+Migration `20261106090000` (explicit up/down; 12 tables, 5 audit columns).
+Composite foreign keys keep a price with its version and a subscription with
+its gym, member, version and price. Triggers: published version content
+immutable and transitions `draft → archived | published`, `archived →
+draft`, `published → superseded | retired`, `superseded → retired`; plan
+prices and entitlements written only on drafts, member prices only on draft
+or published versions, never updated; a subscription is created only for a
+published offer (SaaS: a `fixed` price; member: an active product and an
+active member); identity fields fixed, `cancelled | expired` final, legal
+transitions only; `active` and `cancellation_scheduled` require evidence and
+a period; evidence and periods append-only; deletes only through the SF-95
+purge switch, and a published plan version is never deleted.
+
+### Writes and concurrency
+
+Staff and owner writes use `Gyms.Guarded.write/6`: session `FOR SHARE` →
+gym → staff membership (`Access.authorize_locked/3`) → product or
+subscription `FOR UPDATE`; catalog publication locks the plan row; a member
+intent holds the session, the gym `FOR SHARE` and the member row. Real
+PostgreSQL race tests (committed transactions): 20 intents for one gym, one
+key 20 times, publication of one draft and drafts of one plan, publication
+while gyms subscribe, mixed concurrent cancellations, one evidence reference
+for ten subscriptions, concurrent activation, untrusted activation replays,
+entitlement reads against cancellation, ownership transfer against an
+intent, 20 concurrent prices on one version, intents against retirement and
+against leaving the gym. Rate limits per user: 30 billing changes, 60
+catalog changes and 30 member intents per 10 minutes.
+
+### API
+
+Tag "SimpleFit plans": `listSaasPlans` (`GET /saas-plans`, published only),
+`listGymSaasSubscriptions`, `requestGymSaasSubscription`,
+`cancelGymSaasSubscription` (`/gyms/{gym_id}/saas-subscriptions…`),
+`getGymEntitlements` (`GET /gyms/{gym_id}/entitlements`, any staff). Tag
+"Gym member products": `listGymMemberProducts`, `createGymMemberProduct`,
+`getGymMemberProduct`, `createGymMemberProductVersion`,
+`publishGymMemberProductVersion`, `addGymMemberProductPrice`,
+`retireGymMemberProduct`, `listGymMemberProductSubscriptions`;
+`listMyGymProducts`, `requestMyGymProduct`, `listMyProductSubscriptions`,
+`cancelMyProductSubscription`. All `no-store`. Errors `401`, `403`, `404`
+(another gym's resource, never disclosed), `409`, `422`, `429`. No approval
+reference, operator name, provider, evidence or payment field is rendered.
+
+### Audit and telemetry
+
+Gym audit events (ids only): `saas_subscription_requested | activated |
+cancellation_scheduled | cancelled | expired`, `member_product_created |
+version_created | version_published | price_created | retired`,
+`member_product_subscription_requested | activated | cancellation_scheduled |
+cancelled | expired`. Catalog events in `billing_audit_events`. Telemetry
+`[:simple_fit, :billing, :catalog | :subscription]`,
+`[:simple_fit, :gyms, :commerce]` and `[:simple_fit, :entitlements,
+:evaluated]` carry the event, the outcome and (for entitlements) the
+registered key only. Request logs filter `card`, `cvc`, `cvv`, `iban`,
+`payment` and `receipt` parameters.
+
+**Proposed, not implemented (FUTURE, D-G10/D-G11):** a payment provider and
+its webhooks, checkout, invoices and tax, refunds and proration, renewals,
+trials, class admission debit, entitlement enforcement and grandfathering,
+member product purchase UI.

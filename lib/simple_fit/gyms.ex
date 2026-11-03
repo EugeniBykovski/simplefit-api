@@ -45,10 +45,13 @@ defmodule SimpleFit.Gyms do
 
   alias SimpleFit.Gyms.{
     Access,
+    Audit,
     Bookings,
     ClassTemplates,
+    Commerce,
     Creation,
     FirstRun,
+    Guarded,
     Gym,
     GymLocation,
     MemberImport,
@@ -368,6 +371,79 @@ defmodule SimpleFit.Gyms do
   @spec authorize(User.t(), term(), Policy.permission()) ::
           {:ok, Access.t()} | {:error, :not_found | :forbidden}
   defdelegate authorize(user, gym_id, permission), to: Access
+
+  ## Commerce (SF-101)
+
+  @doc """
+  The gym write transaction for `SimpleFit.Billing` (the gym's SaaS
+  subscription): the caller's session held, the gym and the actor's staff
+  membership locked, `permission` checked, a completed gym, 30 billing
+  writes per 10 minutes per user. See `SimpleFit.Gyms.Guarded`.
+  """
+  @spec billing_write(User.t(), Session.t(), term(), Policy.permission(), (Access.t() ->
+                                                                             {:ok, term()}
+                                                                             | {:error, term()})) ::
+          {:ok, term()} | {:error, term()}
+  def billing_write(%User{} = user, %Session{} = session, gym_id, permission, fun),
+    do: Guarded.write(user, session, gym_id, permission, {"gym_billing_user", 30, 600}, fun)
+
+  @doc """
+  Records a commercial gym audit event (SF-101) inside the caller's
+  transaction: ids only (`saas_subscription_id`, `member_product_*`), never
+  an amount, a provider reference or a person's details.
+  """
+  @spec record_commerce_event!(map(), DateTime.t()) :: :ok
+  def record_commerce_event!(attrs, occurred_at), do: Audit.record!(attrs, occurred_at)
+
+  @doc "See `SimpleFit.Gyms.Commerce.list_products/3`."
+  defdelegate list_member_products(user, gym_id, params), to: Commerce, as: :list_products
+  @doc "See `SimpleFit.Gyms.Commerce.get_product/3`."
+  defdelegate get_member_product(user, gym_id, product_id), to: Commerce, as: :get_product
+  @doc "See `SimpleFit.Gyms.Commerce.create_product/4`."
+  defdelegate create_member_product(user, session, gym_id, attrs),
+    to: Commerce,
+    as: :create_product
+
+  @doc "See `SimpleFit.Gyms.Commerce.create_version/5`."
+  defdelegate create_member_product_version(user, session, gym_id, product_id, attrs),
+    to: Commerce,
+    as: :create_version
+
+  @doc "See `SimpleFit.Gyms.Commerce.publish_version/5`."
+  defdelegate publish_member_product_version(user, session, gym_id, product_id, version_id),
+    to: Commerce,
+    as: :publish_version
+
+  @doc "See `SimpleFit.Gyms.Commerce.add_price/6`."
+  defdelegate add_member_product_price(user, session, gym_id, product_id, version_id, attrs),
+    to: Commerce,
+    as: :add_price
+
+  @doc "See `SimpleFit.Gyms.Commerce.retire_product/4`."
+  defdelegate retire_member_product(user, session, gym_id, product_id),
+    to: Commerce,
+    as: :retire_product
+
+  @doc "See `SimpleFit.Gyms.Commerce.list_subscriptions/3`."
+  defdelegate list_member_product_subscriptions(user, gym_id, params),
+    to: Commerce,
+    as: :list_subscriptions
+
+  @doc "See `SimpleFit.Gyms.Commerce.list_offers/2`."
+  defdelegate list_my_gym_products(user, gym_member_id), to: Commerce, as: :list_offers
+
+  @doc "See `SimpleFit.Gyms.Commerce.request_subscription/4`."
+  defdelegate request_member_product_subscription(user, session, gym_member_id, attrs),
+    to: Commerce,
+    as: :request_subscription
+
+  @doc "See `SimpleFit.Gyms.Commerce.list_mine/2`."
+  defdelegate list_my_product_subscriptions(user, params), to: Commerce, as: :list_mine
+
+  @doc "See `SimpleFit.Gyms.Commerce.cancel_mine/3`."
+  defdelegate cancel_my_product_subscription(user, session, subscription_id),
+    to: Commerce,
+    as: :cancel_mine
 
   ## Ownership and staff
 

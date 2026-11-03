@@ -3242,12 +3242,15 @@
                     "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
+                    "manage_member_products",
                     "manage_timetable",
                     "record_check_in",
                     "remove_staff",
                     "transfer_ownership",
                     "view_attendance",
                     "view_member_contact",
+                    "view_member_product_subscriptions",
+                    "view_member_products",
                     "view_members",
                     "view_rosters",
                     "view_staff",
@@ -4693,6 +4696,100 @@
         "title": "GymEnrollmentSettingsUpdateRequest",
         "type": "object"
       },
+      "GymEntitlements": {
+        "additionalProperties": false,
+        "description": "What the gym's plan includes, decided by the backend and failing closed. Informational: `enforced` is `false` for every feature, so nothing the gym already uses is gated.",
+        "properties": {
+          "features": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "enforced": {
+                  "description": "Whether any endpoint gates on it.",
+                  "type": "boolean"
+                },
+                "key": {
+                  "type": "string"
+                },
+                "quantity_limit": {
+                  "nullable": true,
+                  "type": "integer"
+                },
+                "reason": {
+                  "enum": [
+                    "no_subscription",
+                    "pending_activation",
+                    "not_in_force",
+                    "not_in_plan",
+                    null
+                  ],
+                  "nullable": true,
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "entitled",
+                    "denied"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "description",
+                "enforced",
+                "status",
+                "reason",
+                "quantity_limit"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "subscription": {
+            "additionalProperties": false,
+            "description": "`null` when the gym never asked for a plan.",
+            "nullable": true,
+            "properties": {
+              "in_force": {
+                "description": "Active (or scheduled to cancel) with verified evidence, inside its period.",
+                "type": "boolean"
+              },
+              "status": {
+                "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence activates (none exists yet). `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+                "enum": [
+                  "pending_activation",
+                  "active",
+                  "cancellation_scheduled",
+                  "cancelled",
+                  "expired"
+                ],
+                "type": "string"
+              },
+              "subscription_id": {
+                "description": "The gym's latest subscription.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "subscription_id",
+              "status",
+              "in_force"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "subscription",
+          "features"
+        ],
+        "title": "GymEntitlements",
+        "type": "object"
+      },
       "GymFirstRun": {
         "additionalProperties": false,
         "description": "The viewer's (the owner's) introduction to one gym, the same on every client, and the gym's checklist.\nIndependent of `setup_status`: neither outcome changes the gym or any checklist item.\n",
@@ -5679,6 +5776,761 @@
         "title": "GymMemberList",
         "type": "object"
       },
+      "GymMemberOffer": {
+        "additionalProperties": false,
+        "description": "An active product's published version with its current prices.",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "product_id": {
+            "description": "The product.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "product_type": {
+            "enum": [
+              "single_visit",
+              "class_pack",
+              "unlimited_period"
+            ],
+            "type": "string"
+          },
+          "published": {
+            "additionalProperties": false,
+            "properties": {
+              "class_credits": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "current_prices": {
+                "items": {
+                  "$ref": "#/components/schemas/GymMemberPrice"
+                },
+                "type": "array"
+              },
+              "description": {
+                "nullable": true,
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "validity_days": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "version": {
+                "type": "integer"
+              },
+              "version_id": {
+                "description": "The published version.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "version_id",
+              "version",
+              "name",
+              "description",
+              "class_credits",
+              "validity_days",
+              "current_prices"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "product_id",
+          "key",
+          "product_type",
+          "published"
+        ],
+        "title": "GymMemberOffer",
+        "type": "object"
+      },
+      "GymMemberOfferList": {
+        "additionalProperties": false,
+        "properties": {
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/GymMemberOffer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "products"
+        ],
+        "title": "GymMemberOfferList",
+        "type": "object"
+      },
+      "GymMemberPrice": {
+        "additionalProperties": false,
+        "description": "An immutable price in one currency. A newer one (higher `sequence`) is current for new subscriptions; earlier subscriptions keep theirs. `0` is free. No VAT, discount or conversion.",
+        "properties": {
+          "amount": {
+            "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+            "nullable": false,
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_minor": {
+            "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+            "minimum": 0,
+            "nullable": false,
+            "type": "integer"
+          },
+          "created_at": {
+            "description": "When it was added.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "currency": {
+            "description": "ISO 4217 code. No conversion between currencies exists.",
+            "enum": [
+              "PLN",
+              "EUR",
+              "USD",
+              "GBP",
+              "CHF",
+              "CZK",
+              "SEK",
+              "NOK",
+              "DKK",
+              "HUF",
+              "UAH",
+              "JPY"
+            ],
+            "type": "string"
+          },
+          "price_version_id": {
+            "description": "The price version.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "price_version_id",
+          "currency",
+          "amount",
+          "amount_minor",
+          "sequence",
+          "created_at"
+        ],
+        "title": "GymMemberPrice",
+        "type": "object"
+      },
+      "GymMemberPriceInput": {
+        "additionalProperties": false,
+        "description": "A decimal amount string with at most the currency's decimals (a JSON number, a negative amount or an unknown currency is a `422`).",
+        "properties": {
+          "amount": {
+            "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+            "nullable": false,
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "currency": {
+            "description": "ISO 4217 code. No conversion between currencies exists.",
+            "enum": [
+              "PLN",
+              "EUR",
+              "USD",
+              "GBP",
+              "CHF",
+              "CZK",
+              "SEK",
+              "NOK",
+              "DKK",
+              "HUF",
+              "UAH",
+              "JPY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "GymMemberPriceInput",
+        "type": "object"
+      },
+      "GymMemberPriceRequest": {
+        "additionalProperties": false,
+        "description": "Any other field is a `422`.",
+        "properties": {
+          "amount": {
+            "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+            "nullable": false,
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "currency": {
+            "description": "ISO 4217 code. No conversion between currencies exists.",
+            "enum": [
+              "PLN",
+              "EUR",
+              "USD",
+              "GBP",
+              "CHF",
+              "CZK",
+              "SEK",
+              "NOK",
+              "DKK",
+              "HUF",
+              "UAH",
+              "JPY"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "currency",
+          "amount"
+        ],
+        "title": "GymMemberPriceRequest",
+        "type": "object"
+      },
+      "GymMemberProduct": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "description": "When it was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "draft": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GymMemberProductVersion"
+              }
+            ],
+            "nullable": true,
+            "type": "object"
+          },
+          "gym_id": {
+            "description": "Its gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable key, unique in the gym.",
+            "type": "string"
+          },
+          "product_id": {
+            "description": "The product.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "product_type": {
+            "enum": [
+              "single_visit",
+              "class_pack",
+              "unlimited_period"
+            ],
+            "type": "string"
+          },
+          "published": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GymMemberProductVersion"
+              }
+            ],
+            "nullable": true,
+            "type": "object"
+          },
+          "retired_at": {
+            "description": "When it was retired.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "A retired product takes no new subscription.",
+            "enum": [
+              "active",
+              "retired"
+            ],
+            "type": "string"
+          },
+          "versions": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymMemberProductVersion"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "product_id",
+          "gym_id",
+          "key",
+          "product_type",
+          "status",
+          "published",
+          "draft",
+          "versions",
+          "created_at",
+          "retired_at"
+        ],
+        "title": "GymMemberProduct",
+        "type": "object"
+      },
+      "GymMemberProductCreateRequest": {
+        "additionalProperties": false,
+        "description": "Creates the product, its first version as a draft and that version's first price. Any other field is a `422`.",
+        "properties": {
+          "class_credits": {
+            "description": "`single_visit`: 1 (or omitted); `class_pack`: 2–500 (required); `unlimited_period`: omitted.",
+            "nullable": true,
+            "type": "integer"
+          },
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]{1,39}$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "price": {
+            "$ref": "#/components/schemas/GymMemberPriceInput"
+          },
+          "product_type": {
+            "enum": [
+              "single_visit",
+              "class_pack",
+              "unlimited_period"
+            ],
+            "type": "string"
+          },
+          "validity_days": {
+            "description": "Required for `class_pack` and `unlimited_period`.",
+            "maximum": 730,
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "key",
+          "product_type",
+          "name",
+          "price"
+        ],
+        "title": "GymMemberProductCreateRequest",
+        "type": "object"
+      },
+      "GymMemberProductList": {
+        "additionalProperties": false,
+        "properties": {
+          "products": {
+            "description": "Oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymMemberProduct"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "products"
+        ],
+        "title": "GymMemberProductList",
+        "type": "object"
+      },
+      "GymMemberProductResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "product": {
+            "$ref": "#/components/schemas/GymMemberProduct"
+          }
+        },
+        "required": [
+          "product"
+        ],
+        "title": "GymMemberProductResponse",
+        "type": "object"
+      },
+      "GymMemberProductSubscription": {
+        "additionalProperties": false,
+        "description": "A member's product at the version and price they chose. An intent grants no admission; nothing is charged, refunded or debited. `member_name` is present for staff only.",
+        "properties": {
+          "activated_at": {
+            "description": "When verified evidence activated it.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancel_mode": {
+            "description": "`immediate` or at the end of the current period.",
+            "enum": [
+              "immediate",
+              "period_end",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancel_reason": {
+            "enum": [
+              "requested_by_member",
+              "requested_by_staff",
+              "membership_ended",
+              "gym_closed",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancellation_effective_at": {
+            "description": "When it ends (or ended).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancellation_requested_at": {
+            "description": "When cancellation was asked for.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "current_period_end": {
+            "description": "The paid period's end (exclusive).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "current_period_start": {
+            "description": "The paid period's start (verified evidence only).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_at": {
+            "description": "When it became `cancelled` or `expired`.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_id": {
+            "description": "The gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "gym_member_id": {
+            "description": "The membership.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "member_name": {
+            "description": "First name and last initial (\"Marta K.\"); `null` without one.",
+            "nullable": true,
+            "type": "string"
+          },
+          "price": {
+            "$ref": "#/components/schemas/GymMemberPrice"
+          },
+          "product": {
+            "additionalProperties": false,
+            "properties": {
+              "class_credits": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "product_id": {
+                "description": "The product.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "product_type": {
+                "enum": [
+                  "single_visit",
+                  "class_pack",
+                  "unlimited_period"
+                ],
+                "type": "string"
+              },
+              "validity_days": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "version": {
+                "type": "integer"
+              },
+              "version_id": {
+                "description": "The version chosen.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "product_id",
+              "key",
+              "product_type",
+              "version_id",
+              "version",
+              "name",
+              "class_credits",
+              "validity_days"
+            ],
+            "type": "object"
+          },
+          "requested_at": {
+            "description": "When the intent was recorded.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence activates (none exists yet). `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+            "enum": [
+              "pending_activation",
+              "active",
+              "cancellation_scheduled",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "subscription_id": {
+            "description": "The subscription.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subscription_id",
+          "gym_id",
+          "gym_member_id",
+          "status",
+          "product",
+          "price",
+          "cancel_reason",
+          "requested_at",
+          "activated_at",
+          "current_period_start",
+          "current_period_end",
+          "cancel_mode",
+          "cancellation_requested_at",
+          "cancellation_effective_at",
+          "ended_at"
+        ],
+        "title": "GymMemberProductSubscription",
+        "type": "object"
+      },
+      "GymMemberProductSubscriptionList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "description": "Pass as `cursor` to read the next page; `null` on the last page. Opaque.",
+            "nullable": true,
+            "type": "string"
+          },
+          "subscriptions": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymMemberProductSubscription"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "subscriptions",
+          "next_cursor"
+        ],
+        "title": "GymMemberProductSubscriptionList",
+        "type": "object"
+      },
+      "GymMemberProductSubscriptionRequest": {
+        "additionalProperties": false,
+        "description": "Any other field (a `status`, a receipt, a payment) is a `422`.",
+        "properties": {
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "price_version_id": {
+            "description": "Its current price in the chosen currency.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "product_version_id": {
+            "description": "The product's published version.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product_version_id",
+          "price_version_id",
+          "client_request_id"
+        ],
+        "title": "GymMemberProductSubscriptionRequest",
+        "type": "object"
+      },
+      "GymMemberProductSubscriptionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "subscription": {
+            "$ref": "#/components/schemas/GymMemberProductSubscription"
+          }
+        },
+        "required": [
+          "subscription"
+        ],
+        "title": "GymMemberProductSubscriptionResponse",
+        "type": "object"
+      },
+      "GymMemberProductVersion": {
+        "additionalProperties": false,
+        "description": "`draft` (one at a time), `published` (offered; content immutable), `superseded`, `retired` or `archived` (a discarded draft).",
+        "properties": {
+          "class_credits": {
+            "description": "Class admissions (`null`: unlimited within the validity).",
+            "nullable": true,
+            "type": "integer"
+          },
+          "current_prices": {
+            "description": "The current price per currency.",
+            "items": {
+              "$ref": "#/components/schemas/GymMemberPrice"
+            },
+            "type": "array"
+          },
+          "description": {
+            "nullable": true,
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prices": {
+            "description": "Every price, by currency then newest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymMemberPrice"
+            },
+            "type": "array"
+          },
+          "published_at": {
+            "description": "When it was published.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "archived",
+              "published",
+              "superseded",
+              "retired"
+            ],
+            "type": "string"
+          },
+          "validity_days": {
+            "description": "Days from activation (`null`: no expiry).",
+            "nullable": true,
+            "type": "integer"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "version_id": {
+            "description": "The version.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id",
+          "version",
+          "status",
+          "name",
+          "description",
+          "class_credits",
+          "validity_days",
+          "published_at",
+          "current_prices",
+          "prices"
+        ],
+        "title": "GymMemberProductVersion",
+        "type": "object"
+      },
+      "GymMemberProductVersionRequest": {
+        "additionalProperties": false,
+        "description": "The product type never changes. Any other field is a `422`.",
+        "properties": {
+          "class_credits": {
+            "description": "`single_visit`: 1 (or omitted); `class_pack`: 2–500 (required); `unlimited_period`: omitted.",
+            "nullable": true,
+            "type": "integer"
+          },
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "price": {
+            "$ref": "#/components/schemas/GymMemberPriceInput"
+          },
+          "validity_days": {
+            "description": "Required for `class_pack` and `unlimited_period`.",
+            "maximum": 730,
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "name",
+          "price"
+        ],
+        "title": "GymMemberProductVersionRequest",
+        "type": "object"
+      },
       "GymMemberResponse": {
         "additionalProperties": false,
         "properties": {
@@ -5761,6 +6613,198 @@
           "expected_revision"
         ],
         "title": "GymRevisionRequest",
+        "type": "object"
+      },
+      "GymSaasSubscription": {
+        "additionalProperties": false,
+        "description": "The gym (not a person) is the subscriber. It keeps the plan and price version it chose. No provider reference, payment or invoice is exposed.",
+        "properties": {
+          "activated_at": {
+            "description": "When verified evidence activated it.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancel_mode": {
+            "description": "`immediate` or at the end of the current period.",
+            "enum": [
+              "immediate",
+              "period_end",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancel_reason": {
+            "enum": [
+              "requested_by_gym",
+              "gym_closed",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancellation_effective_at": {
+            "description": "When it ends (or ended).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancellation_requested_at": {
+            "description": "When cancellation was asked for.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "current_period_end": {
+            "description": "The paid period's end (exclusive).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "current_period_start": {
+            "description": "The paid period's start (verified evidence only).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_at": {
+            "description": "When it became `cancelled` or `expired`.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_id": {
+            "description": "The subscribing gym.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "plan": {
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "plan_key": {
+                "type": "string"
+              },
+              "plan_version_id": {
+                "description": "The plan version chosen.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "version": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "plan_key",
+              "plan_version_id",
+              "version",
+              "name"
+            ],
+            "type": "object"
+          },
+          "price": {
+            "$ref": "#/components/schemas/SaasPrice"
+          },
+          "requested_at": {
+            "description": "When the intent was recorded.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence activates (none exists yet). `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+            "enum": [
+              "pending_activation",
+              "active",
+              "cancellation_scheduled",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "subscription_id": {
+            "description": "The subscription.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subscription_id",
+          "gym_id",
+          "status",
+          "plan",
+          "price",
+          "cancel_reason",
+          "requested_at",
+          "activated_at",
+          "current_period_start",
+          "current_period_end",
+          "cancel_mode",
+          "cancellation_requested_at",
+          "cancellation_effective_at",
+          "ended_at"
+        ],
+        "title": "GymSaasSubscription",
+        "type": "object"
+      },
+      "GymSaasSubscriptionList": {
+        "additionalProperties": false,
+        "properties": {
+          "subscriptions": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymSaasSubscription"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "subscriptions"
+        ],
+        "title": "GymSaasSubscriptionList",
+        "type": "object"
+      },
+      "GymSaasSubscriptionRequest": {
+        "additionalProperties": false,
+        "description": "Any other field (a `status`, a receipt, a payment) is a `422`: a client can neither activate nor pay.",
+        "properties": {
+          "client_request_id": {
+            "description": "A key the client generates once per intended creation. Sending the same key again (a retry after a lost\nanswer) returns what it created with `200` instead of creating another.\n",
+            "format": "uuid",
+            "type": "string"
+          },
+          "plan_version_id": {
+            "description": "A published plan version.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "price_version_id": {
+            "description": "One of its `fixed` prices.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "plan_version_id",
+          "price_version_id",
+          "client_request_id"
+        ],
+        "title": "GymSaasSubscriptionRequest",
+        "type": "object"
+      },
+      "GymSaasSubscriptionResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "subscription": {
+            "$ref": "#/components/schemas/GymSaasSubscription"
+          }
+        },
+        "required": [
+          "subscription"
+        ],
+        "title": "GymSaasSubscriptionResponse",
         "type": "object"
       },
       "GymSetup": {
@@ -5907,12 +6951,15 @@
                     "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
+                    "manage_member_products",
                     "manage_timetable",
                     "record_check_in",
                     "remove_staff",
                     "transfer_ownership",
                     "view_attendance",
                     "view_member_contact",
+                    "view_member_product_subscriptions",
+                    "view_member_products",
                     "view_members",
                     "view_rosters",
                     "view_staff",
@@ -6419,12 +7466,15 @@
                     "manage_first_run",
                     "manage_locations",
                     "manage_member_enrollment",
+                    "manage_member_products",
                     "manage_timetable",
                     "record_check_in",
                     "remove_staff",
                     "transfer_ownership",
                     "view_attendance",
                     "view_member_contact",
+                    "view_member_product_subscriptions",
+                    "view_member_products",
                     "view_members",
                     "view_rosters",
                     "view_staff",
@@ -7985,6 +9035,175 @@
         "title": "RefreshSessionRequest",
         "type": "object"
       },
+      "SaasPlan": {
+        "additionalProperties": false,
+        "description": "A plan version SimpleFit published under an approval. Its content and prices never change; a newer version supersedes it for new subscriptions only.",
+        "properties": {
+          "description": {
+            "nullable": true,
+            "type": "string"
+          },
+          "entitlements": {
+            "description": "The features this version includes (none is enforced yet).",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "feature_key": {
+                  "type": "string"
+                },
+                "quantity_limit": {
+                  "minimum": 1,
+                  "nullable": true,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "feature_key",
+                "quantity_limit"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan_key": {
+            "description": "Stable plan key (`starter`).",
+            "type": "string"
+          },
+          "plan_version_id": {
+            "description": "The plan version.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "price_source": {
+            "description": "Where the prices come from.",
+            "enum": [
+              "approved_design",
+              "product_decision",
+              "provisional"
+            ],
+            "type": "string"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/SaasPrice"
+            },
+            "type": "array"
+          },
+          "proposed_trial_days": {
+            "description": "A proposed trial length. No trial is granted by any endpoint.",
+            "nullable": true,
+            "type": "integer"
+          },
+          "published_at": {
+            "description": "When it was published.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "plan_key",
+          "plan_version_id",
+          "version",
+          "name",
+          "description",
+          "price_source",
+          "proposed_trial_days",
+          "published_at",
+          "prices",
+          "entitlements"
+        ],
+        "title": "SaasPlan",
+        "type": "object"
+      },
+      "SaasPlanList": {
+        "additionalProperties": false,
+        "properties": {
+          "plans": {
+            "description": "Empty until a version is published.",
+            "items": {
+              "$ref": "#/components/schemas/SaasPlan"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "plans"
+        ],
+        "title": "SaasPlanList",
+        "type": "object"
+      },
+      "SaasPrice": {
+        "additionalProperties": false,
+        "description": "An immutable price for one interval and currency: `fixed` (an amount; `0` means free) or `quote_required` (no amount: priced by a quote, never as zero).",
+        "properties": {
+          "amount": {
+            "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+            "nullable": true,
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_minor": {
+            "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "currency": {
+            "description": "ISO 4217 code. No conversion between currencies exists.",
+            "enum": [
+              "PLN",
+              "EUR",
+              "USD",
+              "GBP",
+              "CHF",
+              "CZK",
+              "SEK",
+              "NOK",
+              "DKK",
+              "HUF",
+              "UAH",
+              "JPY"
+            ],
+            "type": "string"
+          },
+          "interval": {
+            "enum": [
+              "month",
+              "year"
+            ],
+            "type": "string"
+          },
+          "price_version_id": {
+            "description": "The price version.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "pricing": {
+            "enum": [
+              "fixed",
+              "quote_required"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "price_version_id",
+          "interval",
+          "currency",
+          "pricing",
+          "amount",
+          "amount_minor"
+        ],
+        "title": "SaasPrice",
+        "type": "object"
+      },
       "SessionTokens": {
         "additionalProperties": false,
         "description": "Credentials of a SimpleFit session. Send `access_token` as `Authorization: Bearer <token>` until\n`access_token_expires_at`, then refresh. `refresh_token` is present only for the body transport;\nwith the cookie transport it is in the `Set-Cookie` header and never readable by scripts.\n",
@@ -8176,6 +9395,24 @@
           "token"
         ],
         "title": "StaffInvitationTokenRequest",
+        "type": "object"
+      },
+      "SubscriptionCancelRequest": {
+        "additionalProperties": false,
+        "description": "Any other field is a `422`.",
+        "properties": {
+          "mode": {
+            "enum": [
+              "immediate",
+              "period_end"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "SubscriptionCancelRequest",
         "type": "object"
       },
       "TrainingSessionCreateRequest": {
@@ -11555,6 +12792,58 @@
         ]
       }
     },
+    "/api/v1/gyms/{gym_id}/entitlements": {
+      "get": {
+        "callbacks": {},
+        "description": "Every registered feature with the backend's decision for this gym. A feature is `entitled` only through a\nsubscription that is active (or scheduled to cancel) with verified provider evidence, inside its paid period,\nwhose plan version includes it; otherwise `denied` with a `reason`. Informational: no endpoint gates on a\nfeature yet (`enforced: false`). Any active staff member (`view_workspace`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there.\n",
+        "operationId": "getGymEntitlements",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymEntitlements"
+                }
+              }
+            },
+            "description": "The entitlements"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's SimpleFit entitlements",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      }
+    },
     "/api/v1/gyms/{gym_id}/first-run": {
       "get": {
         "callbacks": {},
@@ -12654,6 +13943,707 @@
         ]
       }
     },
+    "/api/v1/gyms/{gym_id}/member-product-subscriptions": {
+      "get": {
+        "callbacks": {},
+        "description": "The product subscriptions of the gym's members (intents included), newest first, with a short member name.\nNever an email or payment detail. Owner, managers and front desk (`view_member_product_subscriptions`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listGymMemberProductSubscriptions",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only subscriptions in this status (default: all).",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending_activation",
+                "active",
+                "cancellation_scheduled",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductSubscriptionList"
+                }
+              }
+            },
+            "description": "The subscriptions"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's member product subscriptions",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-products": {
+      "get": {
+        "callbacks": {},
+        "description": "Every product of the gym (active and retired), oldest first, with its versions and prices. Owner, managers\nand front desk (`view_member_products`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n",
+        "operationId": "listGymMemberProducts",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductList"
+                }
+              }
+            },
+            "description": "The products"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's member products",
+        "tags": [
+          "Gym member products"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Creates a product with its first version as a draft and that version's first price. Nothing is offered\nuntil the version is published. The same `client_request_id` again returns that product (`200`). Owner and\nmanagers (`manage_member_products`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - `details.member_product: \"key_taken\"` (another product of this gym has the key);\n  `details.client_request_id: \"reused\"`; a draft gym (`details.setup_status`).\n* `validation_error` - a missing, invalid or unknown field; credits or validity not allowed for the type; an\n  amount that is not a decimal string, negative or too precise for the currency; an unsupported currency.\n* `rate_limited` - 60 changes per 10 minutes per user.\n",
+        "operationId": "createGymMemberProduct",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymMemberProductCreateRequest"
+              }
+            }
+          },
+          "description": "The product",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product this `client_request_id` already created"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Create a member product",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-products/{product_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "One product with every version and price. Owner, managers and front desk (`view_member_products`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n",
+        "operationId": "getGymMemberProduct",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A product of this gym.",
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym member product",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-products/{product_id}/retire": {
+      "post": {
+        "callbacks": {},
+        "description": "Stops new subscriptions to the product: its published version retires and its draft is archived. Existing\nsubscriptions are untouched. Repeating it returns the product unchanged. Owner and managers\n(`manage_member_products`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - a draft gym (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n",
+        "operationId": "retireGymMemberProduct",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A product of this gym.",
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Retire a member product",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-products/{product_id}/versions": {
+      "post": {
+        "callbacks": {},
+        "description": "Adds a draft version (new content and its first price) to an active product. One draft at a time; the\npublished version and its subscriptions stay unchanged. Owner and managers (`manage_member_products`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - `details.member_product: \"retired\"`; a draft gym (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `conflict` - also `details.member_product: \"draft_exists\"`.\n* `validation_error` - as for creating a product.\n",
+        "operationId": "createGymMemberProductVersion",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A product of this gym.",
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymMemberProductVersionRequest"
+              }
+            }
+          },
+          "description": "The version",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Draft a new product version",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-products/{product_id}/versions/{version_id}/prices": {
+      "post": {
+        "callbacks": {},
+        "description": "Appends a price to a draft or published version. It becomes the current price in its currency for new\nsubscriptions; existing subscriptions keep theirs. Prices are never edited. The same `client_request_id`\nagain returns the product (`200`). Owner and managers (`manage_member_products`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - `details.member_product: \"retired\"`; a draft gym (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `conflict` - also `details.member_product_version` (`superseded`, `retired` or `archived`);\n  `details.client_request_id: \"reused\"`.\n* `validation_error` - an amount that is not a decimal string, negative or too precise; an unsupported\n  currency; an unknown field.\n",
+        "operationId": "addGymMemberProductPrice",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A product of this gym.",
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A version of this product.",
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymMemberPriceRequest"
+              }
+            }
+          },
+          "description": "The price",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product, for a price this `client_request_id` already added"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Add a price to a product version",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/member-products/{product_id}/versions/{version_id}/publish": {
+      "post": {
+        "callbacks": {},
+        "description": "Publishes a draft version: members can ask for it at its current prices, and the previously published\nversion becomes `superseded` (its subscriptions keep it). Owner and managers (`manage_member_products`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a product or version, also an unknown id or another gym's.\n* `forbidden` - the viewer's role may not do this.\n\n* `conflict` - `details.member_product: \"retired\"`; a draft gym (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `conflict` - also `details.member_product_version` (not a draft: `published`, `superseded`, ...; or\n  `\"no_prices\"`).\n",
+        "operationId": "publishGymMemberProductVersion",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A product of this gym.",
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A version of this product.",
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductResponse"
+                }
+              }
+            },
+            "description": "The product"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Publish a product version",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
     "/api/v1/gyms/{gym_id}/members": {
       "get": {
         "callbacks": {},
@@ -12885,6 +14875,252 @@
         "summary": "End a gym membership",
         "tags": [
           "Gym members"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/saas-subscriptions": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's SimpleFit subscriptions (intents included), newest first.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n",
+        "operationId": "listGymSaasSubscriptions",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSaasSubscriptionList"
+                }
+              }
+            },
+            "description": "The subscriptions"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's SimpleFit subscriptions",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Records the gym's intent to subscribe to a published plan version at one of its `fixed` prices: a\n`pending_activation` subscription that grants nothing and charges nothing. Only verified evidence from a\npayment provider activates it, and none is integrated yet. The same `client_request_id` again returns that\nintent (`200`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.saas_subscription: \"current_exists\"` (the gym has a pending, active or scheduled\n  subscription); `details.saas_plan_version` (not published: `superseded`, `retired`, ...);\n  `details.saas_price_version: \"not_found\"` or `\"quote_required\"`; `details.client_request_id: \"reused\"`;\n  a draft gym (`details.setup_status`).\n* `validation_error` - a missing, invalid or unknown field (a `status`, receipt or payment field included).\n* `rate_limited` - 30 changes per 10 minutes per user.\n",
+        "operationId": "requestGymSaasSubscription",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymSaasSubscriptionRequest"
+              }
+            }
+          },
+          "description": "The plan and price",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSaasSubscriptionResponse"
+                }
+              }
+            },
+            "description": "The intent this `client_request_id` already recorded"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSaasSubscriptionResponse"
+                }
+              }
+            },
+            "description": "The subscription"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Ask for a SimpleFit plan",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/saas-subscriptions/{subscription_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "`immediate` ends it now; `period_end` schedules the end at the current period's end (an intent is always\ncancelled at once). Repeating the request returns it unchanged. No refund, proration or invoice exists.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.saas_subscription: \"expired\"`; a draft gym (`details.setup_status`).\n* `validation_error` - `mode` missing or invalid, or an unknown field.\n* `rate_limited` - 30 changes per 10 minutes per user.\n",
+        "operationId": "cancelGymSaasSubscription",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A subscription of this gym.",
+            "in": "path",
+            "name": "subscription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionCancelRequest"
+              }
+            }
+          },
+          "description": "The mode",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSaasSubscriptionResponse"
+                }
+              }
+            },
+            "description": "The subscription"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel the gym's SimpleFit subscription",
+        "tags": [
+          "SimpleFit plans"
         ]
       }
     },
@@ -17648,6 +19884,153 @@
         ]
       }
     },
+    "/api/v1/me/gym-memberships/{gym_member_id}/product-subscriptions": {
+      "post": {
+        "callbacks": {},
+        "description": "Records the viewer's intent to buy a product of their gym at its published version and current price: a\n`pending_activation` subscription that grants no admission and charges nothing (no payment provider is\nintegrated). Booking classes is unchanged. The same `client_request_id` again returns that intent (`200`).\n\n* `not_found` - not one of the viewer's own memberships.\n* `conflict` - `details.gym_member` is the membership's status when it is not `active`.\n\n* `not_found` - also an unknown product version, or another gym's.\n* `conflict` - also `details.member_product: \"retired\"`; `details.member_product_version` (not the\n  published version: `draft`, `superseded`, ...); `details.member_price_version: \"superseded\"` (not the current price in its\n  currency) or `\"not_found\"`; `details.client_request_id: \"reused\"`.\n* `validation_error` - a missing, invalid or unknown field (a `status`, receipt or payment field included).\n* `rate_limited` - 30 changes per 10 minutes per user.\n",
+        "operationId": "requestMyGymProduct",
+        "parameters": [
+          {
+            "description": "One of the viewer's own memberships (it must be active).",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymMemberProductSubscriptionRequest"
+              }
+            }
+          },
+          "description": "The product and price",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductSubscriptionResponse"
+                }
+              }
+            },
+            "description": "The intent this `client_request_id` already recorded"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductSubscriptionResponse"
+                }
+              }
+            },
+            "description": "The subscription"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Ask for a product of my gym",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/me/gym-memberships/{gym_member_id}/products": {
+      "get": {
+        "callbacks": {},
+        "description": "The active products of the gym of one of the viewer's own active memberships, with their published\nversion and current prices.\n\n* `not_found` - not one of the viewer's own memberships.\n* `conflict` - `details.gym_member` is the membership's status when it is not `active`.\n\n",
+        "operationId": "listMyGymProducts",
+        "parameters": [
+          {
+            "description": "One of the viewer's own memberships (it must be active).",
+            "in": "path",
+            "name": "gym_member_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberOfferList"
+                }
+              }
+            },
+            "description": "The products"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The products of my gym",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
     "/api/v1/me/gyms": {
       "get": {
         "callbacks": {},
@@ -17704,6 +20087,133 @@
         "summary": "My gyms",
         "tags": [
           "Gyms"
+        ]
+      }
+    },
+    "/api/v1/me/product-subscriptions": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's product subscriptions at every gym, newest first.\n\n* `validation_error` - `status`, `limit` or `cursor` is invalid.\n",
+        "operationId": "listMyProductSubscriptions",
+        "parameters": [
+          {
+            "description": "Only subscriptions in this status (default: all).",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending_activation",
+                "active",
+                "cancellation_scheduled",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size (1–100, default 50).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page (same filters).",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductSubscriptionList"
+                }
+              }
+            },
+            "description": "The subscriptions"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My product subscriptions",
+        "tags": [
+          "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/me/product-subscriptions/{subscription_id}/cancel": {
+      "post": {
+        "callbacks": {},
+        "description": "Cancels one of the viewer's own product subscriptions at once (an intent or an active one). Repeating it\nreturns it unchanged. No refund exists.\n\n* `not_found` - not one of the viewer's own subscriptions.\n* `conflict` - `details.member_product_subscription: \"expired\"`.\n",
+        "operationId": "cancelMyProductSubscription",
+        "parameters": [
+          {
+            "description": "One of the viewer's own product subscriptions.",
+            "in": "path",
+            "name": "subscription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymMemberProductSubscriptionResponse"
+                }
+              }
+            },
+            "description": "The subscription"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cancel one of my product subscriptions",
+        "tags": [
+          "Gym member products"
         ]
       }
     },
@@ -18341,6 +20851,41 @@
         ]
       }
     },
+    "/api/v1/saas-plans": {
+      "get": {
+        "callbacks": {},
+        "description": "The plan versions SimpleFit has published under an approval, by plan key, with their immutable prices and\nincluded features. Empty until one is published: drafts (including the provisional catalog) are never\nshown. Any signed-in user.\n",
+        "operationId": "listSaasPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaasPlanList"
+                }
+              }
+            },
+            "description": "The plans"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "SimpleFit plans",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      }
+    },
     "/api/v1/staff-invitations/preview": {
       "post": {
         "callbacks": {},
@@ -18462,6 +21007,14 @@
     {
       "description": "Places in gym classes: a member's own bookings of their gym's classes, staff booking for members, class rosters and manual check-ins, with database-enforced capacity and idempotent requests (ADR 0026, SF-99). No waitlist, payment, entitlement or penalty.",
       "name": "Gym bookings"
+    },
+    {
+      "description": "SimpleFit's SaaS plans for gyms, a gym's subscription intent and cancellation, and its backend-owned entitlements (ADR 0026, SF-101). Prices are immutable versions in integer minor units, rendered as decimal strings. No payment, invoice or provider exists: an intent grants nothing, and no endpoint activates a subscription. No gym feature is gated.",
+      "name": "SimpleFit plans"
+    },
+    {
+      "description": "A gym's own products for its members (single visits, class packs, unlimited periods) with immutable versions and append-only prices, and its members' product subscription intents (ADR 0026, SF-101). Separate from SimpleFit plans. No payment, credit debit or booking rule.",
+      "name": "Gym member products"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

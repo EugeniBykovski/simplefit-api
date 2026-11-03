@@ -119,6 +119,21 @@ defmodule SimpleFitWeb.ApiSpec do
               "idempotent requests (ADR 0026, SF-99). No waitlist, payment, entitlement or penalty."
         },
         %Tag{
+          name: "SimpleFit plans",
+          description:
+            "SimpleFit's SaaS plans for gyms, a gym's subscription intent and cancellation, and its " <>
+              "backend-owned entitlements (ADR 0026, SF-101). Prices are immutable versions in integer " <>
+              "minor units, rendered as decimal strings. No payment, invoice or provider exists: an intent " <>
+              "grants nothing, and no endpoint activates a subscription. No gym feature is gated."
+        },
+        %Tag{
+          name: "Gym member products",
+          description:
+            "A gym's own products for its members (single visits, class packs, unlimited periods) with " <>
+              "immutable versions and append-only prices, and its members' product subscription intents " <>
+              "(ADR 0026, SF-101). Separate from SimpleFit plans. No payment, credit debit or booking rule."
+        },
+        %Tag{
           name: "Legal",
           description: "Published legal documents (versioned, per language; ADR 0022)."
         },
