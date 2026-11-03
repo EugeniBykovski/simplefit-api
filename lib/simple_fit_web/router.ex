@@ -5,6 +5,7 @@ defmodule SimpleFitWeb.Router do
   #
   #   /api/health, /api/openapi, /api/docs   operational, unversioned
   #   /api/me, /api/auth/...                 session and viewer, unversioned (ADR 0010)
+  #   /api/webhooks/stripe                   Stripe webhooks, signature-verified (SF-102)
   #   /dev/emails                            email template preview, development only (ADR 0011)
   #   /api/v1/...                            product resources: /me/account-profile,
   #                                          /me/email-identities, /me/fighter-profile,
@@ -59,6 +60,14 @@ defmodule SimpleFitWeb.Router do
     pipe_through [:api, :authenticated]
 
     get "/me", MeController, :show
+  end
+
+  # SF-102: Stripe webhooks, authenticated by their signature over the raw
+  # body (SimpleFitWeb.RawBody), never by a session.
+  scope "/api/webhooks", SimpleFitWeb do
+    pipe_through :api
+
+    post "/stripe", StripeWebhookController, :create
   end
 
   # Product resources (ADR 0003). SF-25: the viewer's fighter profile and
@@ -275,6 +284,20 @@ defmodule SimpleFitWeb.Router do
     post "/gyms/:gym_id/saas-subscriptions/:subscription_id/cancel",
          GymBillingController,
          :cancel
+
+    # SF-102: Stripe-backed billing of the gym's SaaS subscription (hosted
+    # checkout and portal, reconciled state and invoices).
+    post "/gyms/:gym_id/saas-subscriptions/:subscription_id/checkout-session",
+         GymBillingController,
+         :checkout
+
+    post "/gyms/:gym_id/saas-subscriptions/:subscription_id/reconcile",
+         GymBillingController,
+         :reconcile
+
+    get "/gyms/:gym_id/billing", GymBillingController, :summary
+    get "/gyms/:gym_id/billing/invoices", GymBillingController, :invoices
+    post "/gyms/:gym_id/billing/portal-session", GymBillingController, :portal
 
     get "/gyms/:gym_id/entitlements", GymBillingController, :entitlements
     get "/gyms/:gym_id/member-products", GymMemberProductController, :index

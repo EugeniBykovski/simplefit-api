@@ -3296,6 +3296,342 @@
         "title": "Gym",
         "type": "object"
       },
+      "GymBillingInvoice": {
+        "additionalProperties": false,
+        "description": "A Stripe invoice as SimpleFit last reconciled it. Only `paid` is paid; `draft` and `open` never are. SimpleFit renders no invoice document: `hosted_invoice_url` and `invoice_pdf` are Stripe's.",
+        "properties": {
+          "amount_paid": {
+            "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+            "nullable": true,
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_paid_minor": {
+            "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+            "minimum": 0,
+            "nullable": false,
+            "type": "integer"
+          },
+          "amount_refunded": {
+            "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+            "nullable": true,
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_refunded_minor": {
+            "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+            "minimum": 0,
+            "nullable": false,
+            "type": "integer"
+          },
+          "currency": {
+            "description": "ISO 4217 code.",
+            "type": "string"
+          },
+          "disputed": {
+            "description": "A chargeback/dispute exists for its payment (not a refund).",
+            "type": "boolean"
+          },
+          "hosted_invoice_url": {
+            "nullable": true,
+            "type": "string"
+          },
+          "invoice_id": {
+            "description": "SimpleFit's id of the invoice record.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "invoice_pdf": {
+            "nullable": true,
+            "type": "string"
+          },
+          "issued_at": {
+            "description": "When Stripe created it.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "test",
+              "live"
+            ],
+            "type": "string"
+          },
+          "number": {
+            "description": "Stripe's invoice number, once finalized.",
+            "nullable": true,
+            "type": "string"
+          },
+          "paid_at": {
+            "description": "When it was paid.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "payment_status": {
+            "description": "The last payment attempt's state at the provider.",
+            "enum": [
+              "requires_action",
+              "requires_payment_method",
+              "processing",
+              "succeeded",
+              "canceled",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "period_end": {
+            "description": "The billed period's end.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "period_start": {
+            "description": "The billed period's start.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "open",
+              "paid",
+              "uncollectible",
+              "void"
+            ],
+            "type": "string"
+          },
+          "subscription_id": {
+            "description": "The SimpleFit subscription it bills.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "total": {
+            "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+            "nullable": true,
+            "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "total_minor": {
+            "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+            "minimum": 0,
+            "nullable": false,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "invoice_id",
+          "number",
+          "status",
+          "payment_status",
+          "currency",
+          "total",
+          "total_minor",
+          "amount_paid",
+          "amount_paid_minor",
+          "amount_refunded",
+          "amount_refunded_minor",
+          "disputed",
+          "period_start",
+          "period_end",
+          "issued_at",
+          "paid_at",
+          "hosted_invoice_url",
+          "invoice_pdf",
+          "subscription_id",
+          "mode"
+        ],
+        "title": "GymBillingInvoice",
+        "type": "object"
+      },
+      "GymBillingInvoiceList": {
+        "additionalProperties": false,
+        "properties": {
+          "invoices": {
+            "description": "Newest first, at most 50.",
+            "items": {
+              "$ref": "#/components/schemas/GymBillingInvoice"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "invoices"
+        ],
+        "title": "GymBillingInvoiceList",
+        "type": "object"
+      },
+      "GymBillingPortalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "portal": {
+            "additionalProperties": false,
+            "properties": {
+              "url": {
+                "description": "Short-lived Stripe Customer Portal URL; open it at once, never store it.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "url"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "portal"
+        ],
+        "title": "GymBillingPortalResponse",
+        "type": "object"
+      },
+      "GymBillingSummary": {
+        "additionalProperties": false,
+        "description": "The gym's SimpleFit plan and payment state, from provider state SimpleFit reconciled (never from a browser redirect). No card, bank or payment method detail is exposed.",
+        "properties": {
+          "checkout": {
+            "additionalProperties": false,
+            "description": "An open hosted checkout of the pending intent, or `null`.",
+            "nullable": true,
+            "properties": {
+              "expires_at": {
+                "description": "When the hosted checkout expires.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "open"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "expires_at"
+            ],
+            "type": "object"
+          },
+          "payment": {
+            "additionalProperties": false,
+            "properties": {
+              "action_url": {
+                "description": "Stripe's hosted invoice page to authenticate or pay an open invoice (short-lived use).",
+                "nullable": true,
+                "type": "string"
+              },
+              "next_payment_at": {
+                "description": "The next renewal date, only when the provider confirms an active, renewing subscription.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "provider_status": {
+                "enum": [
+                  "incomplete",
+                  "incomplete_expired",
+                  "trialing",
+                  "active",
+                  "past_due",
+                  "canceled",
+                  "unpaid",
+                  "paused",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              },
+              "state": {
+                "description": "`awaiting_checkout` (an intent without checkout), `checkout_open`, `processing` (paid or completed but not yet confirmed by a paid invoice), `action_required` (the bank asks for authentication), `payment_failed`, `past_due` (a renewal is unpaid; access lasts until the paid period ends), `cancellation_scheduled`, `active`, `ended`, `none`.",
+                "enum": [
+                  "none",
+                  "ended",
+                  "awaiting_checkout",
+                  "checkout_open",
+                  "processing",
+                  "action_required",
+                  "payment_failed",
+                  "past_due",
+                  "cancellation_scheduled",
+                  "active"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          "provider": {
+            "additionalProperties": false,
+            "properties": {
+              "mode": {
+                "description": "`test`: Stripe test mode, no real money moves.",
+                "enum": [
+                  "test",
+                  "live",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              },
+              "portal_available": {
+                "description": "Whether `createGymBillingPortalSession` can open the Stripe Customer Portal.",
+                "type": "boolean"
+              },
+              "status": {
+                "description": "`disabled`: payments are switched off in this environment (no checkout, nothing is charged); `unavailable`: misconfigured (fails closed).",
+                "enum": [
+                  "ready",
+                  "disabled",
+                  "unavailable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "mode",
+              "portal_available"
+            ],
+            "type": "object"
+          },
+          "subscription": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GymSaasSubscription"
+              }
+            ],
+            "description": "The gym's latest subscription, or `null`.",
+            "nullable": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "provider",
+          "subscription",
+          "payment",
+          "checkout"
+        ],
+        "title": "GymBillingSummary",
+        "type": "object"
+      },
+      "GymBillingSummaryResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "billing": {
+            "$ref": "#/components/schemas/GymBillingSummary"
+          }
+        },
+        "required": [
+          "billing"
+        ],
+        "title": "GymBillingSummaryResponse",
+        "type": "object"
+      },
       "GymChecklistItem": {
         "additionalProperties": false,
         "description": "One step of the opening-week checklist (SF-82 C7), derived on every read from the gym's own records. No\nclient can set it, and finishing or dismissing the introduction never changes it.\n",
@@ -4759,7 +5095,7 @@
                 "type": "boolean"
               },
               "status": {
-                "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence activates (none exists yet). `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+                "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence (a paid Stripe invoice, SF-102) activates. `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
                 "enum": [
                   "pending_activation",
                   "active",
@@ -6312,7 +6648,7 @@
             "type": "string"
           },
           "status": {
-            "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence activates (none exists yet). `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+            "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence (a paid Stripe invoice, SF-102) activates. `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
             "enum": [
               "pending_activation",
               "active",
@@ -6615,9 +6951,51 @@
         "title": "GymRevisionRequest",
         "type": "object"
       },
+      "GymSaasCheckoutResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "checkout": {
+            "additionalProperties": false,
+            "properties": {
+              "checkout_id": {
+                "description": "SimpleFit's checkout record.",
+                "format": "uuid",
+                "type": "string"
+              },
+              "expires_at": {
+                "description": "When the hosted checkout expires.",
+                "format": "date-time",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "open"
+                ],
+                "type": "string"
+              },
+              "url": {
+                "description": "Stripe-hosted checkout page to redirect the browser to. Never shared or stored by clients.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "checkout_id",
+              "status",
+              "url",
+              "expires_at"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "checkout"
+        ],
+        "title": "GymSaasCheckoutResponse",
+        "type": "object"
+      },
       "GymSaasSubscription": {
         "additionalProperties": false,
-        "description": "The gym (not a person) is the subscriber. It keeps the plan and price version it chose. No provider reference, payment or invoice is exposed.",
+        "description": "The gym (not a person) is the subscriber. It keeps the plan and price version it chose. No provider reference or payment detail is exposed (invoices: `listGymBillingInvoices`).",
         "properties": {
           "activated_at": {
             "description": "When verified evidence activated it.",
@@ -6636,9 +7014,11 @@
             "type": "string"
           },
           "cancel_reason": {
+            "description": "`provider_initiated` (SF-102): the payment provider ended or scheduled the end outside SimpleFit.",
             "enum": [
               "requested_by_gym",
               "gym_closed",
+              "provider_initiated",
               null
             ],
             "nullable": true,
@@ -6714,7 +7094,7 @@
             "type": "string"
           },
           "status": {
-            "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence activates (none exists yet). `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+            "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence (a paid Stripe invoice, SF-102) activates. `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
             "enum": [
               "pending_activation",
               "active",
@@ -9397,6 +9777,24 @@
         "title": "StaffInvitationTokenRequest",
         "type": "object"
       },
+      "StripeWebhookAck": {
+        "additionalProperties": false,
+        "properties": {
+          "duplicate": {
+            "description": "The event id was already recorded; nothing changed.",
+            "type": "boolean"
+          },
+          "received": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "received",
+          "duplicate"
+        ],
+        "title": "StripeWebhookAck",
+        "type": "object"
+      },
       "SubscriptionCancelRequest": {
         "additionalProperties": false,
         "description": "Any other field is a `422`.",
@@ -10780,6 +11178,187 @@
         "summary": "One gym",
         "tags": [
           "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/billing": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's latest SimpleFit subscription with its payment state, from provider state the backend reconciled\n(webhooks, the return from checkout, the hourly sweep), never from a browser redirect. Paid access comes only\nfrom a paid Stripe invoice. No card or payment method detail.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n",
+        "operationId": "getGymBillingSummary",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBillingSummaryResponse"
+                }
+              }
+            },
+            "description": "The billing summary"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The gym's SimpleFit billing",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/billing/invoices": {
+      "get": {
+        "callbacks": {},
+        "description": "The gym's Stripe invoices as last reconciled, newest first (at most 50): number, status, amounts, period and\nStripe's hosted invoice and PDF links. SimpleFit renders no invoice document and computes no tax.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n",
+        "operationId": "listGymBillingInvoices",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBillingInvoiceList"
+                }
+              }
+            },
+            "description": "The invoices"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The gym's SimpleFit invoices",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/billing/portal-session": {
+      "post": {
+        "callbacks": {},
+        "description": "A short-lived Stripe Customer Portal session for the gym's Stripe customer: update the payment method, see\nbilling history and invoices, edit billing details. Plan changes and cancellation stay in SimpleFit. Open\n`url` at once; it is never stored.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.payment_provider: \"disabled\"` (payments are off in this environment; nothing is\n  charged and nothing is substituted); a draft gym (`details.setup_status`).\n* `service_unavailable` - Stripe could not be reached or is misconfigured; nothing changed.\n* `rate_limited` - 30 billing changes per 10 minutes per user.\n\n* `conflict` (also) - `details.billing_portal: \"no_customer\"` (the gym never started a checkout) or\n  `\"not_configured\"`.\n",
+        "operationId": "createGymBillingPortalSession",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBillingPortalResponse"
+                }
+              }
+            },
+            "description": "The portal session"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Manage billing (Stripe Customer Portal)",
+        "tags": [
+          "SimpleFit plans"
         ]
       }
     },
@@ -14931,7 +15510,7 @@
       },
       "post": {
         "callbacks": {},
-        "description": "Records the gym's intent to subscribe to a published plan version at one of its `fixed` prices: a\n`pending_activation` subscription that grants nothing and charges nothing. Only verified evidence from a\npayment provider activates it, and none is integrated yet. The same `client_request_id` again returns that\nintent (`200`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.saas_subscription: \"current_exists\"` (the gym has a pending, active or scheduled\n  subscription); `details.saas_plan_version` (not published: `superseded`, `retired`, ...);\n  `details.saas_price_version: \"not_found\"` or `\"quote_required\"`; `details.client_request_id: \"reused\"`;\n  a draft gym (`details.setup_status`).\n* `validation_error` - a missing, invalid or unknown field (a `status`, receipt or payment field included).\n* `rate_limited` - 30 changes per 10 minutes per user.\n",
+        "description": "Records the gym's intent to subscribe to a published plan version at one of its `fixed` prices: a\n`pending_activation` subscription that grants nothing and charges nothing. Pay for it with\n`createGymSaasCheckoutSession`; only a paid Stripe invoice reconciled by the backend activates it. The same\n`client_request_id` again returns that intent (`200`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.saas_subscription: \"current_exists\"` (the gym has a pending, active or scheduled\n  subscription); `details.saas_plan_version` (not published: `superseded`, `retired`, ...);\n  `details.saas_price_version: \"not_found\"` or `\"quote_required\"`; `details.client_request_id: \"reused\"`;\n  a draft gym (`details.setup_status`).\n* `validation_error` - a missing, invalid or unknown field (a `status`, receipt or payment field included).\n* `rate_limited` - 30 changes per 10 minutes per user.\n",
         "operationId": "requestGymSaasSubscription",
         "parameters": [
           {
@@ -15029,7 +15608,7 @@
     "/api/v1/gyms/{gym_id}/saas-subscriptions/{subscription_id}/cancel": {
       "post": {
         "callbacks": {},
-        "description": "`immediate` ends it now; `period_end` schedules the end at the current period's end (an intent is always\ncancelled at once). Repeating the request returns it unchanged. No refund, proration or invoice exists.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.saas_subscription: \"expired\"`; a draft gym (`details.setup_status`).\n* `validation_error` - `mode` missing or invalid, or an unknown field.\n* `rate_limited` - 30 changes per 10 minutes per user.\n",
+        "description": "`immediate` ends it now; `period_end` schedules the end at the current period's end (an intent is always\ncancelled at once). Repeating the request returns it unchanged. A Stripe-backed subscription is cancelled\nat Stripe first (no proration, no refund); if Stripe cannot be reached nothing changes (`503`).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.saas_subscription: \"expired\"`; a draft gym (`details.setup_status`);\n  `details.checkout: \"completed\"` (a pending intent's checkout was just paid: refresh and retry).\n* `validation_error` - `mode` missing or invalid, or an unknown field.\n* `rate_limited` - 30 changes per 10 minutes per user.\n* `service_unavailable` - Stripe could not confirm the cancellation; nothing changed.\n",
         "operationId": "cancelGymSaasSubscription",
         "parameters": [
           {
@@ -15111,6 +15690,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -15119,6 +15701,190 @@
           }
         ],
         "summary": "Cancel the gym's SimpleFit subscription",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/saas-subscriptions/{subscription_id}/checkout-session": {
+      "post": {
+        "callbacks": {},
+        "description": "A Stripe-hosted Checkout Session for the gym's pending subscription intent: the backend resolves the Stripe\nPrice from the intent's price version (a client never names one) and creates the session idempotently, so a\nretry returns the same open session (`200`) instead of a second payable one. Redirect the browser to `url`;\nthe return is not proof of payment: call `reconcileGymSaasSubscription`, and only a paid invoice activates.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.payment_provider: \"disabled\"` (payments are off in this environment; nothing is\n  charged and nothing is substituted); a draft gym (`details.setup_status`).\n* `service_unavailable` - Stripe could not be reached or is misconfigured; nothing changed.\n* `rate_limited` - 30 billing changes per 10 minutes per user.\n\n* `conflict` (also) - `details.saas_subscription` (not pending); `details.checkout: \"completed\"` (already\n  paid or in payment); `details.stripe_price: \"not_mapped\" | \"mismatch\"`; `details.saas_plan_version:\n  \"provisional\"` (live mode never sells a provisional price).\n",
+        "operationId": "createGymSaasCheckoutSession",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A subscription of this gym.",
+            "in": "path",
+            "name": "subscription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSaasCheckoutResponse"
+                }
+              }
+            },
+            "description": "The open hosted checkout"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymSaasCheckoutResponse"
+                }
+              }
+            },
+            "description": "A new hosted checkout"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Pay for a SimpleFit plan (hosted checkout)",
+        "tags": [
+          "SimpleFit plans"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/saas-subscriptions/{subscription_id}/reconcile": {
+      "post": {
+        "callbacks": {},
+        "description": "Reads the subscription's checkout, Stripe subscription and invoices from Stripe now and applies them (the\nbrowser calls it on return from checkout or the portal), then answers the billing summary.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for a subscription, also an unknown id or another gym's.\n* `forbidden` - only the gym's owner acts on its SimpleFit subscription (`manage_billing`).\n\n* `conflict` - `details.payment_provider: \"disabled\"` (payments are off in this environment; nothing is\n  charged and nothing is substituted); a draft gym (`details.setup_status`).\n* `service_unavailable` - Stripe could not be reached or is misconfigured; nothing changed.\n* `rate_limited` - 30 billing changes per 10 minutes per user.\n\n",
+        "operationId": "reconcileGymSaasSubscription",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A subscription of this gym.",
+            "in": "path",
+            "name": "subscription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBillingSummaryResponse"
+                }
+              }
+            },
+            "description": "The billing summary"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Refresh the subscription from Stripe",
         "tags": [
           "SimpleFit plans"
         ]
@@ -20945,6 +21711,62 @@
           "Gym staff"
         ]
       }
+    },
+    "/api/webhooks/stripe": {
+      "post": {
+        "callbacks": {},
+        "description": "Called by Stripe only. The signature is verified against the raw body with the endpoint's secret and a\nfive-minute timestamp tolerance; the event must be of the configured mode and SimpleFit's own account. The\nevent id and type are stored once (a repeated delivery answers `duplicate: true` and changes nothing) and\nthe object is re-read from Stripe asynchronously: the event body is never applied.\n\n* `bad_request` - missing, malformed, expired or invalid signature, or an event that is not acceptable here\n  (other mode, a connected account's event). No detail is disclosed.\n* `service_unavailable` - payments are disabled here or the inbox could not be written; Stripe retries.\n",
+        "operationId": "receiveStripeWebhook",
+        "parameters": [
+          {
+            "description": "Stripe's signature header (`t=...,v1=...`).",
+            "in": "header",
+            "name": "stripe-signature",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "description": "A Stripe Event object.",
+                "type": "object"
+              }
+            }
+          },
+          "description": "A Stripe event",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StripeWebhookAck"
+                }
+              }
+            },
+            "description": "Recorded"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "summary": "Receive a Stripe event",
+        "tags": [
+          "Payment provider webhooks"
+        ]
+      }
     }
   },
   "security": [],
@@ -21009,12 +21831,16 @@
       "name": "Gym bookings"
     },
     {
-      "description": "SimpleFit's SaaS plans for gyms, a gym's subscription intent and cancellation, and its backend-owned entitlements (ADR 0026, SF-101). Prices are immutable versions in integer minor units, rendered as decimal strings. No payment, invoice or provider exists: an intent grants nothing, and no endpoint activates a subscription. No gym feature is gated.",
+      "description": "SimpleFit's SaaS plans for gyms, a gym's subscription intent and cancellation, and its backend-owned entitlements (ADR 0026, SF-101); its Stripe-backed billing (SF-102): hosted checkout, the Customer Portal, reconciled payment state and Stripe invoices. Prices are immutable versions in integer minor units, rendered as decimal strings. An intent grants nothing; only a paid Stripe invoice reconciled by the backend activates. No gym feature is gated.",
       "name": "SimpleFit plans"
     },
     {
       "description": "A gym's own products for its members (single visits, class packs, unlimited periods) with immutable versions and append-only prices, and its members' product subscription intents (ADR 0026, SF-101). Separate from SimpleFit plans. No payment, credit debit or booking rule.",
       "name": "Gym member products"
+    },
+    {
+      "description": "Inbound Stripe webhooks (SF-102), authenticated by the Stripe-Signature header over the raw body, never by a session. Not for clients.",
+      "name": "Payment provider webhooks"
     },
     {
       "description": "Published legal documents (versioned, per language; ADR 0022).",

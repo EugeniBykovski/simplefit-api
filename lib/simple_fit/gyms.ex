@@ -387,6 +387,10 @@ defmodule SimpleFit.Gyms do
   def billing_write(%User{} = user, %Session{} = session, gym_id, permission, fun),
     do: Guarded.write(user, session, gym_id, permission, {"gym_billing_user", 30, 600}, fun)
 
+  @doc "See `SimpleFit.Gyms.Access.lock_gym_shared/1` (SF-102 reconciliation lock order)."
+  @spec lock_gym_shared(Ecto.UUID.t()) :: :ok | {:error, :not_found}
+  defdelegate lock_gym_shared(gym_id), to: Access
+
   @doc """
   Records a commercial gym audit event (SF-101) inside the caller's
   transaction: ids only (`saas_subscription_id`, `member_product_*`), never

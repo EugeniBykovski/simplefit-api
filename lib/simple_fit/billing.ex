@@ -11,13 +11,27 @@ defmodule SimpleFit.Billing do
   * `SimpleFit.Billing.Subscriptions` - a gym's subscription intent,
     cancellation and period end; the owner acts for the gym.
   * `SimpleFit.Billing.Activation` - the only way to `active`: verified
-    evidence from a configured trusted provider (none exists yet, D-G10).
+    evidence from a configured trusted provider.
 
-  No payment, invoice, refund, tax or provider call exists anywhere.
+  SF-102 (Stripe, ADR 0026 amendment SF-102):
+
+  * `SimpleFit.Billing.Payments` - hosted checkout of a pending intent, the
+    Customer Portal, the billing summary and invoices, cancellation synced
+    with Stripe first.
+  * `SimpleFit.Billing.Webhooks` and `SimpleFit.Billing.Reconciliation` -
+    signature-verified webhook inbox and the only path from Stripe state to
+    SF-101 transitions (activation and renewal from paid invoices).
+  * `SimpleFit.Billing.Operations` - operator price mapping, portal
+    configuration, full refunds under an approval; `SimpleFit.Billing.Connect`
+    - the Connect foundation (no member payment exists).
+
+  Tax is not computed and no invoice is rendered by SimpleFit: invoices are
+  Stripe's.
   """
 
   alias SimpleFit.Accounts.{Session, User}
-  alias SimpleFit.Billing.{Catalog, GymSubscription, PlanVersion, Subscriptions}
+  alias SimpleFit.Billing.{Catalog, GymSubscription, Payments, PlanVersion, Subscriptions}
+  alias SimpleFit.Billing.Stripe.{Checkout, Invoice}
 
   @doc "The published SaaS catalog (any signed-in user; nothing is public until approved)."
   @spec published_plans() :: [PlanVersion.t()]
@@ -35,10 +49,40 @@ defmodule SimpleFit.Billing do
     to: Subscriptions,
     as: :request
 
-  @doc "See `SimpleFit.Billing.Subscriptions.cancel/5`."
+  @doc "See `SimpleFit.Billing.Payments.cancel/5` (Stripe first, then `Subscriptions.cancel/5`)."
   @spec cancel_gym_subscription(User.t(), Session.t(), term(), term(), map()) ::
-          {:ok, GymSubscription.t()} | {:error, Subscriptions.error()}
+          {:ok, GymSubscription.t()} | {:error, Subscriptions.error() | Payments.error()}
   defdelegate cancel_gym_subscription(user, session, gym_id, subscription_id, attrs),
-    to: Subscriptions,
+    to: Payments,
     as: :cancel
+
+  @doc "See `SimpleFit.Billing.Payments.summary/2`."
+  @spec gym_billing_summary(User.t(), term()) :: {:ok, map()} | {:error, :not_found | :forbidden}
+  defdelegate gym_billing_summary(user, gym_id), to: Payments, as: :summary
+
+  @doc "See `SimpleFit.Billing.Payments.invoices/2`."
+  @spec list_gym_invoices(User.t(), term()) ::
+          {:ok, [Invoice.t()]} | {:error, :not_found | :forbidden}
+  defdelegate list_gym_invoices(user, gym_id), to: Payments, as: :invoices
+
+  @doc "See `SimpleFit.Billing.Payments.create_checkout/4`."
+  @spec create_gym_checkout(User.t(), Session.t(), term(), term()) ::
+          {:ok, {Checkout.t(), :created | :existing}} | {:error, Payments.error()}
+  defdelegate create_gym_checkout(user, session, gym_id, subscription_id),
+    to: Payments,
+    as: :create_checkout
+
+  @doc "See `SimpleFit.Billing.Payments.create_portal_session/3`."
+  @spec create_gym_portal_session(User.t(), Session.t(), term()) ::
+          {:ok, String.t()} | {:error, Payments.error()}
+  defdelegate create_gym_portal_session(user, session, gym_id),
+    to: Payments,
+    as: :create_portal_session
+
+  @doc "See `SimpleFit.Billing.Payments.reconcile/4`."
+  @spec reconcile_gym_subscription(User.t(), Session.t(), term(), term()) ::
+          {:ok, map()} | {:error, Payments.error()}
+  defdelegate reconcile_gym_subscription(user, session, gym_id, subscription_id),
+    to: Payments,
+    as: :reconcile
 end

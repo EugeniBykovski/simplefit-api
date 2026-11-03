@@ -177,6 +177,18 @@ defmodule SimpleFit.BillingHelpers do
           Repo.all(from(v in PlanVersion, where: v.plan_id in ^plan_ids, select: v.id))
 
         Repo.delete_all(from(e in AuditEvent, where: e.plan_id in ^plan_ids))
+
+        price_ids =
+          Repo.all(
+            from(p in PriceVersion, where: p.plan_version_id in ^version_ids, select: p.id)
+          )
+
+        Repo.delete_all(
+          from(m in SimpleFit.Billing.Stripe.PriceMapping,
+            where: m.price_version_id in ^price_ids
+          )
+        )
+
         Repo.delete_all(from(p in PriceVersion, where: p.plan_version_id in ^version_ids))
         Repo.delete_all(from(e in PlanEntitlement, where: e.plan_version_id in ^version_ids))
         Repo.delete_all(from(v in PlanVersion, where: v.id in ^version_ids))

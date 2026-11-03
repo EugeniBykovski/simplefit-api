@@ -44,7 +44,13 @@ config :simple_fit, Oban,
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
     # Removes finished email auth challenges and stale rate-limit windows
     # (ADR 0012).
-    {Oban.Plugins.Cron, crontab: [{"@hourly", SimpleFit.Accounts.EmailAuth.CleanupWorker}]}
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"@hourly", SimpleFit.Accounts.EmailAuth.CleanupWorker},
+       # SF-102: reconciles Stripe-backed subscriptions a webhook missed
+       # (does nothing while the integration is disabled).
+       {"17 * * * *", SimpleFit.Billing.Stripe.SweepWorker}
+     ]}
   ]
 
 # Privacy-safe job outcome logs (SimpleFit.Observability.JobLogger), instead
@@ -211,9 +217,16 @@ config :phoenix, :filter_parameters, [
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
-# SF-101: no payment provider is trusted to activate a subscription (D-G10).
-# Only test.exs registers its test provider; production pins this list in
-# runtime.exs, so a deployment can never activate from a fake.
+# SF-101: no payment provider is trusted to activate a subscription by
+# default. config/runtime.exs trusts SimpleFit.Billing.Stripe.Provider only
+# where the Stripe integration is configured (SF-102); test.exs registers
+# its test providers. A deployment can never activate from a fake.
 config :simple_fit, SimpleFit.Billing, trusted_providers: []
+
+# SF-102: Stripe (SimpleFit.Billing.Stripe.Config). Disabled unless an
+# environment enables it with test-mode (or approved live) credentials in
+# config/runtime.exs; disabled means no checkout and no paid state, never a
+# substituted success.
+config :simple_fit, SimpleFit.Billing.Stripe, enabled: false, mode: :test
 
 import_config "#{config_env()}.exs"

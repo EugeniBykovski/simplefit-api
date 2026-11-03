@@ -7,6 +7,7 @@ defmodule SimpleFitWeb.BillingJSON do
   """
 
   alias SimpleFit.Billing.{GymSubscription, PlanVersion, PriceVersion}
+  alias SimpleFit.Billing.Stripe.{Checkout, Invoice}
   alias SimpleFit.Money
 
   @lifecycle ~w(requested_at activated_at current_period_start current_period_end cancel_mode
@@ -18,6 +19,28 @@ defmodule SimpleFitWeb.BillingJSON do
     do: %{subscriptions: Enum.map(list, &subscription_json/1)}
 
   def subscription(%{subscription: s}), do: %{subscription: subscription_json(s)}
+
+  def summary(%{summary: summary}) do
+    %{
+      billing: %{
+        provider: summary.provider,
+        subscription: summary.subscription && subscription_json(summary.subscription),
+        payment:
+          Map.merge(
+            %{provider_status: nil, next_payment_at: nil, action_url: nil},
+            summary.payment
+          ),
+        checkout: summary.checkout
+      }
+    }
+  end
+
+  def invoices(%{invoices: invoices}), do: %{invoices: Enum.map(invoices, &invoice_json/1)}
+
+  def checkout(%{checkout: %Checkout{} = c}),
+    do: %{checkout: %{checkout_id: c.id, status: c.status, url: c.url, expires_at: c.expires_at}}
+
+  def portal(%{url: url}), do: %{portal: %{url: url}}
 
   def entitlements(%{projection: %{subscription: sub, features: features}}),
     do: %{
@@ -58,6 +81,38 @@ defmodule SimpleFitWeb.BillingJSON do
       amount_minor: p.amount_minor
     }
   end
+
+  defp invoice_json(%Invoice{} = i) do
+    %{
+      invoice_id: i.id,
+      number: i.number,
+      status: i.status,
+      payment_status: i.payment_status,
+      currency: i.currency,
+      total: money(i.total, i.currency),
+      total_minor: i.total,
+      amount_paid: money(i.amount_paid, i.currency),
+      amount_paid_minor: i.amount_paid,
+      amount_refunded: money(i.amount_refunded, i.currency),
+      amount_refunded_minor: i.amount_refunded,
+      disputed: i.disputed,
+      period_start: i.period_start,
+      period_end: i.period_end,
+      issued_at: i.provider_created_at,
+      paid_at: i.paid_at,
+      hosted_invoice_url: i.hosted_invoice_url,
+      invoice_pdf: i.invoice_pdf,
+      subscription_id: i.subscription_id,
+      mode: i.mode
+    }
+  end
+
+  # A currency SimpleFit does not support is shown in minor units only.
+  defp money(minor, currency) when is_integer(minor) and minor >= 0 do
+    if Money.currency?(currency), do: Money.format(minor, currency)
+  end
+
+  defp money(_minor, _currency), do: nil
 
   defp subscription_json(%GymSubscription{} = s) do
     s
