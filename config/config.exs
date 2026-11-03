@@ -198,9 +198,22 @@ config :phoenix, :filter_parameters, [
   "nonce",
   # SF-95: a member list's raw CSV text ("code" above covers join codes,
   # "token" member invitation tokens).
-  "csv"
+  "csv",
+  # SF-101: no endpoint accepts payment data (such fields are refused with a
+  # 422), but whatever a client sends under these names never reaches a log.
+  "card",
+  "cvc",
+  "cvv",
+  "iban",
+  "payment",
+  "receipt"
 ]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
+# SF-101: no payment provider is trusted to activate a subscription (D-G10).
+# Only test.exs registers its test provider; production pins this list in
+# runtime.exs, so a deployment can never activate from a fake.
+config :simple_fit, SimpleFit.Billing, trusted_providers: []
+
 import_config "#{config_env()}.exs"

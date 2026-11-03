@@ -49,6 +49,9 @@ defmodule SimpleFit.Gyms.Policy do
           | :record_check_in
           | :view_attendance
           | :manage_billing
+          | :view_member_products
+          | :manage_member_products
+          | :view_member_product_subscriptions
 
   @type scope ::
           :all
@@ -99,9 +102,15 @@ defmodule SimpleFit.Gyms.Policy do
     book_for_member: %{owner: :all, manager: :all, front_desk: :all},
     record_check_in: @staff,
     view_attendance: %{owner: :all, manager: :all, coach: :own_occurrences, front_desk: :today},
-    # Billing itself is a deferred product decision (D-G09/D-G10); only the
-    # owner will ever hold it.
-    manage_billing: @owner
+    # SF-101: the gym's SimpleFit SaaS subscription (read, intent, cancel) is
+    # the owner's alone; a plan upgrade never grants any other permission.
+    manage_billing: @owner,
+    # SF-101: the gym's own member products. The front desk reads them (it
+    # answers members at the desk); owner and managers change the catalog.
+    # Coaches hold no commercial permission.
+    view_member_products: %{owner: :all, manager: :all, front_desk: :all},
+    manage_member_products: @admins,
+    view_member_product_subscriptions: %{owner: :all, manager: :all, front_desk: :all}
   }
 
   @permissions @matrix |> Map.keys() |> Enum.sort()

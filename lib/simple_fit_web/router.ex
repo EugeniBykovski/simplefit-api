@@ -266,6 +266,47 @@ defmodule SimpleFitWeb.Router do
     get "/me/class-bookings", MyGymClassBookingController, :index
     get "/me/class-bookings/:booking_id", MyGymClassBookingController, :show
     post "/me/class-bookings/:booking_id/cancel", MyGymClassBookingController, :cancel
+    # SF-101: SimpleFit plans, a gym's subscription intent and entitlements,
+    # and a gym's own member products. No endpoint activates or charges.
+    get "/saas-plans", GymBillingController, :plans
+    get "/gyms/:gym_id/saas-subscriptions", GymBillingController, :index
+    post "/gyms/:gym_id/saas-subscriptions", GymBillingController, :create
+
+    post "/gyms/:gym_id/saas-subscriptions/:subscription_id/cancel",
+         GymBillingController,
+         :cancel
+
+    get "/gyms/:gym_id/entitlements", GymBillingController, :entitlements
+    get "/gyms/:gym_id/member-products", GymMemberProductController, :index
+    post "/gyms/:gym_id/member-products", GymMemberProductController, :create
+    get "/gyms/:gym_id/member-products/:product_id", GymMemberProductController, :show
+
+    post "/gyms/:gym_id/member-products/:product_id/versions",
+         GymMemberProductController,
+         :create_version
+
+    post "/gyms/:gym_id/member-products/:product_id/versions/:version_id/publish",
+         GymMemberProductController,
+         :publish_version
+
+    post "/gyms/:gym_id/member-products/:product_id/versions/:version_id/prices",
+         GymMemberProductController,
+         :add_price
+
+    post "/gyms/:gym_id/member-products/:product_id/retire", GymMemberProductController, :retire
+
+    get "/gyms/:gym_id/member-product-subscriptions",
+        GymMemberProductController,
+        :subscriptions
+
+    get "/me/gym-memberships/:gym_member_id/products", MyGymProductController, :offers
+
+    post "/me/gym-memberships/:gym_member_id/product-subscriptions",
+         MyGymProductController,
+         :create
+
+    get "/me/product-subscriptions", MyGymProductController, :index
+    post "/me/product-subscriptions/:subscription_id/cancel", MyGymProductController, :cancel
     get "/me/gym-invitations", GymInvitationResponseController, :index
     post "/me/gym-invitations/accept", GymInvitationResponseController, :accept_by_token
     post "/me/gym-invitations/decline", GymInvitationResponseController, :decline_by_token

@@ -85,6 +85,9 @@ config :opentelemetry,
 
 # Providers never reach the network in tests. Adapter tests stub HTTP with
 # Req.Test; everything else uses these deterministic adapters.
+# SF-101: the test environment's only trusted provider (test/support).
+config :simple_fit, SimpleFit.Billing, trusted_providers: [SimpleFit.BillingTestProvider]
+
 config :simple_fit, SimpleFit.Storage,
   adapter: SimpleFit.Storage.Fake,
   bucket: "simplefit-test"

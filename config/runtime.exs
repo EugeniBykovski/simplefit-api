@@ -375,6 +375,11 @@ case config_env() do
           require_https: true
         )
 
+    # SF-101: no payment provider exists (D-G10); production trusts none,
+    # whatever the compile-time configuration says. A real adapter is added
+    # here, by code, with its own credentials.
+    config :simple_fit, SimpleFit.Billing, trusted_providers: []
+
     # Encrypted email job payloads use the same secret (ADR 0011).
     config :simple_fit, SimpleFit.Email, [
       {:adapter, SimpleFit.Email.Resend},

@@ -80,6 +80,7 @@ defmodule SimpleFit.Gyms.Members do
     Access,
     Audit,
     Bookings,
+    Commerce,
     EnrollmentSettings,
     Gym,
     Member,
@@ -465,7 +466,12 @@ defmodule SimpleFit.Gyms.Members do
     changed = activate!(member, changes, now)
     audit!(member.gym_id, actor_id, event, changed, now)
     # SF-99: an ended membership keeps no place in classes still to come.
-    if to == :ended, do: Bookings.release_member!(changed, actor_id, now)
+    # SF-101: nor a product subscription.
+    if to == :ended do
+      Bookings.release_member!(changed, actor_id, now)
+      Commerce.release_member!(changed, actor_id, now)
+    end
+
     changed
   end
 

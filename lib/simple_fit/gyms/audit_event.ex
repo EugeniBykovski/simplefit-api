@@ -142,7 +142,23 @@ defmodule SimpleFit.Gyms.AuditEvent do
         :class_booking_created,
         :class_booking_cancelled,
         :class_bookings_released,
-        :class_check_in_recorded
+        :class_check_in_recorded,
+        # SF-101: the gym's SaaS subscription and its member commerce.
+        :saas_subscription_requested,
+        :saas_subscription_activated,
+        :saas_subscription_cancellation_scheduled,
+        :saas_subscription_cancelled,
+        :saas_subscription_expired,
+        :member_product_created,
+        :member_product_version_created,
+        :member_product_version_published,
+        :member_product_price_created,
+        :member_product_retired,
+        :member_product_subscription_requested,
+        :member_product_subscription_activated,
+        :member_product_subscription_cancellation_scheduled,
+        :member_product_subscription_cancelled,
+        :member_product_subscription_expired
       ]
 
     field :staff_membership_id, :binary_id
@@ -157,6 +173,11 @@ defmodule SimpleFit.Gyms.AuditEvent do
     field :occurrence_count, :integer
     field :class_booking_id, :binary_id
     field :booking_count, :integer
+    field :saas_subscription_id, :binary_id
+    field :member_product_id, :binary_id
+    field :member_product_version_id, :binary_id
+    field :member_price_version_id, :binary_id
+    field :member_product_subscription_id, :binary_id
     field :from_role, Ecto.Enum, values: StaffMembership.roles()
     field :to_role, Ecto.Enum, values: StaffMembership.roles()
 
