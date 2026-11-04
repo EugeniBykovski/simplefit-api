@@ -178,6 +178,7 @@ defmodule SimpleFitWeb.Router do
          :cancel
 
     get "/me/staff-invitations", StaffInvitationResponseController, :index
+    post "/me/staff-invitations/resolve", StaffInvitationResponseController, :resolve
     post "/me/staff-invitations/accept", StaffInvitationResponseController, :accept_by_token
     post "/me/staff-invitations/decline", StaffInvitationResponseController, :decline_by_token
     get "/me/staff-invitations/:invitation_id", StaffInvitationResponseController, :show

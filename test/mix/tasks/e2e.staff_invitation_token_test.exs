@@ -24,6 +24,17 @@ defmodule Mix.Tasks.E2e.StaffInvitationTokenTest do
     refute_received {:mix_shell, :info, _}
   end
 
+  test "--link prints the link as the email carries it, fragment included", ctx do
+    invite!(ctx.owner, ctx.gym.id, "e2e-staff@example.com", :coach)
+    token = staff_token_for("e2e-staff@example.com")
+
+    StaffInvitationToken.run(["--link", "e2e-staff@example.com"])
+
+    assert_received {:mix_shell, :info, [link]}
+    assert String.ends_with?(link, "/invite/staff#token=#{token}")
+    assert String.starts_with?(link, "http")
+  end
+
   test "fails when no staff invitation was sent to the address" do
     assert_raise Mix.Error, ~r/no staff invitation queued/, fn ->
       StaffInvitationToken.run(["nobody@example.com"])

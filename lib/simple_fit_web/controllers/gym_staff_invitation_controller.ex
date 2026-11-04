@@ -67,7 +67,8 @@ defmodule SimpleFitWeb.GymStaffInvitationController do
 
     #{@access}
     * `forbidden` - the viewer's role may not invite (or not this role: managers are invited by the owner).
-    * `conflict` - the gym is a draft (`details.setup_status: "draft"`); this address has a pending invitation
+    * `conflict` - sending is off in this deployment (`details.staff_invitation: "recipient_flow_unavailable"`,
+      nothing is created or sent); the gym is a draft (`details.setup_status: "draft"`); this address has a pending invitation
       to another role (`details.staff_invitation: "pending_other_role"`: cancel it first); or it belongs to an
       active member of this gym (`details.staff_membership: "already_active"`).
     * `validation_error` - `email` invalid or the viewer's own, `role` missing or not `manager`, `coach` or
@@ -172,7 +173,8 @@ defmodule SimpleFitWeb.GymStaffInvitationController do
 
     #{@access}
     * `forbidden` - the viewer's role may not invite this role.
-    * `conflict` - not pending (`details.staff_invitation: "not_pending"`) or no resends left
+    * `conflict` - sending is off in this deployment (`details.staff_invitation: "recipient_flow_unavailable"`);
+      not pending (`details.staff_invitation: "not_pending"`) or no resends left
       (`details.resends: "limit_reached"`).
     * `rate_limited` - within 60 seconds of the last sending, or 60 staff administration requests per 10
       minutes per user.

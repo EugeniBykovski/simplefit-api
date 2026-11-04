@@ -69,6 +69,17 @@ defmodule SimpleFit.Gyms.StaffInvitations do
   client; staff administration 60 per 10 minutes per user.
 
   Nothing here logs a token, an address, a digest or an id.
+
+  ## Delivery gate (SF-133)
+
+  Creating and resending send E06, whose link opens the web page
+  `/invite/staff`. Sending stays off unless `config :simple_fit,
+  SimpleFit.Gyms, staff_invitations: true` (dev and test; production only with
+  `GYM_STAFF_INVITATIONS=enabled`, set under release approval once that page
+  is deployed and smoke-tested), and answers `409` (`staff_invitation:
+  recipient_flow_unavailable`) after the usual access checks. Fail closed:
+  anything but `true` is off. Answering, previewing, listing and cancelling
+  existing invitations are unaffected.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -127,6 +138,7 @@ defmodule SimpleFit.Gyms.StaffInvitations do
                Access.authorize_locked(user, gym_id, :invite_staff),
              {:ok, params} <- create_params(attrs, user),
              {:ok, _scope} <- Policy.check(inviter, permission_for(params.role)),
+             :ok <- delivery_enabled(),
              :ok <- completed(gym),
              digest = InvitationSecrets.recipient_digest(params.email),
              :ok <- expire_stale!(gym.id, digest),
@@ -198,6 +210,7 @@ defmodule SimpleFit.Gyms.StaffInvitations do
                Access.authorize_locked(user, gym_id, :invite_staff),
              {:ok, invitation} <- lock_of_gym(gym.id, invitation_id),
              {:ok, _scope} <- Policy.check(actor, permission_for(invitation.role)),
+             :ok <- delivery_enabled(),
              {:ok, updated, token, address} <- rotate(invitation),
              :ok <- admin_limit(user) do
           deliver!(gym, inviter_of(updated), address, token, updated)
@@ -363,6 +376,45 @@ defmodule SimpleFit.Gyms.StaffInvitations do
       end
 
     emit(:previewed, outcome(result))
+    result
+  end
+
+  @doc """
+  The E06 token's invitation for its signed-in recipient, in any status
+  (SF-133): the recipient view, so the web page can truthfully say that it
+  expired, was cancelled, declined or already accepted, which `preview/2`
+  never reveals to an anonymous holder. Reading changes nothing.
+
+  A current token of another address is `:invitation_recipient_mismatch`
+  (the same answer accepting gets, before anyone clicks); anything else
+  somebody else could hold is `:invitation_unavailable`: an unknown token, or
+  a used one of another address.
+  """
+  @spec resolve(User.t(), term(), String.t()) :: {:ok, map()} | {:error, error()}
+  def resolve(%User{} = user, token, client_ip) when is_binary(client_ip) do
+    result =
+      with :ok <- response_limit(client_ip),
+           {:ok, hash} <- token_param(token),
+           %StaffInvitation{} = invitation <-
+             Repo.one(from(i in StaffInvitation, where: i.token_hash == ^hash), @unlogged) do
+        addresses = recipient_addresses(user)
+
+        if Map.has_key?(addresses, invitation.recipient_digest),
+          do:
+            {:ok,
+             recipient_view(
+               invitation,
+               addresses,
+               recipient_context([invitation]),
+               DateTime.utc_now()
+             )},
+          else: recipient_mismatch(invitation)
+      else
+        nil -> {:error, :invitation_unavailable}
+        {:error, reason} -> {:error, reason}
+      end
+
+    emit(:resolved, outcome(result))
     result
   end
 
@@ -1056,6 +1108,17 @@ defmodule SimpleFit.Gyms.StaffInvitations do
       {:ok, id} -> {:ok, {:id, id}}
       :error -> {:error, :not_found}
     end
+  end
+
+  @doc "Whether E06 staff invitations may be sent (see the moduledoc)."
+  @spec delivery_enabled?() :: boolean()
+  def delivery_enabled?,
+    do: Application.get_env(:simple_fit, SimpleFit.Gyms, [])[:staff_invitations] == true
+
+  defp delivery_enabled do
+    if delivery_enabled?(),
+      do: :ok,
+      else: {:error, {:conflict, %{staff_invitation: "recipient_flow_unavailable"}}}
   end
 
   defp token_param(token) do

@@ -990,7 +990,7 @@ not undo it; a draft keeps `coming_later`.
 6. Pre-existing, outside SF-95: E06 staff invitation links also point at a
    web page (`/invite/staff`) that does not exist yet, and production sends
    E06 today (SF-93). A recipient-flow ticket or the same gate for E06 is
-   recommended.
+   recommended. Done in SF-133 (below).
 
 ## Amendment — SF-97 (2026-11-02): gym classes, venues and the timetable API
 
@@ -1713,3 +1713,42 @@ member payments (D-G10).
   disabled until a platform operator identity exists or that risk is accepted.
 * See `docs/release/sf-104-gym-release-acceptance.md` for the release
   acceptance evidence and verdicts.
+
+## Amendment — SF-133 (2026-11-04): the staff invitation recipient flow
+
+SF-104 found (F-01, P1) that E06 links to a page that did not exist while
+production sent E06. SF-133 builds the web page on the SF-93 domain and gates
+sending. It adds no table, migration, role or `User.role`.
+
+* **Delivery gate.** `config :simple_fit, SimpleFit.Gyms, staff_invitations:`
+  is read at the point of sending. While it is off, creating or resending
+  answers `409 staff_invitation: recipient_flow_unavailable`, after the policy
+  check, with nothing created and no email queued. Production is off unless
+  `GYM_STAFF_INVITATIONS=enabled`; dev and test are on. Answering invitations
+  stays open while it is off, so links already issued keep working. E05, E07
+  and coach invitations are not affected.
+* **Activation order.** Backend compatibility, then the recipient page
+  deployed, then a production smoke test, then sending enabled under explicit
+  release approval.
+* **`resolveStaffInvitation`** (`POST /api/v1/me/staff-invitations/resolve`,
+  token in the body). `previewStaffInvitation` deliberately answers 410 for
+  every non-pending invitation, so a page could not tell its own recipient
+  what happened. This operation answers the recipient view in any status when
+  the token's recipient digest is one of the viewer's verified email
+  addresses. Otherwise it answers 403 while the invitation is pending and 410
+  once it isn't, which is what accepting would answer, and an unknown token is
+  410. It reads and changes nothing, so it adds no new oracle for anyone but the
+  recipient.
+* **Token transport is unchanged.** The fragment contract stays, and issued
+  links keep working.
+
+### Deviations and gaps
+
+1. No web recipient artboard exists (`D-WEB-STAFF-INVITATION`, in the route
+   registry, needs a product decision): an interim composition of WFI1 with the
+   OS1 and OS1b content.
+2. The web keeps the token in the tab's `sessionStorage`, as the SF-60 coach
+   flow does, so it survives sign-up. The client's rules are in
+   `simplefit-platform/docs/gym-console-web.md`.
+3. Google and Apple continuation were not exercised with real providers: no
+   credentials exist here.

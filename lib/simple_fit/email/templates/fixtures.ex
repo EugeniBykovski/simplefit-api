@@ -93,7 +93,7 @@ defmodule SimpleFit.Email.Templates.Fixtures do
         "Sell drop-ins and passes",
         "Log incidents for the owner"
       ],
-      accept_url: "#{@app}/invite/staff?token=FIXTURE-INVITATION-TOKEN",
+      accept_url: "#{@app}/invite/staff#token=FIXTURE-INVITATION-TOKEN",
       expires_on: ~D[2026-10-10]
     },
     member_invite: %{

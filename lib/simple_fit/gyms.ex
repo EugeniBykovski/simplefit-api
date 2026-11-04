@@ -588,6 +588,13 @@ defmodule SimpleFit.Gyms do
           {:ok, map()} | {:error, StaffInvitations.error()}
   defdelegate preview_staff_invitation(token, client_ip), to: StaffInvitations, as: :preview
 
+  @doc "An E06 token's invitation for its signed-in recipient (see `SimpleFit.Gyms.StaffInvitations.resolve/3`)."
+  @spec resolve_staff_invitation(User.t(), term(), String.t()) ::
+          {:ok, map()} | {:error, StaffInvitations.error()}
+  defdelegate resolve_staff_invitation(user, token, client_ip),
+    to: StaffInvitations,
+    as: :resolve
+
   @doc "The recipient's explicit acceptance (see `SimpleFit.Gyms.StaffInvitations.accept/4`)."
   @spec accept_staff_invitation(User.t(), Session.t(), {:token | :id, term()}, String.t()) ::
           {:ok, map()} | {:error, StaffInvitations.error()}
