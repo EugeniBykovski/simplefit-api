@@ -4,14 +4,14 @@ defmodule Mix.Tasks.Gyms.Verification do
   @moduledoc """
   Operator review of gym business verification (SF-103;
   `SimpleFit.Gyms.VerificationReview`). Nothing here is reachable over
-  HTTP: running it needs production shell access, which is the
-  authorization boundary until SimpleFit has a platform operator identity.
-  Every write names the operator by email address and is recorded in the
-  application's append-only history; the operator must not be the
+  HTTP. Every command names the operator by email address, and that address
+  must be on the configured operator list (`GYM_VERIFICATION_OPERATORS`;
+  none configured means review is disabled, SF-104). Every write is recorded
+  in the application's append-only history; the operator must not be the
   application's creator or submitter or an active staff member of the gym.
 
-      $ mix gyms.verification list
-      $ mix gyms.verification show APPLICATION_ID
+      $ mix gyms.verification list --operator EMAIL
+      $ mix gyms.verification show APPLICATION_ID --operator EMAIL
       $ mix gyms.verification document-url APPLICATION_ID EVIDENCE_ID --operator EMAIL
       $ mix gyms.verification approve APPLICATION_ID --revision N --operator EMAIL
       $ mix gyms.verification request-changes APPLICATION_ID --revision N --reason CODE --operator EMAIL
@@ -48,12 +48,15 @@ defmodule Mix.Tasks.Gyms.Verification do
     command(rest, opts)
   end
 
-  defp command(["list"], _opts) do
-    case VerificationReview.list_submitted() do
-      [] ->
+  defp command(["list"], opts) do
+    case VerificationReview.list_submitted(opts[:operator]) do
+      {:error, reason} ->
+        fail(reason)
+
+      {:ok, []} ->
         Mix.shell().info("no submitted applications")
 
-      rows ->
+      {:ok, rows} ->
         Enum.each(rows, fn %{application: a, gym_name: gym_name} ->
           Mix.shell().info(
             "#{a.id}  gym #{a.gym_id} (#{gym_name})  #{a.registration_country}  " <>
@@ -63,8 +66,8 @@ defmodule Mix.Tasks.Gyms.Verification do
     end
   end
 
-  defp command(["show", id], _opts) do
-    case VerificationReview.show(id) do
+  defp command(["show", id], opts) do
+    case VerificationReview.show(id, opts[:operator]) do
       {:ok, detail} -> print(detail)
       {:error, reason} -> fail(reason)
     end

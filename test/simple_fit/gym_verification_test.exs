@@ -506,6 +506,14 @@ defmodule SimpleFit.GymVerificationTest do
     end
 
     test "no one at the gym can decide: the owner and staff are refused as operators", ctx do
+      # Even a listed operator is refused when they are the gym's own staff.
+      original = Application.get_env(:simple_fit, VerificationReview)
+      on_exit(fn -> Application.put_env(:simple_fit, VerificationReview, original) end)
+
+      Application.put_env(:simple_fit, VerificationReview,
+        operators: [operator(), "owner@simpleboxing.example", "mia@simpleboxing.example"]
+      )
+
       link_email!(ctx.owner, "owner@simpleboxing.example")
       {manager, _} = joined_staff!(ctx.owner, ctx.gym.id, :manager, "Mia Manager")
       link_email!(manager, "mia@simpleboxing.example")
@@ -634,10 +642,55 @@ defmodule SimpleFit.GymVerificationTest do
       other_gym = completed_gym!(other)
       draft!(other, other_gym.id)
 
-      assert [%{application: %{id: id}, gym_name: _}] = VerificationReview.list_submitted()
+      assert {:ok, [%{application: %{id: id}, gym_name: _}]} =
+               VerificationReview.list_submitted(operator())
+
       assert id == view.application.id
-      assert {:ok, %{evidence: [_], events: [_]}} = VerificationReview.show(id)
-      assert {:error, :not_found} = VerificationReview.show("nope")
+      assert {:ok, %{evidence: [_], events: [_]}} = VerificationReview.show(id, operator())
+      assert {:error, :not_found} = VerificationReview.show("nope", operator())
+    end
+  end
+
+  describe "operator authorization (SF-104)" do
+    setup do
+      original = Application.get_env(:simple_fit, VerificationReview)
+      on_exit(fn -> Application.put_env(:simple_fit, VerificationReview, original) end)
+      :ok
+    end
+
+    test "an address outside the configured operator list is never an operator", ctx do
+      view = submitted!(ctx.owner, ctx.gym.id)
+      [evidence] = view.evidence
+      impostor = "someone.else@trust.simplefit.test"
+
+      assert {:error, {:forbidden, :operator}} = decide(view, :approved, operator: impostor)
+      assert {:error, {:forbidden, :operator}} = VerificationReview.list_submitted(impostor)
+
+      assert {:error, {:forbidden, :operator}} =
+               VerificationReview.show(view.application.id, impostor)
+
+      assert {:error, {:forbidden, :operator}} =
+               VerificationReview.evidence_download(view.application.id, evidence.id, impostor)
+
+      assert {:error, {:forbidden, :operator}} =
+               VerificationReview.revoke(view.application.id, reason: "other", operator: impostor)
+
+      # Case and spaces do not matter for a listed address.
+      assert {:ok, _} = decide(view, :approved, operator: "  Reviewer@Trust.SimpleFit.test ")
+      assert [:submitted, :approved] = Enum.map(events(view.application.id), & &1.event)
+    end
+
+    test "without a configured list, review is disabled entirely", ctx do
+      view = submitted!(ctx.owner, ctx.gym.id)
+      Application.put_env(:simple_fit, VerificationReview, operators: [])
+
+      assert VerificationReview.operators() == []
+      assert {:error, :review_disabled} = decide(view, :approved)
+      assert {:error, :review_disabled} = VerificationReview.list_submitted(operator())
+      assert {:error, :review_disabled} = VerificationReview.show(view.application.id, operator())
+      assert {:error, :review_disabled} = VerificationReview.show(view.application.id, nil)
+      assert get!(ctx.owner, ctx.gym.id).status == :submitted
+      assert [:submitted] = Enum.map(events(view.application.id), & &1.event)
     end
   end
 

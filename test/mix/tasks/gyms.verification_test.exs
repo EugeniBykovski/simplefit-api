@@ -30,16 +30,20 @@ defmodule Mix.Tasks.Gyms.VerificationTest do
 
   test "list and show print the review data; decisions need an operator and the revision", ctx do
     id = ctx.view.application.id
-    Task.run(["list"])
+    Task.run(["list", "--operator", operator()])
     assert [line] = lines()
     assert line =~ id
     assert line =~ "revision #{ctx.view.application.revision}"
 
-    Task.run(["show", id])
+    Task.run(["show", id, "--operator", operator()])
     shown = Enum.join(lines(), "\n")
     assert shown =~ "Simple Boxing Sp. z o.o."
     assert shown =~ "submitted"
     refute shown =~ "business-verification/"
+
+    assert_raise Mix.Error, ~r/refused: \{:forbidden, :operator\}/, fn ->
+      Task.run(["list", "--operator", "anyone@example.com"])
+    end
 
     assert_raise Mix.Error, ~r/refused: \{:invalid, :operator\}/, fn ->
       Task.run(["approve", id, "--revision", "#{ctx.view.application.revision}"])

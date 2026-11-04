@@ -1699,3 +1699,17 @@ the admin review UI); the publishing policy and public gym surface (D-G11
 public half, E05); community features and their privacy model; the
 relationship between business verification and Stripe Connect KYB for
 member payments (D-G10).
+
+## Amendment — SF-104 (2026-11-04): release-acceptance hardening
+
+* **Verification review is fail-closed.** SF-103's `mix gyms.verification`
+  accepted any email address as the operator (only a conflict-of-interest
+  check applied), so anyone with shell access could act as any operator.
+  Every review call (list and show included) now needs an address on
+  `GYM_VERIFICATION_OPERATORS`; without the list, review is disabled
+  (`:review_disabled`), and an unlisted address is `{:forbidden, :operator}`.
+  The list is an approval in deployment configuration, not an identity: a
+  shell user can still claim another listed address. Production review stays
+  disabled until a platform operator identity exists or that risk is accepted.
+* See `docs/release/sf-104-gym-release-acceptance.md` for the release
+  acceptance evidence and verdicts.
