@@ -52,6 +52,8 @@ defmodule SimpleFit.Gyms.Policy do
           | :view_member_products
           | :manage_member_products
           | :view_member_product_subscriptions
+          | :manage_business_verification
+          | :view_go_live
 
   @type scope ::
           :all
@@ -110,7 +112,15 @@ defmodule SimpleFit.Gyms.Policy do
     # Coaches hold no commercial permission.
     view_member_products: %{owner: :all, manager: :all, front_desk: :all},
     manage_member_products: @admins,
-    view_member_product_subscriptions: %{owner: :all, manager: :all, front_desk: :all}
+    view_member_product_subscriptions: %{owner: :all, manager: :all, front_desk: :all},
+    # SF-103: the business-verification application is the owner's legal
+    # declaration for the business: only the owner reads and writes it
+    # (managers are not assumed to declare for the owner). Nobody at the gym
+    # decides it; no role holds an approval permission.
+    manage_business_verification: @owner,
+    # SF-103: the go-live readiness checklist (verification status only,
+    # never the application's details).
+    view_go_live: @admins
   }
 
   @permissions @matrix |> Map.keys() |> Enum.sort()

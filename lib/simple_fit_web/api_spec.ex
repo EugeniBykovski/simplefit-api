@@ -135,6 +135,14 @@ defmodule SimpleFitWeb.ApiSpec do
               "(ADR 0026, SF-101). Separate from SimpleFit plans. No payment, credit debit or booking rule."
         },
         %Tag{
+          name: "Gym verification",
+          description:
+            "A gym's business verification (SF-103): the owner's application, documents in private storage " <>
+              "and submission; only SimpleFit operators decide, outside the API. And the gym's go-live " <>
+              "readiness, derived from its records. Separate from gym setup, SimpleFit plans and Stripe; " <>
+              "nothing is published (no public gym surface is approved)."
+        },
+        %Tag{
           name: "Payment provider webhooks",
           description:
             "Inbound Stripe webhooks (SF-102), authenticated by the Stripe-Signature header over the raw body, " <>

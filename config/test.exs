@@ -104,7 +104,9 @@ config :simple_fit, SimpleFit.Billing.Stripe,
 
 config :simple_fit, SimpleFit.Storage,
   adapter: SimpleFit.Storage.Fake,
-  bucket: "simplefit-test"
+  bucket: "simplefit-test",
+  # SF-103: server-side HEAD/DELETE requests are answered by test stubs.
+  req_options: [plug: {Req.Test, SimpleFit.Storage}]
 
 config :simple_fit, SimpleFit.Email,
   adapter: SimpleFit.EmailTestAdapter,

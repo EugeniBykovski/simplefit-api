@@ -8,7 +8,9 @@
   * **Deferred product decisions** (not engineering facts): `D-G09`
     (pricing, gym SaaS subscriptions, trials, billing, commercial ownership
     limits), `D-G10` (payment provider and architecture) and `D-G11`
-    (business verification and publishing).
+    (business verification and publishing). Later tickets decided parts of
+    them: SF-101 (D-G09 drafts), SF-102 (D-G10: Stripe for SaaS billing) and
+    SF-103 (D-G11: business verification only; publishing still deferred).
   * **Open:** `D-G17` (no Gym local-development bypass), `D-G19` (non-commercial
     member pass) and `D-G25` (anti-abuse rate limits; the three-gym cap was
     rejected).
@@ -1551,3 +1553,149 @@ deliveries → one inbox row, 10 concurrent reconciliations → one activation,
 checkout completion). **Real Stripe test-mode journeys need test credentials
 and were not verified in SF-102.**
 
+
+## Amendment — SF-103 (2026-11-04): business verification, community defaults and go-live
+
+### Scope and D-G11 reconciliation
+
+D-G11 (business verification and public publishing) was deferred. The SF-103
+ticket is the product decision for **its verification half only**: a gym's
+owner submits a business-verification application with documents, and an
+independently authorized SimpleFit operator decides it, with an immutable
+history. **Publishing stays deferred:** SimpleFit has no approved public gym
+surface (Discover, MarketGyms, a public gym page, E05) or publishing policy,
+so nothing is published, no publication state is stored and no endpoint
+requests or grants publication. Go-live readiness is derived and reported;
+`publication.status` is always `unavailable`.
+
+Five facts stay apart: gym setup (SF-85, unchanged), business verification
+(SF-103), Stripe account capabilities (SF-102, unchanged), operational
+readiness (derived by SF-103) and publication (not available). None implies
+another: a completed setup, a paid SimpleFit plan, a Stripe `charges_enabled`
+or `payouts_enabled` account and a ready checklist are each not a
+verification, and a verification grants no Stripe capability, plan,
+entitlement, staff right or publication.
+
+### Operator authority (gap reported)
+
+SimpleFit has **no platform operator identity or admin authorization domain**:
+the designed admin console (AD0–AD20, scoped time-boxed access, second
+approvers) has no backend, and no `User.role` exists or is added. Review
+therefore follows the accepted operator pattern of SF-101/SF-102
+(`mix billing.catalog`, `mix billing.stripe`): `mix gyms.verification`
+(`SimpleFit.Gyms.VerificationReview`), with no HTTP route. Production shell
+access is the authorization boundary until an admin domain exists. Guards
+that hold whatever the shell user types: the operator is named by an email
+address and must not match a verified email identity of the application's
+creator, its submitter or an active staff member of the gym
+(`operator: not_independent`); a decision names the revision reviewed; only
+reviewed transitions exist; concurrent decisions serialize on the
+application row. A mandatory two-person approval is **not** introduced (no
+policy).
+
+### Verification lifecycle (migration `20261110090000`, explicit up/down)
+
+`gym_verification_applications`: the owner's business details (legal name,
+registration country, optional registration number, registered address and
+website), `status` and a `revision` bumped by every owner change, under a
+versioned requirement policy. One current application per gym (partial
+unique index on `draft | submitted | changes_requested | approved`).
+
+    draft --submit--> submitted --operator--> approved --operator--> revoked
+                        |    \--operator--> rejected
+                        \--operator--> changes_requested --submit--> submitted
+
+A trigger allows only these transitions, keeps the identity, never lets the
+revision go back and freezes the content from submission on (only `draft`
+and `changes_requested` are edited, only by the owner). Rejected and revoked
+are final for that application; the owner starts a new one from nothing.
+`gym_verification_events` is the append-only history (`submitted` by the
+owner; `approved`, `rejected`, `changes_requested`, `revoked` and
+`evidence_downloaded` by an operator), each with the application revision,
+the documents it covered, a reason code where needed and a total order
+(`seq`). Gym audit events gain `business_verification_*` types with
+`verification_application_id` (no actor for operator decisions; the operator
+is in the history). Nothing is deleted (the SF-95 purge switch of test
+cleanup excepted).
+
+**Requirement policy `sf103-generic-1`** (`SimpleFit.Gyms.VerificationPolicy`):
+legal name, registration country and at least one confirmed document; the
+rest optional. **No jurisdiction-specific requirement is approved** (KRS,
+NIP, REGON, EU KYB, any other): a country gains required fields only by
+reviewed configuration (`country_requirements`, none set). Reason codes are
+the operator's vocabulary; the owner sees the code, never the operator or
+free text.
+
+**Owner** (`manage_business_verification`: owner only; managers are not
+assumed to declare for the owner) reads, drafts, uploads, removes unsubmitted
+documents and submits. **Go-live** (`view_go_live`: owner and managers) shows
+only the verification status. No role holds an approval permission.
+
+### Documents and storage
+
+The SF-85 storage blocker is resolved for this use: `SimpleFit.Storage` gains
+`stat/2` (a server-sent presigned `HEAD`: size and content type) and
+`delete/2` (presigned `DELETE`), through `SimpleFit.HTTP`. A document is
+announced (kind, base file name, `application/pdf | image/jpeg | image/png`,
+exact size up to 10 MiB, at most 10 per application) and the server answers
+with a 15-minute presigned upload to a key it built
+(`gyms/<gym>/business-verification/<application>/<evidence>`); after the
+client's direct upload, the server reads the object's size and type itself
+and attaches it only if they match. No client key, URL or path is ever
+accepted; the composite foreign key makes another gym's application
+impossible; another application's document is `not_found`. Submitted
+documents are frozen. Operators download through 5-minute links recorded in
+the history; there is no public or owner download and no key leaves the
+server. `SimpleFit.Gyms.VerificationCleanupWorker` (Oban cron, 30 min)
+deletes the objects of uploads abandoned for a day and of documents removed
+before submission. **Retention of submitted documents is not approved:**
+nothing submitted is deleted. Logo and cover (SF-85) can reuse these
+capabilities in their own ticket.
+
+### Community defaults (OG13)
+
+Every OG13/WG10 setting (community feed, challenges, coaches on a public
+page, member visibility, discoverability, open sparring, shared sessions,
+public leaderboard, member discovery) needs a domain that does not exist:
+none has an enforcing consumer, so **nothing is persisted** and no endpoint
+is added. The web page states the platform guarantees that hold regardless
+(no gym role reads private training data, messages, coach notes or health
+data; D-G06) and shows the settings as coming later. The one real enrollment
+setting (auto-approval, SF-95) stays where it is.
+
+### Go-live readiness (OG14)
+
+`getGymGoLive` derives on every read, under policy `sf103-golive-1`:
+
+| Check | Requiredness | Source |
+| --- | --- | --- |
+| `setup_completed` | required | gym setup |
+| `primary_location` | required | gym setup |
+| `business_verification` (`passed` only when approved; `pending` in review) | required | verification |
+| `upcoming_class` (a scheduled future occurrence) | recommended | timetable |
+| `staff` (an active non-owner staff membership; an invitation is not staff) | optional | staff |
+| `members` (an active member; a request is not a member) | optional | members |
+| `member_products` (a published product version) | optional | member products |
+| `member_payments` (`blocked`: SF-102 decisions not approved; not required) | optional | payments |
+| `public_profile`, `community_settings` (`unavailable`) | future | — |
+
+`prerequisites_met` is true only when every required check passes, re-derived
+each read (a revocation makes it false at once). Stripe test-mode or Connect
+state, and SaaS subscription status, are not readiness facts.
+
+### Revocation
+
+`approved -> revoked` with a reason code. It changes nothing else: staff,
+members, classes, bookings, attendance, subscriptions, Stripe mappings and
+audit history stay; no refund; no Coach–Fighter relationship. Go-live reads
+fail closed from the commit on.
+
+### Unresolved (product and legal)
+
+Jurisdiction-specific KYB requirements and legal grounds; retention of
+verification documents; whether managers may submit for the owner;
+two-person review; an operator identity and admin authorization domain (and
+the admin review UI); the publishing policy and public gym surface (D-G11
+public half, E05); community features and their privacy model; the
+relationship between business verification and Stripe Connect KYB for
+member payments (D-G10).

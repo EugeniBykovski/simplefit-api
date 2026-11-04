@@ -3238,6 +3238,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_business_verification",
                     "manage_enrollment_settings",
                     "manage_first_run",
                     "manage_locations",
@@ -3248,6 +3249,7 @@
                     "remove_staff",
                     "transfer_ownership",
                     "view_attendance",
+                    "view_go_live",
                     "view_member_contact",
                     "view_member_product_subscriptions",
                     "view_member_products",
@@ -3630,6 +3632,175 @@
           "billing"
         ],
         "title": "GymBillingSummaryResponse",
+        "type": "object"
+      },
+      "GymBusinessVerification": {
+        "additionalProperties": false,
+        "description": "The gym's current application (or, after a rejection or revocation, the latest one) with its documents and\nthe latest decision. Only a SimpleFit operator decides; nothing the owner sends approves, and no gym setup,\nSimpleFit plan, payment or Stripe capability counts as verification.\n",
+        "properties": {
+          "application": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GymVerificationApplication"
+              }
+            ],
+            "nullable": true,
+            "type": "object"
+          },
+          "can_edit": {
+            "description": "Saving details is allowed now.",
+            "type": "boolean"
+          },
+          "can_submit": {
+            "description": "Submitting is allowed now (complete, no upload pending).",
+            "type": "boolean"
+          },
+          "evidence": {
+            "description": "The application's documents (removed ones omitted), oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/GymVerificationEvidence"
+            },
+            "type": "array"
+          },
+          "gym_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "latest_decision": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/GymVerificationDecision"
+              }
+            ],
+            "nullable": true,
+            "type": "object"
+          },
+          "missing": {
+            "description": "What submission still needs (required fields, and `evidence` without enough documents).",
+            "items": {
+              "enum": [
+                "legal_name",
+                "registration_country",
+                "registration_number",
+                "address_line",
+                "postal_code",
+                "city",
+                "website",
+                "evidence"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requirements": {
+            "$ref": "#/components/schemas/GymVerificationRequirements"
+          },
+          "status": {
+            "description": "`not_started`: no application. `draft`: being prepared. `submitted`: waiting for a SimpleFit operator.\n`changes_requested`: editable again, see `latest_decision.reason_code`; resubmit. `approved`: verified by\nan operator. `rejected` / `revoked`: final for that application; saving details starts a new one.\n",
+            "enum": [
+              "not_started",
+              "draft",
+              "submitted",
+              "changes_requested",
+              "approved",
+              "rejected",
+              "revoked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "gym_id",
+          "status",
+          "application",
+          "evidence",
+          "latest_decision",
+          "missing",
+          "can_edit",
+          "can_submit",
+          "requirements"
+        ],
+        "title": "GymBusinessVerification",
+        "type": "object"
+      },
+      "GymBusinessVerificationRequest": {
+        "additionalProperties": false,
+        "description": "Any subset of the details; blank or `null` clears one. `revision`: the current application's revision, or\nabsent to start an application when there is none (or after a rejection or revocation). Nothing is\nrequired while drafting.\n",
+        "example": {
+          "legal_name": "Simple Boxing Sp. z o.o.",
+          "registration_country": "PL"
+        },
+        "properties": {
+          "address_line": {
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          },
+          "city": {
+            "maxLength": 80,
+            "nullable": true,
+            "type": "string"
+          },
+          "legal_name": {
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          },
+          "postal_code": {
+            "maxLength": 20,
+            "nullable": true,
+            "type": "string"
+          },
+          "registration_country": {
+            "description": "ISO 3166-1 alpha-2 (case-insensitive).",
+            "nullable": true,
+            "type": "string"
+          },
+          "registration_number": {
+            "maxLength": 40,
+            "nullable": true,
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "website": {
+            "description": "An http(s) address.",
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "title": "GymBusinessVerificationRequest",
+        "type": "object"
+      },
+      "GymBusinessVerificationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "verification": {
+            "$ref": "#/components/schemas/GymBusinessVerification"
+          }
+        },
+        "required": [
+          "verification"
+        ],
+        "title": "GymBusinessVerificationResponse",
+        "type": "object"
+      },
+      "GymBusinessVerificationRevisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "description": "The application revision the owner is looking at.",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision"
+        ],
+        "title": "GymBusinessVerificationRevisionRequest",
         "type": "object"
       },
       "GymChecklistItem": {
@@ -5228,6 +5399,164 @@
         "description": "No fields: the gym comes from the path and the user from the session. Any field (a `user_id`, a checklist\nflag) answers `422 validation_error`.\n",
         "properties": {},
         "title": "GymFirstRunTransitionRequest",
+        "type": "object"
+      },
+      "GymGoLive": {
+        "additionalProperties": false,
+        "description": "Readiness derived from the gym's records on every read; nothing is stored or settable. It never publishes:\nSimpleFit has no approved public gym surface or publishing policy, so `publication.status` is always\n`unavailable`.\n",
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/GymGoLiveCheck"
+            },
+            "type": "array"
+          },
+          "evaluated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "gym_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policy_version": {
+            "type": "string"
+          },
+          "prerequisites_met": {
+            "description": "Every `required` check passed on this read (re-derived each time).",
+            "type": "boolean"
+          },
+          "publication": {
+            "additionalProperties": false,
+            "properties": {
+              "reason_code": {
+                "enum": [
+                  "public_surface_not_available"
+                ],
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "unavailable"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "reason_code"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "gym_id",
+          "policy_version",
+          "evaluated_at",
+          "prerequisites_met",
+          "checks",
+          "publication"
+        ],
+        "title": "GymGoLive",
+        "type": "object"
+      },
+      "GymGoLiveCheck": {
+        "additionalProperties": false,
+        "description": "One check, derived on this read from the gym's own records.",
+        "properties": {
+          "action": {
+            "description": "Where the owner acts on it, when they can; `null` otherwise.",
+            "enum": [
+              "open_verification",
+              "open_locations",
+              "open_timetable",
+              "open_staff",
+              "open_members",
+              "open_memberships",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "key": {
+            "description": "Stable key, in display order.",
+            "enum": [
+              "setup_completed",
+              "primary_location",
+              "business_verification",
+              "upcoming_class",
+              "staff",
+              "members",
+              "member_products",
+              "member_payments",
+              "public_profile",
+              "community_settings"
+            ],
+            "type": "string"
+          },
+          "reason_code": {
+            "description": "Why, as a stable code, e.g. `approved`, `in_review`, `not_started`, `changes_requested`, `rejected`,\n`revoked`, `location_missing`, `no_upcoming_class`, `decisions_not_approved`,\n`public_surface_not_available`.\n",
+            "type": "string"
+          },
+          "requiredness": {
+            "description": "Under the readiness policy; only `required` checks count for `prerequisites_met`.",
+            "enum": [
+              "required",
+              "recommended",
+              "optional",
+              "future"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "description": "The backend domain the check reads.",
+            "enum": [
+              "gym_setup",
+              "business_verification",
+              "timetable",
+              "gym_staff",
+              "gym_members",
+              "member_products",
+              "payments",
+              "publication",
+              "community"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "`passed` / `failed`: the fact holds or not. `pending`: waiting for someone else (an operator's review).\n`blocked`: needs a decision outside the gym (not approved yet). `unavailable`: the feature does not exist\nyet; show it as coming later.\n",
+            "enum": [
+              "passed",
+              "failed",
+              "pending",
+              "blocked",
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "status",
+          "requiredness",
+          "reason_code",
+          "action",
+          "source"
+        ],
+        "title": "GymGoLiveCheck",
+        "type": "object"
+      },
+      "GymGoLiveResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "go_live": {
+            "$ref": "#/components/schemas/GymGoLive"
+          }
+        },
+        "required": [
+          "go_live"
+        ],
+        "title": "GymGoLiveResponse",
         "type": "object"
       },
       "GymInvitationAcceptResponse": {
@@ -7327,6 +7656,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_business_verification",
                     "manage_enrollment_settings",
                     "manage_first_run",
                     "manage_locations",
@@ -7337,6 +7667,7 @@
                     "remove_staff",
                     "transfer_ownership",
                     "view_attendance",
+                    "view_go_live",
                     "view_member_contact",
                     "view_member_product_subscriptions",
                     "view_member_products",
@@ -7842,6 +8173,7 @@
                     "invite_staff",
                     "leave_gym",
                     "manage_billing",
+                    "manage_business_verification",
                     "manage_enrollment_settings",
                     "manage_first_run",
                     "manage_locations",
@@ -7852,6 +8184,7 @@
                     "remove_staff",
                     "transfer_ownership",
                     "view_attendance",
+                    "view_go_live",
                     "view_member_contact",
                     "view_member_product_subscriptions",
                     "view_member_products",
@@ -8093,6 +8426,388 @@
           "expected_revision"
         ],
         "title": "GymVenueUpdateRequest",
+        "type": "object"
+      },
+      "GymVerificationApplication": {
+        "additionalProperties": false,
+        "description": "The business details the owner declared, as stored. Visible only to the gym's owner (and to SimpleFit's\noperators, outside the API). Frozen from submission until changes are requested.\n",
+        "properties": {
+          "address_line": {
+            "description": "The registered address (street and number).",
+            "nullable": true,
+            "type": "string"
+          },
+          "city": {
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decided_at": {
+            "description": "The latest decision; `null` before the first.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "legal_name": {
+            "description": "The business's registered legal name.",
+            "nullable": true,
+            "type": "string"
+          },
+          "policy_version": {
+            "description": "The requirement policy the application was created under.",
+            "type": "string"
+          },
+          "postal_code": {
+            "nullable": true,
+            "type": "string"
+          },
+          "registration_country": {
+            "description": "ISO 3166-1 alpha-2 code of the country of registration.",
+            "nullable": true,
+            "pattern": "^[A-Z]{2}$",
+            "type": "string"
+          },
+          "registration_number": {
+            "description": "The business registration identifier.",
+            "nullable": true,
+            "type": "string"
+          },
+          "revision": {
+            "description": "Bumped by every owner change (details and documents). Send it back with the next change.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "submitted_at": {
+            "description": "The latest submission; `null` before the first.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "website": {
+            "format": "uri",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "policy_version",
+          "legal_name",
+          "registration_country",
+          "registration_number",
+          "address_line",
+          "postal_code",
+          "city",
+          "website",
+          "submitted_at",
+          "decided_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GymVerificationApplication",
+        "type": "object"
+      },
+      "GymVerificationDecision": {
+        "additionalProperties": false,
+        "description": "The latest decision of a SimpleFit operator: what and why (a code), never who or free text.",
+        "properties": {
+          "decided_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "approved",
+              "rejected",
+              "changes_requested",
+              "revoked"
+            ],
+            "type": "string"
+          },
+          "reason_code": {
+            "description": "Why; `null` for an approval.",
+            "enum": [
+              "business_closed",
+              "business_not_verifiable",
+              "details_changed",
+              "details_incomplete",
+              "details_mismatch",
+              "document_mismatch",
+              "document_missing",
+              "document_unreadable",
+              "ineligible_business",
+              "other",
+              "owner_request",
+              "suspected_fraud",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason_code",
+          "decided_at"
+        ],
+        "title": "GymVerificationDecision",
+        "type": "object"
+      },
+      "GymVerificationEvidence": {
+        "additionalProperties": false,
+        "description": "A document in SimpleFit's private storage. Its storage location is never exposed and there is no public or\nowner download: only SimpleFit's operators open documents, through short-lived links recorded in the\napplication's history.\n",
+        "properties": {
+          "byte_size": {
+            "maximum": 10485760,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "image/jpeg",
+              "image/png"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "file_name": {
+            "description": "The base name the owner gave (display only).",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "registration_extract",
+              "proof_of_address",
+              "other"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending_upload`: announced; upload it, then confirm it (`confirmGymVerificationEvidence`). `uploaded`:\nthe server read the stored object and it matches the announced type and size.\n",
+            "enum": [
+              "pending_upload",
+              "uploaded"
+            ],
+            "type": "string"
+          },
+          "submitted": {
+            "description": "Part of a submission: frozen (it can no longer be removed).",
+            "type": "boolean"
+          },
+          "uploaded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "file_name",
+          "content_type",
+          "byte_size",
+          "uploaded_at",
+          "submitted",
+          "created_at"
+        ],
+        "title": "GymVerificationEvidence",
+        "type": "object"
+      },
+      "GymVerificationEvidenceRequest": {
+        "additionalProperties": false,
+        "description": "The document's kind, base file name, content type and exact size; the upload must match them.",
+        "example": {
+          "byte_size": 182311,
+          "content_type": "application/pdf",
+          "file_name": "registry-extract.pdf",
+          "kind": "registration_extract",
+          "revision": 2
+        },
+        "properties": {
+          "byte_size": {
+            "maximum": 10485760,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "image/jpeg",
+              "image/png"
+            ],
+            "type": "string"
+          },
+          "file_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "registration_extract",
+              "proof_of_address",
+              "other"
+            ],
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "kind",
+          "file_name",
+          "content_type",
+          "byte_size"
+        ],
+        "title": "GymVerificationEvidenceRequest",
+        "type": "object"
+      },
+      "GymVerificationEvidenceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence": {
+            "$ref": "#/components/schemas/GymVerificationEvidence"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/GymVerificationUpload"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/GymBusinessVerification"
+          }
+        },
+        "required": [
+          "verification",
+          "evidence",
+          "upload"
+        ],
+        "title": "GymVerificationEvidenceResponse",
+        "type": "object"
+      },
+      "GymVerificationRequirements": {
+        "additionalProperties": false,
+        "description": "The versioned requirement policy (`required_fields` can depend on the registration country). SimpleFit's\ngeneric minimum; no jurisdiction-specific requirement is approved yet.\n",
+        "properties": {
+          "content_types": {
+            "items": {
+              "enum": [
+                "application/pdf",
+                "image/jpeg",
+                "image/png"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kinds": {
+            "items": {
+              "enum": [
+                "registration_extract",
+                "proof_of_address",
+                "other"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "max_bytes": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "max_evidence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "min_evidence": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "policy_version": {
+            "type": "string"
+          },
+          "required_fields": {
+            "items": {
+              "enum": [
+                "legal_name",
+                "registration_country",
+                "registration_number",
+                "address_line",
+                "postal_code",
+                "city",
+                "website"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "policy_version",
+          "required_fields",
+          "min_evidence",
+          "max_evidence",
+          "max_bytes",
+          "content_types",
+          "kinds"
+        ],
+        "title": "GymVerificationRequirements",
+        "type": "object"
+      },
+      "GymVerificationUpload": {
+        "additionalProperties": false,
+        "description": "Send the file's bytes with exactly this method, URL and headers before `expires_at`, then confirm the\ndocument. The URL is a short-lived credential for this one object: never log, store or share it.\n",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "method": {
+            "enum": [
+              "PUT"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "url",
+          "headers",
+          "expires_at"
+        ],
+        "title": "GymVerificationUpload",
         "type": "object"
       },
       "HealthResponse": {
@@ -11362,6 +12077,518 @@
         ]
       }
     },
+    "/api/v1/gyms/{gym_id}/business-verification": {
+      "get": {
+        "callbacks": {},
+        "description": "The current application (or the latest rejected or revoked one), its documents, the latest operator decision,\nwhat submission still needs and the requirement policy. Reading creates nothing.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - only the gym's owner reads and writes its verification (`manage_business_verification`);\n  managers, coaches and front desk do not.\n\n",
+        "operationId": "getGymBusinessVerification",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBusinessVerificationResponse"
+                }
+              }
+            },
+            "description": "The verification"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's business verification",
+        "tags": [
+          "Gym verification"
+        ]
+      },
+      "put": {
+        "callbacks": {},
+        "description": "Starts an application (`201`, no `revision`, when the gym has none current) or changes the details of the\ncurrent draft or of an application with changes requested (`200`, `revision` = its revision). Every change\nbumps the revision. Nothing is required while drafting; nothing here submits or approves.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - only the gym's owner reads and writes its verification (`manage_business_verification`);\n  managers, coaches and front desk do not.\n\n* `conflict` - `details.revision: \"stale\"` (with `current_revision`; reload and retry); `details.verification`\n  names a status that does not allow the change (`submitted`, `approved`, ... or `not_started`); a draft gym\n  (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `validation_error` - an invalid value (country, website, length, control characters) or an unknown field.\n",
+        "operationId": "saveGymBusinessVerification",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymBusinessVerificationRequest"
+              }
+            }
+          },
+          "description": "The details",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBusinessVerificationResponse"
+                }
+              }
+            },
+            "description": "The verification"
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBusinessVerificationResponse"
+                }
+              }
+            },
+            "description": "The verification"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save the verification draft",
+        "tags": [
+          "Gym verification"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/business-verification/evidence": {
+      "post": {
+        "callbacks": {},
+        "description": "Announces a document of the current editable application at `revision` (kind, base file name, content type\nand exact size within the policy) and returns a presigned direct upload to private storage, valid for 15\nminutes, that accepts only that type and size. The document stays `pending_upload` until confirmed.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - only the gym's owner reads and writes its verification (`manage_business_verification`);\n  managers, coaches and front desk do not.\n\n* `conflict` - `details.revision: \"stale\"` (with `current_revision`; reload and retry); `details.verification`\n  names a status that does not allow the change (`submitted`, `approved`, ... or `not_started`); a draft gym\n  (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `conflict` - also `details.evidence: \"limit_reached\"`.\n* `validation_error` - a kind, content type or size outside the policy, an empty file name, an unknown field.\n",
+        "operationId": "createGymVerificationEvidence",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymVerificationEvidenceRequest"
+              }
+            }
+          },
+          "description": "The document",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymVerificationEvidenceResponse"
+                }
+              }
+            },
+            "description": "The document and its upload"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Announce a document and get its upload",
+        "tags": [
+          "Gym verification"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/business-verification/evidence/{evidence_id}/confirm": {
+      "post": {
+        "callbacks": {},
+        "description": "The server reads the stored object's size and type itself and attaches the document only when they match\nwhat was announced. Confirming an attached document again returns the verification.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - only the gym's owner reads and writes its verification (`manage_business_verification`);\n  managers, coaches and front desk do not.\n\n* `not_found` - also an unknown document, or one of another application or gym.\n* `conflict` - `details.revision: \"stale\"` (with `current_revision`; reload and retry); `details.verification`\n  names a status that does not allow the change (`submitted`, `approved`, ... or `not_started`); a draft gym\n  (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `conflict` - also `details.upload: \"not_found\"` (nothing was uploaded) or `\"mismatch\"` (another size or\n  type), `details.evidence: \"removed\"`.\n* `service_unavailable` - storage could not be reached; retry.\n",
+        "operationId": "confirmGymVerificationEvidence",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A document of the gym's current application.",
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBusinessVerificationResponse"
+                }
+              }
+            },
+            "description": "The verification"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Confirm an uploaded document",
+        "tags": [
+          "Gym verification"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/business-verification/evidence/{evidence_id}/remove": {
+      "post": {
+        "callbacks": {},
+        "description": "Removes a document of the current editable application at `revision` that was never part of a submission;\nits stored file is deleted later. Removing it again returns the verification.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - only the gym's owner reads and writes its verification (`manage_business_verification`);\n  managers, coaches and front desk do not.\n\n* `not_found` - also an unknown document, or one of another application or gym.\n* `conflict` - `details.revision: \"stale\"` (with `current_revision`; reload and retry); `details.verification`\n  names a status that does not allow the change (`submitted`, `approved`, ... or `not_started`); a draft gym\n  (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `conflict` - also `details.evidence: \"submitted\"` (submitted documents are frozen).\n",
+        "operationId": "removeGymVerificationEvidence",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A document of the gym's current application.",
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymBusinessVerificationRevisionRequest"
+              }
+            }
+          },
+          "description": "The revision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBusinessVerificationResponse"
+                }
+              }
+            },
+            "description": "The verification"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remove a document",
+        "tags": [
+          "Gym verification"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/business-verification/submit": {
+      "post": {
+        "callbacks": {},
+        "description": "Submits the current application at `revision` to SimpleFit's operators. It needs the policy's required fields\nand enough confirmed documents, and no upload still pending. Submitting the revision that is already\nsubmitted returns it unchanged. A submission is never an approval.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never revealed).\n* `forbidden` - only the gym's owner reads and writes its verification (`manage_business_verification`);\n  managers, coaches and front desk do not.\n\n* `conflict` - `details.revision: \"stale\"` (with `current_revision`; reload and retry); `details.verification`\n  names a status that does not allow the change (`submitted`, `approved`, ... or `not_started`); a draft gym\n  (`details.setup_status`).\n* `rate_limited` - 60 changes per 10 minutes per user.\n\n* `conflict` - also `details.evidence: \"upload_pending\"` (confirm or remove pending uploads first).\n* `validation_error` - a required field is blank or `evidence` has too few documents (`fields`).\n",
+        "operationId": "submitGymBusinessVerification",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymBusinessVerificationRevisionRequest"
+              }
+            }
+          },
+          "description": "The revision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymBusinessVerificationResponse"
+                }
+              }
+            },
+            "description": "The verification"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Submit the application for review",
+        "tags": [
+          "Gym verification"
+        ]
+      }
+    },
     "/api/v1/gyms/{gym_id}/class-bookings/{booking_id}/cancel": {
       "post": {
         "callbacks": {},
@@ -13679,6 +14906,58 @@
         "summary": "Start the gym introduction",
         "tags": [
           "Gyms"
+        ]
+      }
+    },
+    "/api/v1/gyms/{gym_id}/go-live": {
+      "get": {
+        "callbacks": {},
+        "description": "The readiness checklist derived on this read from the gym's records (setup, primary location, business\nverification, upcoming classes, staff, members, member products, member payments, and the future public\nprofile and community settings), each with its requiredness under the versioned policy. Nothing is stored\nand nothing is published: `publication.status` is `unavailable` (no approved public gym surface).\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there.\n* `forbidden` - only the owner and managers read it (`view_go_live`).\n",
+        "operationId": "getGymGoLive",
+        "parameters": [
+          {
+            "description": "The gym.",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GymGoLiveResponse"
+                }
+              }
+            },
+            "description": "The readiness"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A gym's go-live readiness",
+        "tags": [
+          "Gym verification"
         ]
       }
     },
@@ -21837,6 +23116,10 @@
     {
       "description": "A gym's own products for its members (single visits, class packs, unlimited periods) with immutable versions and append-only prices, and its members' product subscription intents (ADR 0026, SF-101). Separate from SimpleFit plans. No payment, credit debit or booking rule.",
       "name": "Gym member products"
+    },
+    {
+      "description": "A gym's business verification (SF-103): the owner's application, documents in private storage and submission; only SimpleFit operators decide, outside the API. And the gym's go-live readiness, derived from its records. Separate from gym setup, SimpleFit plans and Stripe; nothing is published (no public gym surface is approved).",
+      "name": "Gym verification"
     },
     {
       "description": "Inbound Stripe webhooks (SF-102), authenticated by the Stripe-Signature header over the raw body, never by a session. Not for clients.",

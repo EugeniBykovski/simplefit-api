@@ -299,6 +299,26 @@ defmodule SimpleFitWeb.Router do
     get "/gyms/:gym_id/billing/invoices", GymBillingController, :invoices
     post "/gyms/:gym_id/billing/portal-session", GymBillingController, :portal
 
+    # SF-103: business verification (the owner's application and documents;
+    # operators decide outside the API) and go-live readiness.
+    get "/gyms/:gym_id/business-verification", GymVerificationController, :show
+    put "/gyms/:gym_id/business-verification", GymVerificationController, :save
+    post "/gyms/:gym_id/business-verification/submit", GymVerificationController, :submit
+
+    post "/gyms/:gym_id/business-verification/evidence",
+         GymVerificationController,
+         :create_evidence
+
+    post "/gyms/:gym_id/business-verification/evidence/:evidence_id/confirm",
+         GymVerificationController,
+         :confirm_evidence
+
+    post "/gyms/:gym_id/business-verification/evidence/:evidence_id/remove",
+         GymVerificationController,
+         :remove_evidence
+
+    get "/gyms/:gym_id/go-live", GymVerificationController, :go_live
+
     get "/gyms/:gym_id/entitlements", GymBillingController, :entitlements
     get "/gyms/:gym_id/member-products", GymMemberProductController, :index
     post "/gyms/:gym_id/member-products", GymMemberProductController, :create

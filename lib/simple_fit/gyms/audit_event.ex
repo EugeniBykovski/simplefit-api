@@ -64,6 +64,11 @@ defmodule SimpleFit.Gyms.AuditEvent do
           | :class_booking_cancelled
           | :class_bookings_released
           | :class_check_in_recorded
+          | :business_verification_submitted
+          | :business_verification_approved
+          | :business_verification_rejected
+          | :business_verification_changes_requested
+          | :business_verification_revoked
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -165,7 +170,14 @@ defmodule SimpleFit.Gyms.AuditEvent do
         :saas_subscription_reactivated,
         :saas_payment_failed,
         :saas_refund_recorded,
-        :saas_dispute_recorded
+        :saas_dispute_recorded,
+        # SF-103: business verification (submitted by the owner; decided by
+        # an operator, recorded without an actor user).
+        :business_verification_submitted,
+        :business_verification_approved,
+        :business_verification_rejected,
+        :business_verification_changes_requested,
+        :business_verification_revoked
       ]
 
     field :staff_membership_id, :binary_id
@@ -186,6 +198,7 @@ defmodule SimpleFit.Gyms.AuditEvent do
     field :member_price_version_id, :binary_id
     field :member_product_subscription_id, :binary_id
     field :billing_record_id, :binary_id
+    field :verification_application_id, :binary_id
     field :from_role, Ecto.Enum, values: StaffMembership.roles()
     field :to_role, Ecto.Enum, values: StaffMembership.roles()
 
