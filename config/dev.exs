@@ -53,7 +53,10 @@ config :simple_fit, SimpleFit.Gyms,
   web_app_url: "http://localhost:3000",
   # SF-95: member invitations (E07) are sent locally (Log adapter); in
   # production they stay off until the recipient flow exists.
-  member_invitations: true
+  member_invitations: true,
+  # SF-133: staff invitations (E06) likewise: production keeps them off until
+  # the deployed /invite/staff page passed its smoke test.
+  staff_invitations: true
 
 # Transactional email (ADR 0011): development-only payload key, http CTA
 # URLs for the local web app, and the template preview at /dev/emails.

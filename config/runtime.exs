@@ -355,14 +355,18 @@ case config_env() do
     # Member invitations (SF-95) stay off in production until the web
     # recipient page `/invite/gym` and the in-app inbox exist: an E07 email
     # must never link to a missing page. Only GYM_MEMBER_INVITATIONS=enabled
-    # turns them on; anything else (including unset) keeps them off.
+    # turns them on; anything else (including unset) keeps them off. Staff
+    # invitations (E06, SF-133) work the same way with GYM_STAFF_INVITATIONS,
+    # enabled only under release approval after the deployed `/invite/staff`
+    # page passed its smoke test.
     config :simple_fit, SimpleFit.Gyms,
       secret_key_base: secret_key_base,
       web_app_url:
         SimpleFit.Accounts.EmailAuth.parse_web_app_url!(System.get_env("WEB_APP_URL"),
           require_https: true
         ),
-      member_invitations: System.get_env("GYM_MEMBER_INVITATIONS") == "enabled"
+      member_invitations: System.get_env("GYM_MEMBER_INVITATIONS") == "enabled",
+      staff_invitations: System.get_env("GYM_STAFF_INVITATIONS") == "enabled"
 
     # Client IP for rate limits (ADR 0012). Required in production (SF-83):
     # 0 when clients connect directly (the peer address), otherwise the number

@@ -239,6 +239,42 @@ defmodule SimpleFitWeb.StaffInvitationResponseController do
 
   def decline_by_token(conn, _params), do: decline(conn, {:token, conn.body_params["token"]})
 
+  operation :resolve,
+    operation_id: "resolveStaffInvitation",
+    summary: "A staff invitation link, for its signed-in recipient",
+    description: """
+    The invitation of an E06 token in any status (`pending`, `accepted`, `declined`, `cancelled`, `expired`), for
+    a viewer whose verified email identity is the invited address, so the web page can say what became of it.
+    Nothing is accepted, linked or changed. `previewStaffInvitation` answers an anonymous holder and never reveals
+    a status.
+
+    * `invitation_recipient_mismatch` (403) - a current token of another address; verify that address
+      (`requestEmailIdentityLink`) or use the account that owns it.
+    * `invitation_unavailable` (410) - an unknown token, or a used one of another address.
+    * `rate_limited` - 30 previews and answers per 10 minutes per client.
+    """,
+    security: @security,
+    request_body: @token_body,
+    responses: [
+      ok: {"The invitation", "application/json", Schemas.MyStaffInvitationResponse},
+      unauthorized: ApiSpec.error_response("unauthorized"),
+      forbidden: ApiSpec.error_response("invitation_recipient_mismatch"),
+      gone: ApiSpec.error_response("invitation_unavailable"),
+      too_many_requests: @rate_limited,
+      internal_server_error: ApiSpec.error_response("internal_error")
+    ]
+
+  def resolve(conn, _params) do
+    with {:ok, invitation} <-
+           Gyms.resolve_staff_invitation(
+             conn.assigns.current_user,
+             conn.body_params["token"],
+             ClientIP.limit_key(conn)
+           ) do
+      conn |> no_store() |> render(:my_show, invitation: invitation)
+    end
+  end
+
   operation :preview,
     operation_id: "previewStaffInvitation",
     summary: "What a staff invitation link shows",

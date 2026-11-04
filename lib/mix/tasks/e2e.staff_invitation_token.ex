@@ -9,6 +9,10 @@ defmodule Mix.Tasks.E2e.StaffInvitationToken do
   opening the email.
 
       $ MIX_ENV=dev DATABASE_URL=... mix e2e.staff_invitation_token someone@example.com
+      $ MIX_ENV=dev DATABASE_URL=... mix e2e.staff_invitation_token --link someone@example.com
+
+  With `--link` it prints the whole link as the email carries it, so a browser
+  test opens exactly what the recipient would (SF-133).
 
   Queued email payloads stay encrypted (ADR 0011); this task opens them with
   the environment's own key, exactly as the delivery worker does. It runs
@@ -27,10 +31,11 @@ defmodule Mix.Tasks.E2e.StaffInvitationToken do
 
   @impl Mix.Task
   def run(args) do
-    address =
+    {part, address} =
       case args do
-        [address] -> String.downcase(String.trim(address))
-        _ -> Mix.raise("usage: mix e2e.staff_invitation_token <address>")
+        ["--link", address] -> {:link, String.downcase(String.trim(address))}
+        [address] -> {:token, String.downcase(String.trim(address))}
+        _ -> Mix.raise("usage: mix e2e.staff_invitation_token [--link] <address>")
       end
 
     Mix.Task.run("app.config")
@@ -42,8 +47,8 @@ defmodule Mix.Tasks.E2e.StaffInvitationToken do
     {:ok, _} = Application.ensure_all_started([:plug_crypto, :postgrex, :ecto_sql])
     start_repo()
 
-    case latest_token(address) do
-      {:ok, token} -> Mix.shell().info(token)
+    case latest_link(address) do
+      {:ok, link, token} -> Mix.shell().info(if part == :link, do: link, else: token)
       :error -> Mix.raise("no staff invitation queued to that address")
     end
   end
@@ -56,7 +61,7 @@ defmodule Mix.Tasks.E2e.StaffInvitationToken do
     end
   end
 
-  defp latest_token(address) do
+  defp latest_link(address) do
     from(j in Oban.Job,
       where: j.worker == "SimpleFit.Email.DeliveryWorker",
       order_by: [desc: j.id],
@@ -66,8 +71,8 @@ defmodule Mix.Tasks.E2e.StaffInvitationToken do
     |> Repo.all(log: false)
     |> Enum.find_value(:error, fn args ->
       with {:ok, %{to: [^address], text: text}} <- JobPayload.open(args["payload"]),
-           [_, token] <- Regex.run(~r"/invite/staff#token=(sfs_[A-Za-z0-9_-]{43})", text) do
-        {:ok, token}
+           [link, token] <- Regex.run(~r"\S+/invite/staff#token=(sfs_[A-Za-z0-9_-]{43})", text) do
+        {:ok, link, token}
       else
         _ -> nil
       end

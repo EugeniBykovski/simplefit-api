@@ -17534,7 +17534,7 @@
       },
       "post": {
         "callbacks": {},
-        "description": "Invites an email address to a role and queues the E06 email, whose link carries a one-time token in its\nfragment (`<web app>/invite/staff#token=…`). The invitation grants nothing: the recipient must sign in with\nthat address (a verified email identity) and accept it explicitly, within 7 days. Creating it creates no\naccount and reveals nothing about one. Only a completed gym invites. The owner invites managers, coaches\nand front desk; a manager coaches and front desk; nobody is invited as owner.\n\nThe same address and role while an invitation is pending returns that invitation with `200` (no new email):\na repeated request is safe. Another gym inviting the same address is independent.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - the viewer's role may not invite (or not this role: managers are invited by the owner).\n* `conflict` - the gym is a draft (`details.setup_status: \"draft\"`); this address has a pending invitation\n  to another role (`details.staff_invitation: \"pending_other_role\"`: cancel it first); or it belongs to an\n  active member of this gym (`details.staff_membership: \"already_active\"`).\n* `validation_error` - `email` invalid or the viewer's own, `role` missing or not `manager`, `coach` or\n  `front_desk`, or any other field.\n* `rate_limited` - 10 invitations per hour and 30 per day per user, 100 per day per gym, 3 per day per\n  address (any gym), 20 per 10 minutes per client, in rolling windows; repeats are not counted.\n",
+        "description": "Invites an email address to a role and queues the E06 email, whose link carries a one-time token in its\nfragment (`<web app>/invite/staff#token=…`). The invitation grants nothing: the recipient must sign in with\nthat address (a verified email identity) and accept it explicitly, within 7 days. Creating it creates no\naccount and reveals nothing about one. Only a completed gym invites. The owner invites managers, coaches\nand front desk; a manager coaches and front desk; nobody is invited as owner.\n\nThe same address and role while an invitation is pending returns that invitation with `200` (no new email):\na repeated request is safe. Another gym inviting the same address is independent.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - the viewer's role may not invite (or not this role: managers are invited by the owner).\n* `conflict` - sending is off in this deployment (`details.staff_invitation: \"recipient_flow_unavailable\"`,\n  nothing is created or sent); the gym is a draft (`details.setup_status: \"draft\"`); this address has a pending invitation\n  to another role (`details.staff_invitation: \"pending_other_role\"`: cancel it first); or it belongs to an\n  active member of this gym (`details.staff_membership: \"already_active\"`).\n* `validation_error` - `email` invalid or the viewer's own, `role` missing or not `manager`, `coach` or\n  `front_desk`, or any other field.\n* `rate_limited` - 10 invitations per hour and 30 per day per user, 100 per day per gym, 3 per day per\n  address (any gym), 20 per 10 minutes per client, in rolling windows; repeats are not counted.\n",
         "operationId": "createGymStaffInvitation",
         "parameters": [
           {
@@ -17719,7 +17719,7 @@
     "/api/v1/gyms/{gym_id}/staff-invitations/{invitation_id}/resend": {
       "post": {
         "callbacks": {},
-        "description": "Sends a pending invitation again with a new token (the previous link stops working at once) and a new\n7-day expiry. At most 3 resends, 60 seconds apart. The same permission as inviting that role.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - the viewer's role may not invite this role.\n* `conflict` - not pending (`details.staff_invitation: \"not_pending\"`) or no resends left\n  (`details.resends: \"limit_reached\"`).\n* `rate_limited` - within 60 seconds of the last sending, or 60 staff administration requests per 10\n  minutes per user.\n",
+        "description": "Sends a pending invitation again with a new token (the previous link stops working at once) and a new\n7-day expiry. At most 3 resends, 60 seconds apart. The same permission as inviting that role.\n\n* `not_found` - no such gym, or the viewer holds no active staff membership there (existence is never\n  revealed); for an invitation, also an unknown id or another gym's invitation.\n\n* `forbidden` - the viewer's role may not invite this role.\n* `conflict` - sending is off in this deployment (`details.staff_invitation: \"recipient_flow_unavailable\"`);\n  not pending (`details.staff_invitation: \"not_pending\"`) or no resends left\n  (`details.resends: \"limit_reached\"`).\n* `rate_limited` - within 60 seconds of the last sending, or 60 staff administration requests per 10\n  minutes per user.\n",
         "operationId": "resendGymStaffInvitation",
         "parameters": [
           {
@@ -22480,6 +22480,77 @@
           }
         ],
         "summary": "Decline a staff invitation link",
+        "tags": [
+          "Gym staff"
+        ]
+      }
+    },
+    "/api/v1/me/staff-invitations/resolve": {
+      "post": {
+        "callbacks": {},
+        "description": "The invitation of an E06 token in any status (`pending`, `accepted`, `declined`, `cancelled`, `expired`), for\na viewer whose verified email identity is the invited address, so the web page can say what became of it.\nNothing is accepted, linked or changed. `previewStaffInvitation` answers an anonymous holder and never reveals\na status.\n\n* `invitation_recipient_mismatch` (403) - a current token of another address; verify that address\n  (`requestEmailIdentityLink`) or use the account that owns it.\n* `invitation_unavailable` (410) - an unknown token, or a used one of another address.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "resolveStaffInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E06 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyStaffInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A staff invitation link, for its signed-in recipient",
         "tags": [
           "Gym staff"
         ]
