@@ -8,10 +8,21 @@ defmodule SimpleFit.Gyms.VerificationReview do
   operator identity or admin authorization domain yet (the designed admin
   console, AD0–AD20, has no backend), so review follows the existing
   operator pattern (`SimpleFit.Billing.Operations`, SF-101/SF-102): people
-  with production shell access run `mix gyms.verification`, and that access
-  is the authorization boundary. Each write names the operator (an email
-  address) and is recorded in the application's append-only history with
-  the revision and documents it covered.
+  with production shell access run `mix gyms.verification`. Each call names
+  the operator (an email address) and each write is recorded in the
+  application's append-only history with the revision and documents it
+  covered.
+
+  **Review is disabled unless operators are configured** (SF-104): every
+  call, reads included, needs an operator listed in
+  `config :simple_fit, SimpleFit.Gyms.VerificationReview, operators: [...]`
+  (`GYM_VERIFICATION_OPERATORS`, comma-separated addresses). With no list,
+  everything answers `:review_disabled`; an address outside the list is
+  `{:forbidden, :operator}`. An arbitrary address typed into the task is
+  therefore never an operator. The list is an approval made in deployment
+  configuration, not an identity: a shell user can still claim another
+  listed address, so production review stays disabled until an operator
+  identity exists or the risk is accepted.
 
   Guards that hold whatever the shell user types:
 
@@ -71,11 +82,22 @@ defmodule SimpleFit.Gyms.VerificationReview do
           events: [VerificationEvent.t()]
         }
 
-  @type error :: :not_found | {:conflict, map()} | {:invalid, atom()}
+  @type error ::
+          :not_found
+          | :review_disabled
+          | {:forbidden, :operator}
+          | {:conflict, map()}
+          | {:invalid, atom()}
 
-  @doc "Submitted applications awaiting a decision, oldest first."
-  @spec list_submitted() :: [summary()]
-  def list_submitted do
+  @doc "Submitted applications awaiting a decision, oldest first (an authorized operator only)."
+  @spec list_submitted(String.t()) :: {:ok, [summary()]} | {:error, error()}
+  def list_submitted(operator) do
+    with {:ok, _operator} <- operator(operator) do
+      {:ok, submitted()}
+    end
+  end
+
+  defp submitted do
     Repo.all(
       from(a in VerificationApplication,
         join: g in Gym,
@@ -88,10 +110,11 @@ defmodule SimpleFit.Gyms.VerificationReview do
     )
   end
 
-  @doc "One application with its gym, every document and its history."
-  @spec show(term()) :: {:ok, detail()} | {:error, :not_found}
-  def show(application_id) do
-    with {:ok, application} <- fetch(application_id) do
+  @doc "One application with its gym, every document and its history (an authorized operator only)."
+  @spec show(term(), String.t()) :: {:ok, detail()} | {:error, error()}
+  def show(application_id, operator) do
+    with {:ok, _operator} <- operator(operator),
+         {:ok, application} <- fetch(application_id) do
       {:ok,
        %{
          application: application,
@@ -247,14 +270,37 @@ defmodule SimpleFit.Gyms.VerificationReview do
     end
   end
 
+  # A well-formed address on the configured operator list; no list, no review.
   defp operator(value) when is_binary(value) do
-    case EmailAddress.normalize(value) do
-      {:ok, email} -> {:ok, email}
-      :error -> {:error, {:invalid, :operator}}
+    case {EmailAddress.normalize(value), operators()} do
+      {_email, []} ->
+        {:error, :review_disabled}
+
+      {:error, _list} ->
+        {:error, {:invalid, :operator}}
+
+      {{:ok, email}, list} ->
+        if email in list, do: {:ok, email}, else: {:error, {:forbidden, :operator}}
     end
   end
 
-  defp operator(_value), do: {:error, {:invalid, :operator}}
+  defp operator(_value) do
+    if operators() == [], do: {:error, :review_disabled}, else: {:error, {:invalid, :operator}}
+  end
+
+  @doc "The configured operator addresses (normalized); empty means review is disabled."
+  @spec operators() :: [String.t()]
+  def operators do
+    :simple_fit
+    |> Application.get_env(__MODULE__, [])
+    |> Keyword.get(:operators, [])
+    |> Enum.flat_map(fn address ->
+      case EmailAddress.normalize(address) do
+        {:ok, email} -> [email]
+        :error -> []
+      end
+    end)
+  end
 
   # The operator is none of the gym's active staff and neither the
   # application's creator nor its submitter (by verified email identity).

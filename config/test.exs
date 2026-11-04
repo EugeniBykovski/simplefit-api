@@ -133,3 +133,7 @@ config :simple_fit, SimpleFit.Legal,
 # DEVELOPMENT mode through `LocalDevelopment.put_active_for_test/1` only. The
 # real activation refuses every non-:dev build, and no opt-in is read here.
 config :simple_fit, SimpleFit.Coaching.LocalDevelopment, allowed: true
+
+# SF-104: the operators allowed to review gym business verification in tests.
+config :simple_fit, SimpleFit.Gyms.VerificationReview,
+  operators: ["reviewer@trust.simplefit.test"]
