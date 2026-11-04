@@ -51,6 +51,7 @@ defmodule SimpleFit.Gyms do
     Commerce,
     Creation,
     FirstRun,
+    GoLive,
     Guarded,
     Gym,
     GymLocation,
@@ -64,7 +65,9 @@ defmodule SimpleFit.Gyms do
     StaffInvitations,
     StaffMembership,
     Timetable,
-    Venues
+    Venues,
+    Verification,
+    VerificationEvidence
   }
 
   alias SimpleFit.Accounts.Session
@@ -156,6 +159,61 @@ defmodule SimpleFit.Gyms do
   @spec first_run_transition(User.t(), term(), FirstRun.action(), map()) ::
           {:ok, FirstRun.state()} | {:error, FirstRun.error()}
   defdelegate first_run_transition(user, gym_id, action, attrs), to: FirstRun, as: :transition
+
+  ## Business verification and go-live (SF-103)
+
+  @doc """
+  The gym's business verification, for its owner (`:not_found` without an
+  active membership, `:forbidden` for other staff). See
+  `SimpleFit.Gyms.Verification`.
+  """
+  @spec get_business_verification(User.t(), term()) ::
+          {:ok, Verification.view()} | {:error, :not_found | :forbidden}
+  defdelegate get_business_verification(user, gym_id), to: Verification, as: :get
+
+  @doc "Creates or changes the owner's draft application. See `SimpleFit.Gyms.Verification.save/4`."
+  @spec save_business_verification(User.t(), Session.t(), term(), map()) ::
+          {:ok, {Verification.view(), :created | :updated}} | {:error, Verification.error()}
+  defdelegate save_business_verification(user, session, gym_id, attrs),
+    to: Verification,
+    as: :save
+
+  @doc "Submits the application for review. See `SimpleFit.Gyms.Verification.submit/4`."
+  @spec submit_business_verification(User.t(), Session.t(), term(), map()) ::
+          {:ok, Verification.view()} | {:error, Verification.error()}
+  defdelegate submit_business_verification(user, session, gym_id, attrs),
+    to: Verification,
+    as: :submit
+
+  @doc "Announces a document and presigns its upload. See `SimpleFit.Gyms.Verification.add_evidence/4`."
+  @spec add_business_verification_evidence(User.t(), Session.t(), term(), map()) ::
+          {:ok, {Verification.view(), VerificationEvidence.t(), SimpleFit.Storage.Presigned.t()}}
+          | {:error, Verification.error()}
+  defdelegate add_business_verification_evidence(user, session, gym_id, attrs),
+    to: Verification,
+    as: :add_evidence
+
+  @doc "Attaches an uploaded document. See `SimpleFit.Gyms.Verification.confirm_evidence/4`."
+  @spec confirm_business_verification_evidence(User.t(), Session.t(), term(), term()) ::
+          {:ok, Verification.view()} | {:error, Verification.error()}
+  defdelegate confirm_business_verification_evidence(user, session, gym_id, evidence_id),
+    to: Verification,
+    as: :confirm_evidence
+
+  @doc "Removes an unsubmitted document. See `SimpleFit.Gyms.Verification.remove_evidence/5`."
+  @spec remove_business_verification_evidence(User.t(), Session.t(), term(), term(), map()) ::
+          {:ok, Verification.view()} | {:error, Verification.error()}
+  defdelegate remove_business_verification_evidence(user, session, gym_id, evidence_id, attrs),
+    to: Verification,
+    as: :remove_evidence
+
+  @doc """
+  The gym's go-live readiness, for its owner and managers. See
+  `SimpleFit.Gyms.GoLive`.
+  """
+  @spec get_go_live(User.t(), term()) ::
+          {:ok, GoLive.readiness()} | {:error, :not_found | :forbidden}
+  defdelegate get_go_live(user, gym_id), to: GoLive, as: :get
 
   defp setup_view(%{gym: gym, membership: membership, primary_location: location}) do
     %{

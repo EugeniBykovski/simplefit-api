@@ -66,4 +66,57 @@ defmodule SimpleFit.StorageTest do
 
     refute Map.has_key?(metadata, :key)
   end
+
+  describe "stat/2 and delete/2 (SF-103)" do
+    test "a presigned HEAD reads the stored size and type; missing objects are not found" do
+      Req.Test.stub(SimpleFit.Storage, fn conn ->
+        assert conn.method == "HEAD"
+        assert conn.host == "fake-storage.invalid"
+        assert conn.request_path == "/simplefit-test/documents/d1/contract.pdf"
+        assert conn.query_string =~ "method=head"
+
+        conn
+        |> Plug.Conn.put_resp_header("content-length", "2048")
+        |> Plug.Conn.put_resp_header("content-type", "application/pdf")
+        |> Plug.Conn.send_resp(200, "")
+      end)
+
+      assert Storage.stat("documents/d1/contract.pdf") ==
+               {:ok, %{content_length: 2048, content_type: "application/pdf"}}
+
+      for status <- [403, 404] do
+        Req.Test.stub(SimpleFit.Storage, &Plug.Conn.send_resp(&1, status, ""))
+        assert Storage.stat("documents/d1/contract.pdf") == {:error, :not_found}
+      end
+
+      Req.Test.stub(SimpleFit.Storage, &Plug.Conn.send_resp(&1, 503, ""))
+
+      assert ExUnit.CaptureLog.capture_log(fn ->
+               assert Storage.stat("documents/d1/contract.pdf") == {:error, :unavailable}
+             end) =~ "provider request failed"
+
+      assert Storage.stat("../etc/passwd") == {:error, :invalid_request}
+    end
+
+    test "a presigned DELETE removes an object; an absent one is already gone" do
+      test_pid = self()
+
+      Req.Test.stub(SimpleFit.Storage, fn conn ->
+        send(test_pid, {:method, conn.method})
+        Plug.Conn.send_resp(conn, 204, "")
+      end)
+
+      assert Storage.delete("documents/d1/contract.pdf") == :ok
+      assert_received {:method, "DELETE"}
+
+      Req.Test.stub(SimpleFit.Storage, &Plug.Conn.send_resp(&1, 404, ""))
+      assert Storage.delete("documents/d1/contract.pdf") == :ok
+
+      Req.Test.stub(SimpleFit.Storage, &Plug.Conn.send_resp(&1, 401, ""))
+
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert Storage.delete("documents/d1/contract.pdf") == {:error, :unauthorized}
+      end)
+    end
+  end
 end

@@ -3,7 +3,8 @@ defmodule SimpleFit.Storage.Presigned do
   A time-limited, signed request a client performs directly against object
   storage (uploads and downloads never pass through Phoenix).
 
-    * `method` - HTTP method the client must use (`:put` or `:get`).
+    * `method` - HTTP method the client must use (`:put` or `:get`; the
+      server itself sends `:head` and `:delete`, SF-103).
     * `url` - the signed URL. It is a bearer credential until `expires_at`:
       return it only to the client that asked for it and never log it.
       `inspect/1` redacts it.
@@ -16,8 +17,10 @@ defmodule SimpleFit.Storage.Presigned do
   @enforce_keys [:method, :url, :headers, :expires_at]
   defstruct [:method, :url, :headers, :expires_at]
 
+  @type method :: :put | :get | :head | :delete
+
   @type t :: %__MODULE__{
-          method: :put | :get,
+          method: method(),
           url: String.t(),
           headers: %{optional(String.t()) => String.t()},
           expires_at: DateTime.t()

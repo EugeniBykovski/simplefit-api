@@ -49,7 +49,10 @@ config :simple_fit, Oban,
        {"@hourly", SimpleFit.Accounts.EmailAuth.CleanupWorker},
        # SF-102: reconciles Stripe-backed subscriptions a webhook missed
        # (does nothing while the integration is disabled).
-       {"17 * * * *", SimpleFit.Billing.Stripe.SweepWorker}
+       {"17 * * * *", SimpleFit.Billing.Stripe.SweepWorker},
+       # SF-103: deletes the storage objects of verification uploads that
+       # were never confirmed or were removed before submission.
+       {"*/30 * * * *", SimpleFit.Gyms.VerificationCleanupWorker}
      ]}
   ]
 

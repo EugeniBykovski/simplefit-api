@@ -17,7 +17,9 @@ defmodule SimpleFit.Storage do
   public URLs.
   """
 
-  alias SimpleFit.Provider
+  require Logger
+
+  alias SimpleFit.{HTTP, Provider}
   alias SimpleFit.Storage.{ObjectKey, Presigned}
 
   # S3 limits a single PUT to 5 GiB; larger media will need multipart uploads.
@@ -32,7 +34,7 @@ defmodule SimpleFit.Storage do
   headers, lifetime in seconds and the signing time.
   """
   @type request :: %{
-          method: :put | :get,
+          method: Presigned.method(),
           key: ObjectKey.t(),
           headers: %{optional(String.t()) => String.t()},
           expires_in: pos_integer(),
@@ -91,6 +93,90 @@ defmodule SimpleFit.Storage do
          {:ok, expires_in} <- fetch_expires_in(opts, @default_download_expires_in) do
       presign(%{method: :get, key: key, headers: %{}, expires_in: expires_in, now: now(opts)})
     end
+  end
+
+  @doc """
+  Reads an object's size and content type from storage (SF-103), with a
+  short-lived presigned `HEAD` sent by the server: `{:ok, %{content_length,
+  content_type}}`, or `{:error, :not_found}` when storage has no such object
+  (`403` counts as missing: a bucket without list permission answers so).
+
+  This is how a domain verifies that a client really uploaded what it was
+  allowed to before attaching the object. The request goes through
+  `SimpleFit.HTTP` (`:req_options` from the storage configuration stub it in
+  tests); it never follows a redirect and never logs the URL.
+  """
+  @spec stat(ObjectKey.t(), keyword()) ::
+          {:ok, %{content_length: non_neg_integer(), content_type: String.t() | nil}}
+          | {:error, :not_found | Provider.error()}
+  def stat(key, opts \\ []) do
+    with :ok <- validate_key(key),
+         {:ok, presigned} <- presign(server_request(:head, key, opts)) do
+      case send_signed(presigned) do
+        {:ok, %Req.Response{status: status} = response} when status in 200..299 ->
+          {:ok,
+           %{
+             content_length: content_length(response),
+             content_type: header(response, "content-type")
+           }}
+
+        {:ok, %Req.Response{status: status}} when status in [403, 404] ->
+          {:error, :not_found}
+
+        other ->
+          HTTP.normalize(other, "storage") |> provider_error()
+      end
+    end
+  end
+
+  @doc """
+  Deletes an object from storage with a short-lived presigned `DELETE` sent
+  by the server (SF-103: removed and abandoned uploads). `:ok` also when the
+  object is already gone.
+  """
+  @spec delete(ObjectKey.t(), keyword()) :: :ok | {:error, Provider.error()}
+  def delete(key, opts \\ []) do
+    with :ok <- validate_key(key),
+         {:ok, presigned} <- presign(server_request(:delete, key, opts)) do
+      case send_signed(presigned) do
+        {:ok, %Req.Response{status: status}} when status in 200..299 or status == 404 -> :ok
+        other -> HTTP.normalize(other, "storage") |> provider_error()
+      end
+    end
+  end
+
+  # Server-side requests are signed for one minute: they are sent at once.
+  defp server_request(method, key, opts),
+    do: %{method: method, key: key, headers: %{}, expires_in: 60, now: now(opts)}
+
+  defp send_signed(%Presigned{method: method, url: url}) do
+    {_adapter, config} = adapter_config()
+
+    [url: url, method: method, decode_body: false]
+    |> Keyword.merge(Keyword.get(config, :req_options, []))
+    |> HTTP.new()
+    |> Req.request()
+  end
+
+  defp content_length(response) do
+    case Integer.parse(header(response, "content-length") || "") do
+      {length, ""} when length >= 0 -> length
+      _missing -> 0
+    end
+  end
+
+  defp header(response, name) do
+    case Req.Response.get_header(response, name) do
+      [value | _] -> value
+      [] -> nil
+    end
+  end
+
+  defp provider_error({:error, reason}), do: {:error, reason}
+
+  defp provider_error({:ok, %Req.Response{status: status}}) do
+    Logger.warning("unexpected storage response", provider: "storage", status: status)
+    {:error, :unavailable}
   end
 
   defp presign(request) do
