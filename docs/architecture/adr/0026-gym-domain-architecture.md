@@ -1752,3 +1752,35 @@ sending. It adds no table, migration, role or `User.role`.
    `simplefit-platform/docs/gym-console-web.md`.
 3. Google and Apple continuation were not exercised with real providers: no
    credentials exist here.
+
+## Amendment — SF-134 (2026-11-05): the member join and invitation recipient flow
+
+SF-104 found (F-02, P1) that no client lets a person join a gym by code or accept
+a member invitation. SF-134 builds the web pages on the SF-95 domain. It adds no
+table, migration, status or role, and closes deviation 4 of SF-95 for the web.
+
+* **`resolveGymInvitation`** (`POST /api/v1/me/gym-invitations/resolve`, token in
+  the body), the same gap and answer as `resolveStaffInvitation` (SF-133):
+  `previewGymInvitation` deliberately answers 410 for every non-pending
+  invitation, so the page could not tell its recipient what happened. It answers
+  the recipient view in any status when the token's recipient digest is one of the
+  viewer's verified addresses; otherwise 403 while pending and 410 afterwards, as
+  accepting would. It reads and changes nothing.
+* **Delivery gate unchanged.** `GYM_MEMBER_INVITATIONS` stays off in production
+  and SF-134 does not touch it. Activation order: compatible backend, then the
+  recipient page deployed, then the production URL and token transport verified,
+  then a production-safe smoke test, then sending enabled under explicit release
+  approval. The staff gate of SF-133 is separate.
+* **Token transport unchanged.** The fragment contract stays.
+* **Race tests added.** Acceptance vs the gym's cancellation, acceptance vs the
+  recipient's decline, and joining again vs the approval of the same request.
+
+### Deviations and gaps
+
+1. No web artboard exists for join by code, the E07 page or the member inbox, and
+   A03's QR, six letters, role and group have no contract
+   (`D-WEB-GYM-MEMBER-JOIN`, needs a product decision).
+2. E07's approved copy comes from the template; Claude Design's E07 board still
+   shows the older "claim your membership" content.
+3. Mobile screens are SF-135. The mobile `/join/:code` route stays a placeholder.
+4. Google and Apple continuation were not exercised with real providers.

@@ -171,6 +171,88 @@ defmodule SimpleFit.GymMembersRaceTest do
     end
   end
 
+  test "an acceptance racing the gym's cancellation: one consistent outcome", ctx do
+    for _ <- 1..3 do
+      {user, email} = user(ctx.users)
+      session = live_session!(user)
+      %{invitation_id: id} = invite_member!(ctx.owner, ctx.gym.id, email)
+      token = member_token_for(email)
+
+      [accepted, cancelled] =
+        concurrently([
+          fn -> Gyms.accept_member_invitation(user, session, {:token, token}, client_ip()) end,
+          fn -> Gyms.cancel_member_invitation(ctx.owner, ctx.gym.id, id) end
+        ])
+
+      status = Repo.get!(MemberInvitation, id).status
+      rows = Repo.all(from(m in Member, where: m.gym_id == ^ctx.gym.id and m.user_id == ^user.id))
+
+      case {accepted, cancelled} do
+        {{:ok, _}, {:error, _}} ->
+          assert status == :accepted
+          assert [%Member{status: :active}] = rows
+
+        {{:error, :invitation_unavailable}, {:ok, _}} ->
+          assert status == :cancelled
+          assert rows == []
+      end
+    end
+  end
+
+  test "an acceptance racing the recipient's own decline keeps exactly one answer", ctx do
+    for _ <- 1..3 do
+      {user, email} = user(ctx.users)
+      session = live_session!(user)
+      %{invitation_id: id} = invite_member!(ctx.owner, ctx.gym.id, email)
+      token = member_token_for(email)
+
+      [accepted, declined] =
+        concurrently([
+          fn -> Gyms.accept_member_invitation(user, session, {:token, token}, client_ip()) end,
+          fn -> Gyms.decline_member_invitation(user, {:token, token}, client_ip()) end
+        ])
+
+      status = Repo.get!(MemberInvitation, id).status
+      rows = Repo.all(from(m in Member, where: m.gym_id == ^ctx.gym.id and m.user_id == ^user.id))
+
+      case {accepted, declined} do
+        {{:ok, _}, {:error, _}} ->
+          assert status == :accepted
+          assert [%Member{status: :active}] = rows
+
+        {{:error, _}, {:ok, _}} ->
+          assert status == :declined
+          assert rows == []
+      end
+    end
+  end
+
+  test "a join again racing the approval of the same request: one current membership", ctx do
+    for _ <- 1..3 do
+      {user, _} = user(ctx.users)
+      session = live_session!(user)
+      {:ok, requested, _} = Gyms.join_gym(user, session, ctx.code, client_ip())
+
+      [joined, approved] =
+        concurrently([
+          fn -> Gyms.join_gym(user, session, ctx.code, client_ip()) end,
+          fn -> Gyms.approve_join_request(ctx.owner, ctx.gym.id, requested.gym_member_id) end
+        ])
+
+      assert {:ok, _} = approved
+
+      case joined do
+        {:ok, again, _} -> assert again.gym_member_id == requested.gym_member_id
+        {:error, {:conflict, %{gym_member: "already_active"}}} -> :ok
+      end
+
+      assert [%Member{status: :active}] =
+               Repo.all(
+                 from(m in Member, where: m.gym_id == ^ctx.gym.id and m.user_id == ^user.id)
+               )
+    end
+  end
+
   test "joins racing an auto-approval switch: every result matches its own audit trail", ctx do
     joiners = for _ <- 1..10, do: elem(user(ctx.users), 0)
 

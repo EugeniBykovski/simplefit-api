@@ -352,6 +352,7 @@ defmodule SimpleFitWeb.Router do
     get "/me/product-subscriptions", MyGymProductController, :index
     post "/me/product-subscriptions/:subscription_id/cancel", MyGymProductController, :cancel
     get "/me/gym-invitations", GymInvitationResponseController, :index
+    post "/me/gym-invitations/resolve", GymInvitationResponseController, :resolve
     post "/me/gym-invitations/accept", GymInvitationResponseController, :accept_by_token
     post "/me/gym-invitations/decline", GymInvitationResponseController, :decline_by_token
     get "/me/gym-invitations/:invitation_id", GymInvitationResponseController, :show
