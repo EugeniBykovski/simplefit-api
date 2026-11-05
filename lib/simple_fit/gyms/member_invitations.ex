@@ -339,6 +339,40 @@ defmodule SimpleFit.Gyms.MemberInvitations do
   end
 
   @doc """
+  The token's invitation for its signed-in recipient, in any status, so the
+  web page can say what became of it (SF-134). Reads and changes nothing. Anyone
+  else gets what answering would answer: `:invitation_recipient_mismatch` while
+  it is pending, `:invitation_unavailable` afterwards and for an unknown token.
+  """
+  @spec resolve(User.t(), term(), String.t()) :: {:ok, map()} | {:error, error()}
+  def resolve(%User{} = user, token, client_ip) when is_binary(client_ip) do
+    result =
+      with :ok <- response_limit(client_ip),
+           {:ok, hash} <- token_param(token),
+           %MemberInvitation{} = invitation <-
+             Repo.one(from(i in MemberInvitation, where: i.token_hash == ^hash), @unlogged) do
+        addresses = recipient_addresses(user)
+
+        if Map.has_key?(addresses, invitation.recipient_digest),
+          do:
+            {:ok,
+             recipient_view(
+               invitation,
+               addresses,
+               recipient_context([invitation]),
+               DateTime.utc_now()
+             )},
+          else: recipient_mismatch(invitation)
+      else
+        nil -> {:error, :invitation_unavailable}
+        {:error, reason} -> {:error, reason}
+      end
+
+    emit(:resolved, outcome(result))
+    result
+  end
+
+  @doc """
   The explicit acceptance, by token (`{:token, token}`) or inbox id
   (`{:id, id}`), for the signed-in recipient on `session`.
   """

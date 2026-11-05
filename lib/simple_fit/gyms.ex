@@ -721,6 +721,13 @@ defmodule SimpleFit.Gyms do
           {:ok, map()} | {:error, MemberInvitations.error()}
   defdelegate preview_member_invitation(token, client_ip), to: MemberInvitations, as: :preview
 
+  @doc "A member invitation link, for its signed-in recipient, in any status (SF-134)."
+  @spec resolve_member_invitation(User.t(), term(), String.t()) ::
+          {:ok, map()} | {:error, MemberInvitations.error()}
+  defdelegate resolve_member_invitation(user, token, client_ip),
+    to: MemberInvitations,
+    as: :resolve
+
   @doc "The recipient's explicit acceptance of a member invitation."
   @spec accept_member_invitation(User.t(), Session.t(), {:token | :id, term()}, String.t()) ::
           {:ok, map()} | {:error, MemberInvitations.error()}

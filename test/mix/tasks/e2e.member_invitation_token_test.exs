@@ -24,6 +24,17 @@ defmodule Mix.Tasks.E2e.MemberInvitationTokenTest do
     refute_received {:mix_shell, :info, _}
   end
 
+  test "--link prints the link as the email carries it, fragment included", ctx do
+    invite_member!(ctx.owner, ctx.gym.id, "e2e-member@example.com")
+    token = member_token_for("e2e-member@example.com")
+
+    MemberInvitationToken.run(["--link", "e2e-member@example.com"])
+
+    assert_received {:mix_shell, :info, [link]}
+    assert String.ends_with?(link, "/invite/gym#token=#{token}")
+    assert String.starts_with?(link, "http")
+  end
+
   test "fails when no member invitation was sent to the address" do
     assert_raise Mix.Error, ~r/no member invitation queued/, fn ->
       MemberInvitationToken.run(["nobody@example.com"])

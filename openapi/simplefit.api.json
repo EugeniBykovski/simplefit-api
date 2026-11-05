@@ -21217,6 +21217,77 @@
         ]
       }
     },
+    "/api/v1/me/gym-invitations/resolve": {
+      "post": {
+        "callbacks": {},
+        "description": "The invitation of an E07 token in any status (`pending`, `accepted`, `declined`, `cancelled`, `expired`), for\na viewer whose verified email identity is the invited address, so the web page can say what became of it.\nNothing is accepted, linked or changed. `previewGymInvitation` answers an anonymous holder and never reveals\na status.\n\n* `invitation_recipient_mismatch` (403) - a current token of another address; verify that address\n  (`requestEmailIdentityLink`) or use the account that owns it.\n* `invitation_unavailable` (410) - an unknown token, or a used one of another address.\n* `rate_limited` - 30 previews and answers per 10 minutes per client.\n",
+        "operationId": "resolveGymInvitation",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GymInvitationTokenRequest"
+              }
+            }
+          },
+          "description": "The token from the E07 link",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyGymInvitationResponse"
+                }
+              }
+            },
+            "description": "The invitation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/InvitationRecipientMismatch"
+          },
+          "410": {
+            "$ref": "#/components/responses/InvitationUnavailable"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted.",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A member invitation link, for its signed-in recipient",
+        "tags": [
+          "Gym members"
+        ]
+      }
+    },
     "/api/v1/me/gym-invitations/{invitation_id}": {
       "get": {
         "callbacks": {},
