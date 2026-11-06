@@ -22,6 +22,9 @@ defmodule SimpleFit.Billing.Operations do
     refused. A refund never revokes an entitlement by itself.
   * `link_connected_account/3`, `sync_connected_account/1` - the Stripe
     Connect foundation (see `SimpleFit.Billing.Connect`).
+  * `provider_identity/0` - what Stripe says about the configured key: its
+    mode and whether its account is `STRIPE_ACCOUNT_ID` (SF-138). A key's
+    prefix proves neither. Reads only.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -42,6 +45,24 @@ defmodule SimpleFit.Billing.Operations do
   @unlogged [log: false]
 
   @type error :: :not_found | {:conflict, map()} | SimpleFit.Provider.error()
+
+  ## Provider identity
+
+  @doc "Stripe's answer about the configured key (see the moduledoc). A key of the other mode is an error."
+  @spec provider_identity() ::
+          {:ok, %{mode: Config.mode(), account: :match | :mismatch | :not_configured}}
+          | {:error, SimpleFit.Provider.error()}
+  def provider_identity do
+    with {:ok, config} <- Config.fetch(),
+         {:ok, _balance} <- Client.get("/v1/balance", %{}, :balance),
+         {:ok, account} <- Client.get("/v1/account", %{}, :account) do
+      {:ok, %{mode: config.mode, account: account_check(config.account_id, account.id)}}
+    end
+  end
+
+  defp account_check(nil, _actual), do: :not_configured
+  defp account_check(id, id), do: :match
+  defp account_check(_expected, _actual), do: :mismatch
 
   ## Prices
 

@@ -584,6 +584,13 @@ defmodule SimpleFit.StripeFake do
   defp route(state, "GET", "/v1/payment_intents/" <> id, _params), do: fetch(state, id)
   defp route(state, "GET", "/v1/disputes/" <> id, _params), do: fetch(state, id)
   defp route(state, "GET", "/v1/accounts/" <> id, _params), do: fetch(state, id)
+
+  defp route(state, "GET", "/v1/balance", _params),
+    do: {{200, %{"object" => "balance", "livemode" => false}}, state}
+
+  defp route(state, "GET", "/v1/account", _params),
+    do: {{200, %{"object" => "account", "id" => "acct_simplefittest"}}, state}
+
   defp route(state, "GET", "/v1/refunds/" <> id, _params), do: fetch(state, id)
 
   defp route(state, "GET", "/v1/invoice_payments", params) do

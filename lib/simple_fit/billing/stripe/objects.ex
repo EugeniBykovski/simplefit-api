@@ -259,6 +259,13 @@ defmodule SimpleFit.Billing.Stripe.Objects do
 
   def portal_configuration(_), do: :error
 
+  @doc "The Balance: read only for the key's mode, never its amounts (SF-138)."
+  @spec balance(map()) :: decoded()
+  def balance(%{"object" => "balance", "livemode" => livemode}) when is_boolean(livemode),
+    do: {:ok, %{livemode: livemode}}
+
+  def balance(_), do: :error
+
   @doc "A Connect account (`acct_`): capability summary only, no KYC data."
   @spec account(map()) :: decoded()
   def account(%{"object" => "account", "id" => "acct_" <> _ = id} = a) do

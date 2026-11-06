@@ -23,8 +23,64 @@ defmodule Mix.Tasks.Billing.StripeTest do
     refute status =~ "sk_test"
     refute status =~ "whsec_"
 
+    assert_received {:mix_shell, :info,
+                     ["stripe account: mode test confirmed by Stripe, account match"]}
+
     Task.run(["webhook-events"])
     assert_received {:mix_shell, :info, ["charge.dispute.closed"]}
+  end
+
+  describe "status asks Stripe about the key (SF-138)" do
+    setup do
+      original = Application.get_env(:simple_fit, SimpleFit.Billing.Stripe)
+      on_exit(fn -> Application.put_env(:simple_fit, SimpleFit.Billing.Stripe, original) end)
+      %{original: original}
+    end
+
+    test "a key of another account fails", ctx do
+      Application.put_env(
+        :simple_fit,
+        SimpleFit.Billing.Stripe,
+        Keyword.put(ctx.original, :account_id, "acct_someoneelse")
+      )
+
+      assert_raise Mix.Error, ~r/not STRIPE_ACCOUNT_ID/, fn -> Task.run(["status"]) end
+    end
+
+    test "without STRIPE_ACCOUNT_ID the account is reported as not checked", ctx do
+      Application.put_env(
+        :simple_fit,
+        SimpleFit.Billing.Stripe,
+        Keyword.delete(ctx.original, :account_id)
+      )
+
+      Task.run(["status"])
+      assert_received {:mix_shell, :info, ["stripe: ready" <> _]}
+
+      assert_received {:mix_shell, :info,
+                       ["stripe account: mode test confirmed by Stripe, account not_configured"]}
+    end
+
+    test "a live answer to a test key fails, whatever the key's prefix says" do
+      Req.Test.stub(StripeFake, fn conn ->
+        Req.Test.json(conn, %{"object" => "balance", "livemode" => true})
+      end)
+
+      assert_raise Mix.Error, ~r/did not confirm the key \(:invalid_request\)/, fn ->
+        Task.run(["status"])
+      end
+    end
+
+    test "an expired key fails, naming no secret" do
+      Req.Test.stub(StripeFake, fn conn ->
+        conn
+        |> Plug.Conn.put_status(401)
+        |> Req.Test.json(%{"error" => %{"type" => "invalid_request_error"}})
+      end)
+
+      error = assert_raise Mix.Error, ~r/did not confirm the key/, fn -> Task.run(["status"]) end
+      refute error.message =~ "sk_test"
+    end
   end
 
   test "map-price and setup-portal need an operator and print ids only" do

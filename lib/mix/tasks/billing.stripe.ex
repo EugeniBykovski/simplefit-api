@@ -3,9 +3,13 @@ defmodule Mix.Tasks.Billing.Stripe do
 
   @moduledoc """
   Operator tasks of SimpleFit's Stripe integration (SF-102;
-  `SimpleFit.Billing.Operations`). Nothing here is reachable over HTTP; each
-  write names the operator and is audited. Output holds ids, modes and
-  statuses only: never a key, a secret, a URL or a person's data.
+  `SimpleFit.Billing.Operations`). Nothing here is reachable over HTTP. Output
+  holds ids, modes and statuses only: never a key, a secret, a URL or a person's
+  data.
+
+  **A production build refuses `map-price`, `setup-portal`, `refund` and
+  `link-account`** (SF-138, `SimpleFit.Billing.OperatorCommands`): nothing proves who
+  typed `--operator` or `--approval`. Elsewhere they are labels in the audit trail.
 
       $ mix billing.stripe status
       $ mix billing.stripe webhook-events
@@ -17,7 +21,9 @@ defmodule Mix.Tasks.Billing.Stripe do
       $ mix billing.stripe sync-account ACCOUNT_ID
 
   * `status` - whether the integration is disabled, misconfigured (which
-    setting is missing) or ready, its mode and pinned API version.
+    setting is missing) or ready, its mode and pinned API version. When ready it
+    asks Stripe which mode the key is in and whether its account is
+    `STRIPE_ACCOUNT_ID`, and fails if either disagrees or Stripe can't answer.
   * `webhook-events` - the event types to enable on the Stripe endpoint.
   * `map-price` - creates the Stripe Product/Price of a fixed SF-101 price
     version in the configured mode (live: published, non-provisional only).
@@ -33,17 +39,21 @@ defmodule Mix.Tasks.Billing.Stripe do
 
   use Mix.Task
 
-  alias SimpleFit.Billing.{Operations, Reconciliation, Webhooks}
+  alias SimpleFit.Billing.{Operations, OperatorCommands, Reconciliation, Webhooks}
   alias SimpleFit.Billing.Stripe.Config
 
   @switches [operator: :string, approval: :string, reason: :string]
   @reasons ~w(duplicate fraudulent requested_by_customer)
+  @privileged ~w(map-price setup-portal refund link-account)
 
   @impl Mix.Task
   def run(args) do
-    Mix.Task.run("app.start")
     {opts, rest, _} = OptionParser.parse(args, strict: @switches)
 
+    # Before anything starts: nothing to connect to or read.
+    if List.first(rest) in @privileged, do: OperatorCommands.ensure_available!()
+
+    Mix.Task.run("app.start")
     command(rest, opts)
   end
 
@@ -98,6 +108,21 @@ defmodule Mix.Tasks.Billing.Stripe do
         Mix.shell().info(
           "stripe: ready (mode #{config.mode}, api #{config.api_version}, webhook secret #{present(config.webhook_secret)}, portal #{present(config.portal_configuration_id)}, connect #{config.connect_enabled})"
         )
+
+        identity()
+    end
+  end
+
+  defp identity do
+    case Operations.provider_identity() do
+      {:ok, %{account: :mismatch}} ->
+        Mix.raise("refused: the key's account is not STRIPE_ACCOUNT_ID")
+
+      {:ok, %{mode: mode, account: account}} ->
+        Mix.shell().info("stripe account: mode #{mode} confirmed by Stripe, account #{account}")
+
+      {:error, reason} ->
+        Mix.raise("refused: Stripe did not confirm the key (#{inspect(reason)})")
     end
   end
 
