@@ -3,20 +3,20 @@ defmodule Mix.Tasks.Gyms.Verification do
 
   @moduledoc """
   Operator review of gym business verification (SF-103;
-  `SimpleFit.Gyms.VerificationReview`). Nothing here is reachable over
-  HTTP. Every command names the operator by email address, and that address
-  must be on the configured operator list (`GYM_VERIFICATION_OPERATORS`;
-  none configured means review is disabled, SF-104). Every write is recorded
-  in the application's append-only history; the operator must not be the
-  application's creator or submitter or an active staff member of the gym.
+  `SimpleFit.Gyms.VerificationReview`). Nothing here is reachable over HTTP.
 
-      $ mix gyms.verification list --operator EMAIL
-      $ mix gyms.verification show APPLICATION_ID --operator EMAIL
-      $ mix gyms.verification document-url APPLICATION_ID EVIDENCE_ID --operator EMAIL
-      $ mix gyms.verification approve APPLICATION_ID --revision N --operator EMAIL
-      $ mix gyms.verification request-changes APPLICATION_ID --revision N --reason CODE --operator EMAIL
-      $ mix gyms.verification reject APPLICATION_ID --revision N --reason CODE --operator EMAIL
-      $ mix gyms.verification revoke APPLICATION_ID --reason CODE --operator EMAIL
+  **Not available in a production build** (SF-136): SimpleFit has no authority that
+  can prove who is running a command, so every command is refused. Nothing a caller
+  types names an operator, and `--operator` no longer exists. Elsewhere the build's
+  fixture authority answers, recorded as `local_fixture`, never a trusted operator.
+
+      $ mix gyms.verification list
+      $ mix gyms.verification show APPLICATION_ID
+      $ mix gyms.verification document-url APPLICATION_ID EVIDENCE_ID
+      $ mix gyms.verification approve APPLICATION_ID --revision N
+      $ mix gyms.verification request-changes APPLICATION_ID --revision N --reason CODE
+      $ mix gyms.verification reject APPLICATION_ID --revision N --reason CODE
+      $ mix gyms.verification revoke APPLICATION_ID --reason CODE
 
   * `list` - submitted applications waiting for a decision, oldest first.
   * `show` - an application's details, documents and history (for the
@@ -36,20 +36,28 @@ defmodule Mix.Tasks.Gyms.Verification do
 
   use Mix.Task
 
-  alias SimpleFit.Gyms.VerificationReview
+  alias SimpleFit.Gyms.{VerificationAuthority, VerificationEvent, VerificationReview}
 
-  @switches [operator: :string, revision: :integer, reason: :string]
+  @switches [revision: :integer, reason: :string]
 
   @impl Mix.Task
   def run(args) do
-    Mix.Task.run("app.start")
-    {opts, rest, _} = OptionParser.parse(args, strict: @switches)
+    # Before anything starts: no authority, nothing to connect to or read.
+    unless VerificationAuthority.available?(), do: fail(:review_disabled)
 
-    command(rest, opts)
+    {opts, rest, invalid} = OptionParser.parse(args, strict: @switches)
+
+    case invalid do
+      [] -> :ok
+      _ -> Mix.raise("unknown option; operators aren't named on the command line (SF-136)")
+    end
+
+    Mix.Task.run("app.start")
+    command(rest, Keyword.put(opts, :credential, VerificationAuthority.ambient_credential()))
   end
 
   defp command(["list"], opts) do
-    case VerificationReview.list_submitted(opts[:operator]) do
+    case VerificationReview.list_submitted(opts[:credential]) do
       {:error, reason} ->
         fail(reason)
 
@@ -67,14 +75,14 @@ defmodule Mix.Tasks.Gyms.Verification do
   end
 
   defp command(["show", id], opts) do
-    case VerificationReview.show(id, opts[:operator]) do
+    case VerificationReview.show(id, opts[:credential]) do
       {:ok, detail} -> print(detail)
       {:error, reason} -> fail(reason)
     end
   end
 
   defp command(["document-url", id, evidence_id], opts) do
-    case VerificationReview.evidence_download(id, evidence_id, opts[:operator]) do
+    case VerificationReview.evidence_download(id, evidence_id, opts[:credential]) do
       {:ok, download} ->
         Mix.shell().info("valid until #{DateTime.to_iso8601(download.expires_at)}:")
         Mix.shell().info(download.url)
@@ -90,7 +98,7 @@ defmodule Mix.Tasks.Gyms.Verification do
 
   defp command(["revoke", id], opts) do
     id
-    |> VerificationReview.revoke(Keyword.take(opts, [:operator, :reason]))
+    |> VerificationReview.revoke(Keyword.take(opts, [:credential, :reason]))
     |> report()
   end
 
@@ -98,7 +106,7 @@ defmodule Mix.Tasks.Gyms.Verification do
 
   defp decide(id, decision, opts) do
     id
-    |> VerificationReview.decide(decision, Keyword.take(opts, [:operator, :revision, :reason]))
+    |> VerificationReview.decide(decision, Keyword.take(opts, [:credential, :revision, :reason]))
     |> report()
   end
 
@@ -135,7 +143,7 @@ defmodule Mix.Tasks.Gyms.Verification do
     info.("history:")
 
     Enum.each(events, fn e ->
-      who = e.operator || "owner"
+      who = who(VerificationEvent.attribution(e))
       reason = if e.reason_code, do: " (#{e.reason_code})", else: ""
 
       info.(
@@ -143,6 +151,10 @@ defmodule Mix.Tasks.Gyms.Verification do
       )
     end)
   end
+
+  defp who({:owner, _user}), do: "owner"
+  defp who({:operator, actor, authority}), do: "#{authority} #{actor}"
+  defp who({:legacy_unverified, address}), do: "#{address} (legacy, unverified)"
 
   @spec fail(term()) :: no_return()
   defp fail(reason), do: Mix.raise("refused: #{inspect(reason)}")

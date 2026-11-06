@@ -121,7 +121,7 @@ defmodule SimpleFitWeb.GymVerificationControllerTest do
     {:ok, _} =
       VerificationReview.decide(submitted["application"]["id"], :approved,
         revision: revision,
-        operator: operator()
+        credential: operator()
       )
 
     approved = ctx.token |> authed() |> get(vpath(ctx.gym.id)) |> verification()
@@ -131,7 +131,7 @@ defmodule SimpleFitWeb.GymVerificationControllerTest do
              "latest_decision" => %{"decision" => "approved", "reason_code" => nil}
            } = approved
 
-    refute inspect(approved) =~ operator()
+    refute inspect(approved) =~ reviewer_actor_id()
   end
 
   test "an owner cannot approve: status fields are refused and no decision route exists", ctx do

@@ -21,6 +21,7 @@ defmodule SimpleFit.GymVerificationRaceTest do
   alias SimpleFit.{Gyms, Repo}
 
   alias SimpleFit.Gyms.{
+    AuditEvent,
     Gym,
     StaffMembership,
     VerificationApplication,
@@ -28,14 +29,19 @@ defmodule SimpleFit.GymVerificationRaceTest do
     VerificationReview
   }
 
+  alias SimpleFit.Gyms.VerificationAuthority.Local
+
   @rounds 6
 
   setup do
     Sandbox.mode(Repo, :auto)
+    # Committed for real: the jobs an invitation queues go with the rest of the test's rows.
+    first_job = Repo.one(from(j in Oban.Job, select: max(j.id))) || 0
     {:ok, users} = Agent.start(fn -> [] end)
     stub_storage(%{})
 
     on_exit(fn ->
+      Repo.delete_all(from(j in Oban.Job, where: j.id > ^first_job))
       Sandbox.mode(Repo, :auto)
       ids = Agent.get(users, & &1)
 
@@ -83,7 +89,7 @@ defmodule SimpleFit.GymVerificationRaceTest do
       VerificationReview.decide(view.application.id, decision,
         revision: view.application.revision,
         reason: reason,
-        operator: operator()
+        credential: operator()
       )
     end
   end
@@ -114,7 +120,7 @@ defmodule SimpleFit.GymVerificationRaceTest do
       view = submitted!(owner, gym.id)
 
       revoke = fn ->
-        VerificationReview.revoke(view.application.id, reason: "other", operator: operator())
+        VerificationReview.revoke(view.application.id, reason: "other", credential: operator())
       end
 
       [approve, revoked] = concurrently([decide(view, :approved), revoke])
@@ -311,7 +317,7 @@ defmodule SimpleFit.GymVerificationRaceTest do
       revoke = fn ->
         VerificationReview.revoke(approved.application.id,
           reason: "suspected_fraud",
-          operator: operator()
+          credential: operator()
         )
       end
 
@@ -331,6 +337,162 @@ defmodule SimpleFit.GymVerificationRaceTest do
       end
 
       assert {false, %{status: :failed, reason_code: :revoked}} = read.()
+    end
+  end
+
+  describe "the operator boundary under concurrency (SF-136)" do
+    test "12 concurrent approvals of one revision: one decision, one history row, one audit row",
+         ctx do
+      {owner, gym} = owned!(ctx)
+      view = submitted!(owner, gym.id)
+
+      results =
+        concurrently(
+          for _ <- 1..12 do
+            fn ->
+              VerificationReview.decide(view.application.id, :approved,
+                revision: view.application.revision,
+                credential: operator()
+              )
+            end
+          end
+        )
+
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+      assert Enum.count(results, &match?({:error, {:conflict, _}}, &1)) == 11
+
+      assert [%{operator_actor_id: actor}] =
+               Repo.all(
+                 from(e in VerificationEvent,
+                   where: e.application_id == ^view.application.id and e.event == :approved
+                 )
+               )
+
+      assert actor == reviewer_actor_id()
+
+      assert Repo.aggregate(
+               from(a in AuditEvent,
+                 where:
+                   a.verification_application_id == ^view.application.id and
+                     a.event_type == :business_verification_approved
+               ),
+               :count
+             ) == 1
+    end
+
+    test "a decision racing the operator's revocation: refused, or decided with a whole trail",
+         ctx do
+      for _ <- 1..6 do
+        {owner, gym} = owned!(ctx)
+        view = submitted!(owner, gym.id)
+        credential = fixture_operator!(%{})
+
+        [decided, :ok] =
+          concurrently([
+            fn ->
+              VerificationReview.decide(view.application.id, :approved,
+                revision: view.application.revision,
+                credential: credential
+              )
+            end,
+            fn -> revoke_operator(credential) end
+          ])
+
+        rows =
+          Repo.all(
+            from(e in VerificationEvent,
+              where: e.application_id == ^view.application.id and e.event == :approved
+            )
+          )
+
+        status = Repo.get!(VerificationApplication, view.application.id).status
+
+        case decided do
+          {:ok, _} ->
+            assert status == :approved
+            assert [%{operation_id: operation}] = rows
+            assert is_binary(operation)
+
+          {:error, {:forbidden, :operator}} ->
+            assert status == :submitted
+            assert rows == []
+        end
+
+        # After a revocation, never again.
+        assert {:error, {:forbidden, :operator}} =
+                 VerificationReview.show(view.application.id, credential)
+      end
+    end
+
+    test "a decision racing the operator joining the gym's staff: never both", ctx do
+      for _ <- 1..6 do
+        {owner, gym} = owned!(ctx)
+        view = submitted!(owner, gym.id)
+        email = address("kyb-candidate")
+        candidate = email_user!(email)
+        Agent.update(ctx.users, &[candidate.id | &1])
+        credential = fixture_operator!(%{user_id: candidate.id})
+        invited = invite!(owner, gym.id, email, :coach)
+
+        [decided, joined] =
+          concurrently([
+            fn ->
+              VerificationReview.decide(view.application.id, :approved,
+                revision: view.application.revision,
+                credential: credential
+              )
+            end,
+            fn ->
+              Gyms.accept_staff_invitation(
+                candidate,
+                live_session!(candidate),
+                {:id, invited.invitation_id},
+                client_ip()
+              )
+            end
+          ])
+
+        assert {:ok, _} = joined
+        status = Repo.get!(VerificationApplication, view.application.id).status
+
+        case decided do
+          {:ok, _} -> assert status == :approved
+          {:error, {:conflict, %{operator: "not_independent"}}} -> assert status == :submitted
+        end
+      end
+    end
+
+    test "unauthorized attempts racing a real decision change nothing", ctx do
+      {owner, gym} = owned!(ctx)
+      view = submitted!(owner, gym.id)
+
+      approve = fn credential ->
+        fn ->
+          VerificationReview.decide(view.application.id, :approved,
+            revision: view.application.revision,
+            credential: credential
+          )
+        end
+      end
+
+      results =
+        concurrently(
+          [approve.(operator())] ++
+            for(_ <- 1..8, do: approve.("reviewer@trust.simplefit.test")) ++
+            for(_ <- 1..3, do: approve.(%Local.Credential{secret: "guess"}))
+        )
+
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+      assert Enum.count(results, &match?({:error, :unauthenticated}, &1)) == 11
+
+      assert [%{operator_actor_id: actor}] =
+               Repo.all(
+                 from(e in VerificationEvent,
+                   where: e.application_id == ^view.application.id and e.event == :approved
+                 )
+               )
+
+      assert actor == reviewer_actor_id()
     end
   end
 end

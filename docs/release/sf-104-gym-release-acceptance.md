@@ -215,7 +215,7 @@ evidence stands, and both clients use the same backend-owned state.
 | --- | --- | --- | --- |
 | F-01 | **P1** | No client lets a recipient accept a **staff invitation**. The E06 email links to `<web>/invite/staff#token=…`; the production build answers **404** for `/en/invite/staff` (also `/en/invite/gym`, `/en/join`; `/en/invite/coach` is 200 for comparison). The mobile `/invite/staff/:token` routes are placeholders. The SF-82 plan assigned the acceptance UI to SF-87; the actual SF-87 scope differed and SF-94 recorded it as "not in this ticket". Staff invitations are **not gated** in production, so real recipients would receive a dead link. | OPEN — needs a product decision: build the recipient UI (design OnbSInvite, OnbSInviteCode exist) or gate staff invitations off like member invitations until it exists |
 | F-02 | **P1** | No client offers **joining a gym by code** or accepting a **member invitation** (`joinGym`, `previewGymJoin`, `acceptMyGymInvitation` have no consumer in web or mobile). Members can book in the UI but cannot become members in the UI. | OPEN — follow-up ticket (design JoinInvite exists) |
-| F-03 | P1 (security) | `mix gyms.verification` accepted any email as the operator; anyone with shell access could act as any operator. | **FIXED** api `a8d9883`: operator allowlist `GYM_VERIFICATION_OPERATORS`, fail-closed without it; tests added. Residual: a shell user can claim another listed address — keep production review disabled until an operator identity exists |
+| F-03 | P1 (security) | `mix gyms.verification` accepted any email as the operator; anyone with shell access could act as any operator. | **FIXED** api `a8d9883`: operator allowlist `GYM_VERIFICATION_OPERATORS`, fail-closed without it; tests added. Residual: a shell user can claim another listed address — keep production review disabled until an operator identity exists. **SF-136 closes the impersonation: production review is disabled at compile time, with no configuration to enable it; review needs SF-110** (ADR 0026, SF-136) |
 | F-04 | P2 (contract parity) | Route registry differed between web and mobile (SF-102 entries). | **FIXED** mobile `8ee37f2` |
 | F-05 | P3 (hardening) | The web used `gymId` from the URL in API paths unvalidated. | **FIXED** platform (UUID guard → not-found page), tests added |
 | F-06 | P3 | Gym setup writes (`setup.ex` update / primary location / complete / discard) have no rate limit, unlike every other gym write. | OPEN — follow-up |
@@ -261,15 +261,15 @@ keep it disabled in production until an operator identity exists.
   all forward-only in production. Take a backup immediately before; verify
   with a dry run on a restored copy (as in §5.2).
 * **Configuration:** `GYM_MEMBER_INVITATIONS` (keep off until F-02),
-  `GYM_VERIFICATION_OPERATORS` (keep unset), `STRIPE_BILLING_ENABLED`
+  (`GYM_VERIFICATION_OPERATORS` is removed by SF-136 and does nothing), `STRIPE_BILLING_ENABLED`
   (false until Test Mode is verified and a release approval exists),
   `STRIPE_CONNECT_ENABLED` (false), `TRUSTED_PROXY_HOPS` (required),
   storage `AWS_*` (private bucket, CORS for the web origin, HTTPS endpoint),
   `WEB_APP_URL`, `CORS_ALLOWED_ORIGINS`, Resend for E06/E07.
 * **Secrets readiness:** Stripe keys are not available (expired); storage
   and email credentials must be provisioned per environment.
-* **Backward compatibility:** the SF-104 operator change makes `mix
-  gyms.verification` require `--operator` on `list` and `show`.
+* **Backward compatibility:** SF-136 removes `--operator`; `mix
+  gyms.verification` refuses every command in a production build.
 * **Monitoring:** `[:simple_fit, :gyms, :access, :denied]` (cross-gym
   probing), rate-limit refusals, Oban failures (`VerificationCleanupWorker`,
   `SweepWorker`), Stripe webhook outcomes, `[:simple_fit, :gyms,

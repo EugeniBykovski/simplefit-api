@@ -135,6 +135,26 @@ config :simple_fit, SimpleFit.Legal,
 # real activation refuses every non-:dev build, and no opt-in is read here.
 config :simple_fit, SimpleFit.Coaching.LocalDevelopment, allowed: true
 
-# SF-104: the operators allowed to review gym business verification in tests.
-config :simple_fit, SimpleFit.Gyms.VerificationReview,
-  operators: ["reviewer@trust.simplefit.test"]
+# SF-136: the fixture authority, compiled only outside production. A credential is a
+# secret here; these name no real person.
+config :simple_fit, SimpleFit.Gyms.VerificationAuthority,
+  backend: SimpleFit.Gyms.VerificationAuthority.Local
+
+config :simple_fit, SimpleFit.Gyms.VerificationAuthority.Local,
+  ambient_secret: "fixture-reviewer",
+  operators: [
+    %{
+      secret: "fixture-reviewer",
+      actor_id: "11111111-1111-4111-8111-111111111111",
+      user_id: "22222222-2222-4222-8222-222222222222",
+      permissions: [
+        :read_queue,
+        :read_application,
+        :read_evidence,
+        :approve,
+        :request_changes,
+        :reject,
+        :revoke
+      ]
+    }
+  ]
