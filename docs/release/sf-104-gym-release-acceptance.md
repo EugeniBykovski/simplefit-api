@@ -290,6 +290,9 @@ SF-138 holds the current detail: `sf-138-stripe-test-mode-evidence.md`.
   review, publishing policy, legal review.
 * SF-136's restriction was kept: `gym_verification` race suite 11/11, review
   refused in production builds, no allowlist or CLI argument added.
+* **SF-139 (2026-11-06)** produced the policy proposal and design handoff, and changes
+  nothing here: still NO-GO. Current gate:
+  [`09-release-gate.md`](../architecture/proposals/SF-139-gym-publication/09-release-gate.md).
 
 ## 10. Rollout (when the verdicts change)
 

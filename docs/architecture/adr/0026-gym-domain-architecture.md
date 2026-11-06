@@ -1905,3 +1905,19 @@ either, so Stripe Test Mode runs use a non-production build.
 
 Evidence and the commercial register: `docs/release/sf-138-stripe-test-mode-evidence.md`.
 
+## Amendment — SF-139 (2026-11-06): gym publication (PROPOSED, not accepted)
+
+**This amendment records a proposal. It decides nothing and changes no behaviour.**
+D-G11's publishing half stays deferred, and publication stays `unavailable`.
+
+The proposal is in [`proposals/SF-139-gym-publication`](../proposals/SF-139-gym-publication/README.md).
+In short: publication is a fourth separate fact with its own record, requested by the owner
+and approved by a trusted operator; what the public sees is an approved snapshot of allowlisted
+fields; every public read checks eligibility on the server and fails closed; verification
+revocation suspends publication, not the reverse.
+
+If accepted, this amendment gets replaced by the decision and its owner. Until then:
+
+* The SF-136 decision stands: no interim operator authority, for this or anything else.
+* No code may add a public gym route, endpoint, badge or publication state.
+
