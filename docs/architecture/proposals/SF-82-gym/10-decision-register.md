@@ -40,7 +40,7 @@ approved. SF-83 is not started and needs its own start authorization.
 | --- | --- | --- | --- |
 | D-G09 | Pricing, gym SaaS subscriptions, trials, SimpleFit billing, and any **commercial ownership limits** (e.g. gyms per plan) | OG4–OG6, OG6b trial copy, WG25, PR3, PR6m, L4 prices, plan tiles | No plan, price, trial or plan-based limit is stored or shown. Gym creation never depends on a plan |
 | D-G10 | Payment provider and payment architecture (member commerce, payouts, refunds, dunning) | OG8, OG9, WG6, WG7, GC1–GC12, F16 renewals, credits | No provider is selected or stubbed. No mock payment grants an entitlement |
-| D-G11 | Business verification (KYB) and public publishing policy | OG7, OG14, E05, Discover, MK4/MK5, "verified" badges | Gyms stay private. Nothing shows "verified" or "published" |
+| D-G11 | Business verification (KYB) and public publishing policy. **Verification half decided by SF-103. Publishing half still deferred:** analyzed by SF-139, whose 15 sub-decisions are PROPOSED or BLOCKED, none approved ([proposal](../SF-139-gym-publication/01-decision-proposal.md)) | OG7, OG14, E05, Discover, MK4/MK5, "verified" badges | Gyms stay private. Nothing shows "verified" or "published" |
 
 ## 3. Remaining decisions
 
