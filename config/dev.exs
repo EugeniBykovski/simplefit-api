@@ -86,3 +86,27 @@ config :phoenix, :plug_init_mode, :runtime
 
 # SF-30: `mix e2e.email_code` for local end-to-end runs. Never in prod.
 config :simple_fit, :e2e_tools, enabled: true
+
+# SF-136: review on a local machine goes through the fixture authority, which is not
+# compiled into a production build and is recorded as `local_fixture`.
+config :simple_fit, SimpleFit.Gyms.VerificationAuthority,
+  backend: SimpleFit.Gyms.VerificationAuthority.Local
+
+config :simple_fit, SimpleFit.Gyms.VerificationAuthority.Local,
+  ambient_secret: "local-fixture-reviewer",
+  operators: [
+    %{
+      secret: "local-fixture-reviewer",
+      actor_id: "33333333-3333-4333-8333-333333333333",
+      user_id: "44444444-4444-4444-8444-444444444444",
+      permissions: [
+        :read_queue,
+        :read_application,
+        :read_evidence,
+        :approve,
+        :request_changes,
+        :reject,
+        :revoke
+      ]
+    }
+  ]

@@ -11,13 +11,62 @@ defmodule SimpleFit.VerificationHelpers do
 
   alias SimpleFit.Accounts.User
   alias SimpleFit.{GymHelpers, Gyms}
+  alias SimpleFit.Gyms.VerificationAuthority.Local
   alias SimpleFit.Gyms.VerificationReview
 
-  @operator "reviewer@trust.simplefit.test"
+  @reviewer "11111111-1111-4111-8111-111111111111"
 
-  @doc "An operator address unrelated to any gym."
-  @spec operator() :: String.t()
-  def operator, do: @operator
+  @doc "The fixture operator's credential: a secret, unrelated to any gym."
+  @spec operator() :: Local.Credential.t()
+  def operator, do: %Local.Credential{secret: "fixture-reviewer"}
+
+  @doc "The immutable actor id the fixture authority answers for `operator/0`."
+  @spec reviewer_actor_id() :: String.t()
+  def reviewer_actor_id, do: @reviewer
+
+  @doc """
+  Adds a fixture operator for this test and returns its credential. Not for async
+  tests: the authority reads its operators on every call, which is also how a test
+  revokes one at once (`revoke_operator/1`).
+  """
+  @spec fixture_operator!(map()) :: Local.Credential.t()
+  def fixture_operator!(attrs) do
+    config = Application.get_env(:simple_fit, Local)
+    ExUnit.Callbacks.on_exit(fn -> Application.put_env(:simple_fit, Local, config) end)
+    secret = "fixture-#{System.unique_integer([:positive])}"
+
+    operator =
+      Map.merge(
+        %{
+          secret: secret,
+          actor_id: Ecto.UUID.generate(),
+          user_id: Ecto.UUID.generate(),
+          permissions:
+            ~w(read_queue read_application read_evidence approve request_changes reject revoke)a
+        },
+        attrs
+      )
+
+    Application.put_env(
+      :simple_fit,
+      Local,
+      Keyword.update!(Application.get_env(:simple_fit, Local), :operators, &[operator | &1])
+    )
+
+    %Local.Credential{secret: secret}
+  end
+
+  @doc "Revokes a fixture operator, effective on the next call."
+  @spec revoke_operator(Local.Credential.t()) :: :ok
+  def revoke_operator(%Local.Credential{secret: secret}) do
+    Application.put_env(
+      :simple_fit,
+      Local,
+      Keyword.update!(Application.get_env(:simple_fit, Local), :operators, fn operators ->
+        Enum.map(operators, &if(&1.secret == secret, do: Map.put(&1, :revoked, true), else: &1))
+      end)
+    )
+  end
 
   @doc "Valid business details."
   @spec details(map()) :: map()
@@ -124,7 +173,7 @@ defmodule SimpleFit.VerificationHelpers do
     {:ok, _application} =
       VerificationReview.decide(view.application.id, :approved,
         revision: view.application.revision,
-        operator: @operator
+        credential: operator()
       )
 
     {:ok, view} = Gyms.get_business_verification(owner, gym_id)

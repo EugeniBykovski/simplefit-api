@@ -1784,3 +1784,99 @@ table, migration, status or role, and closes deviation 4 of SF-95 for the web.
    shows the older "claim your membership" content.
 3. Mobile screens are SF-135. The mobile `/join/:code` route stays a placeholder.
 4. Google and Apple continuation were not exercised with real providers.
+
+## Amendment — SF-136 (2026-11-06): trusted review authority, fail-closed in production
+
+SF-104 F-03 found that `mix gyms.verification` took the operator from an argument.
+The allowlist it added narrowed that but didn't fix it: anyone able to run the task
+could type another listed address and be recorded as that person.
+
+### Trust boundary before SF-136
+
+| Step | What happened |
+| --- | --- |
+| Who invokes | Anyone able to run `mix` with the deployment's configuration |
+| How they are authenticated | Not at all |
+| How the actor is bound | The `--operator` argument |
+| How it is authorized | That argument is on `GYM_VERIFICATION_OPERATORS` |
+| What changes | An application's status, under the row lock and database guards |
+| What is audited | The typed address, as if it identified someone |
+
+The privileged paths were all the public functions of `VerificationReview`:
+`list_submitted`, `show`, `evidence_download` (a working link to a business document),
+`decide` (approve, request changes, reject) and `revoke`. Each is reachable only from
+that task; no HTTP route, job or other module calls them.
+
+### Decision: no authority exists, so production has none
+
+SimpleFit has no operator table, grant model, workload identity or signing authority,
+and building one is SF-110. A `Session` proves a user, not an operator. So production
+review is **disabled**, which SF-136 allows and prefers to a weaker substitute.
+
+* `SimpleFit.Gyms.VerificationAuthority` is the only door. Its backend is chosen at
+  **compile time**: the default is `Disabled`, a production build refuses any other at
+  compile time, and `Local`, the fixture for tests and development, isn't compiled into
+  a production build. No environment variable or runtime setting can enable review.
+  `GYM_VERIFICATION_OPERATORS` is gone; if still set it does nothing.
+* `VerificationReview` takes a **credential**, never an operator. Every public function,
+  reads included, asks the authority for that action's own permission (`read_queue`,
+  `read_application`, `read_evidence`, `approve`, `request_changes`, `reject`, `revoke`).
+  An address, an actor id or a hand-built `OperatorPrincipal` is not a credential.
+* `mix gyms.verification` has no operator flag, and any unknown option is refused. In a
+  production build it refuses before starting the application.
+* Owners keep drafting and submitting. **In production, a submitted application waits:**
+  no one can decide it until SF-110, so go-live stays unmet.
+
+### Attribution
+
+Migration `20261112090000` adds `operator_actor_id`, `operator_authority` and
+`operation_id` to `gym_verification_events`.
+
+* A new operator row must carry all three and no address. The constraint
+  `gym_verification_events_trusted_actor` is deliberately `NOT VALID`: it binds new rows
+  and leaves history alone, and **must never be validated**.
+* Existing rows are not rewritten. An `operator` address with no authority is legacy,
+  unverified attribution: `VerificationEvent.attribution/1` and the task say so.
+* `operator_authority` allows only `local_fixture` today, which is not a trusted operator.
+  A real authority needs a new value in a reviewed migration.
+* The decision, its history row and its audit event are in one transaction.
+* Rollback of this migration is refused once a row has new attribution: those rows can't
+  be expressed in the old shape, and history isn't rewritten to allow it.
+
+### Conflict of interest and revocation
+
+* An operator may not read or decide an application if their user is its creator or
+  submitter, the gym's creator, active staff, or a current member (or requester). This is
+  checked by **user id**, with the gym row locked, so a staff change commits either before
+  the check or after the decision. Staff and member rights never grant operator rights.
+* The authority is asked on every call and again once the locks are held, with no cache,
+  so a call that waited on a lock can't act on an old answer. A decision that passed that
+  second check before the revocation took effect stands and stays in the history.
+
+### Limits of this control
+
+* Anyone with production shell or database credentials can change rows directly. No check
+  inside the application stops that; it needs infrastructure access control and database
+  roles, which don't exist here yet.
+* `mix billing.catalog` and `mix billing.stripe` still take `--operator NAME`, the same
+  pattern. They aren't in SF-136's scope and should be reviewed.
+
+### Enabling production review (SF-110)
+
+SF-110 must first provide an authority that verifies a credential cryptographically or
+through an independent identity provider, enrolls and revokes operators independently of
+the reviewer, answers for current grants on every call under a documented lock, and
+returns an immutable actor id and user id. Then, in a reviewed change: implement the
+`VerificationAuthority` behaviour; add its `operator_authority` value; replace the
+production compile guard to allow exactly that backend; delete `Local` from any path a
+production build could reach; and run the security suite against it. **There is no
+interim switch, and none should be added.** Decisions that need making before then have
+no supported path.
+
+### Audit and incident notes
+
+Refusals emit `[:simple_fit, :gyms, :verification, :review_refused]` with the reason only.
+Any production `gym_verification_events` row with `operator` set dates from before this
+change and proves nothing about who acted: treat such approvals as unverified in an
+incident. Check for them before relying on an `approved` status from that period.
+

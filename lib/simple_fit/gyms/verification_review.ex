@@ -4,31 +4,25 @@ defmodule SimpleFit.Gyms.VerificationReview do
   amendment SF-103): list and read submitted applications, download their
   documents, and decide.
 
-  **No HTTP endpoint reaches this module.** SimpleFit has no platform
-  operator identity or admin authorization domain yet (the designed admin
-  console, AD0–AD20, has no backend), so review follows the existing
-  operator pattern (`SimpleFit.Billing.Operations`, SF-101/SF-102): people
-  with production shell access run `mix gyms.verification`. Each call names
-  the operator (an email address) and each write is recorded in the
-  application's append-only history with the revision and documents it
-  covered.
+  **No HTTP endpoint reaches this module.**
 
-  **Review is disabled unless operators are configured** (SF-104): every
-  call, reads included, needs an operator listed in
-  `config :simple_fit, SimpleFit.Gyms.VerificationReview, operators: [...]`
-  (`GYM_VERIFICATION_OPERATORS`, comma-separated addresses). With no list,
-  everything answers `:review_disabled`; an address outside the list is
-  `{:forbidden, :operator}`. An arbitrary address typed into the task is
-  therefore never an operator. The list is an approval made in deployment
-  configuration, not an identity: a shell user can still claim another
-  listed address, so production review stays disabled until an operator
-  identity exists or the risk is accepted.
+  **This module is the only boundary, and it trusts no name** (SF-136, SF-104
+  F-03). Every public function, reads included, takes a credential and asks
+  `SimpleFit.Gyms.VerificationAuthority` for the permission it needs, before
+  touching anything and again once its locks are held. There is no way to pass an
+  operator in: an address, an actor id or a hand-built principal is not a credential.
 
-  Guards that hold whatever the shell user types:
+  **In production every call answers `:review_disabled`**, because SimpleFit has no
+  authority that can prove an operator's identity until SF-110. No configuration can
+  change that. The documents, decisions and revocations stay unreachable; owners
+  keep drafting and submitting.
 
-    * the operator must not be the submitter, the application's creator or
-      an active staff member of the gym (matched on their verified email
-      identities): an owner cannot approve their own gym through this path;
+  Guards that hold under any authority:
+
+    * the operator's user must not be the submitter, the application's or the
+      gym's creator, an active staff member or a current member of the gym,
+      checked by user id with the locks held: an owner cannot approve their own
+      gym, and a staff change and a decision commit one after the other;
     * a decision names the revision the operator reviewed; any newer
       revision is a conflict;
     * only the reviewed transitions exist (`submitted -> approved |
@@ -41,20 +35,27 @@ defmodule SimpleFit.Gyms.VerificationReview do
   publication or staff right follows from it. A revocation keeps the gym,
   its staff, members, classes, bookings, attendance and payments as they
   are.
+
+  **Revocation:** the authority is asked on every call, and again after the locks
+  are held, so a call that waited on a lock can't act on an old answer. A decision
+  that passed that second check before the revocation took effect stands, and is in
+  the history; nothing is rewritten.
   """
 
   import Ecto.Query, only: [from: 2]
 
   alias Ecto.Changeset
-  alias SimpleFit.Accounts.{EmailAddress, Identity}
   alias SimpleFit.{Clock, Repo, Storage}
 
   alias SimpleFit.Gyms.{
     Access,
     Gym,
+    Member,
+    OperatorPrincipal,
     StaffMembership,
     Verification,
     VerificationApplication,
+    VerificationAuthority,
     VerificationEvent,
     VerificationEvidence,
     VerificationPolicy
@@ -84,16 +85,18 @@ defmodule SimpleFit.Gyms.VerificationReview do
 
   @type error ::
           :not_found
-          | :review_disabled
-          | {:forbidden, :operator}
+          | VerificationAuthority.error()
           | {:conflict, map()}
           | {:invalid, atom()}
 
-  @doc "Submitted applications awaiting a decision, oldest first (an authorized operator only)."
-  @spec list_submitted(String.t()) :: {:ok, [summary()]} | {:error, error()}
-  def list_submitted(operator) do
-    with {:ok, _operator} <- operator(operator) do
-      {:ok, submitted()}
+  @doc """
+  Submitted applications awaiting a decision, oldest first, leaving out any this
+  operator has an interest in.
+  """
+  @spec list_submitted(term()) :: {:ok, [summary()]} | {:error, error()}
+  def list_submitted(credential) do
+    with {:ok, operator} <- authorize(credential, :read_queue) do
+      {:ok, Enum.filter(submitted(), &(independent(&1.application, operator) == :ok))}
     end
   end
 
@@ -110,11 +113,12 @@ defmodule SimpleFit.Gyms.VerificationReview do
     )
   end
 
-  @doc "One application with its gym, every document and its history (an authorized operator only)."
-  @spec show(term(), String.t()) :: {:ok, detail()} | {:error, error()}
-  def show(application_id, operator) do
-    with {:ok, _operator} <- operator(operator),
-         {:ok, application} <- fetch(application_id) do
+  @doc "One application with its gym, every document and its history (an independent operator only)."
+  @spec show(term(), term()) :: {:ok, detail()} | {:error, error()}
+  def show(application_id, credential) do
+    with {:ok, operator} <- authorize(credential, :read_application),
+         {:ok, application} <- fetch(application_id),
+         :ok <- independent(application, operator) do
       {:ok,
        %{
          application: application,
@@ -141,15 +145,16 @@ defmodule SimpleFit.Gyms.VerificationReview do
 
   @doc """
   A short-lived (5 minutes) presigned download of a confirmed document of a
-  submitted, decided or revoked application, for `operator`; recorded in
-  the history before the URL is returned.
+  submitted, decided or revoked application; recorded in the history before
+  the URL is returned.
   """
-  @spec evidence_download(term(), term(), String.t()) ::
+  @spec evidence_download(term(), term(), term()) ::
           {:ok, Storage.Presigned.t()} | {:error, error() | SimpleFit.Provider.error()}
-  def evidence_download(application_id, evidence_id, operator) do
+  def evidence_download(application_id, evidence_id, credential) do
     Repo.transaction(fn ->
-      with {:ok, operator} <- operator(operator),
+      with {:ok, _} <- authorize(credential, :read_evidence),
            {:ok, application} <- lock(application_id, :share),
+           {:ok, operator} <- authorize(credential, :read_evidence),
            :ok <- independent(application, operator),
            :ok <- reviewable(application),
            {:ok, evidence} <- uploaded_evidence(application, evidence_id),
@@ -158,7 +163,7 @@ defmodule SimpleFit.Gyms.VerificationReview do
         Verification.record_event!(
           application,
           :evidence_downloaded,
-          %{operator: operator, evidence_ids: [evidence.id]},
+          Map.put(attribution(operator), :evidence_ids, [evidence.id]),
           now()
         )
 
@@ -172,14 +177,14 @@ defmodule SimpleFit.Gyms.VerificationReview do
   @doc """
   Decides a submitted application at the reviewed `:revision`:
   `:approved`, `:rejected` or `:changes_requested` (the last two with a
-  `:reason` code). Options: `:revision` (required), `:reason`,
-  `:operator` (required, an email address).
+  `:reason` code). Options: `:revision` and `:credential` (both required),
+  `:reason`.
   """
   @spec decide(term(), :approved | :rejected | :changes_requested, keyword()) ::
           {:ok, VerificationApplication.t()} | {:error, error()}
   def decide(application_id, decision, opts)
       when decision in [:approved, :rejected, :changes_requested] do
-    transact(application_id, opts, fn application, operator ->
+    transact(application_id, decision_permission(decision), opts, fn application, operator ->
       with :ok <- status(application, :submitted),
            :ok <- reviewed(application, opts),
            {:ok, reason} <- reason(decision, opts),
@@ -191,11 +196,11 @@ defmodule SimpleFit.Gyms.VerificationReview do
 
   @doc """
   Revokes an approved application with a `:reason` code. Options:
-  `:reason` and `:operator` (both required).
+  `:reason` and `:credential` (both required).
   """
   @spec revoke(term(), keyword()) :: {:ok, VerificationApplication.t()} | {:error, error()}
   def revoke(application_id, opts) do
-    transact(application_id, opts, fn application, operator ->
+    transact(application_id, :revoke, opts, fn application, operator ->
       with :ok <- status(application, :approved),
            {:ok, reason} <- reason(:revoked, opts),
            {:ok, evidence_ids} <- submitted_evidence(application) do
@@ -206,10 +211,14 @@ defmodule SimpleFit.Gyms.VerificationReview do
 
   ## Internals
 
-  defp transact(application_id, opts, fun) do
+  defp transact(application_id, permission, opts, fun) do
+    credential = Keyword.get(opts, :credential)
+
     Repo.transaction(fn ->
-      with {:ok, operator} <- operator(Keyword.get(opts, :operator)),
+      with {:ok, _} <- authorize(credential, permission),
            {:ok, application} <- lock(application_id, :update),
+           # Asked again with the locks held: waiting on one never acts on an old answer.
+           {:ok, operator} <- authorize(credential, permission),
            :ok <- independent(application, operator),
            {:ok, application} <- fun.(application, operator) do
         application
@@ -217,6 +226,33 @@ defmodule SimpleFit.Gyms.VerificationReview do
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp decision_permission(:approved), do: :approve
+  defp decision_permission(:rejected), do: :reject
+  defp decision_permission(:changes_requested), do: :request_changes
+
+  # The one door. Refusals are counted, without saying who or what was tried.
+  defp authorize(credential, permission) do
+    case VerificationAuthority.authenticate(credential, permission) do
+      {:ok, %OperatorPrincipal{}} = allowed ->
+        allowed
+
+      {:error, reason} = refused ->
+        :telemetry.execute([:simple_fit, :gyms, :verification, :review_refused], %{count: 1}, %{
+          reason: reason
+        })
+
+        refused
+    end
+  end
+
+  defp attribution(%OperatorPrincipal{} = operator) do
+    %{
+      operator_actor_id: operator.actor_id,
+      operator_authority: operator.authority,
+      operation_id: Ecto.UUID.generate()
+    }
   end
 
   defp commit(application, decision, reason, operator, evidence_ids) do
@@ -230,7 +266,7 @@ defmodule SimpleFit.Gyms.VerificationReview do
     Verification.record_event!(
       application,
       decision,
-      %{operator: operator, reason_code: reason, evidence_ids: evidence_ids},
+      Map.merge(attribution(operator), %{reason_code: reason, evidence_ids: evidence_ids}),
       now
     )
 
@@ -270,58 +306,39 @@ defmodule SimpleFit.Gyms.VerificationReview do
     end
   end
 
-  # A well-formed address on the configured operator list; no list, no review.
-  defp operator(value) when is_binary(value) do
-    case {EmailAddress.normalize(value), operators()} do
-      {_email, []} ->
-        {:error, :review_disabled}
+  # The operator's user has no interest in the application, by user id: not its
+  # creator or submitter, not the gym's creator, none of its active staff or
+  # current members. Called with the gym row locked, so a staff or member change
+  # commits either before this check or after the decision.
+  defp independent(application, %OperatorPrincipal{user_id: user_id}) do
+    gym_id = application.gym_id
 
-      {:error, _list} ->
-        {:error, {:invalid, :operator}}
-
-      {{:ok, email}, list} ->
-        if email in list, do: {:ok, email}, else: {:error, {:forbidden, :operator}}
-    end
+    if user_id in [application.created_by_user_id, application.submitted_by_user_id] or
+         gym_creator?(gym_id, user_id) or staff?(gym_id, user_id) or member?(gym_id, user_id),
+       do: {:error, {:conflict, %{operator: "not_independent"}}},
+       else: :ok
   end
 
-  defp operator(_value) do
-    if operators() == [], do: {:error, :review_disabled}, else: {:error, {:invalid, :operator}}
-  end
+  defp gym_creator?(gym_id, user_id),
+    do: exists?(from(g in Gym, where: g.id == ^gym_id and g.created_by_user_id == ^user_id))
 
-  @doc "The configured operator addresses (normalized); empty means review is disabled."
-  @spec operators() :: [String.t()]
-  def operators do
-    :simple_fit
-    |> Application.get_env(__MODULE__, [])
-    |> Keyword.get(:operators, [])
-    |> Enum.flat_map(fn address ->
-      case EmailAddress.normalize(address) do
-        {:ok, email} -> [email]
-        :error -> []
-      end
-    end)
-  end
-
-  # The operator is none of the gym's active staff and neither the
-  # application's creator nor its submitter (by verified email identity).
-  defp independent(application, operator) do
-    people =
-      Enum.reject([application.created_by_user_id, application.submitted_by_user_id], &is_nil/1)
-
-    conflicted? =
-      Repo.exists?(
-        from(i in Identity,
-          left_join: m in StaffMembership,
-          on: m.user_id == i.user_id and m.gym_id == ^application.gym_id and m.status == :active,
-          where:
-            i.provider == :email and i.provider_subject == ^operator and
-              (not is_nil(m.id) or i.user_id in ^people)
-        ),
-        @unlogged
+  defp staff?(gym_id, user_id) do
+    exists?(
+      from(m in StaffMembership,
+        where: m.gym_id == ^gym_id and m.user_id == ^user_id and m.status == :active
       )
-
-    if conflicted?, do: {:error, {:conflict, %{operator: "not_independent"}}}, else: :ok
+    )
   end
+
+  defp member?(gym_id, user_id) do
+    exists?(
+      from(m in Member,
+        where: m.gym_id == ^gym_id and m.user_id == ^user_id and m.status in [:requested, :active]
+      )
+    )
+  end
+
+  defp exists?(query), do: Repo.exists?(query, @unlogged)
 
   defp status(%VerificationApplication{status: status}, status), do: :ok
 

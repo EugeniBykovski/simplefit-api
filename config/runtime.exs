@@ -173,30 +173,6 @@ config :opentelemetry,
     deployment: [environment: [name: observability_environment]]
   ]
 
-# Gym business-verification review (SF-103, SF-104): disabled unless the
-# operators allowed to review are listed (comma-separated email addresses).
-# A malformed address fails boot. Tests configure it themselves.
-if config_env() != :test do
-  operators =
-    case get_env.("GYM_VERIFICATION_OPERATORS") do
-      nil ->
-        []
-
-      list ->
-        list
-        |> String.split(",", trim: true)
-        |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
-        |> Enum.reject(&(&1 == ""))
-        |> Enum.map(fn address ->
-          if Regex.match?(~r/\A[^@\s]+@[^@\s]+\.[^@\s]+\z/, address),
-            do: address,
-            else: raise("GYM_VERIFICATION_OPERATORS is invalid: expected email addresses")
-        end)
-    end
-
-  config :simple_fit, SimpleFit.Gyms.VerificationReview, operators: operators
-end
-
 # Coach–Fighter sharing (ADR 0021): off unless enabled here, and only the
 # disclosure versions listed here (identifiers of approved legal texts) can
 # be accepted. A malformed list fails boot. Tests configure it themselves.

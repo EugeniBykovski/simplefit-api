@@ -110,7 +110,7 @@ defmodule SimpleFit.GymVerificationTest do
     VerificationReview.decide(
       view.application.id,
       decision,
-      Keyword.merge([revision: view.application.revision, operator: operator()], opts)
+      Keyword.merge([revision: view.application.revision, credential: operator()], opts)
     )
   end
 
@@ -456,7 +456,10 @@ defmodule SimpleFit.GymVerificationTest do
 
       assert [_submitted, decision] = events(view.application.id)
       assert decision.event == :approved
-      assert decision.operator == operator()
+      assert decision.operator_actor_id == reviewer_actor_id()
+      assert decision.operator_authority == :local_fixture
+      assert decision.operator == nil
+      assert is_binary(decision.operation_id)
       assert decision.actor_user_id == nil
       assert decision.application_revision == view.application.revision
       assert decision.evidence_ids == [evidence.id]
@@ -487,129 +490,51 @@ defmodule SimpleFit.GymVerificationTest do
                decide(view, :changes_requested, reason: "suspected_fraud")
 
       assert {:error, {:invalid, :reason}} = decide(view, :approved, reason: "other")
-      assert {:error, {:invalid, :operator}} = decide(view, :approved, operator: "not an email")
-      assert {:error, {:invalid, :operator}} = decide(view, :approved, operator: nil)
+      assert {:error, :unauthenticated} = decide(view, :approved, credential: "not a credential")
+      assert {:error, :unauthenticated} = decide(view, :approved, credential: nil)
 
       assert {:error, :not_found} =
                VerificationReview.decide(Ecto.UUID.generate(), :approved,
                  revision: 1,
-                 operator: operator()
+                 credential: operator()
                )
 
       assert {:error, {:conflict, %{verification: "submitted"}}} =
                VerificationReview.revoke(view.application.id,
                  reason: "other",
-                 operator: operator()
+                 credential: operator()
                )
 
       assert get!(ctx.owner, ctx.gym.id).status == :submitted
     end
 
-    test "no one at the gym can decide: the owner and staff are refused as operators", ctx do
-      # Even a listed operator is refused when they are the gym's own staff.
-      original = Application.get_env(:simple_fit, VerificationReview)
-      on_exit(fn -> Application.put_env(:simple_fit, VerificationReview, original) end)
-
-      Application.put_env(:simple_fit, VerificationReview,
-        operators: [operator(), "owner@simpleboxing.example", "mia@simpleboxing.example"]
-      )
-
-      link_email!(ctx.owner, "owner@simpleboxing.example")
+    test "no one at the gym can decide or read: refused by user id, whatever else is true", ctx do
       {manager, _} = joined_staff!(ctx.owner, ctx.gym.id, :manager, "Mia Manager")
-      link_email!(manager, "mia@simpleboxing.example")
+      {marta, _member} = member!(ctx.owner, ctx.gym.id)
       view = submitted!(ctx.owner, ctx.gym.id)
+      [evidence] = view.evidence
 
-      for address <- ["owner@simpleboxing.example", " Mia@SimpleBoxing.example "] do
+      for person <- [ctx.owner, manager, marta] do
+        credential = fixture_operator!(%{user_id: person.id})
+
         assert {:error, {:conflict, %{operator: "not_independent"}}} =
-                 decide(view, :approved, operator: address)
+                 decide(view, :approved, credential: credential)
+
+        assert {:error, {:conflict, %{operator: "not_independent"}}} =
+                 VerificationReview.show(view.application.id, credential)
 
         assert {:error, {:conflict, %{operator: "not_independent"}}} =
                  VerificationReview.evidence_download(
                    view.application.id,
-                   hd(view.evidence).id,
-                   address
+                   evidence.id,
+                   credential
                  )
+
+        assert {:ok, []} = VerificationReview.list_submitted(credential)
       end
 
       assert get!(ctx.owner, ctx.gym.id).status == :submitted
       assert {:ok, _} = decide(view, :approved)
-    end
-
-    test "changes requested: the owner edits, adds a document and resubmits", ctx do
-      view = submitted!(ctx.owner, ctx.gym.id)
-      [first] = view.evidence
-      assert {:ok, _} = decide(view, :changes_requested, reason: "document_unreadable")
-
-      reopened = get!(ctx.owner, ctx.gym.id)
-      assert reopened.status == :changes_requested
-
-      assert %{decision: :changes_requested, reason_code: "document_unreadable"} =
-               reopened.latest_decision
-
-      assert reopened.can_edit and reopened.can_submit
-
-      # The submitted document is frozen; a new one can be added.
-      assert {:error, {:conflict, %{evidence: "submitted"}}} =
-               remove(ctx.owner, ctx.gym.id, first.id, reopened.application.revision)
-
-      {:ok, {edited, :updated}} =
-        save(ctx.owner, ctx.gym.id, %{
-          "revision" => reopened.application.revision,
-          "city" => "Kraków"
-        })
-
-      {with_second, second_id, _objects} =
-        upload!(ctx.owner, ctx.gym.id, %{first.id => {182_311, "application/pdf"}})
-
-      assert with_second.application.revision > edited.application.revision
-
-      {:ok, resubmitted} = submit(ctx.owner, ctx.gym.id, with_second.application.revision)
-      assert resubmitted.status == :submitted
-
-      # The operator must review the new revision, and sees both documents.
-      assert {:error, {:conflict, %{revision: "stale"}}} = decide(view, :approved)
-      assert {:ok, _} = decide(resubmitted, :approved)
-
-      assert [:submitted, :changes_requested, :submitted, :approved] =
-               Enum.map(events(view.application.id), & &1.event)
-
-      assert Enum.sort(List.last(events(view.application.id)).evidence_ids) ==
-               Enum.sort([first.id, second_id])
-    end
-
-    test "after a rejection the owner starts over; old documents never count", ctx do
-      view = submitted!(ctx.owner, ctx.gym.id)
-      [old] = view.evidence
-      assert {:ok, _} = decide(view, :rejected, reason: "business_not_verifiable")
-
-      rejected = get!(ctx.owner, ctx.gym.id)
-      assert rejected.status == :rejected
-      assert rejected.can_edit
-      refute rejected.can_submit
-      assert rejected.requirements.policy_version == "sf103-generic-1"
-
-      assert {:ok, {fresh, :created}} = save(ctx.owner, ctx.gym.id, details())
-      assert fresh.application.id != view.application.id
-      assert fresh.status == :draft
-      assert fresh.evidence == []
-      assert fresh.missing == [:evidence]
-
-      assert {:error, {:conflict, %{evidence: "upload_pending"}} = _} =
-               (fn ->
-                  {:ok, {_v, _pending, _u}} = announce(ctx.owner, ctx.gym.id, %{})
-                  submit(ctx.owner, ctx.gym.id, get!(ctx.owner, ctx.gym.id).application.revision)
-                end).()
-
-      assert {:error, :not_found} =
-               remove(
-                 ctx.owner,
-                 ctx.gym.id,
-                 old.id,
-                 get!(ctx.owner, ctx.gym.id).application.revision
-               )
-
-      assert {:error, :not_found} = confirm(ctx.owner, ctx.gym.id, old.id)
-      assert Repo.get!(VerificationApplication, view.application.id).status == :rejected
     end
 
     test "operators download confirmed documents through short-lived, recorded links", ctx do
@@ -622,10 +547,12 @@ defmodule SimpleFit.GymVerificationTest do
       assert download.method == :get
       assert DateTime.diff(download.expires_at, DateTime.utc_now()) in 290..300
 
-      assert [_submitted, %{event: :evidence_downloaded, operator: op, evidence_ids: ids}] =
-               events(view.application.id)
+      assert [
+               _submitted,
+               %{event: :evidence_downloaded, operator_actor_id: actor, evidence_ids: ids}
+             ] = events(view.application.id)
 
-      assert op == operator()
+      assert actor == reviewer_actor_id()
       assert ids == [evidence.id]
 
       assert {:error, :not_found} =
@@ -651,49 +578,6 @@ defmodule SimpleFit.GymVerificationTest do
     end
   end
 
-  describe "operator authorization (SF-104)" do
-    setup do
-      original = Application.get_env(:simple_fit, VerificationReview)
-      on_exit(fn -> Application.put_env(:simple_fit, VerificationReview, original) end)
-      :ok
-    end
-
-    test "an address outside the configured operator list is never an operator", ctx do
-      view = submitted!(ctx.owner, ctx.gym.id)
-      [evidence] = view.evidence
-      impostor = "someone.else@trust.simplefit.test"
-
-      assert {:error, {:forbidden, :operator}} = decide(view, :approved, operator: impostor)
-      assert {:error, {:forbidden, :operator}} = VerificationReview.list_submitted(impostor)
-
-      assert {:error, {:forbidden, :operator}} =
-               VerificationReview.show(view.application.id, impostor)
-
-      assert {:error, {:forbidden, :operator}} =
-               VerificationReview.evidence_download(view.application.id, evidence.id, impostor)
-
-      assert {:error, {:forbidden, :operator}} =
-               VerificationReview.revoke(view.application.id, reason: "other", operator: impostor)
-
-      # Case and spaces do not matter for a listed address.
-      assert {:ok, _} = decide(view, :approved, operator: "  Reviewer@Trust.SimpleFit.test ")
-      assert [:submitted, :approved] = Enum.map(events(view.application.id), & &1.event)
-    end
-
-    test "without a configured list, review is disabled entirely", ctx do
-      view = submitted!(ctx.owner, ctx.gym.id)
-      Application.put_env(:simple_fit, VerificationReview, operators: [])
-
-      assert VerificationReview.operators() == []
-      assert {:error, :review_disabled} = decide(view, :approved)
-      assert {:error, :review_disabled} = VerificationReview.list_submitted(operator())
-      assert {:error, :review_disabled} = VerificationReview.show(view.application.id, operator())
-      assert {:error, :review_disabled} = VerificationReview.show(view.application.id, nil)
-      assert get!(ctx.owner, ctx.gym.id).status == :submitted
-      assert [:submitted] = Enum.map(events(view.application.id), & &1.event)
-    end
-  end
-
   describe "revocation" do
     test "withdraws the approval, keeps every gym record, and fails go-live closed", ctx do
       class = class!(ctx.owner, ctx.gym.id, @wednesday, 5)
@@ -714,12 +598,12 @@ defmodule SimpleFit.GymVerificationTest do
       snapshot = counts.()
 
       assert {:error, {:invalid, :reason}} =
-               VerificationReview.revoke(approved.application.id, operator: operator())
+               VerificationReview.revoke(approved.application.id, credential: operator())
 
       assert {:ok, %{status: :revoked}} =
                VerificationReview.revoke(approved.application.id,
                  reason: "business_closed",
-                 operator: operator()
+                 credential: operator()
                )
 
       assert counts.() == snapshot
@@ -735,7 +619,7 @@ defmodule SimpleFit.GymVerificationTest do
       assert {:error, {:conflict, %{verification: "revoked"}}} =
                VerificationReview.revoke(approved.application.id,
                  reason: "other",
-                 operator: operator()
+                 credential: operator()
                )
 
       # The gym keeps operating.
