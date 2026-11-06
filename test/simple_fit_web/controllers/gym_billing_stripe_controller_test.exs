@@ -15,7 +15,7 @@ defmodule SimpleFitWeb.GymBillingStripeControllerTest do
   import SimpleFit.GymHelpers
   import SimpleFit.StripeHelpers
 
-  alias SimpleFit.{Accounts, RateLimit, Repo, StripeFake}
+  alias SimpleFit.{Accounts, Gyms, RateLimit, Repo, StripeFake}
   alias SimpleFit.Billing.Stripe.{Signature, WebhookEvent}
   alias SimpleFit.Gyms.MemberSecrets
   alias SimpleFitWeb.ApiSpec
@@ -183,6 +183,67 @@ defmodule SimpleFitWeb.GymBillingStripeControllerTest do
     |> authed()
     |> post("#{ctx.base}/saas-subscriptions/#{Ecto.UUID.generate()}/checkout-session")
     |> error(404, "not_found")
+  end
+
+  # SF-138
+  test "billing authority comes from the gym's owner role, in that gym, and ends with it", ctx do
+    sub = intent!(ctx)
+    path = "#{ctx.base}/saas-subscriptions/#{sub["subscription_id"]}"
+
+    # A member of the gym and a coach with a profile hold no billing authority.
+    member = registered!("stripe-http-member")
+    code = join_code!(ctx.owner, ctx.gym.id)
+    auto_approve!(ctx.owner, ctx.gym.id, true)
+    assert {:ok, %{status: :active}, _} = join(member, code)
+    coach = registered!("stripe-http-coach")
+    SimpleFit.CoachingHelpers.complete_coach!(coach)
+
+    for user <- [member, coach] do
+      t = token(user)
+      t |> authed() |> get("#{ctx.base}/billing") |> error(404, "not_found")
+      t |> authed() |> get("#{ctx.base}/billing/invoices") |> error(404, "not_found")
+      t |> authed() |> post("#{path}/checkout-session") |> error(404, "not_found")
+    end
+
+    # The owner of another gym can't reach this gym, nor this subscription through theirs.
+    other_owner = registered!("stripe-http-other")
+    other_gym = completed_gym!(other_owner)
+    t = token(other_owner)
+    t |> authed() |> get("#{ctx.base}/billing") |> error(404, "not_found")
+    t |> authed() |> post("#{path}/checkout-session") |> error(404, "not_found")
+
+    t
+    |> authed()
+    |> post(
+      "/api/v1/gyms/#{other_gym.id}/saas-subscriptions/#{sub["subscription_id"]}/checkout-session"
+    )
+    |> error(404, "not_found")
+
+    # Access that ends takes billing with it, on a session that is still live.
+    manager = registered!("stripe-http-ended")
+    ended = staff!(ctx.gym.id, manager, :manager)
+    t = token(manager)
+    t |> authed() |> get("#{ctx.base}/billing") |> error(403, "forbidden")
+    {:ok, _} = Gyms.end_staff_membership(ctx.owner, ctx.gym.id, ended.id)
+    t |> authed() |> get("#{ctx.base}/billing") |> error(404, "not_found")
+    t |> authed() |> post("#{path}/checkout-session") |> error(404, "not_found")
+
+    # So does ownership: the owner who hands the gym over and leaves.
+    heir = registered!("stripe-http-heir")
+
+    {:ok, _} =
+      Gyms.transfer_ownership(
+        ctx.owner,
+        ctx.gym.id,
+        staff!(ctx.gym.id, heir, :manager).id,
+        :leave
+      )
+
+    ctx.token |> authed() |> get("#{ctx.base}/billing") |> error(404, "not_found")
+    ctx.token |> authed() |> post("#{path}/checkout-session") |> error(404, "not_found")
+    assert token(heir) |> authed() |> get("#{ctx.base}/billing") |> json_response(200)
+
+    assert StripeFake.count("POST", "/v1/checkout/sessions") == 0
   end
 
   test "authorization comes before the provider state: a disabled provider is never disclosed",

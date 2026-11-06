@@ -757,6 +757,52 @@ defmodule SimpleFit.StripeBillingTest do
       assert reload(ctx.subscription).status == :active
     end
 
+    # SF-138
+    test "a refund Stripe reports failed changes no money and keeps access", ctx do
+      assert {:ok, %Refund{status: :succeeded, stripe_refund_id: refund_id}} =
+               Operations.refund(ctx.ids.invoice, "ops", "SF-138-REFUND")
+
+      StripeFake.put(refund_id, %{"status" => "failed"})
+      deliver_and_process!(StripeFake.event("refund.failed", "refund", refund_id))
+
+      assert [%Refund{status: :failed}] = Repo.all(Refund)
+      assert Repo.get_by!(Invoice, stripe_invoice_id: ctx.ids.invoice).amount_refunded == 0
+      assert reload(ctx.subscription).status == :active
+    end
+
+    # SF-138
+    test "a refund after cancellation changes the invoice, not the ended subscription", ctx do
+      assert {:ok, %{status: :cancelled}} =
+               Billing.cancel_gym_subscription(
+                 ctx.owner,
+                 live_session!(ctx.owner),
+                 ctx.gym.id,
+                 ctx.subscription.id,
+                 %{"mode" => "immediate"}
+               )
+
+      assert {:ok, %Refund{status: :succeeded, amount_minor: 14_900}} =
+               Operations.refund(ctx.ids.invoice, "ops", "SF-138-REFUND")
+
+      assert reload(ctx.subscription).status == :cancelled
+      assert Repo.get_by!(Invoice, stripe_invoice_id: ctx.ids.invoice).status == :paid
+    end
+
+    # SF-138
+    test "a voided renewal invoice is recorded and pays for nothing", ctx do
+      paid_until = ctx.subscription.current_period_end
+      failed = StripeFake.fail_renewal(ctx.ids.subscription)
+      StripeFake.put(failed.invoice, %{"status" => "void"})
+      deliver_and_process!(StripeFake.event("invoice.voided", "invoice", failed.invoice))
+
+      assert Repo.get_by!(Invoice, stripe_invoice_id: failed.invoice).status == :void
+      assert reload(ctx.subscription).current_period_end == paid_until
+      assert events(ctx.gym.id, :saas_subscription_renewed) == 0
+
+      assert {:error, {:conflict, %{invoice: "void"}}} =
+               Operations.refund(failed.invoice, "ops", "SF-138-REFUND")
+    end
+
     test "a dispute is recorded as a dispute, never as a refund", ctx do
       dispute_id = StripeFake.dispute(ctx.ids.payment_intent, ctx.ids.charge, 14_900)
       deliver_and_process!(StripeFake.event("charge.dispute.created", "dispute", dispute_id))
