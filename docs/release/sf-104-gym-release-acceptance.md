@@ -9,6 +9,8 @@
   §11 and §12 are current. §3..§6 are the original SF-104 record, kept as history.
 * Nothing in this document authorizes a production release, live Stripe
   charges or public gym publishing.
+* **Commercial Payments re-assessed by SF-138 on 2026-11-06:** still NO-GO; see
+  `sf-138-stripe-test-mode-evidence.md`. SF-138 changed nothing about verdicts A and C.
 * Status words: **PASS** (executed, and the outcome was observed), **FAIL**
   (executed, and it was wrong), **BLOCKED** (cannot run without an outside
   credential or decision), **NOT VERIFIED** (not executed, whatever the cause).
@@ -21,7 +23,7 @@ about payments or publication.
 | Release | Verdict | Why |
 | --- | --- | --- |
 | A. Operational Gym MVP | **CONDITIONAL GO** for a closed pilot, only under the restrictions in §9 and once the product owner accepts them. **NO-GO** for general availability | F-01 and F-02 are fixed: staff and members now complete the whole journey through the product. No P0 or P1 is open. Android, Google/Apple, a release-signed iOS build, real email and real storage remain NOT VERIFIED |
-| B. Commercial Payments | **NO-GO** (**BLOCKED**) | No valid Stripe credentials (expired 2026-03-09), so no sandbox evidence exists. Prices, tax/invoicing and legal terms are unapproved |
+| B. Commercial Payments | **NO-GO** (**BLOCKED**) | SF-138: Test Mode Technical Readiness NO-GO, Live NO-GO. No valid Stripe credentials (expired 2026-03-09), so no provider evidence exists. Prices, tax/invoicing and legal terms are unapproved |
 | C. Public Gym Publication | **NO-GO** (**BLOCKED**) | Verification review is disabled at compile time until SF-110 (SF-136). No approved publishing policy, legal review or public gym page |
 
 SF-137 fixed one defect in the product (F-08, P2) and test defects only
@@ -220,6 +222,9 @@ The journey is single-project by design; the recipient journeys
 | T-07 | test defect (timing) | SF-137. `gym-journey.spec.ts` J: the WebKit navigation retry covered the first completion step, not the second. | **FIXED** platform `7e04af4`; gym-journey 4/4 on WebKit |
 | T-08 | test defect (stale) | SF-137. The release journey still used API-assisted steps from before SF-133/SF-134. | **FIXED** platform `7e04af4` |
 
+| F-09 | P1 (security) | SF-138. `mix billing.stripe` and `mix billing.catalog` took `--operator` and `--approval` from the command line as authority for refunds, price mappings, connected accounts and catalog publication. | **FIXED** in SF-138: a production build refuses all seven commands at compile time; SF-110 is needed to restore them |
+| F-10 | P2 | SF-138. `STRIPE_ACCOUNT_ID` was documented as checked but nothing compared it, so keys of another account would pass. | **FIXED** in SF-138: `mix billing.stripe status` asks Stripe. Proven against a fake only |
+
 **Open P0: none. Open P1: none.** Open: F-06 and F-07 (P3). No cross-tenant
 exposure, capacity bypass, double booking, duplicated attendance, forged payment
 or self-verification was observed. This covers what was executed; see §9 for
@@ -265,20 +270,16 @@ the product's own flows. Support follows §10.
 
 ### B. Commercial Payments — NO-GO (BLOCKED)
 
-* **Implemented:** plan catalog, plan page, webhooks, Stripe boundary.
-* **PASS:** with billing disabled, and with placeholder test credentials, the
-  plan page refuses before any Stripe call; webhooks verify the raw body and
-  signature and record one event; a manager and a stranger are refused. 0
-  `stripe_checkouts`, 0 `stripe_customers`.
-* **BLOCKED:** real Test Mode checkout, subscription lifecycle, refund and failure
-  reconciliation. Stripe CLI test and live keys expired 2026-03-09; live keys were
-  not used.
-* **Awaiting approval or decision:** pricing (the catalog is provisional; the
-  SF-137 publish was on a disposable database, reference
-  `sf137-disposable-fixture-not-a-pricing-approval`, and is not an approval), tax
-  and invoicing, legal terms, member payments, Connect.
-* **Rollout prerequisites:** fresh test credentials, sandbox evidence for the
-  whole lifecycle, then the approvals above.
+SF-138 holds the current detail: `sf-138-stripe-test-mode-evidence.md`.
+
+* **Test Mode Technical Readiness: NO-GO.** Real Stripe was never reached: the CLI's
+  keys expired 2026-03-09, no `STRIPE_*` value is configured, and the CLI's profile
+  names an account that isn't obviously SimpleFit's. Local checks pass, against a fake.
+* **Live Commercial Release: NO-GO.** Pricing, merchant entity, tax, invoicing, terms,
+  refund policy, Stripe account verification and release approval are all open.
+* **Fixed by SF-138:** F-09 and F-10 below.
+* **Rollout prerequisites:** fresh test credentials for the right account; the provider
+  run in the SF-138 runbook; then the approvals in its register.
 
 ### C. Public Gym Publication — NO-GO (BLOCKED)
 
@@ -305,7 +306,8 @@ the product's own flows. Support follows §10.
 * **Secrets readiness:** Stripe keys are not available (expired); storage
   and email credentials must be provisioned per environment.
 * **Backward compatibility:** SF-136 removes `--operator`; `mix
-  gyms.verification` refuses every command in a production build.
+  gyms.verification` refuses every command in a production build. SF-138: seven
+  `mix billing.*` commands refuse too (ADR 0026 amendment SF-138).
 * **Monitoring:** `[:simple_fit, :gyms, :access, :denied]` (cross-gym
   probing), rate-limit refusals, Oban failures (`VerificationCleanupWorker`,
   `SweepWorker`), Stripe webhook outcomes, `[:simple_fit, :gyms,
@@ -325,7 +327,7 @@ the product's own flows. Support follows §10.
    AX5 pass; native RU/PL.
 3. Resolve the Apple button shown when Apple sign-in is off; Google/Apple E2E with
    provider test credentials if they are to be enabled.
-4. Real Stripe Test Mode end-to-end with fresh credentials.
+4. Real Stripe Test Mode end-to-end with fresh credentials (SF-138 runbook).
 5. Platform operator identity for verification review (SF-110).
 6. Rate limit gym setup writes (F-06); reorder SaaS cancel provider call (F-07).
 7. Native check of the Decline confirmation; distinct accessibility labels would

@@ -1880,3 +1880,28 @@ Any production `gym_verification_events` row with `operator` set dates from befo
 change and proves nothing about who acted: treat such approvals as unverified in an
 incident. Check for them before relying on an `approved` status from that period.
 
+## Amendment — SF-138 (2026-11-06): billing commands fail closed in production
+
+SF-136 removed a caller-typed operator from verification review. The billing tasks had
+the same flaw: `mix billing.stripe refund`, `map-price`, `setup-portal` and
+`link-account`, and `mix billing.catalog seed-provisional`, `publish` and `retire`, took
+`--operator` (and some `--approval`) from the command line and recorded them as fact.
+
+**Decision.** A production build refuses those seven commands, decided at compile time
+(`SimpleFit.Billing.OperatorCommands`). No variable or setting turns them on. Other
+builds keep them for local and disposable data, where `--operator` and `--approval` are
+unverified labels. Still available everywhere: `status`, `webhook-events`, `list`,
+`reconcile` and `sync-account`, which assert no identity.
+
+**Consequences.** Until SF-110 provides a real authority, a production build has no
+supported way to publish a plan, map a price, configure the portal or issue a refund
+from SimpleFit. That is intended while Live is NO-GO. Operational gyms aren't affected:
+entitlements aren't enforced. An environment built with `MIX_ENV=prod` can't map prices
+either, so Stripe Test Mode runs use a non-production build.
+
+**Key identity.** A key's prefix proves neither its mode nor its account.
+`mix billing.stripe status` now asks Stripe: `GET /v1/balance` for `livemode` and
+`GET /v1/account` compared with `STRIPE_ACCOUNT_ID`. It fails on a mismatch or no answer.
+
+Evidence and the commercial register: `docs/release/sf-138-stripe-test-mode-evidence.md`.
+

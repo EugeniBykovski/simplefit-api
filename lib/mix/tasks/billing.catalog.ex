@@ -3,9 +3,13 @@ defmodule Mix.Tasks.Billing.Catalog do
 
   @moduledoc """
   The operator workflow of `SimpleFit.Billing.Catalog` (SF-101). SaaS plans
-  are SimpleFit's product: no HTTP endpoint writes them; an operator runs
-  this task, every change is audited under the operator's name, and nothing
-  is offered to gyms until a version is published under an approval.
+  are SimpleFit's product: no HTTP endpoint writes them, and nothing is offered to
+  gyms until a version is published.
+
+  **A production build refuses every command but `list`** (SF-138,
+  `SimpleFit.Billing.OperatorCommands`): nothing proves who typed `--operator` or
+  `--approval`, and neither is a pricing approval. Elsewhere they are labels in the
+  audit trail.
 
       $ mix billing.catalog list [PLAN_KEY]
       $ mix billing.catalog seed-provisional --operator NAME
@@ -20,15 +24,20 @@ defmodule Mix.Tasks.Billing.Catalog do
 
   use Mix.Task
 
-  alias SimpleFit.Billing.{Catalog, PlanVersion}
+  alias SimpleFit.Billing.{Catalog, OperatorCommands, PlanVersion}
   alias SimpleFit.Money
 
   @switches [operator: :string, approval: :string, confirm_provisional: :boolean]
+  @privileged ~w(seed-provisional publish retire)
 
   @impl Mix.Task
   def run(args) do
-    Mix.Task.run("app.start")
     {opts, rest, _} = OptionParser.parse(args, strict: @switches)
+
+    # Before anything starts: nothing to connect to or read.
+    if List.first(rest) in @privileged, do: OperatorCommands.ensure_available!()
+
+    Mix.Task.run("app.start")
 
     case rest do
       ["list"] ->

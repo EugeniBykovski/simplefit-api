@@ -216,6 +216,61 @@ defmodule SimpleFit.StripeBillingRaceTest do
     assert events(ctx.gym.id, :saas_refund_recorded) == 1
   end
 
+  # SF-138
+  test "10 concurrent reconciliations of one renewal: one period, one evidence, one event", ctx do
+    {subscription, checkout} = open_checkout!(ctx.owner, ctx.gym.id, ctx.version)
+    ids = StripeFake.complete_checkout(checkout.stripe_session_id)
+    {:ok, :activated} = Reconciliation.reconcile_subscription(subscription.id)
+    first_end = Repo.get!(GymSubscription, subscription.id).current_period_end
+    renewal = StripeFake.renew(ids.subscription)
+
+    concurrently(
+      for i <- 1..10 do
+        if rem(i, 2) == 0,
+          do: fn -> Reconciliation.reconcile_subscription(subscription.id) end,
+          else: fn -> Reconciliation.sync_invoice(renewal.invoice) end
+      end
+    )
+
+    assert DateTime.compare(
+             Repo.get!(GymSubscription, subscription.id).current_period_end,
+             first_end
+           ) == :gt
+
+    assert Repo.aggregate(
+             from(e in ActivationEvidence,
+               where: e.provider_reference == ^"test:#{renewal.invoice}"
+             ),
+             :count
+           ) == 1
+
+    assert events(ctx.gym.id, :saas_subscription_renewed) == 1
+  end
+
+  # SF-138
+  test "a failed payment's event racing its later success: the paid state wins, once", ctx do
+    {subscription, checkout} = open_checkout!(ctx.owner, ctx.gym.id, ctx.version)
+    ids = StripeFake.complete_checkout(checkout.stripe_session_id)
+    {:ok, :activated} = Reconciliation.reconcile_subscription(subscription.id)
+    first_end = Repo.get!(GymSubscription, subscription.id).current_period_end
+    failed = StripeFake.fail_renewal(ids.subscription)
+    {:ok, _} = Reconciliation.sync_invoice(failed.invoice)
+    assert events(ctx.gym.id, :saas_payment_failed) == 1
+    StripeFake.pay_invoice(failed.invoice)
+
+    concurrently(
+      for _ <- 1..10 do
+        fn -> Reconciliation.sync_invoice(failed.invoice) end
+      end ++ [fn -> Reconciliation.sync_stripe_subscription(ids.subscription) end]
+    )
+
+    final = Repo.get!(GymSubscription, subscription.id)
+    assert final.status == :active
+    assert DateTime.compare(final.current_period_end, first_end) == :gt
+    assert events(ctx.gym.id, :saas_subscription_renewed) == 1
+    assert events(ctx.gym.id, :saas_payment_failed) == 1
+  end
+
   test "cancellation racing a renewal: Stripe and SimpleFit agree, each effect once", ctx do
     {subscription, checkout} = open_checkout!(ctx.owner, ctx.gym.id, ctx.version)
     ids = StripeFake.complete_checkout(checkout.stripe_session_id)
