@@ -109,6 +109,10 @@ config :simple_fit, SimpleFit.Operators.Bootstrap,
        {:error, _} -> %{}
      end)
 
+# SF-112: sponsor organizations are provisioned locally by the fixture authority,
+# which a production build refuses (ADR 0030). Recorded as `local_fixture`.
+config :simple_fit, SimpleFit.Sponsors.Provisioning, local_fixture: true
+
 config :simple_fit, SimpleFit.Gyms.VerificationAuthority,
   backend: SimpleFit.Gyms.VerificationAuthority.Local
 

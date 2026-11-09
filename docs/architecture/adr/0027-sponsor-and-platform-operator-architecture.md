@@ -2,7 +2,7 @@
 
 * Status: **Proposed** (SF-107, 2026-11-07). Epic SF-106. **Not approved.** The operator half was
   implemented outside production by SF-110 ([ADR 0028](0028-platform-operator-identity.md)); production
-  bootstrap is BLOCKED. The Sponsor half isn't implemented.
+  bootstrap is BLOCKED. The Sponsor organization and membership foundation was implemented outside production by SF-112 ([ADR 0030](0030-sponsor-organizations-and-workspaces.md)); applications, approval, invitations and the sponsor UI aren't.
 * Context: ADR 0009 (one global user), 0010 (sessions), 0016 (registration), 0017 (entry), 0018 (first
   run), 0021 and 0024 (invitations bound to verified email), 0026 (gyms; SF-136 and SF-138 amendments),
   SF-139 (gym publication proposal), the route registry.

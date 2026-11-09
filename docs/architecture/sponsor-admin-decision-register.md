@@ -52,6 +52,10 @@ SF-111 ([ADR 0029](adr/0029-admin-action-framework.md)) added the admin action f
 reason codes and the 120-second confirmation window are proposed operational defaults, not approved policy;
 free-text explanations stay out until a policy allows them.
 
+SF-112 ([ADR 0030](adr/0030-sponsor-organizations-and-workspaces.md)) built the organization and membership
+foundation without deciding D-SA03, D-SA07, D-SA08, D-SA10, D-SA12 or D-SA26: transfer, edits, invitations and
+approval are not exposed, and the route registry is unchanged. Their status stays as listed.
+
 | Id | Decision | Recommended | Alternatives | Rationale | Depends on | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D-SA13 | Operator bootstrap | [The ceremony](platform-operator-trust.md#5-founder-bootstrap) | Rejected list there | Independent authorization, identity binding, evidence | D-SA15 | Founder, security reviewer | PROPOSED |
