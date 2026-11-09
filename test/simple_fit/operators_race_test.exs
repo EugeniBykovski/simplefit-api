@@ -16,9 +16,10 @@ defmodule SimpleFit.OperatorsRaceTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias SimpleFit.Accounts.User
   alias SimpleFit.{Operators, Repo}
-  alias SimpleFit.Operators.{Bootstrap, Grant, Operator, StepUp}
+  alias SimpleFit.Operators.{AuditEvent, Bootstrap, Confirmation, Grant, Operation, Operator}
+  alias SimpleFit.Operators.StepUp
 
-  @tables ~w(operator_audit_events operator_operations operator_ceremonies operator_permission_grants
+  @tables ~w(operator_action_confirmations operator_audit_events operator_operations operator_ceremonies operator_permission_grants
              operator_step_ups operator_webauthn_challenges operator_credentials platform_operators)
 
   setup do
@@ -121,10 +122,13 @@ defmodule SimpleFit.OperatorsRaceTest do
     a = manager!(f, users)
     b = manager!(f, users)
 
+    {:ok, a_revokes_b, _} = confirmed(a.user, a.session, "operator.revoke", b.operator.id)
+    {:ok, b_revokes_a, _} = confirmed(b.user, b.session, "operator.revoke", a.operator.id)
+
     results =
       concurrently([
-        fn -> Operators.revoke(a.user, a.session, b.operator.id, op()) end,
-        fn -> Operators.revoke(b.user, b.session, a.operator.id, op()) end
+        fn -> Operators.revoke(a.user, a.session, b.operator.id, a_revokes_b) end,
+        fn -> Operators.revoke(b.user, b.session, a.operator.id, b_revokes_a) end
       ])
 
     assert Enum.count(results, &match?({:ok, _}, &1)) == 1
@@ -137,25 +141,28 @@ defmodule SimpleFit.OperatorsRaceTest do
     a = manager!(f, users)
     target = Repo.get!(Operator, a.operator.id)
 
+    # Five confirmed grants of the same revision: one commits, the rest are stale.
+    payloads =
+      for _ <- 1..5 do
+        {:ok, payload, _} =
+          confirmed(f.user, f.session, "operator.permission.grant", target.id, %{
+            "permission" => "audit.read"
+          })
+
+        payload
+      end
+
     results =
       concurrently(
-        for _ <- 1..5,
-            do: fn ->
-              Operators.grant(
-                f.user,
-                f.session,
-                target.id,
-                Map.put(op(), "permission", "audit.read")
-              )
-            end
+        for payload <- payloads,
+            do: fn -> Operators.grant(f.user, f.session, target.id, payload) end
       )
 
     assert Enum.count(results, &match?({:ok, _}, &1)) == 1
 
     assert Enum.all?(
              results,
-             &(match?({:ok, _}, &1) or
-                 &1 == {:error, {:conflict, %{permission: "already_granted"}}})
+             &(match?({:ok, _}, &1) or match?({:error, {:revision_conflict, _}}, &1))
            )
 
     assert Repo.aggregate(
@@ -180,17 +187,17 @@ defmodule SimpleFit.OperatorsRaceTest do
         Map.merge(op(), %{"user_id" => target_user.id, "permissions" => ["operators.read"]})
       )
 
+    {:ok, grant, _} =
+      confirmed(granter.user, granter.session, "operator.permission.grant", target.id, %{
+        "permission" => "audit.read"
+      })
+
+    {:ok, revoke, _} = confirmed(f.user, f.session, "operator.revoke", granter.operator.id)
+
     [grant_result, revoke_result] =
       concurrently([
-        fn ->
-          Operators.grant(
-            granter.user,
-            granter.session,
-            target.id,
-            Map.put(op(), "permission", "audit.read")
-          )
-        end,
-        fn -> Operators.revoke(f.user, f.session, granter.operator.id, op()) end
+        fn -> Operators.grant(granter.user, granter.session, target.id, grant) end,
+        fn -> Operators.revoke(f.user, f.session, granter.operator.id, revoke) end
       ])
 
     assert {:ok, _} = revoke_result
@@ -215,10 +222,11 @@ defmodule SimpleFit.OperatorsRaceTest do
     a = manager!(f, users)
     {:ok, options} = Operators.step_up_options(a.user, a.session)
     {response, _} = assertion_response(a.key, options)
+    {:ok, suspend, _} = confirmed(f.user, f.session, "operator.suspend", a.operator.id)
 
     concurrently([
       fn -> Operators.verify_step_up(a.user, a.session, response) end,
-      fn -> Operators.suspend(f.user, f.session, a.operator.id, op()) end
+      fn -> Operators.suspend(f.user, f.session, a.operator.id, suspend) end
     ])
 
     assert Repo.get!(Operator, a.operator.id).status == :suspended
@@ -230,4 +238,77 @@ defmodule SimpleFit.OperatorsRaceTest do
 
     assert {:error, :not_found} = Operators.list_operators(a.user, a.session)
   end
+
+  ## SF-111 admin actions
+
+  test "one confirmation raced with different operation ids commits once", %{users: users} do
+    f = founder!(users)
+    a = manager!(f, users)
+    {:ok, payload, _} = confirmed(f.user, f.session, "operator.suspend", a.operator.id)
+
+    results =
+      concurrently(
+        for _ <- 1..5,
+            do: fn ->
+              Operators.suspend(f.user, f.session, a.operator.id, %{
+                payload
+                | "operation_id" => Ecto.UUID.generate()
+              })
+            end
+      )
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+
+    assert Enum.all?(
+             results,
+             &(match?({:ok, _}, &1) or match?({:error, {:revision_conflict, _}}, &1) or
+                 &1 == {:error, :confirmation_invalid})
+           )
+
+    assert Repo.aggregate(from(x in Confirmation, where: not is_nil(x.consumed_at)), :count) == 1
+    assert allowed("operator.suspend") == 1
+  end
+
+  test "an ambiguous retry, sent five times at once, has one effect", %{users: users} do
+    f = founder!(users)
+    a = manager!(f, users)
+    {:ok, payload, _} = confirmed(f.user, f.session, "operator.revoke", a.operator.id)
+
+    results =
+      concurrently(
+        for _ <- 1..5, do: fn -> Operators.revoke(f.user, f.session, a.operator.id, payload) end
+      )
+
+    assert Enum.all?(results, &match?({:ok, %{operator: %{status: :revoked}}}, &1))
+    assert allowed("operator.revoke") == 1
+
+    assert Repo.aggregate(from(o in Operation, where: o.id == ^payload["operation_id"]), :count) ==
+             1
+  end
+
+  test "two managers' conflicting actions on one target: one wins, one is stale", %{users: users} do
+    f = founder!(users)
+    a = manager!(f, users)
+    b = manager!(f, users)
+    target = manager!(f, users)
+    {:ok, suspend, _} = confirmed(a.user, a.session, "operator.suspend", target.operator.id)
+    {:ok, revoke, _} = confirmed(b.user, b.session, "operator.revoke", target.operator.id)
+
+    results =
+      concurrently([
+        fn -> Operators.suspend(a.user, a.session, target.operator.id, suspend) end,
+        fn -> Operators.revoke(b.user, b.session, target.operator.id, revoke) end
+      ])
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    assert Enum.count(results, &match?({:error, {:revision_conflict, _}}, &1)) == 1
+    assert allowed("operator.suspend") + allowed("operator.revoke") == 1
+  end
+
+  defp allowed(command),
+    do:
+      Repo.aggregate(
+        from(e in AuditEvent, where: e.command == ^command and e.outcome == :allowed),
+        :count
+      )
 end

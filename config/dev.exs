@@ -92,6 +92,10 @@ config :simple_fit, :e2e_tools, enabled: true
 # SF-110: operator security keys against the local web client, and the local
 # development ceremony key written by `mix operators.dev_ceremony` (outside Git, in
 # .operator-dev/). Ceremonies it signs are recorded as local_development_ceremony.
+# SF-111: signs operator audit log cursors (development only value).
+config :simple_fit, SimpleFit.Operators,
+  secret_key_base: "dev-operators-7Qm2Xc9LpV4sKd8NwR1tYh6JbF3gZe5AuTi0OyPnMkWqHxCvBlSjDrEaGfUo"
+
 config :simple_fit, SimpleFit.Operators.WebAuthn,
   rp_id: "localhost",
   origin: "http://localhost:3000",

@@ -239,11 +239,18 @@ defmodule SimpleFitWeb.Schemas.OperatorSummary do
       :activated_at,
       :suspended_at,
       :revoked_at,
-      :created_at
+      :created_at,
+      :revision
     ],
     properties: %{
       id: %Schema{type: :string, format: :uuid},
       user_id: %Schema{type: :string, format: :uuid},
+      revision: %Schema{
+        type: :integer,
+        minimum: 1,
+        description:
+          "The operator's authority state (status and permissions) as a number. Admin actions send it as `expected_revision`; a stale one is `409 revision_conflict` (SF-111)."
+      },
       status: %Schema{
         type: :string,
         enum: ["pending_enrollment", "active", "suspended", "revoked"]
@@ -325,24 +332,6 @@ defmodule SimpleFitWeb.Schemas.ProvisionOperatorRequest do
   })
 end
 
-defmodule SimpleFitWeb.Schemas.GrantOperatorPermissionRequest do
-  @moduledoc false
-  require OpenApiSpex
-  alias OpenApiSpex.Schema
-  alias SimpleFit.Operators.Policy
-
-  OpenApiSpex.schema(%{
-    title: "GrantOperatorPermissionRequest",
-    type: :object,
-    required: [:permission, :reason_code, :operation_id],
-    properties: %{
-      permission: %Schema{type: :string, enum: Policy.permissions()},
-      reason_code: %Schema{type: :string, pattern: "^[a-z][a-z0-9_]{1,59}$"},
-      operation_id: %Schema{type: :string, format: :uuid}
-    }
-  })
-end
-
 defmodule SimpleFitWeb.Schemas.OperatorAuditEvent do
   @moduledoc false
   require OpenApiSpex
@@ -357,7 +346,30 @@ defmodule SimpleFitWeb.Schemas.OperatorAuditEvent do
       id: %Schema{type: :string, format: :uuid},
       occurred_at: %Schema{type: :string, format: :"date-time"},
       action: %Schema{type: :string},
-      outcome: %Schema{type: :string, enum: ["allowed", "refused"]},
+      outcome: %Schema{
+        type: :string,
+        enum: ["allowed", "refused", "conflict", "invalid", "failed"],
+        description:
+          "`allowed`; `refused` before anything changed; `conflict` with the current state; `invalid` input or confirmation; `failed` mutation (SF-111)."
+      },
+      command: %Schema{
+        type: :string,
+        nullable: true,
+        description: "The admin action or read projection id (SF-111)."
+      },
+      result_code: %Schema{
+        type: :string,
+        nullable: true,
+        description: "Why an attempt didn't succeed, e.g. `step_up_required`, `revision_stale`."
+      },
+      from_state: %Schema{type: :string, nullable: true},
+      to_state: %Schema{type: :string, nullable: true},
+      revision: %Schema{
+        type: :integer,
+        nullable: true,
+        description: "The target's revision after an allowed change."
+      },
+      confirmation_id: %Schema{type: :string, format: :uuid, nullable: true},
       authority: %Schema{
         type: :string,
         enum: ["platform_operator", "signed_ceremony", "local_development_ceremony", "system"]
@@ -383,9 +395,202 @@ defmodule SimpleFitWeb.Schemas.OperatorAuditEventListResponse do
   OpenApiSpex.schema(%{
     title: "OperatorAuditEventListResponse",
     type: :object,
-    required: [:events],
+    required: [:events, :next_cursor],
     properties: %{
-      events: %OpenApiSpex.Schema{type: :array, items: SimpleFitWeb.Schemas.OperatorAuditEvent}
+      events: %OpenApiSpex.Schema{type: :array, items: SimpleFitWeb.Schemas.OperatorAuditEvent},
+      next_cursor: %OpenApiSpex.Schema{
+        type: :string,
+        nullable: true,
+        description:
+          "Opaque. Valid only with the same filters, for the same operator, for an hour. `null` on the last page."
+      }
     }
   })
+end
+
+defmodule SimpleFitWeb.Schemas.OperatorAuditEventResponse do
+  @moduledoc false
+  require OpenApiSpex
+
+  OpenApiSpex.schema(%{
+    title: "OperatorAuditEventResponse",
+    type: :object,
+    required: [:event],
+    properties: %{event: SimpleFitWeb.Schemas.OperatorAuditEvent}
+  })
+end
+
+defmodule SimpleFitWeb.Schemas.OperatorActionPreviewResponse do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+  alias SimpleFit.Operators.Actions
+
+  OpenApiSpex.schema(%{
+    title: "OperatorActionPreviewResponse",
+    description:
+      "What an admin action would do now (SF-111). Authorizes nothing: execution checks everything again.",
+    type: :object,
+    required: [:preview],
+    properties: %{
+      preview: %Schema{
+        type: :object,
+        required: [
+          :action,
+          :target,
+          :expected_revision,
+          :current_state,
+          :proposed_state,
+          :permission,
+          :impact,
+          :required_permission,
+          :required_assurance,
+          :reason_code,
+          :confirmation
+        ],
+        properties: %{
+          action: %Schema{type: :string, enum: Actions.ids()},
+          target: %Schema{
+            type: :object,
+            required: [:type, :id, :status],
+            properties: %{
+              type: %Schema{type: :string},
+              id: %Schema{type: :string, format: :uuid},
+              status: %Schema{type: :string}
+            }
+          },
+          expected_revision: %Schema{
+            type: :integer,
+            minimum: 1,
+            description: "Send it unchanged with the execution."
+          },
+          current_state: %Schema{type: :string},
+          proposed_state: %Schema{type: :string},
+          permission: %Schema{type: :string, nullable: true},
+          impact: %Schema{
+            type: :array,
+            items: %Schema{type: :string},
+            description: "Codes, e.g. `access_blocked`, `irreversible`."
+          },
+          required_permission: %Schema{type: :string},
+          required_assurance: %Schema{type: :string, enum: ["key", "fresh_key"]},
+          reason_code: %Schema{type: :string},
+          confirmation: %Schema{
+            type: :object,
+            required: [:required, :token, :expires_at],
+            properties: %{
+              required: %Schema{type: :boolean},
+              token: %Schema{
+                type: :string,
+                nullable: true,
+                description:
+                  "One-time, for this operator, session, action, target, parameters and revision only. Send it as `confirmation_token`. Shown once; never logged."
+              },
+              expires_at: %Schema{type: :string, format: :"date-time", nullable: true}
+            }
+          }
+        }
+      }
+    }
+  })
+end
+
+defmodule SimpleFitWeb.Schemas.OperatorActionSchemas do
+  @moduledoc """
+  Request bodies of the SF-111 admin actions, built from their declarations
+  (`SimpleFit.Operators.OperatorActions`) so the documented reason codes and fields
+  are the ones the pipeline accepts.
+  """
+
+  alias OpenApiSpex.Schema
+  alias SimpleFit.Operators.{Actions, Policy}
+
+  @doc "The body of `phase` (`:preview` or `:execute`) of `action_id`; `body_params` are the action's own body fields."
+  @spec body(String.t(), :preview | :execute, String.t(), [atom()]) :: map()
+  def body(action_id, phase, title, body_params) do
+    action = Actions.fetch!(action_id)
+
+    common = %{
+      reason_code: %Schema{
+        type: :string,
+        enum: action.reasons,
+        description: "Why. A code from this action's list; no free text."
+      },
+      expected_revision: %Schema{
+        type: :integer,
+        minimum: 1,
+        description:
+          if(phase == :preview,
+            do: "Optional: the revision you saw. A stale one is `409 revision_conflict`.",
+            else:
+              "The `revision` you saw (from the preview or the operator). A stale one is `409 revision_conflict`."
+          )
+      }
+    }
+
+    execute = %{
+      operation_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description:
+          "Client-generated per intended change. Repeating the same request with it changes nothing and answers with the current state; using it for another request is `409 conflict`."
+      },
+      confirmation_token: %Schema{
+        type: :string,
+        description:
+          "From this action's preview. Required when the action needs confirmation (`428 confirmation_required` without it, `422 confirmation_invalid` when it doesn't match, expired or was used)."
+      }
+    }
+
+    own = Map.new(body_params, &{&1, %Schema{type: :string, enum: Policy.permissions()}})
+
+    properties =
+      if phase == :execute,
+        do: common |> Map.merge(execute) |> Map.merge(own),
+        else: Map.merge(common, own)
+
+    required =
+      body_params ++
+        [:reason_code] ++
+        if(phase == :execute, do: [:expected_revision, :operation_id], else: []) ++
+        if(phase == :execute and action.confirmation == :required,
+          do: [:confirmation_token],
+          else: []
+        )
+
+    %{
+      title: title,
+      type: :object,
+      required: required,
+      properties: properties
+    }
+  end
+end
+
+for {module, action_id, phase, body_params} <- [
+      {SimpleFitWeb.Schemas.GrantOperatorPermissionRequest, "operator.permission.grant", :execute,
+       [:permission]},
+      {SimpleFitWeb.Schemas.GrantOperatorPermissionPreviewRequest, "operator.permission.grant",
+       :preview, [:permission]},
+      {SimpleFitWeb.Schemas.RevokeOperatorPermissionRequest, "operator.permission.revoke",
+       :execute, []},
+      {SimpleFitWeb.Schemas.RevokeOperatorPermissionPreviewRequest, "operator.permission.revoke",
+       :preview, []},
+      {SimpleFitWeb.Schemas.SuspendOperatorRequest, "operator.suspend", :execute, []},
+      {SimpleFitWeb.Schemas.SuspendOperatorPreviewRequest, "operator.suspend", :preview, []},
+      {SimpleFitWeb.Schemas.ReinstateOperatorRequest, "operator.reinstate", :execute, []},
+      {SimpleFitWeb.Schemas.ReinstateOperatorPreviewRequest, "operator.reinstate", :preview, []},
+      {SimpleFitWeb.Schemas.RevokeOperatorRequest, "operator.revoke", :execute, []},
+      {SimpleFitWeb.Schemas.RevokeOperatorPreviewRequest, "operator.revoke", :preview, []}
+    ] do
+  title = module |> Module.split() |> List.last()
+
+  schema = SimpleFitWeb.Schemas.OperatorActionSchemas.body(action_id, phase, title, body_params)
+
+  defmodule module do
+    @moduledoc false
+    require OpenApiSpex
+
+    OpenApiSpex.schema(schema)
+  end
 end

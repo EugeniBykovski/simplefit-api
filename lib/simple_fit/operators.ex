@@ -26,21 +26,11 @@ defmodule SimpleFit.Operators do
 
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.{Session, User}
-  alias SimpleFit.Operators.{Audit, Challenge, Credential, Grant, Operation, Operator, Policy}
-  alias SimpleFit.Operators.{StepUp, WebAuthn}
+  import SimpleFit.Operators.Authority
+
+  alias SimpleFit.Operators.{Actions, Audit, AuditEvent, Challenge, Credential, Cursor, Grant}
+  alias SimpleFit.Operators.{Operation, Operator, Policy, Principal, StepUp, WebAuthn}
   alias SimpleFit.{RateLimit, Repo}
-
-  defmodule Principal do
-    @moduledoc "An operator authorized for one request. An answer, not a pass."
-    @enforce_keys [:operator_id, :user_id, :session_id]
-    defstruct [:operator_id, :user_id, :session_id]
-
-    @type t :: %__MODULE__{
-            operator_id: Ecto.UUID.t(),
-            user_id: Ecto.UUID.t(),
-            session_id: Ecto.UUID.t()
-          }
-  end
 
   @type ctx :: %{optional(:request_id) => String.t() | nil}
   @type refusal :: :not_found | :forbidden | :step_up_required | :enrollment_required
@@ -93,26 +83,6 @@ defmodule SimpleFit.Operators do
       {:error, reason, operator} -> refused(reason, operator, permission, session.id, ctx)
     end
   end
-
-  defp check(nil, _session_id, _permission), do: {:error, :not_found, nil}
-
-  defp check(%Operator{status: :pending_enrollment} = op, _session_id, _permission),
-    do: {:error, :enrollment_required, op}
-
-  defp check(%Operator{status: :active} = op, session_id, permission) do
-    cond do
-      not Policy.permission?(permission) or not granted?(op.id, permission) ->
-        {:error, :forbidden, op}
-
-      not step_up_satisfies?(op.id, session_id, Policy.assurance(permission)) ->
-        {:error, :step_up_required, op}
-
-      true ->
-        {:ok, %Principal{operator_id: op.id, user_id: op.user_id, session_id: session_id}}
-    end
-  end
-
-  defp check(%Operator{}, _session_id, _permission), do: {:error, :not_found, nil}
 
   defp refused(reason, operator, permission, session_id, ctx) do
     if operator do
@@ -445,27 +415,18 @@ defmodule SimpleFit.Operators do
     end
   end
 
-  @doc "One operator (`operators.read`)."
+  @doc "One operator (`operators.read`). Each view is audited (`operator.viewed`)."
   @spec get_operator(User.t(), Session.t(), Ecto.UUID.t(), ctx()) ::
           {:ok, map()} | {:error, error()}
   def get_operator(%User{} = user, %Session{} = session, id, ctx \\ %{}) do
-    with {:ok, _principal} <- authorize(user, session, "operators.read", ctx),
-         {:ok, id} <- uuid(id),
-         %Operator{} = op <- Repo.get(Operator, id) do
-      {:ok, summary(op)}
-    else
-      nil -> {:error, :not_found}
-      other -> other
-    end
-  end
-
-  defp summary(op) do
-    %{
-      operator: op,
-      permissions: if(op.status == :revoked, do: [], else: active_permissions(op.id)),
-      registered_keys: active_credential_count(op.id),
-      required_keys: Policy.required_authenticators()
-    }
+    project("operators.detail", user, session, ctx, fn _principal ->
+      with {:ok, id} <- uuid(id),
+           %Operator{} = op <- Repo.get(Operator, id) do
+        {:ok, summary(op), {"operator", op.id}}
+      else
+        _ -> {:error, :not_found}
+      end
+    end)
   end
 
   @doc """
@@ -497,84 +458,70 @@ defmodule SimpleFit.Operators do
     end
   end
 
-  @doc "Grants one permission (`operators.manage`, fresh key check). Never to oneself."
-  @spec grant(User.t(), Session.t(), Ecto.UUID.t(), map(), ctx()) ::
-          {:ok, map()} | {:error, error()}
-  def grant(%User{} = user, %Session{} = session, operator_id, params, ctx \\ %{}) do
-    types = %{permission: :string, reason_code: :string, operation_id: Ecto.UUID}
-
-    with :ok <- concealed(user),
-         {:ok, target_id} <- uuid(operator_id),
-         {:ok, attrs} <-
-           cast_params(
-             params,
-             types,
-             Map.keys(types),
-             &validate_inclusion(&1, :permission, Policy.permissions())
-           ) do
-      write(
-        user,
-        session,
-        target_id,
-        "operator.grant",
-        attrs,
-        ctx,
-        &grant_one!(&1, &2, &3, attrs, session, ctx)
-      )
-    end
-  end
-
-  @doc "Revokes one permission (`operators.manage`, fresh key check). Never one's own."
-  @spec revoke_grant(User.t(), Session.t(), Ecto.UUID.t(), String.t(), map(), ctx()) ::
-          {:ok, map()} | {:error, error()}
-  def revoke_grant(
-        %User{} = user,
-        %Session{} = session,
-        operator_id,
-        permission,
-        params,
-        ctx \\ %{}
-      ) do
-    types = %{reason_code: :string, operation_id: Ecto.UUID}
-
-    with :ok <- concealed(user),
-         {:ok, target_id} <- uuid(operator_id),
-         {:ok, attrs} <- cast_params(params, types, Map.keys(types)) do
-      write(
-        user,
-        session,
-        target_id,
-        "operator.revoke_grant",
-        attrs,
-        ctx,
-        &revoke_grant!(&1, &2, &3, {permission, attrs}, session, ctx)
-      )
-    end
-  end
-
-  @doc "Suspends an active operator (`operators.manage`, fresh key check). Ends their key checks."
-  @spec suspend(User.t(), Session.t(), Ecto.UUID.t(), map(), ctx()) ::
-          {:ok, map()} | {:error, error()}
-  def suspend(user, session, operator_id, params, ctx \\ %{}),
-    do: transition(user, session, operator_id, params, ctx, "operator.suspend", &do_suspend/3)
+  ## Admin actions (SF-111): declared, previewed, confirmed, revision-checked
 
   @doc """
-  Reinstates a suspended operator (`operators.manage`, fresh key check). With fewer
-  keys than required they return to `pending_enrollment`.
+  Previews a declared admin action (`SimpleFit.Operators.OperatorActions`) on
+  `target_id`: current and proposed state, impact, what it needs, and a one-time
+  confirmation when the action requires one. Changes nothing else.
+  """
+  @spec preview(String.t(), User.t(), Session.t(), term(), map(), ctx()) ::
+          {:ok, map()} | {:error, term()}
+  def preview(action_id, %User{} = user, %Session{} = session, target_id, params, ctx \\ %{}),
+    do: Actions.preview(action_id, user, session, target_id, params, ctx)
+
+  @doc """
+  Executes a declared admin action on `target_id`: authorization under locks, the
+  expected revision, the confirmation, the change and its audit in one transaction.
+  """
+  @spec execute(String.t(), User.t(), Session.t(), term(), map(), ctx()) ::
+          {:ok, map()} | {:error, term()}
+  def execute(action_id, %User{} = user, %Session{} = session, target_id, params, ctx \\ %{}),
+    do: Actions.execute(action_id, user, session, target_id, params, ctx)
+
+  @doc "Grants one permission (`operator.permission.grant`). Never to oneself."
+  @spec grant(User.t(), Session.t(), Ecto.UUID.t(), map(), ctx()) ::
+          {:ok, map()} | {:error, term()}
+  def grant(user, session, operator_id, params, ctx \\ %{}),
+    do: execute("operator.permission.grant", user, session, operator_id, params, ctx)
+
+  @doc "Revokes one permission (`operator.permission.revoke`). Never one's own."
+  @spec revoke_grant(User.t(), Session.t(), Ecto.UUID.t(), String.t(), map(), ctx()) ::
+          {:ok, map()} | {:error, term()}
+  def revoke_grant(user, session, operator_id, permission, params, ctx \\ %{}),
+    do:
+      execute(
+        "operator.permission.revoke",
+        user,
+        session,
+        operator_id,
+        Map.put(params, "permission", permission),
+        ctx
+      )
+
+  @doc "Suspends an active operator (`operator.suspend`). Ends their key checks."
+  @spec suspend(User.t(), Session.t(), Ecto.UUID.t(), map(), ctx()) ::
+          {:ok, map()} | {:error, term()}
+  def suspend(user, session, operator_id, params, ctx \\ %{}),
+    do: execute("operator.suspend", user, session, operator_id, params, ctx)
+
+  @doc """
+  Reinstates a suspended operator (`operator.reinstate`). With fewer keys than
+  required they return to `pending_enrollment`.
   """
   @spec reinstate(User.t(), Session.t(), Ecto.UUID.t(), map(), ctx()) ::
-          {:ok, map()} | {:error, error()}
+          {:ok, map()} | {:error, term()}
   def reinstate(user, session, operator_id, params, ctx \\ %{}),
-    do: transition(user, session, operator_id, params, ctx, "operator.reinstate", &do_reinstate/3)
+    do: execute("operator.reinstate", user, session, operator_id, params, ctx)
 
   @doc """
-  Revokes an operator for good (`operators.manage`, fresh key check): their grants,
-  keys and key checks end in the same transaction.
+  Revokes an operator for good (`operator.revoke`): their grants, keys and key
+  checks end in the same transaction.
   """
   @spec revoke(User.t(), Session.t(), Ecto.UUID.t(), map(), ctx()) ::
-          {:ok, map()} | {:error, error()}
+          {:ok, map()} | {:error, term()}
   def revoke(user, session, operator_id, params, ctx \\ %{}),
-    do: transition(user, session, operator_id, params, ctx, "operator.revoke", &do_revoke/3)
+    do: execute("operator.revoke", user, session, operator_id, params, ctx)
 
   @doc """
   Revokes another operator's lost or compromised key (`operators.manage`, fresh key
@@ -607,74 +554,6 @@ defmodule SimpleFit.Operators do
         &revoke_operator_credential!(&1, &2, &3, {cred_id, attrs}, session, ctx)
       )
     end
-  end
-
-  defp transition(user, session, operator_id, params, ctx, action, fun) do
-    types = %{reason_code: :string, operation_id: Ecto.UUID}
-
-    with :ok <- concealed(user),
-         {:ok, target_id} <- uuid(operator_id),
-         {:ok, attrs} <- cast_params(params, types, Map.keys(types)) do
-      write(user, session, target_id, action, attrs, ctx, fn actor, target, now ->
-        not_self!(actor, target)
-        updated = fun.(target, actor, now)
-
-        audit!(actor, action <> "d", ctx, session.id,
-          target_type: "operator",
-          target_id: target.id,
-          reason_code: attrs.reason_code,
-          operation_id: attrs.operation_id
-        )
-
-        summary(updated)
-      end)
-    end
-  end
-
-  defp do_suspend(%Operator{status: :active} = target, _actor, now) do
-    revoke_step_ups!(from(s in StepUp, where: s.operator_id == ^target.id))
-    Repo.update!(change(target, status: :suspended, suspended_at: now))
-  end
-
-  defp do_suspend(_target, _actor, _now), do: Repo.rollback({:conflict, %{status: "not_active"}})
-
-  defp do_reinstate(%Operator{status: :suspended} = target, _actor, now) do
-    if active_credential_count(target.id) >= Policy.required_authenticators() do
-      Repo.update!(change(target, status: :active, activated_at: target.activated_at || now))
-    else
-      Repo.update!(
-        change(target,
-          status: :pending_enrollment,
-          enrollment_expires_at: DateTime.add(now, Policy.enrollment_window())
-        )
-      )
-    end
-  end
-
-  defp do_reinstate(_target, _actor, _now),
-    do: Repo.rollback({:conflict, %{status: "not_suspended"}})
-
-  defp do_revoke(%Operator{status: :revoked}, _actor, _now),
-    do: Repo.rollback({:conflict, %{status: "revoked"}})
-
-  defp do_revoke(target, actor, now) do
-    revoke_step_ups!(from(s in StepUp, where: s.operator_id == ^target.id))
-
-    Repo.update_all(
-      from(c in Credential, where: c.operator_id == ^target.id and is_nil(c.revoked_at)),
-      set: [revoked_at: now, revoked_reason: "operator_revoked"]
-    )
-
-    Repo.update_all(
-      from(g in Grant, where: g.operator_id == ^target.id and is_nil(g.revoked_at)),
-      set: [
-        revoked_at: now,
-        revoked_by_operator_id: actor.id,
-        revoke_reason_code: "operator_revoked"
-      ]
-    )
-
-    Repo.update!(change(target, status: :revoked, revoked_at: now))
   end
 
   defp provision!(actor, _target, now, attrs, session, ctx) do
@@ -714,49 +593,6 @@ defmodule SimpleFit.Operators do
     summary(op)
   end
 
-  defp grant_one!(actor, target, now, attrs, session, ctx) do
-    not_self!(actor, target)
-    if target.status == :revoked, do: Repo.rollback({:conflict, %{operator: "revoked"}})
-
-    if granted?(target.id, attrs.permission),
-      do: Repo.rollback({:conflict, %{permission: "already_granted"}})
-
-    grant!(actor, target, attrs.permission, attrs, now, ctx, session.id)
-    summary(target)
-  end
-
-  defp revoke_grant!(actor, target, now, {permission, attrs}, session, ctx) do
-    not_self!(actor, target)
-
-    grant =
-      Repo.one(
-        from(g in Grant,
-          where:
-            g.operator_id == ^target.id and g.permission == ^permission and
-              is_nil(g.revoked_at),
-          lock: "FOR UPDATE"
-        )
-      ) || Repo.rollback(:not_found)
-
-    Repo.update!(
-      change(grant,
-        revoked_at: now,
-        revoked_by_operator_id: actor.id,
-        revoke_reason_code: attrs.reason_code
-      )
-    )
-
-    audit!(actor, "operator.permission_revoked", ctx, session.id,
-      target_type: "operator",
-      target_id: target.id,
-      permission: permission,
-      reason_code: attrs.reason_code,
-      operation_id: attrs.operation_id
-    )
-
-    summary(target)
-  end
-
   defp revoke_operator_credential!(actor, target, now, {cred_id, attrs}, session, ctx) do
     not_self!(actor, target)
     credential = active_credential!(target.id, cred_id)
@@ -785,25 +621,163 @@ defmodule SimpleFit.Operators do
     summary(target)
   end
 
-  ## Audit
+  ## Privileged reads (SF-111)
 
-  @doc "Audit events, newest first (`audit.read`)."
-  @spec list_audit_events(User.t(), Session.t(), map(), ctx()) ::
-          {:ok, list()} | {:error, error()}
-  def list_audit_events(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
-    types = %{limit: :integer, before: :utc_datetime_usec}
+  # Each read projection: the permission it needs and the audit action recorded for
+  # each read (nil: not audited). Responses are built from allowlisted DTOs
+  # (`SimpleFitWeb.OperatorJSON`, `SimpleFit.Operators.Redaction`).
+  @projections %{
+    "operators.detail" => %{permission: "operators.read", audit: "operator.viewed"},
+    "audit.events" => %{permission: "audit.read", audit: "audit.events_read"},
+    "audit.event" => %{permission: "audit.read", audit: "audit.event_viewed"}
+  }
 
-    with {:ok, _principal} <- authorize(user, session, "audit.read", ctx),
-         {:ok, attrs} <-
-           cast_params(
-             params,
-             types,
-             [],
-             &validate_number(&1, :limit, greater_than: 0, less_than_or_equal_to: 100)
-           ) do
-      {:ok, Audit.list(Map.get(attrs, :limit, 50), Map.get(attrs, :before))}
+  defp project(id, user, session, ctx, fun) do
+    %{permission: permission, audit: audit_action} = Map.fetch!(@projections, id)
+
+    with {:ok, principal} <- authorize(user, session, permission, ctx),
+         {:ok, result, {target_type, target_id}} <- fun.(principal) do
+      Audit.record!(
+        %{
+          action: audit_action,
+          command: id,
+          outcome: :allowed,
+          actor_operator_id: principal.operator_id,
+          actor_user_id: principal.user_id,
+          permission: permission,
+          target_type: target_type,
+          target_id: target_id
+        },
+        Map.put(ctx, :session_id, session.id)
+      )
+
+      {:ok, result}
     end
   end
+
+  @doc """
+  One page of audit events, newest first (`audit.read`). Filters: `actor_operator_id`,
+  `action`, `command`, `target_type`, `target_id`, `outcome`, `occurred_after`,
+  `occurred_before`; `limit` 1..100 (default 50); `cursor` from the previous page,
+  valid only for the same filters and reader. `before` (SF-110) still pages by time
+  and can't be combined with `cursor`. Each query is audited (`audit.events_read`).
+  """
+  @spec list_audit_events(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{events: list(), next_cursor: String.t() | nil}} | {:error, error()}
+  def list_audit_events(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("audit.events", user, session, ctx, fn principal ->
+      with {:ok, attrs} <- audit_query(params),
+           {:ok, position} <- audit_position(attrs, principal.operator_id) do
+        filters = audit_filters(attrs)
+        {events, next} = Audit.page(filters, Map.get(attrs, :limit, 50), position)
+
+        {:ok,
+         %{
+           events: events,
+           next_cursor: next && Cursor.encode(next, filters, principal.operator_id)
+         }, {"audit_log", nil}}
+      end
+    end)
+  end
+
+  @doc "One audit event (`audit.read`). Each view is audited (`audit.event_viewed`)."
+  @spec get_audit_event(User.t(), Session.t(), term(), ctx()) ::
+          {:ok, AuditEvent.t()} | {:error, error()}
+  def get_audit_event(%User{} = user, %Session{} = session, id, ctx \\ %{}) do
+    project("audit.event", user, session, ctx, fn _principal ->
+      with {:ok, id} <- uuid(id),
+           %AuditEvent{} = event <- Audit.get(id) do
+        {:ok, event, {"audit_event", event.id}}
+      else
+        _ -> {:error, :not_found}
+      end
+    end)
+  end
+
+  @audit_filters [
+    :actor_operator_id,
+    :action,
+    :command,
+    :target_type,
+    :target_id,
+    :outcome,
+    :occurred_after,
+    :occurred_before
+  ]
+
+  defp audit_query(params) do
+    types = %{
+      limit: :integer,
+      cursor: :string,
+      before: :utc_datetime_usec,
+      actor_operator_id: Ecto.UUID,
+      action: :string,
+      command: :string,
+      target_type: :string,
+      target_id: Ecto.UUID,
+      outcome: :string,
+      occurred_after: :utc_datetime_usec,
+      occurred_before: :utc_datetime_usec
+    }
+
+    {%{}, types}
+    |> cast(params, Map.keys(types))
+    |> validate_number(:limit, greater_than: 0, less_than_or_equal_to: 100)
+    |> validate_format(:action, ~r/^[a-z][a-z0-9_.]{1,79}$/)
+    |> validate_format(:command, ~r/^[a-z][a-z0-9_.]{1,79}$/)
+    |> validate_format(:target_type, ~r/^[a-z][a-z0-9_]{1,39}$/)
+    |> validate_inclusion(:outcome, ~w(allowed refused conflict invalid failed))
+    |> validate_length(:cursor, max: 1024)
+    |> validate_exclusive(:cursor, :before)
+    |> validate_range()
+    |> apply_action(:validate)
+  end
+
+  defp validate_exclusive(changeset, one, other) do
+    if get_change(changeset, one) && get_change(changeset, other),
+      do: add_error(changeset, other, "can't be combined with #{one}", validation: :exclusive),
+      else: changeset
+  end
+
+  defp validate_range(changeset) do
+    with %DateTime{} = from <- get_change(changeset, :occurred_after),
+         %DateTime{} = to <- get_change(changeset, :occurred_before),
+         :lt <- DateTime.compare(from, to) do
+      changeset
+    else
+      nil ->
+        changeset
+
+      _ ->
+        add_error(changeset, :occurred_before, "must be after occurred_after", validation: :range)
+    end
+  end
+
+  defp audit_filters(attrs) do
+    attrs
+    |> Map.take(@audit_filters)
+    |> Map.update(:outcome, nil, &String.to_existing_atom/1)
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp audit_position(%{cursor: cursor} = attrs, operator_id) do
+    case Cursor.decode(cursor, audit_filters(attrs), operator_id) do
+      {:ok, position} ->
+        {:ok, position}
+
+      :error ->
+        {:error,
+         {%{}, %{cursor: :string}}
+         |> change()
+         |> add_error(:cursor, "is invalid", validation: :format)}
+    end
+  end
+
+  # SF-110's `before`: everything strictly older than that time.
+  defp audit_position(%{before: %DateTime{} = before}, _operator_id),
+    do: {:ok, {before, "00000000-0000-0000-0000-000000000000"}}
+
+  defp audit_position(_attrs, _operator_id), do: {:ok, nil}
 
   ## The write pipeline
 
@@ -909,16 +883,6 @@ defmodule SimpleFit.Operators do
   # nothing, not even that a body was malformed.
   defp concealed(%User{id: id}), do: if(usable_operator(id), do: :ok, else: {:error, :not_found})
 
-  # An operator whose account can use operator endpoints at all: not suspended, not revoked.
-  defp usable_operator(user_id) do
-    Repo.one(
-      from(o in Operator,
-        where: o.user_id == ^user_id and o.status in [:pending_enrollment, :active]
-      ),
-      log: false
-    )
-  end
-
   defp usable_or_pending?(user_id),
     do: Repo.exists?(from(o in Operator, where: o.user_id == ^user_id and o.status != :revoked))
 
@@ -972,45 +936,6 @@ defmodule SimpleFit.Operators do
     op
   end
 
-  defp lock_operators!(ids) do
-    from(o in Operator, where: o.id in ^ids, order_by: o.id, lock: "FOR UPDATE")
-    |> Repo.all()
-    |> Map.new(&{&1.id, &1})
-  end
-
-  defp hold_session!(user, session) do
-    case Accounts.hold_active_session(user, session) do
-      :ok -> :ok
-      _revoked -> Repo.rollback(:session_revoked)
-    end
-  end
-
-  defp granted?(operator_id, permission) do
-    Repo.exists?(
-      from(g in Grant,
-        where:
-          g.operator_id == ^operator_id and g.permission == ^permission and is_nil(g.revoked_at)
-      )
-    )
-  end
-
-  defp active_permissions(operator_id) do
-    Repo.all(
-      from(g in Grant,
-        where: g.operator_id == ^operator_id and is_nil(g.revoked_at),
-        order_by: g.permission,
-        select: g.permission
-      )
-    )
-  end
-
-  defp active_credential_count(operator_id) do
-    Repo.aggregate(
-      from(c in Credential, where: c.operator_id == ^operator_id and is_nil(c.revoked_at)),
-      :count
-    )
-  end
-
   defp active_credential!(operator_id, id) do
     Repo.one(
       from(c in Credential,
@@ -1030,31 +955,6 @@ defmodule SimpleFit.Operators do
     Repo.update_all(from(s in query, where: is_nil(s.revoked_at)),
       set: [revoked_at: DateTime.utc_now()]
     )
-  end
-
-  defp current_step_up(operator_id, session_id) do
-    now = DateTime.utc_now()
-
-    Repo.one(
-      from(s in StepUp,
-        where:
-          s.operator_id == ^operator_id and s.session_id == ^session_id and is_nil(s.revoked_at) and
-            s.expires_at > ^now,
-        order_by: [desc: s.verified_at],
-        limit: 1
-      )
-    )
-  end
-
-  defp step_up_satisfies?(operator_id, session_id, assurance) do
-    case current_step_up(operator_id, session_id) do
-      nil ->
-        false
-
-      step_up ->
-        assurance == :key or
-          DateTime.diff(DateTime.utc_now(), step_up.verified_at) <= Policy.fresh_window()
-    end
   end
 
   @doc "Seconds a key check of this session still counts as fresh, or 0."

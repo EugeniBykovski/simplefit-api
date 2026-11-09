@@ -52,6 +52,22 @@ defmodule SimpleFit.Operators.Policy do
   @spec fresh_window() :: pos_integer()
   def fresh_window, do: 5 * 60
 
+  @doc "Seconds an admin action confirmation (SF-111) can be used, once."
+  @spec confirmation_ttl() :: pos_integer()
+  def confirmation_ttl, do: 120
+
+  @doc "Refused, conflicting or invalid admin action attempts audited per operator and hour."
+  @spec refusal_audit_limit() :: pos_integer()
+  def refusal_audit_limit, do: 300
+
+  @doc "Admin action previews per operator and hour."
+  @spec preview_limit() :: pos_integer()
+  def preview_limit, do: 120
+
+  @doc "Seconds an audit log cursor stays valid."
+  @spec cursor_ttl() :: pos_integer()
+  def cursor_ttl, do: 3600
+
   @doc "Seconds a WebAuthn challenge can be answered."
   @spec challenge_ttl() :: pos_integer()
   def challenge_ttl, do: 120

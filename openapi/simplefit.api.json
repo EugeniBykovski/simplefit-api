@@ -55,6 +55,42 @@
         },
         "description": "422 The code is not correct"
       },
+      "ConfirmationInvalid": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "confirmation_invalid",
+                "details": {},
+                "message": "The confirmation does not match this request or is no longer valid; preview the action again",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "422 The confirmation does not match this request or is no longer valid; preview the action again"
+      },
+      "ConfirmationRequired": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "confirmation_required",
+                "details": {},
+                "message": "Preview the action and confirm it to continue",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "428 Preview the action and confirm it to continue"
+      },
       "Conflict": {
         "content": {
           "application/json": {
@@ -234,6 +270,24 @@
           }
         },
         "description": "429 Too many requests, retry later"
+      },
+      "RevisionConflict": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "revision_conflict",
+                "details": {},
+                "message": "The resource changed since you last read it; read it again before retrying",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "409 The resource changed since you last read it; read it again before retrying"
       },
       "SecurityKeyRejected": {
         "content": {
@@ -2581,7 +2635,7 @@
         },
         "properties": {
           "code": {
-            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `step_up_required`, `enrollment_required`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `security_key_rejected`, `code_expired`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
+            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `step_up_required`, `enrollment_required`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `revision_conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `security_key_rejected`, `confirmation_invalid`, `code_expired`, `confirmation_required`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
             "example": "not_found",
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
@@ -3223,9 +3277,51 @@
         "title": "GoogleAuthResponse",
         "type": "object"
       },
+      "GrantOperatorPermissionPreviewRequest": {
+        "properties": {
+          "expected_revision": {
+            "description": "Optional: the revision you saw. A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "permission": {
+            "enum": [
+              "operators.read",
+              "operators.manage",
+              "audit.read"
+            ],
+            "type": "string"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "access_request_approved",
+              "role_change",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "permission",
+          "reason_code"
+        ],
+        "title": "GrantOperatorPermissionPreviewRequest",
+        "type": "object"
+      },
       "GrantOperatorPermissionRequest": {
         "properties": {
+          "confirmation_token": {
+            "description": "From this action's preview. Required when the action needs confirmation (`428 confirmation_required` without it, `422 confirmation_invalid` when it doesn't match, expired or was used).",
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` you saw (from the preview or the operator). A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
           "operation_id": {
+            "description": "Client-generated per intended change. Repeating the same request with it changes nothing and answers with the current state; using it for another request is `409 conflict`.",
             "format": "uuid",
             "type": "string"
           },
@@ -3238,14 +3334,21 @@
             "type": "string"
           },
           "reason_code": {
-            "pattern": "^[a-z][a-z0-9_]{1,59}$",
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "access_request_approved",
+              "role_change",
+              "administrative_correction"
+            ],
             "type": "string"
           }
         },
         "required": [
           "permission",
           "reason_code",
-          "operation_id"
+          "expected_revision",
+          "operation_id",
+          "confirmation_token"
         ],
         "title": "GrantOperatorPermissionRequest",
         "type": "object"
@@ -10192,6 +10295,122 @@
         "title": "MyTrainingSessionResponse",
         "type": "object"
       },
+      "OperatorActionPreviewResponse": {
+        "description": "What an admin action would do now (SF-111). Authorizes nothing: execution checks everything again.",
+        "properties": {
+          "preview": {
+            "properties": {
+              "action": {
+                "enum": [
+                  "operator.permission.grant",
+                  "operator.permission.revoke",
+                  "operator.suspend",
+                  "operator.reinstate",
+                  "operator.revoke"
+                ],
+                "type": "string"
+              },
+              "confirmation": {
+                "properties": {
+                  "expires_at": {
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "token": {
+                    "description": "One-time, for this operator, session, action, target, parameters and revision only. Send it as `confirmation_token`. Shown once; never logged.",
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "required",
+                  "token",
+                  "expires_at"
+                ],
+                "type": "object"
+              },
+              "current_state": {
+                "type": "string"
+              },
+              "expected_revision": {
+                "description": "Send it unchanged with the execution.",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "impact": {
+                "description": "Codes, e.g. `access_blocked`, `irreversible`.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "permission": {
+                "nullable": true,
+                "type": "string"
+              },
+              "proposed_state": {
+                "type": "string"
+              },
+              "reason_code": {
+                "type": "string"
+              },
+              "required_assurance": {
+                "enum": [
+                  "key",
+                  "fresh_key"
+                ],
+                "type": "string"
+              },
+              "required_permission": {
+                "type": "string"
+              },
+              "target": {
+                "properties": {
+                  "id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "id",
+                  "status"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "action",
+              "target",
+              "expected_revision",
+              "current_state",
+              "proposed_state",
+              "permission",
+              "impact",
+              "required_permission",
+              "required_assurance",
+              "reason_code",
+              "confirmation"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "preview"
+        ],
+        "title": "OperatorActionPreviewResponse",
+        "type": "object"
+      },
       "OperatorActionRequest": {
         "description": "A reason code and a client-generated operation id. Repeating an operation id changes nothing.",
         "properties": {
@@ -10241,6 +10460,20 @@
             "nullable": true,
             "type": "string"
           },
+          "command": {
+            "description": "The admin action or read projection id (SF-111).",
+            "nullable": true,
+            "type": "string"
+          },
+          "confirmation_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "from_state": {
+            "nullable": true,
+            "type": "string"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -10255,9 +10488,13 @@
             "type": "string"
           },
           "outcome": {
+            "description": "`allowed`; `refused` before anything changed; `conflict` with the current state; `invalid` input or confirmation; `failed` mutation (SF-111).",
             "enum": [
               "allowed",
-              "refused"
+              "refused",
+              "conflict",
+              "invalid",
+              "failed"
             ],
             "type": "string"
           },
@@ -10273,6 +10510,16 @@
             "nullable": true,
             "type": "string"
           },
+          "result_code": {
+            "description": "Why an attempt didn't succeed, e.g. `step_up_required`, `revision_stale`.",
+            "nullable": true,
+            "type": "string"
+          },
+          "revision": {
+            "description": "The target's revision after an allowed change.",
+            "nullable": true,
+            "type": "integer"
+          },
           "session_id": {
             "format": "uuid",
             "nullable": true,
@@ -10284,6 +10531,10 @@
             "type": "string"
           },
           "target_type": {
+            "nullable": true,
+            "type": "string"
+          },
+          "to_state": {
             "nullable": true,
             "type": "string"
           }
@@ -10305,12 +10556,30 @@
               "$ref": "#/components/schemas/OperatorAuditEvent"
             },
             "type": "array"
+          },
+          "next_cursor": {
+            "description": "Opaque. Valid only with the same filters, for the same operator, for an hour. `null` on the last page.",
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
-          "events"
+          "events",
+          "next_cursor"
         ],
         "title": "OperatorAuditEventListResponse",
+        "type": "object"
+      },
+      "OperatorAuditEventResponse": {
+        "properties": {
+          "event": {
+            "$ref": "#/components/schemas/OperatorAuditEvent"
+          }
+        },
+        "required": [
+          "event"
+        ],
+        "title": "OperatorAuditEventResponse",
         "type": "object"
       },
       "OperatorCredential": {
@@ -10576,6 +10845,11 @@
             },
             "type": "array"
           },
+          "revision": {
+            "description": "The operator's authority state (status and permissions) as a number. Admin actions send it as `expected_revision`; a stale one is `409 revision_conflict` (SF-111).",
+            "minimum": 1,
+            "type": "integer"
+          },
           "revoked_at": {
             "format": "date-time",
             "nullable": true,
@@ -10615,7 +10889,8 @@
           "activated_at",
           "suspended_at",
           "revoked_at",
-          "created_at"
+          "created_at",
+          "revision"
         ],
         "title": "OperatorSummary",
         "type": "object"
@@ -10711,6 +10986,185 @@
           "label"
         ],
         "title": "RegisterOperatorCredentialRequest",
+        "type": "object"
+      },
+      "ReinstateOperatorPreviewRequest": {
+        "properties": {
+          "expected_revision": {
+            "description": "Optional: the revision you saw. A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "security_review_cleared",
+              "returned_from_leave",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "ReinstateOperatorPreviewRequest",
+        "type": "object"
+      },
+      "ReinstateOperatorRequest": {
+        "properties": {
+          "confirmation_token": {
+            "description": "From this action's preview. Required when the action needs confirmation (`428 confirmation_required` without it, `422 confirmation_invalid` when it doesn't match, expired or was used).",
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` you saw (from the preview or the operator). A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Client-generated per intended change. Repeating the same request with it changes nothing and answers with the current state; using it for another request is `409 conflict`.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "security_review_cleared",
+              "returned_from_leave",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "expected_revision",
+          "operation_id",
+          "confirmation_token"
+        ],
+        "title": "ReinstateOperatorRequest",
+        "type": "object"
+      },
+      "RevokeOperatorPermissionPreviewRequest": {
+        "properties": {
+          "expected_revision": {
+            "description": "Optional: the revision you saw. A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "role_change",
+              "least_privilege_review",
+              "security_concern",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "RevokeOperatorPermissionPreviewRequest",
+        "type": "object"
+      },
+      "RevokeOperatorPermissionRequest": {
+        "properties": {
+          "confirmation_token": {
+            "description": "From this action's preview. Required when the action needs confirmation (`428 confirmation_required` without it, `422 confirmation_invalid` when it doesn't match, expired or was used).",
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` you saw (from the preview or the operator). A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Client-generated per intended change. Repeating the same request with it changes nothing and answers with the current state; using it for another request is `409 conflict`.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "role_change",
+              "least_privilege_review",
+              "security_concern",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "expected_revision",
+          "operation_id"
+        ],
+        "title": "RevokeOperatorPermissionRequest",
+        "type": "object"
+      },
+      "RevokeOperatorPreviewRequest": {
+        "properties": {
+          "expected_revision": {
+            "description": "Optional: the revision you saw. A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "left_organization",
+              "security_concern",
+              "suspected_compromise",
+              "policy_violation",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "RevokeOperatorPreviewRequest",
+        "type": "object"
+      },
+      "RevokeOperatorRequest": {
+        "properties": {
+          "confirmation_token": {
+            "description": "From this action's preview. Required when the action needs confirmation (`428 confirmation_required` without it, `422 confirmation_invalid` when it doesn't match, expired or was used).",
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` you saw (from the preview or the operator). A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Client-generated per intended change. Repeating the same request with it changes nothing and answers with the current state; using it for another request is `409 conflict`.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "left_organization",
+              "security_concern",
+              "suspected_compromise",
+              "policy_violation",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "expected_revision",
+          "operation_id",
+          "confirmation_token"
+        ],
+        "title": "RevokeOperatorRequest",
         "type": "object"
       },
       "SaasPlan": {
@@ -11109,6 +11563,68 @@
           "mode"
         ],
         "title": "SubscriptionCancelRequest",
+        "type": "object"
+      },
+      "SuspendOperatorPreviewRequest": {
+        "properties": {
+          "expected_revision": {
+            "description": "Optional: the revision you saw. A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "security_concern",
+              "suspected_compromise",
+              "policy_violation",
+              "leave_of_absence",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "SuspendOperatorPreviewRequest",
+        "type": "object"
+      },
+      "SuspendOperatorRequest": {
+        "properties": {
+          "confirmation_token": {
+            "description": "From this action's preview. Required when the action needs confirmation (`428 confirmation_required` without it, `422 confirmation_invalid` when it doesn't match, expired or was used).",
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The `revision` you saw (from the preview or the operator). A stale one is `409 revision_conflict`.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Client-generated per intended change. Repeating the same request with it changes nothing and answers with the current state; using it for another request is `409 conflict`.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "description": "Why. A code from this action's list; no free text.",
+            "enum": [
+              "security_concern",
+              "suspected_compromise",
+              "policy_violation",
+              "leave_of_absence",
+              "administrative_correction"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "expected_revision",
+          "operation_id",
+          "confirmation_token"
+        ],
+        "title": "SuspendOperatorRequest",
         "type": "object"
       },
       "TrainingSessionCreateRequest": {
@@ -12176,7 +12692,7 @@
     "/api/v1/admin/audit-events": {
       "get": {
         "callbacks": {},
-        "description": "Needs `audit.read`. Newest first; `before` pages back.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "description": "Needs `audit.read`. Newest first, in a stable order (time, then id). Filters compare for equality; `occurred_after` is inclusive, `occurred_before` exclusive. Follow `next_cursor` with the same filters; a cursor is refused (`validation_error`, `cursor`) with other filters, for another operator, when altered or after an hour. `before` (time) can't be combined with `cursor`. Each query is audited.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
         "operationId": "listOperatorAuditEvents",
         "parameters": [
           {
@@ -12193,7 +12709,103 @@
           {
             "description": "",
             "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
             "name": "before",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "actor_operator_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_.]{1,79}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "command",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_.]{1,79}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "target_type",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_]{1,39}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "target_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "outcome",
+            "required": false,
+            "schema": {
+              "enum": [
+                "allowed",
+                "refused",
+                "conflict",
+                "invalid",
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "occurred_after",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "occurred_before",
             "required": false,
             "schema": {
               "format": "date-time",
@@ -12234,6 +12846,58 @@
           }
         ],
         "summary": "Operator audit log",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/audit-events/{event_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `audit.read`. Each view is audited.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "getOperatorAuditEvent",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "event_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorAuditEventResponse"
+                }
+              }
+            },
+            "description": "Event"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One operator audit event",
         "tags": [
           "Platform operators"
         ]
@@ -12710,7 +13374,7 @@
     "/api/v1/admin/operators/{operator_id}/permissions": {
       "post": {
         "callbacks": {},
-        "description": "Needs `operators.manage` and a fresh key check. Never to oneself.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "description": "Needs confirmation (`previewGrantOperatorPermission`). Never to oneself.\n\nAn admin action (SF-111, ADR 0029): needs `operators.manage` and a fresh key check, never targets\noneself, takes a reason code from this action's list, the operator's `expected_revision` and an\n`operation_id`. Repeating the same request with the same `operation_id` changes nothing and answers\nwith the current state.\n\n* `revision_conflict` (409) - the operator changed since `expected_revision`; `details.current_revision`.\n* `conflict` (409) - `details.target: \"self\"`, or the state (`details.status`, `details.permission`,\n  `details.operator`, `details.operation_id`).\n* `confirmation_required` (428) - the action needs the `confirmation_token` of its preview.\n* `confirmation_invalid` (422) - the token doesn't match this operator, session, action, target,\n  parameters and revision, expired, or was used.\n* `validation_error` (422) - a reason code not in this action's list, or a malformed field.\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
         "operationId": "grantOperatorPermission",
         "parameters": [
           {
@@ -12733,7 +13397,7 @@
             }
           },
           "description": "Grant",
-          "required": false
+          "required": true
         },
         "responses": {
           "200": {
@@ -12761,6 +13425,12 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -12776,10 +13446,85 @@
         ]
       }
     },
+    "/api/v1/admin/operators/{operator_id}/permissions/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Previews an admin action (SF-111): the current and proposed state, the impact and what it needs,\nchecked as execution would be. Changes nothing, sends nothing. When the action needs confirmation the\nanswer carries a one-time `confirmation.token` (two minutes), bound to this operator, session, action,\ntarget, reason and revision. A preview authorizes nothing later: execution checks everything again.\n\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "previewGrantOperatorPermission",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantOperatorPermissionPreviewRequest"
+              }
+            }
+          },
+          "description": "Preview",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview granting a permission",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/operators/{operator_id}/permissions/{permission}/revoke": {
       "post": {
         "callbacks": {},
-        "description": "Needs `operators.manage` and a fresh key check. Never one's own.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "description": "Narrows access only, so no confirmation is needed. Never one's own.\n\nAn admin action (SF-111, ADR 0029): needs `operators.manage` and a fresh key check, never targets\noneself, takes a reason code from this action's list, the operator's `expected_revision` and an\n`operation_id`. Repeating the same request with the same `operation_id` changes nothing and answers\nwith the current state.\n\n* `revision_conflict` (409) - the operator changed since `expected_revision`; `details.current_revision`.\n* `conflict` (409) - `details.target: \"self\"`, or the state (`details.status`, `details.permission`,\n  `details.operator`, `details.operation_id`).\n* `confirmation_required` (428) - the action needs the `confirmation_token` of its preview.\n* `confirmation_invalid` (422) - the token doesn't match this operator, session, action, target,\n  parameters and revision, expired, or was used.\n* `validation_error` (422) - a reason code not in this action's list, or a malformed field.\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
         "operationId": "revokeOperatorPermission",
         "parameters": [
           {
@@ -12806,12 +13551,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OperatorActionRequest"
+                "$ref": "#/components/schemas/RevokeOperatorPermissionRequest"
               }
             }
           },
-          "description": "Reason",
-          "required": false
+          "description": "Revocation",
+          "required": true
         },
         "responses": {
           "200": {
@@ -12839,6 +13584,12 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -12854,10 +13605,94 @@
         ]
       }
     },
+    "/api/v1/admin/operators/{operator_id}/permissions/{permission}/revoke/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Previews an admin action (SF-111): the current and proposed state, the impact and what it needs,\nchecked as execution would be. Changes nothing, sends nothing. When the action needs confirmation the\nanswer carries a one-time `confirmation.token` (two minutes), bound to this operator, session, action,\ntarget, reason and revision. A preview authorizes nothing later: execution checks everything again.\n\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "previewRevokeOperatorPermission",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "permission",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeOperatorPermissionPreviewRequest"
+              }
+            }
+          },
+          "description": "Preview",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview revoking a permission",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/operators/{operator_id}/reinstate": {
       "post": {
         "callbacks": {},
-        "description": "Needs `operators.manage` and a fresh key check. Never oneself. Suspended operators only. With fewer keys than required they return to `pending_enrollment`.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "description": "Needs confirmation (`previewReinstateOperator`). Suspended operators only; with fewer keys than required they return to `pending_enrollment`.\n\nAn admin action (SF-111, ADR 0029): needs `operators.manage` and a fresh key check, never targets\noneself, takes a reason code from this action's list, the operator's `expected_revision` and an\n`operation_id`. Repeating the same request with the same `operation_id` changes nothing and answers\nwith the current state.\n\n* `revision_conflict` (409) - the operator changed since `expected_revision`; `details.current_revision`.\n* `conflict` (409) - `details.target: \"self\"`, or the state (`details.status`, `details.permission`,\n  `details.operator`, `details.operation_id`).\n* `confirmation_required` (428) - the action needs the `confirmation_token` of its preview.\n* `confirmation_invalid` (422) - the token doesn't match this operator, session, action, target,\n  parameters and revision, expired, or was used.\n* `validation_error` (422) - a reason code not in this action's list, or a malformed field.\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
         "operationId": "reinstateOperator",
         "parameters": [
           {
@@ -12875,12 +13710,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OperatorActionRequest"
+                "$ref": "#/components/schemas/ReinstateOperatorRequest"
               }
             }
           },
-          "description": "Reason",
-          "required": false
+          "description": "Reinstatement",
+          "required": true
         },
         "responses": {
           "200": {
@@ -12908,6 +13743,12 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -12923,10 +13764,85 @@
         ]
       }
     },
+    "/api/v1/admin/operators/{operator_id}/reinstate/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Previews an admin action (SF-111): the current and proposed state, the impact and what it needs,\nchecked as execution would be. Changes nothing, sends nothing. When the action needs confirmation the\nanswer carries a one-time `confirmation.token` (two minutes), bound to this operator, session, action,\ntarget, reason and revision. A preview authorizes nothing later: execution checks everything again.\n\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "previewReinstateOperator",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstateOperatorPreviewRequest"
+              }
+            }
+          },
+          "description": "Preview",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview reinstating an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/operators/{operator_id}/revoke": {
       "post": {
         "callbacks": {},
-        "description": "Needs `operators.manage` and a fresh key check. Never oneself. Final. Their permissions, keys and key checks end in the same transaction.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "description": "Needs confirmation (`previewRevokeOperator`). Final: their permissions, keys and key checks end in the same transaction.\n\nAn admin action (SF-111, ADR 0029): needs `operators.manage` and a fresh key check, never targets\noneself, takes a reason code from this action's list, the operator's `expected_revision` and an\n`operation_id`. Repeating the same request with the same `operation_id` changes nothing and answers\nwith the current state.\n\n* `revision_conflict` (409) - the operator changed since `expected_revision`; `details.current_revision`.\n* `conflict` (409) - `details.target: \"self\"`, or the state (`details.status`, `details.permission`,\n  `details.operator`, `details.operation_id`).\n* `confirmation_required` (428) - the action needs the `confirmation_token` of its preview.\n* `confirmation_invalid` (422) - the token doesn't match this operator, session, action, target,\n  parameters and revision, expired, or was used.\n* `validation_error` (422) - a reason code not in this action's list, or a malformed field.\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
         "operationId": "revokeOperator",
         "parameters": [
           {
@@ -12944,12 +13860,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OperatorActionRequest"
+                "$ref": "#/components/schemas/RevokeOperatorRequest"
               }
             }
           },
-          "description": "Reason",
-          "required": false
+          "description": "Revocation",
+          "required": true
         },
         "responses": {
           "200": {
@@ -12977,6 +13893,12 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -12992,10 +13914,85 @@
         ]
       }
     },
+    "/api/v1/admin/operators/{operator_id}/revoke/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Previews an admin action (SF-111): the current and proposed state, the impact and what it needs,\nchecked as execution would be. Changes nothing, sends nothing. When the action needs confirmation the\nanswer carries a one-time `confirmation.token` (two minutes), bound to this operator, session, action,\ntarget, reason and revision. A preview authorizes nothing later: execution checks everything again.\n\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "previewRevokeOperator",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeOperatorPreviewRequest"
+              }
+            }
+          },
+          "description": "Preview",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview revoking an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/operators/{operator_id}/suspend": {
       "post": {
         "callbacks": {},
-        "description": "Needs `operators.manage` and a fresh key check. Never oneself. Active operators only. Ends their key checks.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "description": "Needs confirmation (`previewSuspendOperator`). Active operators only; ends their key checks.\n\nAn admin action (SF-111, ADR 0029): needs `operators.manage` and a fresh key check, never targets\noneself, takes a reason code from this action's list, the operator's `expected_revision` and an\n`operation_id`. Repeating the same request with the same `operation_id` changes nothing and answers\nwith the current state.\n\n* `revision_conflict` (409) - the operator changed since `expected_revision`; `details.current_revision`.\n* `conflict` (409) - `details.target: \"self\"`, or the state (`details.status`, `details.permission`,\n  `details.operator`, `details.operation_id`).\n* `confirmation_required` (428) - the action needs the `confirmation_token` of its preview.\n* `confirmation_invalid` (422) - the token doesn't match this operator, session, action, target,\n  parameters and revision, expired, or was used.\n* `validation_error` (422) - a reason code not in this action's list, or a malformed field.\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
         "operationId": "suspendOperator",
         "parameters": [
           {
@@ -13013,12 +14010,12 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OperatorActionRequest"
+                "$ref": "#/components/schemas/SuspendOperatorRequest"
               }
             }
           },
-          "description": "Reason",
-          "required": false
+          "description": "Suspension",
+          "required": true
         },
         "responses": {
           "200": {
@@ -13046,6 +14043,12 @@
           "422": {
             "$ref": "#/components/responses/ValidationError"
           },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
@@ -13056,6 +14059,81 @@
           }
         ],
         "summary": "Suspend an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}/suspend/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Previews an admin action (SF-111): the current and proposed state, the impact and what it needs,\nchecked as execution would be. Changes nothing, sends nothing. When the action needs confirmation the\nanswer carries a one-time `confirmation.token` (two minutes), bound to this operator, session, action,\ntarget, reason and revision. A preview authorizes nothing later: execution checks everything again.\n\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "previewSuspendOperator",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendOperatorPreviewRequest"
+              }
+            }
+          },
+          "description": "Preview",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview suspending an operator",
         "tags": [
           "Platform operators"
         ]

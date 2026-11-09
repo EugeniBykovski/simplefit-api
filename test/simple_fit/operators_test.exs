@@ -384,30 +384,24 @@ defmodule SimpleFit.OperatorsTest do
       assert {:error, :forbidden} = Operators.list_audit_events(c.second, c.second_session, %{})
 
       assert {:error, :forbidden} =
-               Operators.grant(
-                 c.second,
-                 c.second_session,
-                 c.op2.id,
-                 Map.put(op(), "permission", "audit.read")
-               )
+               act(c.second, c.second_session, "operator.permission.grant", c.op2.id, %{
+                 "permission" => "audit.read"
+               })
     end
 
     test "no self-grant, self-promotion or self-revocation", c do
       me = c.operator
 
       assert {:error, {:conflict, %{target: "self"}}} =
-               Operators.grant(
-                 c.user,
-                 c.session,
-                 me.id,
-                 Map.put(op(), "permission", "audit.read")
-               )
+               act(c.user, c.session, "operator.permission.grant", me.id, %{
+                 "permission" => "audit.read"
+               })
 
       assert {:error, {:conflict, %{target: "self"}}} =
-               Operators.revoke(c.user, c.session, me.id, op())
+               act(c.user, c.session, "operator.revoke", me.id)
 
       assert {:error, {:conflict, %{target: "self"}}} =
-               Operators.suspend(c.user, c.session, me.id, op())
+               act(c.user, c.session, "operator.suspend", me.id)
 
       assert_raise Ecto.ConstraintError, ~r/no_self_grant/, fn ->
         Repo.insert!(%Grant{
@@ -423,7 +417,9 @@ defmodule SimpleFit.OperatorsTest do
 
     test "the catalog is enforced by the database too", c do
       assert {:error, %Ecto.Changeset{}} =
-               Operators.grant(c.user, c.session, c.op2.id, Map.put(op(), "permission", "admin"))
+               act(c.user, c.session, "operator.permission.grant", c.op2.id, %{
+                 "permission" => "admin"
+               })
 
       assert_raise Ecto.ConstraintError, ~r/permission_catalog/, fn ->
         Repo.insert!(%Grant{
@@ -439,14 +435,16 @@ defmodule SimpleFit.OperatorsTest do
 
     test "a revoked permission stops working on the next request", c do
       assert {:ok, _} =
-               Operators.revoke_grant(c.user, c.session, c.op2.id, "operators.read", op())
+               act(c.user, c.session, "operator.permission.revoke", c.op2.id, %{
+                 "permission" => "operators.read"
+               })
 
       assert {:error, :forbidden} = Operators.list_operators(c.second, c.second_session)
     end
 
     test "suspension and revocation take effect at once and conceal the operator", c do
       assert {:ok, %{operator: %{status: :suspended}}} =
-               Operators.suspend(c.user, c.session, c.op2.id, op())
+               act(c.user, c.session, "operator.suspend", c.op2.id)
 
       assert {:error, :not_found} = Operators.me(c.second, c.second_session)
       assert {:error, :not_found} = Operators.list_operators(c.second, c.second_session)
@@ -457,12 +455,12 @@ defmodule SimpleFit.OperatorsTest do
              ) == 0
 
       assert {:ok, %{operator: %{status: :active}}} =
-               Operators.reinstate(c.user, c.session, c.op2.id, op())
+               act(c.user, c.session, "operator.reinstate", c.op2.id)
 
       assert {:error, :step_up_required} = Operators.list_operators(c.second, c.second_session)
 
       assert {:ok, %{operator: %{status: :revoked}, permissions: []}} =
-               Operators.revoke(c.user, c.session, c.op2.id, op())
+               act(c.user, c.session, "operator.revoke", c.op2.id)
 
       assert {:error, :not_found} = Operators.me(c.second, c.second_session)
 
@@ -472,11 +470,11 @@ defmodule SimpleFit.OperatorsTest do
              ) == 0
 
       assert {:error, {:conflict, %{status: "not_suspended"}}} =
-               Operators.reinstate(c.user, c.session, c.op2.id, op())
+               act(c.user, c.session, "operator.reinstate", c.op2.id)
     end
 
     test "illegal transitions are refused by the database", c do
-      {:ok, _} = Operators.revoke(c.user, c.session, c.op2.id, op())
+      {:ok, _} = act(c.user, c.session, "operator.revoke", c.op2.id)
 
       assert_raise Postgrex.Error, ~r/platform_operators_transition/, fn ->
         Repo.update_all(from(o in Operator, where: o.id == ^c.op2.id), set: [status: :active])
@@ -488,17 +486,23 @@ defmodule SimpleFit.OperatorsTest do
     end
 
     test "a repeated operation id changes nothing; reused for another action, it conflicts", c do
-      payload = Map.put(op(), "permission", "audit.read")
+      {:ok, payload, _} =
+        confirmed(c.user, c.session, "operator.permission.grant", c.op2.id, %{
+          "permission" => "audit.read"
+        })
+
       assert {:ok, %{permissions: p1}} = Operators.grant(c.user, c.session, c.op2.id, payload)
       assert {:ok, %{permissions: ^p1}} = Operators.grant(c.user, c.session, c.op2.id, payload)
       assert length(actions("operator.permission_granted")) == 3 + 1 + 1
+
+      {:ok, suspend, _} = confirmed(c.user, c.session, "operator.suspend", c.op2.id)
 
       assert {:error, {:conflict, %{operation_id: "reused"}}} =
                Operators.suspend(
                  c.user,
                  c.session,
                  c.op2.id,
-                 Map.take(payload, ["reason_code", "operation_id"])
+                 Map.put(suspend, "operation_id", payload["operation_id"])
                )
     end
 

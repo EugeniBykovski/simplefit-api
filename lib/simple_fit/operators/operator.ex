@@ -2,11 +2,15 @@ defmodule SimpleFit.Operators.Operator do
   @moduledoc """
   A platform operator (SF-110, ADR 0028): a separately provisioned authority bound
   to one global user. It isn't a role on the user, and holding one grants nothing
-  by itself: every request is authorized by `SimpleFit.Operators.Authority`.
+  by itself: every request is authorized by `SimpleFit.Operators`.
 
   `pending_enrollment` operators can only register security keys. `revoked` is
   terminal (a returning person gets a new row). Transitions are enforced by a
   trigger; rows are never deleted.
+
+  `revision` (SF-111) counts changes to the operator's authority state: a trigger
+  raises it on every update of the row and on every grant or revocation of a
+  permission. Admin actions name the revision they saw.
   """
 
   use Ecto.Schema
@@ -28,6 +32,7 @@ defmodule SimpleFit.Operators.Operator do
     field :activated_at, :utc_datetime_usec
     field :suspended_at, :utc_datetime_usec
     field :revoked_at, :utc_datetime_usec
+    field :revision, :integer, default: 1, read_after_writes: true
 
     timestamps()
   end

@@ -1,7 +1,8 @@
 defmodule SimpleFit.Operators.Operation do
   @moduledoc """
   A client-supplied operation id, recorded once, so a repeated request changes
-  nothing. Append-only.
+  nothing. Append-only. `request_sha256` (SF-111) is the digest of the request
+  the id was first used for: the same id with other parameters is refused.
   """
 
   use Ecto.Schema
@@ -16,6 +17,7 @@ defmodule SimpleFit.Operators.Operation do
     field :actor_operator_id, :binary_id
     field :action, :string
     field :target_id, :binary_id
+    field :request_sha256, :binary
 
     timestamps()
   end

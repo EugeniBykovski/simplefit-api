@@ -1,6 +1,9 @@
 # ADR 0028 — Platform operator identity, founder bootstrap, RBAC and strong authentication
 
 * Status: **Accepted for implementation in non-production environments** (SF-110, 2026-11-09). Epic SF-106.
+  **Amended by [ADR 0029](0029-admin-action-framework.md) (SF-111):** grant, permission revocation,
+  suspend, reinstate and revoke now run as declared admin actions with `expected_revision`, catalogued
+  reason codes and (except permission revocation) a one-time confirmation from their preview.
   **Production bootstrap is BLOCKED**: no approved signing authority exists (D-SA13), so a production build
   trusts no ceremony key and `mix operators.ceremony` refuses with `unavailable`.
 * Context: ADR 0009 (one global user), 0010 (sessions), 0016 (registration), 0026 (gyms; SF-136 operator

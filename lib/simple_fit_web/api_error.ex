@@ -65,6 +65,8 @@ defmodule SimpleFitWeb.APIError do
     {"not_found", 404, "The requested resource was not found"},
     {"not_acceptable", 406, "The requested response format is not supported"},
     {"conflict", 409, "The request conflicts with the current state of the resource"},
+    {"revision_conflict", 409,
+     "The resource changed since you last read it; read it again before retrying"},
     {"verified_elsewhere", 409,
      "This email was verified on another device; sign in with a code to continue"},
     {"invitation_unavailable", 410, "This invitation is no longer available"},
@@ -73,7 +75,10 @@ defmodule SimpleFitWeb.APIError do
     {"validation_error", 422, "Request validation failed"},
     {"code_invalid", 422, "The code is not correct"},
     {"security_key_rejected", 422, "The security key response was not accepted"},
+    {"confirmation_invalid", 422,
+     "The confirmation does not match this request or is no longer valid; preview the action again"},
     {"code_expired", 422, "The code or link is no longer valid; request a new code"},
+    {"confirmation_required", 428, "Preview the action and confirm it to continue"},
     {"rate_limited", 429, "Too many requests, retry later"},
     {"internal_error", 500, "An unexpected error occurred"},
     {"service_unavailable", 503, "The service is temporarily unavailable"}
@@ -90,7 +95,9 @@ defmodule SimpleFitWeb.APIError do
     "invitation_recipient_mismatch",
     "step_up_required",
     "enrollment_required",
-    "security_key_rejected"
+    "security_key_rejected",
+    "revision_conflict",
+    "confirmation_invalid"
   ]
 
   @doc "All catalogued error codes, in catalog order."

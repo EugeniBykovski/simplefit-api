@@ -106,6 +106,16 @@ defmodule SimpleFitWeb.Telemetry do
       # recovered counts lost responses (SF-75).
       counter("simple_fit.auth.session.refresh.count", tags: [:outcome]),
 
+      # Admin actions (SF-111, ADR 0029): action ids and result codes only, never
+      # operator, user, target or session ids.
+      counter("simple_fit.admin_action.committed.count", tags: [:action]),
+      counter("simple_fit.admin_action.denied.count", tags: [:action, :result]),
+      counter("simple_fit.admin_action.conflicted.count", tags: [:action, :result]),
+      counter("simple_fit.admin_action.invalid.count", tags: [:action, :result]),
+      counter("simple_fit.admin_action.failed.count", tags: [:action, :result]),
+      counter("simple_fit.admin_action.audit_suppressed.count", tags: [:action]),
+      counter("simple_fit.admin_action.audit_failed.count", tags: [:action]),
+
       # Background jobs (Oban)
       summary("oban.job.stop.duration",
         tags: [:queue, :worker, :state],

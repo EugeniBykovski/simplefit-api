@@ -204,6 +204,46 @@ defmodule SimpleFit.OperatorHelpers do
     key
   end
 
+  ## Admin actions (SF-111)
+
+  @reasons %{
+    "operator.permission.grant" => "role_change",
+    "operator.permission.revoke" => "role_change",
+    "operator.suspend" => "security_concern",
+    "operator.reinstate" => "administrative_correction",
+    "operator.revoke" => "left_organization"
+  }
+
+  @doc "A reason code `action_id` accepts."
+  def reason(action_id), do: Map.fetch!(@reasons, action_id)
+
+  @doc """
+  Previews `action_id` and returns `{:ok, execute_params, preview}`: the preview's
+  revision and confirmation token, a fresh operation id and `params` on top.
+  """
+  def confirmed(%User{} = user, %Session{} = session, action_id, target_id, params \\ %{}) do
+    base = Map.merge(%{"reason_code" => reason(action_id)}, params)
+
+    with {:ok, preview} <- Operators.preview(action_id, user, session, target_id, base) do
+      {:ok,
+       Map.merge(
+         %{
+           "expected_revision" => preview.expected_revision,
+           "operation_id" => Ecto.UUID.generate(),
+           "confirmation_token" => preview.confirmation.token
+         },
+         base
+       ), preview}
+    end
+  end
+
+  @doc "Previews, then executes `action_id` with that confirmation: the execution's result."
+  def act(%User{} = user, %Session{} = session, action_id, target_id, params \\ %{}) do
+    with {:ok, execute, _preview} <- confirmed(user, session, action_id, target_id, params) do
+      Operators.execute(action_id, user, session, target_id, execute)
+    end
+  end
+
   @doc "A fresh operation payload."
   def op(reason \\ "test_reason"),
     do: %{"reason_code" => reason, "operation_id" => Ecto.UUID.generate()}
