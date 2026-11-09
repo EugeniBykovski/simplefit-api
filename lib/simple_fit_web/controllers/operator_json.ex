@@ -1,11 +1,12 @@
 defmodule SimpleFitWeb.OperatorJSON do
   @moduledoc """
-  Operator DTOs (SF-110). Explicit fields only: no credential material, challenge
-  bytes, emails or names.
+  Operator DTOs (SF-110, SF-111). Explicit fields only: no credential material,
+  challenge bytes, confirmation token hashes, emails or names. Audit events go
+  through `SimpleFit.Operators.Redaction`'s allowlist.
   """
 
   alias SimpleFit.Operators
-  alias SimpleFit.Operators.{AuditEvent, Credential, StepUp}
+  alias SimpleFit.Operators.{Credential, Redaction, StepUp}
 
   def me(%{view: view}) do
     op = view.operator
@@ -43,7 +44,33 @@ defmodule SimpleFitWeb.OperatorJSON do
 
   def operator(%{summary: s}), do: %{operator: summary(s)}
   def operators(%{summaries: list}), do: %{operators: Enum.map(list, &summary/1)}
-  def audit_events(%{events: events}), do: %{events: Enum.map(events, &event/1)}
+
+  def audit_events(%{page: page}),
+    do: %{events: Enum.map(page.events, &Redaction.audit_event/1), next_cursor: page.next_cursor}
+
+  def audit_event(%{event: event}), do: %{event: Redaction.audit_event(event)}
+
+  def preview(%{preview: p}) do
+    %{
+      preview: %{
+        action: p.action,
+        target: p.target,
+        expected_revision: p.expected_revision,
+        current_state: p.current_state,
+        proposed_state: p.proposed_state,
+        permission: p.permission,
+        impact: p.impact,
+        required_permission: p.required_permission,
+        required_assurance: p.required_assurance,
+        reason_code: p.reason_code,
+        confirmation: %{
+          required: p.confirmation.required,
+          token: p.confirmation.token,
+          expires_at: p.confirmation.expires_at
+        }
+      }
+    }
+  end
 
   defp credential(%Credential{} = c) do
     %{
@@ -70,6 +97,7 @@ defmodule SimpleFitWeb.OperatorJSON do
     %{
       id: op.id,
       user_id: op.user_id,
+      revision: op.revision,
       status: Atom.to_string(op.status),
       bootstrap: op.bootstrap,
       created_by_operator_id: op.created_by_operator_id,
@@ -80,26 +108,6 @@ defmodule SimpleFitWeb.OperatorJSON do
       suspended_at: op.suspended_at,
       revoked_at: op.revoked_at,
       created_at: op.inserted_at
-    }
-  end
-
-  defp event(%AuditEvent{} = e) do
-    %{
-      id: e.id,
-      occurred_at: e.occurred_at,
-      action: e.action,
-      outcome: Atom.to_string(e.outcome),
-      authority: Atom.to_string(e.authority),
-      actor_operator_id: e.actor_operator_id,
-      actor_user_id: e.actor_user_id,
-      permission: e.permission,
-      target_type: e.target_type,
-      target_id: e.target_id,
-      reason_code: e.reason_code,
-      operation_id: e.operation_id,
-      session_id: e.session_id,
-      ceremony_id: e.ceremony_id,
-      request_id: e.request_id
     }
   end
 end

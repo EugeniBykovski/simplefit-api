@@ -137,6 +137,11 @@ config :simple_fit, SimpleFit.Coaching.LocalDevelopment, allowed: true
 
 # SF-136: the fixture authority, compiled only outside production. A credential is a
 # secret here; these name no real person.
+# SF-111: signs operator audit log cursors (test only value).
+config :simple_fit, SimpleFit.Operators,
+  secret_key_base:
+    "test-operators-Kp4Zr8Wm1Qx6Lc3Vn9Ty2Hb5Jd7Fs0Ga4Ue8Io1PlMkNjBhVgCfXdSzAwEqRtYu"
+
 # SF-110: tests sign ceremonies with keys they generate and register at runtime.
 config :simple_fit, SimpleFit.Operators.WebAuthn,
   rp_id: "localhost",

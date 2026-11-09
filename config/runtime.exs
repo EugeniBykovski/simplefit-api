@@ -372,6 +372,9 @@ case config_env() do
     # OPERATOR_ENVIRONMENT names this deployment in signed ceremony statements;
     # unset refuses every ceremony. Trusted ceremony keys are compiled in from
     # reviewed configuration only, never read from the environment.
+    # SF-111: signs operator audit log cursors (salted; ADR 0029).
+    config :simple_fit, SimpleFit.Operators, secret_key_base: secret_key_base
+
     config :simple_fit, SimpleFit.Operators.WebAuthn,
       rp_id: System.get_env("WEBAUTHN_RP_ID"),
       origin: System.get_env("WEBAUTHN_ORIGIN"),

@@ -90,14 +90,23 @@ defmodule SimpleFitWeb.Router do
     get "/operators", OperatorAdminController, :index
     post "/operators", OperatorAdminController, :provision
     get "/operators/:operator_id", OperatorAdminController, :show
+    # SF-111: each admin action has its own preview and execute route; no generic execute.
+    post "/operators/:operator_id/permissions/preview", OperatorAdminController, :preview_grant
     post "/operators/:operator_id/permissions", OperatorAdminController, :grant
+
+    post "/operators/:operator_id/permissions/:permission/revoke/preview",
+         OperatorAdminController,
+         :preview_revoke_grant
 
     post "/operators/:operator_id/permissions/:permission/revoke",
          OperatorAdminController,
          :revoke_grant
 
+    post "/operators/:operator_id/suspend/preview", OperatorAdminController, :preview_suspend
     post "/operators/:operator_id/suspend", OperatorAdminController, :suspend
+    post "/operators/:operator_id/reinstate/preview", OperatorAdminController, :preview_reinstate
     post "/operators/:operator_id/reinstate", OperatorAdminController, :reinstate
+    post "/operators/:operator_id/revoke/preview", OperatorAdminController, :preview_revoke
     post "/operators/:operator_id/revoke", OperatorAdminController, :revoke
 
     post "/operators/:operator_id/credentials/:credential_id/revoke",
@@ -105,6 +114,7 @@ defmodule SimpleFitWeb.Router do
          :revoke_operator_credential
 
     get "/audit-events", OperatorAdminController, :audit_events
+    get "/audit-events/:event_id", OperatorAdminController, :audit_event
   end
 
   scope "/api/v1", SimpleFitWeb do
