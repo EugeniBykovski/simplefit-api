@@ -33,6 +33,7 @@ as ADRs in [`adr/`](adr/).
 | [0025](adr/0025-local-development-coaching-mode.md) | LOCAL DEVELOPMENT coaching mode (SF-105): one `Coaching.LegalPolicy` regime decision (`production_approved` / `local_development_bypass` / `blocked`); the bypass needs a dev build, an explicit opt-in, a loopback endpoint and a local `simple_fit_dev`; no legal text, acknowledgement or evidence, a non-legal marker instead of a version, every other check intact; `legal_mode` tells clients |
 | [0026](adr/0026-gym-domain-architecture.md) | Gym domain architecture (SF-82, epic SF-81; SF-83 tenant foundation, SF-85 owner setup and SF-90 first run + derived setup checklist implemented; SF-101/SF-102 plans and Stripe billing; SF-103 business verification (operator review by mix task) and derived go-live readiness, publishing still deferred; other commercial decisions deferred, D-G17/D-G19/D-G25 open): `SimpleFit.Gyms` tenant with locations, fixed staff roles with one owner, members without FighterProfile, classes/occurrences/bookings/check-ins separate from training sessions, path-scoped `/api/v1/gyms/{gym_id}` with ID-based gym navigation, 404/403 semantics, no gym access to training data, plans/payments/verification blocked; detail in `proposals/SF-82-gym/` |
 | [0027](adr/0027-sponsor-and-platform-operator-architecture.md) | **Proposed, not approved** (SF-107, epic SF-106): Sponsor and platform operator architecture. One global user, no context grants another; `SimpleFit.Sponsors` (applications with immutable revisions, organizations, memberships, invitations; approval grants no commercial right); `SimpleFit.Operators` (explicit per-action permissions, WebAuthn step-up, append-only audit, a one-time founder ceremony); nothing implemented; package starts at [`sponsor-admin-overview.md`](sponsor-admin-overview.md) |
+| [0028](adr/0028-platform-operator-identity.md) | Platform operator identity (SF-110, epic SF-106; implements ADR 0027's operator half). `SimpleFit.Operators`: operator bound to a user id, never an email; signed out-of-band founder bootstrap (replay-safe, environment-bound) and recovery ceremonies; two WebAuthn security keys (`wax_`) and session-bound step-up; three explicit permissions, default deny, no self-grant; append-only audit; `/api/v1/admin`. **Production bootstrap BLOCKED** (no approved signing authority, D-SA13); D-SA14/17/18/28/29 open |
 
 ---
 
@@ -67,6 +68,7 @@ lib/
     legal.ex, legal/          # Legal document registry and acceptance evidence (ADR 0022)
     training.ex, training/    # Training sessions: assignment, scheduling, lifecycle (ADR 0023)
     gyms.ex, gyms/            # Gym tenant, staff memberships, ownership and the fixed permission matrix (ADR 0026)
+    operators.ex, operators/  # Platform operators: ceremonies, WebAuthn keys, step-up, permissions, audit (ADR 0028)
     provider.ex               # Shared provider error vocabulary
     http.ex                   # Canonical outbound HTTP client (Req) for adapters
     storage.ex, storage/      # Object storage boundary + S3 / Fake adapters

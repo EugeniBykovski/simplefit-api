@@ -58,6 +58,8 @@ defmodule SimpleFitWeb.APIError do
     {"bad_request", 400, "The request could not be processed"},
     {"unauthorized", 401, "Authentication is required"},
     {"forbidden", 403, "You do not have permission to perform this action"},
+    {"step_up_required", 403, "Confirm with your security key to continue"},
+    {"enrollment_required", 403, "Register your security keys to continue"},
     {"invitation_recipient_mismatch", 403,
      "This invitation was sent to another email address; sign in with that address to respond"},
     {"not_found", 404, "The requested resource was not found"},
@@ -70,6 +72,7 @@ defmodule SimpleFitWeb.APIError do
     {"unsupported_media_type", 415, "The request content type is not supported"},
     {"validation_error", 422, "Request validation failed"},
     {"code_invalid", 422, "The code is not correct"},
+    {"security_key_rejected", 422, "The security key response was not accepted"},
     {"code_expired", 422, "The code or link is no longer valid; request a new code"},
     {"rate_limited", 429, "Too many requests, retry later"},
     {"internal_error", 500, "An unexpected error occurred"},
@@ -84,7 +87,10 @@ defmodule SimpleFitWeb.APIError do
     "verified_elsewhere",
     "code_invalid",
     "code_expired",
-    "invitation_recipient_mismatch"
+    "invitation_recipient_mismatch",
+    "step_up_required",
+    "enrollment_required",
+    "security_key_rejected"
   ]
 
   @doc "All catalogued error codes, in catalog order."

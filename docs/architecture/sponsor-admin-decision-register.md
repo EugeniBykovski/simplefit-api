@@ -44,6 +44,10 @@ Not reopened unless stated. Evidence is the merged document.
 
 ## Platform operators
 
+SF-110 ([ADR 0028](adr/0028-platform-operator-identity.md)) implemented D-SA13, D-SA15 and D-SA16 as
+recommended, outside production. Their status stays PROPOSED until approved. The production signing authority
+for D-SA13 isn't decided, so production bootstrap is BLOCKED.
+
 | Id | Decision | Recommended | Alternatives | Rationale | Depends on | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D-SA13 | Operator bootstrap | [The ceremony](platform-operator-trust.md#5-founder-bootstrap) | Rejected list there | Independent authorization, identity binding, evidence | D-SA15 | Founder, security reviewer | PROPOSED |

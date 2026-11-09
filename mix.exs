@@ -55,6 +55,10 @@ defmodule SimpleFit.MixProject do
       # JWS/JWK verification of provider ID tokens (Google, ADR 0013): RS256
       # signatures against the provider's published keys. No hand-rolled crypto.
       {:jose, "~> 1.11"},
+      # WebAuthn registration and assertion verification for platform operators
+      # (SF-110, ADR 0027): attestation, authenticator data, COSE keys and
+      # signature checks. No hand-rolled WebAuthn verification.
+      {:wax_, "~> 0.7.0"},
 
       # Observability (see docs/architecture/adr/0008-observability.md)
       {:telemetry_metrics, "~> 1.2"},

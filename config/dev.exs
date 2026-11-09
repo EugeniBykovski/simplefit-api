@@ -89,6 +89,22 @@ config :simple_fit, :e2e_tools, enabled: true
 
 # SF-136: review on a local machine goes through the fixture authority, which is not
 # compiled into a production build and is recorded as `local_fixture`.
+# SF-110: operator security keys against the local web client, and the local
+# development ceremony key written by `mix operators.dev_ceremony` (outside Git, in
+# .operator-dev/). Ceremonies it signs are recorded as local_development_ceremony.
+config :simple_fit, SimpleFit.Operators.WebAuthn,
+  rp_id: "localhost",
+  origin: "http://localhost:3000",
+  rp_name: "SimpleFit Control Plane (development)"
+
+config :simple_fit, SimpleFit.Operators.Bootstrap,
+  environment: "development",
+  trusted_keys:
+    (case File.read(Path.expand("../.operator-dev/public.key", __DIR__)) do
+       {:ok, key} -> %{"local-development" => {String.trim(key), :local_development_ceremony}}
+       {:error, _} -> %{}
+     end)
+
 config :simple_fit, SimpleFit.Gyms.VerificationAuthority,
   backend: SimpleFit.Gyms.VerificationAuthority.Local
 

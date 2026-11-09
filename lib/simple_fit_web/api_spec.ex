@@ -143,6 +143,13 @@ defmodule SimpleFitWeb.ApiSpec do
               "nothing is published (no public gym surface is approved)."
         },
         %Tag{
+          name: "Platform operators",
+          description:
+            "Platform operators (SF-110): the viewer's operator state, WebAuthn security keys, the " <>
+              "session-bound key check, operator administration and the operator audit log. Everything " <>
+              "answers `not_found` to an account without a usable operator."
+        },
+        %Tag{
           name: "Payment provider webhooks",
           description:
             "Inbound Stripe webhooks (SF-102), authenticated by the Stripe-Signature header over the raw body, " <>

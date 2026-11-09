@@ -11,6 +11,7 @@ defmodule SimpleFitWeb.Router do
   #                                          /me/email-identities, /me/fighter-profile,
   #                                          /me/coach-profile, /me/entry, /me/first-run,
   #                                          /gyms/{gym_id}/... (tenant-scoped, ADR 0026)
+  #   /api/v1/admin/...                      platform operators (SF-110, ADR 0028)
 
   pipeline :api do
     plug :accepts, ["json"]
@@ -72,6 +73,40 @@ defmodule SimpleFitWeb.Router do
 
   # Product resources (ADR 0003). SF-25: the viewer's fighter profile and
   # resumable Fighter onboarding (ADR 0015).
+  # SF-110: platform operators (ADR 0028). Everything below answers `not_found` to an
+  # account without a usable operator; `SimpleFit.Operators` authorizes every call.
+  scope "/api/v1/admin", SimpleFitWeb do
+    pipe_through [:api, :authenticated]
+
+    get "/me", OperatorController, :me
+    get "/credentials", OperatorController, :credentials
+    post "/credentials/options", OperatorController, :registration_options
+    post "/credentials", OperatorController, :register
+    post "/credentials/:credential_id/revoke", OperatorController, :revoke_credential
+    post "/step-up/options", OperatorController, :step_up_options
+    post "/step-up", OperatorController, :verify_step_up
+    delete "/step-up", OperatorController, :end_step_up
+
+    get "/operators", OperatorAdminController, :index
+    post "/operators", OperatorAdminController, :provision
+    get "/operators/:operator_id", OperatorAdminController, :show
+    post "/operators/:operator_id/permissions", OperatorAdminController, :grant
+
+    post "/operators/:operator_id/permissions/:permission/revoke",
+         OperatorAdminController,
+         :revoke_grant
+
+    post "/operators/:operator_id/suspend", OperatorAdminController, :suspend
+    post "/operators/:operator_id/reinstate", OperatorAdminController, :reinstate
+    post "/operators/:operator_id/revoke", OperatorAdminController, :revoke
+
+    post "/operators/:operator_id/credentials/:credential_id/revoke",
+         OperatorAdminController,
+         :revoke_operator_credential
+
+    get "/audit-events", OperatorAdminController, :audit_events
+  end
+
   scope "/api/v1", SimpleFitWeb do
     pipe_through [:api, :authenticated]
 

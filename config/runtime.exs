@@ -367,6 +367,19 @@ case config_env() do
       client_ids:
         SimpleFit.Identity.Apple.parse_client_ids!(System.get_env("APPLE_SIGN_IN_CLIENT_IDS"))
 
+    # Platform operators (SF-110, ADR 0028). WebAuthn relying party for operator
+    # security keys; unset leaves key enrolment and checks unavailable (503).
+    # OPERATOR_ENVIRONMENT names this deployment in signed ceremony statements;
+    # unset refuses every ceremony. Trusted ceremony keys are compiled in from
+    # reviewed configuration only, never read from the environment.
+    config :simple_fit, SimpleFit.Operators.WebAuthn,
+      rp_id: System.get_env("WEBAUTHN_RP_ID"),
+      origin: System.get_env("WEBAUTHN_ORIGIN"),
+      rp_name: "SimpleFit Control Plane"
+
+    config :simple_fit, SimpleFit.Operators.Bootstrap,
+      environment: System.get_env("OPERATOR_ENVIRONMENT")
+
     host =
       System.get_env("PHX_HOST") ||
         raise """

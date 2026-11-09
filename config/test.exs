@@ -137,6 +137,14 @@ config :simple_fit, SimpleFit.Coaching.LocalDevelopment, allowed: true
 
 # SF-136: the fixture authority, compiled only outside production. A credential is a
 # secret here; these name no real person.
+# SF-110: tests sign ceremonies with keys they generate and register at runtime.
+config :simple_fit, SimpleFit.Operators.WebAuthn,
+  rp_id: "localhost",
+  origin: "http://localhost:3000",
+  rp_name: "SimpleFit Control Plane (test)"
+
+config :simple_fit, SimpleFit.Operators.Bootstrap, environment: "test", trusted_keys: %{}
+
 config :simple_fit, SimpleFit.Gyms.VerificationAuthority,
   backend: SimpleFit.Gyms.VerificationAuthority.Local
 

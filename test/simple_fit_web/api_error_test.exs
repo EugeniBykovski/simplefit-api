@@ -8,6 +8,9 @@ defmodule SimpleFitWeb.APIErrorTest do
     "unauthorized" => 401,
     "forbidden" => 403,
     "invitation_recipient_mismatch" => 403,
+    "step_up_required" => 403,
+    "enrollment_required" => 403,
+    "security_key_rejected" => 422,
     "invitation_unavailable" => 410,
     "not_found" => 404,
     "not_acceptable" => 406,
@@ -32,7 +35,10 @@ defmodule SimpleFitWeb.APIErrorTest do
           "verified_elsewhere",
           "code_invalid",
           "code_expired",
-          "invitation_recipient_mismatch"
+          "invitation_recipient_mismatch",
+          "step_up_required",
+          "enrollment_required",
+          "security_key_rejected"
         ] do
       assert APIError.code_for_status(status) == code
     end
