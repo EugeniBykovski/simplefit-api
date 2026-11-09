@@ -105,3 +105,7 @@ someone read that mailbox once.
   sponsor grants exist.
 * A later approval task adds its actions to `ReviewActions` and its email to the outbox; retention work
   (D-SA18) adds deletion of submitted evidence.
+
+## Amendment (SF-116)
+
+[ADR 0033](0033-sponsor-application-decisions.md) adds approval, rejection and suspension or reinstatement of an approved organization; a `revoked` state and closing remain unbuilt.

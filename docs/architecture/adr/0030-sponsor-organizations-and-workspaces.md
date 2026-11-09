@@ -95,3 +95,7 @@ Triggers and constraints bind the application's database role, not a superuser o
 * S9 (members, invitations) builds on memberships and history without schema changes to them, except a
   role-change/transfer path that the role-immutability trigger will need relaxed by a reviewed migration.
 * Operator administration of organizations (A11) runs through the SF-111 action framework, not this boundary.
+
+## Amendment (SF-116)
+
+`application_authority/1` is now given inside the approval transaction only ([ADR 0033](0033-sponsor-application-decisions.md)); `operator_authority/1` (recorded as `platform_operator`) lets the admin action pipeline suspend or reinstate an approved application's organization.
