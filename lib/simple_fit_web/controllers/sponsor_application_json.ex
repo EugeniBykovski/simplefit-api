@@ -1,9 +1,54 @@
 defmodule SimpleFitWeb.SponsorApplicationJSON do
   @moduledoc "Sponsor application DTOs (SF-113). Fields picked explicitly; no internal ids or digests."
 
-  alias SimpleFit.Sponsors.{Application, ApplicationPolicy, ApplicationSubmission}
+  alias SimpleFit.Sponsors.{
+    Application,
+    ApplicationChangeRequest,
+    ApplicationEvidence,
+    ApplicationPolicy,
+    ApplicationSubmission
+  }
 
   def show(%{view: view}), do: %{application: application(view)}
+
+  def evidence_created(%{view: view, evidence: evidence, upload: upload}) do
+    %{
+      application: application(view),
+      evidence: evidence(evidence),
+      upload: %{
+        method: upload.method |> Atom.to_string() |> String.upcase(),
+        url: upload.url,
+        headers: upload.headers,
+        expires_at: upload.expires_at
+      }
+    }
+  end
+
+  @doc false
+  def evidence(%ApplicationEvidence{} = e) do
+    %{
+      evidence_id: e.id,
+      kind: Atom.to_string(e.kind),
+      status: Atom.to_string(e.status),
+      file_name: e.file_name,
+      content_type: e.content_type,
+      byte_size: e.byte_size,
+      uploaded_at: e.uploaded_at,
+      submitted: not is_nil(e.submission_id),
+      scanned: false
+    }
+  end
+
+  @doc false
+  def change_request(nil), do: nil
+
+  def change_request(%ApplicationChangeRequest{} = c),
+    do: %{
+      reason_code: c.reason_code,
+      fields: c.fields,
+      message: c.message,
+      requested_at: c.requested_at
+    }
 
   def submission(%{submission: %ApplicationSubmission{} = s}) do
     %{
@@ -49,7 +94,7 @@ defmodule SimpleFitWeb.SponsorApplicationJSON do
       status: Atom.to_string(a.status),
       revision: a.revision,
       answers: Map.new(ApplicationPolicy.answers(), &{&1, Map.fetch!(a, &1)}),
-      contact_email_verified: false,
+      contact_email_verified: view.contact_email_verified,
       missing_fields: view.missing,
       allowed_actions:
         if(editable?, do: ["edit"], else: []) ++
@@ -68,6 +113,8 @@ defmodule SimpleFitWeb.SponsorApplicationJSON do
         ),
       declaration: view.declaration,
       uploads: ApplicationPolicy.uploads(),
+      evidence: Enum.map(view.evidence, &evidence/1),
+      change_request: change_request(view.change_request),
       sponsor_id: view.sponsor_id,
       created_at: a.inserted_at,
       updated_at: a.updated_at

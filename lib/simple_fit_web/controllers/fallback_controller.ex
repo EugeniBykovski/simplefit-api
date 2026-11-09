@@ -15,6 +15,7 @@ defmodule SimpleFitWeb.FallbackController do
   | `{:error, :invitation_unavailable}` / `:invitation_recipient_mismatch` | the same code |
   | `{:error, :step_up_required}` / `:enrollment_required` / `:security_key_rejected` (SF-110) | the same code |
   | `{:error, :confirmation_required}` / `:confirmation_invalid` (SF-111) | the same code |
+  | `{:error, :code_invalid}` / `:code_expired` (SF-114 contact codes) | the same code |
   | `{:error, {:revision_conflict, details}}` (SF-111) | `revision_conflict`, with `details` (`current_revision`) |
   | `{:error, :action_failed}` (SF-111; the context logged it) | `internal_error` |
   | `{:error, {:rate_limited, retry_after}}` | `rate_limited`, with `retry-after` |
@@ -67,7 +68,9 @@ defmodule SimpleFitWeb.FallbackController do
              :enrollment_required,
              :security_key_rejected,
              :confirmation_required,
-             :confirmation_invalid
+             :confirmation_invalid,
+             :code_invalid,
+             :code_expired
            ] do
     APIError.send_error(conn, Atom.to_string(reason))
   end

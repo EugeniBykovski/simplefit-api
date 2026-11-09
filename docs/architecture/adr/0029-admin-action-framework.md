@@ -96,8 +96,9 @@ confirmation; moving them is a follow-up.
 
 ## Not done here
 
-* No gym verification, Sponsor review or user restriction actions: SF-136's verification authority stays
-  its own and disabled in production; Sponsor and restriction domains don't exist (D-SA29).
+* No gym verification or user restriction actions: SF-136's verification authority stays its own and
+  disabled in production; the restriction domain doesn't exist (D-SA29). *SF-114 added Sponsor review
+  (claim, request changes) and three permissions ([ADR 0032](0032-sponsor-application-evidence-review-and-notifications.md)).*
 * No new permissions, no two-person rule (D-SA17), no free-text explanations, no bulk export, no UI.
 
 ## Trust boundary
@@ -112,6 +113,7 @@ framework event or confirmation exists.
 
 * A new admin module declares its actions in its own context and gets authorization, revisions,
   confirmation, idempotency, audit and telemetry by running them through `Actions`. Targets other than
-  operators need target resolution and locking clauses in `Actions` and a revision on their own table.
+  operators implement `Operators.ActionTarget` (fetch, lock, party, status, projection; SF-114) and carry a
+  revision on their own table.
 * Clients must preview before executing confirmed actions and carry `expected_revision`.
 * Audit reads grow the audit table by one row per query; retention is still undecided (D-SA18).

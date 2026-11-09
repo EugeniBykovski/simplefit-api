@@ -8,8 +8,8 @@ defmodule SimpleFit.Operators.Action do
   * `permission`, `assurance` - the capability it needs and the key check
     (`:fresh_key` for every write); the stronger of this and the permission's own
     assurance applies.
-  * `target_type` - what the path names; resolved by the action's context, never
-    from the body.
+  * `target_type`, `target` - what the path names, and the `ActionTarget` module
+    that resolves, locks, checks and projects it; never from the body.
   * `reasons` - the reason codes this action accepts. No free text.
   * `params`, `validate` - the action's own input (types and checks), beside the
     common `reason_code`, `expected_revision`, `operation_id` and
@@ -28,6 +28,7 @@ defmodule SimpleFit.Operators.Action do
     :id,
     :permission,
     :target_type,
+    :target,
     :reasons,
     :confirmation,
     :event,
@@ -38,6 +39,7 @@ defmodule SimpleFit.Operators.Action do
     :id,
     :permission,
     :target_type,
+    :target,
     :reasons,
     :confirmation,
     :event,
@@ -60,6 +62,7 @@ defmodule SimpleFit.Operators.Action do
           permission: String.t(),
           assurance: :key | :fresh_key,
           target_type: String.t(),
+          target: module(),
           reasons: [String.t()],
           params: %{atom() => atom()},
           validate: (Ecto.Changeset.t() -> Ecto.Changeset.t()),

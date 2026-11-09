@@ -23,7 +23,7 @@ defmodule SimpleFit.Email.Templates do
   alias SimpleFit.Email.Templates.{DataExportReady, DeletionScheduled, EmailLinkCode}
   alias SimpleFit.Email.Templates.{FirstWeekRecap, GymLive}
   alias SimpleFit.Email.Templates.{GymSetup, Input, JoinApproved, MemberInvite, NewSignIn}
-  alias SimpleFit.Email.Templates.{RecoverAccount, Rendered, SignInCode}
+  alias SimpleFit.Email.Templates.{RecoverAccount, Rendered, SignInCode, SponsorApplication}
   alias SimpleFit.Email.Templates.{StaffInvite, VerifyEmail, WelcomeCoach, WelcomeFighter}
 
   @type result :: {:ok, Rendered.t()} | {:error, Input.error()}
@@ -102,6 +102,18 @@ defmodule SimpleFit.Email.Templates do
   @doc "E16 · Data export ready. See `SimpleFit.Email.Templates.DataExportReady`."
   @spec data_export_ready(map() | keyword()) :: result()
   defdelegate data_export_ready(attrs), to: DataExportReady, as: :render
+
+  @doc "Sponsor application received (SF-114; no design yet, see `SponsorApplication`)."
+  @spec sponsor_application_received(map() | keyword()) :: result()
+  defdelegate sponsor_application_received(attrs), to: SponsorApplication, as: :received
+
+  @doc "Changes requested on a sponsor application (SF-114; no design yet)."
+  @spec sponsor_changes_requested(map() | keyword()) :: result()
+  defdelegate sponsor_changes_requested(attrs), to: SponsorApplication, as: :changes_requested
+
+  @doc "Sponsor application contact code (SF-114; no design yet)."
+  @spec sponsor_contact_code(map() | keyword()) :: result()
+  defdelegate sponsor_contact_code(attrs), to: SponsorApplication, as: :contact_code
 
   @doc """
   Builds the `SimpleFit.Email.Message` for a rendered template: the HTML and

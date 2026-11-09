@@ -24,7 +24,7 @@ defmodule SimpleFit.Operators.OperatorActions do
   import Ecto.Query, only: [from: 2]
   import SimpleFit.Operators.Authority, only: [granted?: 2, active_credential_count: 1]
 
-  alias SimpleFit.Operators.{Action, Credential, Grant, Operator, Policy, StepUp}
+  alias SimpleFit.Operators.{Action, Credential, Grant, Operator, OperatorTarget, Policy, StepUp}
   alias SimpleFit.Repo
 
   @doc "Every operator action."
@@ -35,6 +35,7 @@ defmodule SimpleFit.Operators.OperatorActions do
         id: "operator.permission.grant",
         permission: "operators.manage",
         target_type: "operator",
+        target: OperatorTarget,
         reasons: ~w(access_request_approved role_change administrative_correction),
         params: %{permission: :string},
         validate: &validate_inclusion(&1, :permission, Policy.permissions()),
@@ -47,6 +48,7 @@ defmodule SimpleFit.Operators.OperatorActions do
         id: "operator.permission.revoke",
         permission: "operators.manage",
         target_type: "operator",
+        target: OperatorTarget,
         reasons:
           ~w(role_change least_privilege_review security_concern administrative_correction),
         params: %{permission: :string},
@@ -59,6 +61,7 @@ defmodule SimpleFit.Operators.OperatorActions do
         id: "operator.suspend",
         permission: "operators.manage",
         target_type: "operator",
+        target: OperatorTarget,
         reasons:
           ~w(security_concern suspected_compromise policy_violation leave_of_absence administrative_correction),
         confirmation: :required,
@@ -70,6 +73,7 @@ defmodule SimpleFit.Operators.OperatorActions do
         id: "operator.reinstate",
         permission: "operators.manage",
         target_type: "operator",
+        target: OperatorTarget,
         reasons: ~w(security_review_cleared returned_from_leave administrative_correction),
         confirmation: :required,
         event: "operator.reinstated",
@@ -80,6 +84,7 @@ defmodule SimpleFit.Operators.OperatorActions do
         id: "operator.revoke",
         permission: "operators.manage",
         target_type: "operator",
+        target: OperatorTarget,
         reasons:
           ~w(left_organization security_concern suspected_compromise policy_violation administrative_correction),
         confirmation: :required,

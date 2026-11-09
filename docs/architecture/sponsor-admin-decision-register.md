@@ -61,6 +61,11 @@ first) and the proposed D-SA02 states, used SP5's bands for D-SA05 as a provisio
 unavailable (D-SA09), and blocked reapplication and withdrawal (D-SA03). The sponsor declaration stays BLOCKED until
 counsel publishes it. None of these is approved by that.
 
+SF-114 ([ADR 0032](adr/0032-sponsor-application-evidence-review-and-notifications.md)) built evidence uploads
+behind a switch that stays off in production (D-SA09 still NEEDS DECISION), kept all submitted evidence because
+retention is undecided (D-SA18), added operator claim and request-changes with proposed reason codes, and placeholder
+sponsor emails that stay off in production until S7 copy exists. D-SA03, D-SA10 and D-SA22 are unchanged.
+
 | Id | Decision | Recommended | Alternatives | Rationale | Depends on | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D-SA13 | Operator bootstrap | [The ceremony](platform-operator-trust.md#5-founder-bootstrap) | Rejected list there | Independent authorization, identity binding, evidence | D-SA15 | Founder, security reviewer | PROPOSED |

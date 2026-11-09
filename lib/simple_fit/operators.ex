@@ -31,6 +31,7 @@ defmodule SimpleFit.Operators do
   alias SimpleFit.Operators.{Actions, Audit, AuditEvent, Challenge, Credential, Cursor, Grant}
   alias SimpleFit.Operators.{Operation, Operator, Policy, Principal, StepUp, WebAuthn}
   alias SimpleFit.{RateLimit, Repo}
+  alias SimpleFit.Sponsors.Review
 
   @type ctx :: %{optional(:request_id) => String.t() | nil}
   @type refusal :: :not_found | :forbidden | :step_up_required | :enrollment_required
@@ -629,7 +630,11 @@ defmodule SimpleFit.Operators do
   @projections %{
     "operators.detail" => %{permission: "operators.read", audit: "operator.viewed"},
     "audit.events" => %{permission: "audit.read", audit: "audit.events_read"},
-    "audit.event" => %{permission: "audit.read", audit: "audit.event_viewed"}
+    "audit.event" => %{permission: "audit.read", audit: "audit.event_viewed"},
+    "sponsor_applications.detail" => %{
+      permission: "sponsors.applications.read",
+      audit: "sponsor_application.viewed"
+    }
   }
 
   defp project(id, user, session, ctx, fun) do
@@ -676,6 +681,24 @@ defmodule SimpleFit.Operators do
            events: events,
            next_cursor: next && Cursor.encode(next, filters, principal.operator_id)
          }, {"audit_log", nil}}
+      end
+    end)
+  end
+
+  @doc """
+  A submitted sponsor application for review (`sponsors.applications.read`, SF-114):
+  status, the latest submission, the open change request and the submitted
+  documents' metadata. Drafts are not found. Each view is audited.
+  """
+  @spec get_sponsor_application(User.t(), Session.t(), term(), ctx()) ::
+          {:ok, map()} | {:error, error()}
+  def get_sponsor_application(%User{} = user, %Session{} = session, id, ctx \\ %{}) do
+    project("sponsor_applications.detail", user, session, ctx, fn _principal ->
+      with {:ok, id} <- uuid(id),
+           %{} = application <- Review.fetch(id) do
+        {:ok, Review.view(application), {"sponsor_application", application.id}}
+      else
+        _ -> {:error, :not_found}
       end
     end)
   end

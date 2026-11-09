@@ -154,6 +154,13 @@ config :simple_fit, SimpleFit.Operators.Bootstrap, environment: "test", trusted_
 # which a production build refuses (ADR 0030). Recorded as `local_fixture`.
 config :simple_fit, SimpleFit.Sponsors.Provisioning, local_fixture: true
 
+# SF-114: sponsor application evidence uploads and emails exist here; production keeps
+# both off until approved (D-SA09 file scanning; email copy and design).
+config :simple_fit, SimpleFit.Sponsors,
+  secret_key_base: "test-sponsors-8Kd2Xn5Qw1Lp7Mz3Rv9Tb4Yc0Fh6Gj2Ks8Nw1Pq5Uc7Rx3Va9Ye4Bh0Jm6",
+  evidence_uploads: true,
+  application_emails: true
+
 config :simple_fit, SimpleFit.Gyms.VerificationAuthority,
   backend: SimpleFit.Gyms.VerificationAuthority.Local
 

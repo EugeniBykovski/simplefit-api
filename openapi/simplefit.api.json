@@ -786,6 +786,32 @@
         "title": "AppleAuthResponse",
         "type": "object"
       },
+      "ClaimSponsorApplicationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "description": "Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "review_started"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "ClaimSponsorApplicationRequest",
+        "type": "object"
+      },
       "CoachDataRulesAcknowledgeRequest": {
         "example": {
           "document_language": "en",
@@ -3364,7 +3390,10 @@
             "enum": [
               "operators.read",
               "operators.manage",
-              "audit.read"
+              "audit.read",
+              "sponsors.applications.read",
+              "sponsors.applications.claim",
+              "sponsors.applications.request_changes"
             ],
             "type": "string"
           },
@@ -3405,7 +3434,10 @@
             "enum": [
               "operators.read",
               "operators.manage",
-              "audit.read"
+              "audit.read",
+              "sponsors.applications.read",
+              "sponsors.applications.claim",
+              "sponsors.applications.request_changes"
             ],
             "type": "string"
           },
@@ -10383,7 +10415,9 @@
                   "operator.permission.revoke",
                   "operator.suspend",
                   "operator.reinstate",
-                  "operator.revoke"
+                  "operator.revoke",
+                  "sponsor_application.claim",
+                  "sponsor_application.request_changes"
                 ],
                 "type": "string"
               },
@@ -11123,6 +11157,68 @@
         "title": "ReinstateOperatorRequest",
         "type": "object"
       },
+      "RequestSponsorApplicationChangesRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "description": "Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fields": {
+            "description": "The answers the applicant may change.",
+            "items": {
+              "enum": [
+                "company_name",
+                "website",
+                "country_code",
+                "industry",
+                "contact_full_name",
+                "contact_position",
+                "contact_email",
+                "contact_phone",
+                "interests",
+                "market_scope",
+                "market_countries",
+                "market_cities",
+                "budget_band",
+                "goals"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "message": {
+            "description": "Plain text shown to the applicant and sent by email where enabled.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "operation_id": {
+            "description": "Required to execute.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "missing_information",
+              "unclear_answers",
+              "contact_details",
+              "company_details",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "fields",
+          "message"
+        ],
+        "title": "RequestSponsorApplicationChangesRequest",
+        "type": "object"
+      },
       "RevokeOperatorPermissionPreviewRequest": {
         "properties": {
           "expected_revision": {
@@ -11489,10 +11585,17 @@
             "format": "uuid",
             "type": "string"
           },
-          "contact_email_verified": {
-            "enum": [
-              false
+          "change_request": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SponsorApplicationChangeRequest"
+              }
             ],
+            "nullable": true,
+            "type": "object"
+          },
+          "contact_email_verified": {
+            "description": "The contact email was confirmed with a code and hasn't changed since. Grants nothing.",
             "type": "boolean"
           },
           "created_at": {
@@ -11501,6 +11604,12 @@
           },
           "declaration": {
             "$ref": "#/components/schemas/SponsorApplicationDeclaration"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/SponsorApplicationEvidence"
+            },
+            "type": "array"
           },
           "missing_fields": {
             "description": "Answers a submission still needs, in step order.",
@@ -11589,6 +11698,8 @@
           "submissions",
           "declaration",
           "uploads",
+          "evidence",
+          "change_request",
           "sponsor_id",
           "created_at",
           "updated_at"
@@ -11738,6 +11849,37 @@
         "title": "SponsorApplicationAnswers",
         "type": "object"
       },
+      "SponsorApplicationChangeRequest": {
+        "additionalProperties": false,
+        "description": "SimpleFit's open request for changes: only the listed answers can change until the next submission.",
+        "properties": {
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "message": {
+            "description": "Plain text from SimpleFit.",
+            "type": "string"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "fields",
+          "message",
+          "requested_at"
+        ],
+        "title": "SponsorApplicationChangeRequest",
+        "type": "object"
+      },
       "SponsorApplicationDeclaration": {
         "additionalProperties": false,
         "description": "The declaration a submission must accept: the published legal registry version. `available: false` while counsel hasn't published one; submission is then unavailable.",
@@ -11766,6 +11908,140 @@
           "languages"
         ],
         "title": "SponsorApplicationDeclaration",
+        "type": "object"
+      },
+      "SponsorApplicationEvidence": {
+        "additionalProperties": false,
+        "description": "A document of the application (no storage key). `pending_upload` until confirmed; `submitted` once part of a submission (then frozen). Never scanned.",
+        "properties": {
+          "byte_size": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "image/jpeg",
+              "image/png"
+            ],
+            "type": "string"
+          },
+          "evidence_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "logo",
+              "brand_deck",
+              "campaign_brief",
+              "other"
+            ],
+            "type": "string"
+          },
+          "scanned": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "pending_upload",
+              "uploaded"
+            ],
+            "type": "string"
+          },
+          "submitted": {
+            "type": "boolean"
+          },
+          "uploaded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "kind",
+          "status",
+          "file_name",
+          "content_type",
+          "byte_size",
+          "uploaded_at",
+          "submitted",
+          "scanned"
+        ],
+        "title": "SponsorApplicationEvidence",
+        "type": "object"
+      },
+      "SponsorApplicationEvidenceRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "byte_size": {
+            "maximum": 10485760,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "image/jpeg",
+              "image/png"
+            ],
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "file_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "logo",
+              "brand_deck",
+              "campaign_brief",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "kind",
+          "file_name",
+          "content_type",
+          "byte_size"
+        ],
+        "title": "SponsorApplicationEvidenceRequest",
+        "type": "object"
+      },
+      "SponsorApplicationEvidenceResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "application": {
+            "$ref": "#/components/schemas/SponsorApplication"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/SponsorApplicationEvidence"
+          },
+          "upload": {
+            "$ref": "#/components/schemas/SponsorApplicationUpload"
+          }
+        },
+        "required": [
+          "application",
+          "evidence",
+          "upload"
+        ],
+        "title": "SponsorApplicationEvidenceResponse",
         "type": "object"
       },
       "SponsorApplicationPolicyResponse": {
@@ -11897,6 +12173,158 @@
           "application"
         ],
         "title": "SponsorApplicationResponse",
+        "type": "object"
+      },
+      "SponsorApplicationReviewResponse": {
+        "additionalProperties": false,
+        "description": "A submitted sponsor application as a reviewer sees it (SF-114): exactly what was last sent, the open change request and the submitted documents' metadata. No storage keys or file names.",
+        "properties": {
+          "application": {
+            "additionalProperties": false,
+            "properties": {
+              "application_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "change_request": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/SponsorApplicationChangeRequest"
+                  }
+                ],
+                "nullable": true,
+                "type": "object"
+              },
+              "evidence": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "byte_size": {
+                      "type": "integer"
+                    },
+                    "content_type": {
+                      "type": "string"
+                    },
+                    "evidence_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "scanned": {
+                      "enum": [
+                        false
+                      ],
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "evidence_id",
+                    "kind",
+                    "content_type",
+                    "byte_size",
+                    "scanned"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "latest_submission": {
+                "additionalProperties": false,
+                "nullable": true,
+                "properties": {
+                  "answers": {
+                    "$ref": "#/components/schemas/SponsorApplicationAnswers"
+                  },
+                  "contact_email_verified": {
+                    "type": "boolean"
+                  },
+                  "declaration_language": {
+                    "type": "string"
+                  },
+                  "declaration_version": {
+                    "type": "string"
+                  },
+                  "policy_version": {
+                    "type": "string"
+                  },
+                  "sequence": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "submission_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "submitted_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "submission_id",
+                  "sequence",
+                  "submitted_at",
+                  "policy_version",
+                  "answers",
+                  "contact_email_verified",
+                  "declaration_version",
+                  "declaration_language"
+                ],
+                "type": "object"
+              },
+              "revision": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "status": {
+                "enum": [
+                  "submitted",
+                  "under_review",
+                  "changes_requested",
+                  "approved",
+                  "rejected",
+                  "withdrawn"
+                ],
+                "type": "string"
+              },
+              "submitted_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "application_id",
+              "status",
+              "revision",
+              "submitted_at",
+              "latest_submission",
+              "change_request",
+              "evidence"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "application"
+        ],
+        "title": "SponsorApplicationReviewResponse",
+        "type": "object"
+      },
+      "SponsorApplicationRevisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "SponsorApplicationRevisionRequest",
         "type": "object"
       },
       "SponsorApplicationSaveRequest": {
@@ -12148,26 +12576,88 @@
         "title": "SponsorApplicationSubmitRequest",
         "type": "object"
       },
-      "SponsorApplicationUploads": {
+      "SponsorApplicationUpload": {
         "additionalProperties": false,
-        "description": "Uploads (logo, files) are unavailable until a file scanner is approved (D-SA09). Optional.",
+        "description": "Send the file's bytes with exactly this method, URL and headers before `expires_at`, then confirm the\ndocument. The URL is a short-lived credential for this one object: never log, store or share it.\n",
         "properties": {
-          "available": {
-            "enum": [
-              false
-            ],
-            "type": "boolean"
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
           },
-          "reason": {
+          "headers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "method": {
             "enum": [
-              "file_scanning_unavailable"
+              "PUT"
             ],
+            "type": "string"
+          },
+          "url": {
+            "format": "uri",
             "type": "string"
           }
         },
         "required": [
+          "method",
+          "url",
+          "headers",
+          "expires_at"
+        ],
+        "title": "SponsorApplicationUpload",
+        "type": "object"
+      },
+      "SponsorApplicationUploads": {
+        "additionalProperties": false,
+        "description": "Evidence uploads (logo, files; SF-114): optional. `available: false` (`file_scanning_unavailable`) where\nuploads are off - production until a file scanner or an accepted risk is approved (D-SA09). Documents are\nnever scanned for malware: `scanned` is always `false`.\n",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "content_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "max_bytes": {
+            "type": "integer"
+          },
+          "max_documents": {
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "file_scanning_unavailable",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "scanned": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          }
+        },
+        "required": [
           "available",
-          "reason"
+          "reason",
+          "content_types",
+          "max_bytes",
+          "max_documents",
+          "kinds",
+          "scanned"
         ],
         "title": "SponsorApplicationUploads",
         "type": "object"
@@ -12211,6 +12701,20 @@
           "phone"
         ],
         "title": "SponsorContact",
+        "type": "object"
+      },
+      "SponsorContactCodeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "pattern": "^\\d{6}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "SponsorContactCodeRequest",
         "type": "object"
       },
       "SponsorContactListResponse": {
@@ -12822,6 +13326,7 @@
                   "does_not_match",
                   "too_young",
                   "immutable",
+                  "not_requested",
                   "invalid"
                 ],
                 "type": "string"
@@ -15166,6 +15671,355 @@
           }
         ],
         "summary": "Preview suspending an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.read` and a key check. Exactly what was last submitted. Each view is audited.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "getSponsorApplicationForReview",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationReviewResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A sponsor application for review",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/claim": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.claim` and a fresh key check: `submitted` -> `under_review`. Takes `reason_code`, `expected_revision` and `operation_id` (a repeat changes nothing).\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "claimSponsorApplication",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimSponsorApplicationRequest"
+              }
+            }
+          },
+          "description": "Claim",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationReviewResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Claim a sponsor application for review",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/claim/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.claim` and a fresh key check. Changes nothing.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "previewClaimSponsorApplication",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimSponsorApplicationRequest"
+              }
+            }
+          },
+          "description": "Claim",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview claiming a sponsor application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/request-changes": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.request_changes` and a fresh key check: `under_review` -> `changes_requested`,\nwith the answers the applicant may change and a plain-text message (also emailed where enabled). The\napplicant's next submission resolves it. Takes `reason_code`, `expected_revision` and `operation_id`.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "requestSponsorApplicationChanges",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestSponsorApplicationChangesRequest"
+              }
+            }
+          },
+          "description": "Change request",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationReviewResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Request changes to a sponsor application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/request-changes/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.request_changes` and a fresh key check. Changes nothing.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "previewRequestSponsorApplicationChanges",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestSponsorApplicationChangesRequest"
+              }
+            }
+          },
+          "description": "Change request",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview requesting changes",
         "tags": [
           "Platform operators"
         ]
@@ -26203,6 +27057,299 @@
           }
         ],
         "summary": "Save answers to my sponsor application",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
+    "/api/v1/me/sponsor-application/contact-verification": {
+      "post": {
+        "callbacks": {},
+        "description": "Sends a 6-digit code (15 minutes) to the current contact email. A new request replaces the previous code.\nConfirming proves someone controls that mailbox; it gives them no access to anything.\n\n* `conflict` - no contact email yet, or the application isn't editable. `rate_limited`.\n* `service_unavailable` - sponsor application emails are off in this environment.\n",
+        "operationId": "requestMySponsorContactCode",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Send a code to my application's contact email",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
+    "/api/v1/me/sponsor-application/contact-verification/confirm": {
+      "post": {
+        "callbacks": {},
+        "description": "Confirms the code sent to the current contact email. Changing the contact email afterwards voids the\nconfirmation.\n\n* `code_invalid` - wrong code (five attempts). `code_expired` - expired, used up, replaced, or the contact email\n  changed since it was sent. `rate_limited`. `service_unavailable` as above.\n",
+        "operationId": "confirmMySponsorContactCode",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorContactCodeRequest"
+              }
+            }
+          },
+          "description": "Code",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/CodeInvalid"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Confirm the contact email with its code",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
+    "/api/v1/me/sponsor-application/evidence": {
+      "post": {
+        "callbacks": {},
+        "description": "Announces a document (PDF, JPEG or PNG; at most 10 MiB; at most five) at `expected_revision` and returns a\npresigned `PUT` (15 minutes) that storage accepts only with exactly that type and size. The server builds the\nprivate storage key; nothing is public. Then upload the bytes and confirm the document. Documents are optional\nand never scanned.\n\n* `revision_conflict`, `conflict` (`details.application: \"not_editable\"`, `details.evidence: \"limit_reached\"`).\n* `validation_error`, `rate_limited`, `not_found` (no current application).\n* `service_unavailable` - uploads are off in this environment (production until a file scanner or an accepted\n  risk is approved, D-SA09).\n",
+        "operationId": "addMySponsorApplicationEvidence",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorApplicationEvidenceRequest"
+              }
+            }
+          },
+          "description": "Document",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationEvidenceResponse"
+                }
+              }
+            },
+            "description": "Announced"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Announce a document for my sponsor application",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
+    "/api/v1/me/sponsor-application/evidence/{evidence_id}/confirm": {
+      "post": {
+        "callbacks": {},
+        "description": "The server reads the object's size and type from storage and attaches the document only if both match what was\nannounced and the upload hasn't expired. Confirming again answers the same. A storage read is not a malware scan.\n\n* `conflict` - `details.upload`: `not_found`, `mismatch`, `expired`; `details.evidence: \"removed\"`.\n* `service_unavailable` - uploads are off in this environment (production until a file scanner or an accepted\n  risk is approved, D-SA09).\n",
+        "operationId": "confirmMySponsorApplicationEvidence",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Confirm an uploaded document",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
+    "/api/v1/me/sponsor-application/evidence/{evidence_id}/remove": {
+      "post": {
+        "callbacks": {},
+        "description": "Removes a document that isn't part of a submission (also to replace it). Submitted documents are frozen\n(`conflict`, `details.evidence: \"submitted\"`). Removing again answers the same.\n* `service_unavailable` - uploads are off in this environment (production until a file scanner or an accepted\n  risk is approved, D-SA09).\n",
+        "operationId": "removeMySponsorApplicationEvidence",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorApplicationRevisionRequest"
+              }
+            }
+          },
+          "description": "Revision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remove a document",
         "tags": [
           "Sponsor applications"
         ]

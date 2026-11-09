@@ -35,7 +35,7 @@ defmodule SimpleFit.Sponsors.ApplicationPolicy do
   import Ecto.Changeset
 
   alias SimpleFit.Fighters.CountryCodes
-  alias SimpleFit.Sponsors.Application
+  alias SimpleFit.Sponsors.{Application, Evidence}
 
   @version "sponsor-application-2026-11.v1"
   @declaration_document "sponsor-application-declaration"
@@ -112,9 +112,16 @@ defmodule SimpleFit.Sponsors.ApplicationPolicy do
   @spec budget_bands() :: [map()]
   def budget_bands, do: @budget_bands
 
-  @doc "Uploads (SP1 logo, SP7 files): unavailable until a file scanner is approved (D-SA09)."
-  @spec uploads() :: %{available: false, reason: String.t()}
-  def uploads, do: %{available: false, reason: "file_scanning_unavailable"}
+  @doc """
+  Uploads (SP1 logo, SP7 files; SF-114): the evidence policy and whether uploads
+  exist in this environment. Off in production until a file scanner or an
+  accepted risk is approved (D-SA09). Documents are optional and never scanned.
+  """
+  @spec uploads() :: map()
+  def uploads do
+    policy = Evidence.policy()
+    Map.put(policy, :reason, if(policy.available, do: nil, else: "file_scanning_unavailable"))
+  end
 
   @doc """
   Validates the answers in `attrs` (string keys) on top of `application`. Only the
@@ -177,9 +184,13 @@ defmodule SimpleFit.Sponsors.ApplicationPolicy do
     Enum.filter(@answers, &(&1 in (base ++ markets)))
   end
 
-  @doc "The submission snapshot: the answers, by an allowlist, with the schema tag."
-  @spec snapshot(Application.t()) :: map()
-  def snapshot(%Application{} = a) do
+  @doc """
+  The submission snapshot: the answers, by an allowlist, with the schema tag; the
+  attached documents' metadata (never keys or names) and whether the contact email
+  was verified at submission (SF-114).
+  """
+  @spec snapshot(Application.t(), map()) :: map()
+  def snapshot(%Application{} = a, extras \\ %{}) do
     answers = Map.new(@answers, &{Atom.to_string(&1), Map.fetch!(a, &1)})
 
     %{
@@ -187,8 +198,8 @@ defmodule SimpleFit.Sponsors.ApplicationPolicy do
       "policy_version" => @version,
       "answers" => answers,
       "budget_basis" => "annual_estimate_eur_excluding_vat",
-      "contact_email_verified" => false,
-      "uploads" => []
+      "contact_email_verified" => Map.get(extras, :contact_email_verified, false),
+      "uploads" => Map.get(extras, :uploads, [])
     }
   end
 
