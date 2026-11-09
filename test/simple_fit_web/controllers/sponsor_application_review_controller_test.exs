@@ -270,10 +270,174 @@ defmodule SimpleFitWeb.SponsorApplicationReviewControllerTest do
                call(:get, "#{@admin}/#{draft.id}", c.op_token) |> json_response(404)
     end
 
-    test "no approval or rejection route exists", c do
-      for path <- ["approve", "reject", "decide"] do
-        assert call(:post, "#{@admin}/#{c.app.id}/#{path}", c.op_token, %{}).status == 404
+    test "decisions need their own permissions; nothing undeclared exists", c do
+      # SF-116: approve and reject exist, each behind its own permission (this
+      # reviewer has neither); no generic `decide` route.
+      for path <- ["approve", "reject", "suspend-organization"] do
+        assert %{"error" => %{"code" => "forbidden"}} =
+                 call(:post, "#{@admin}/#{c.app.id}/#{path}", c.op_token, %{
+                   "reason_code" => "other",
+                   "expected_revision" => 1,
+                   "operation_id" => Ecto.UUID.generate()
+                 })
+                 |> json_response(403)
       end
+
+      assert call(:post, "#{@admin}/#{c.app.id}/decide", c.op_token, %{}).status == 404
+    end
+  end
+
+  describe "SF-116 decisions" do
+    @decide @review ++
+              ~w(sponsors.applications.approve sponsors.applications.reject
+                 sponsors.applications.read_files sponsors.restrict)
+
+    setup c do
+      operator = registered!("decider")
+      {token, session} = session!(operator)
+      _ = bootstrap!(operator, @decide)
+      [key | _] = enroll!(operator, session)
+      _ = step_up!(operator, session, key)
+      app = submitted!(c.user, c.app)
+      %{op_token: token, app: app}
+    end
+
+    defp claim!(token, app) do
+      call(:post, "#{@admin}/#{app.id}/claim", token, %{
+        "reason_code" => "review_started",
+        "expected_revision" => Repo.reload!(app).revision,
+        "operation_id" => Ecto.UUID.generate()
+      })
+      |> json_response(200)
+    end
+
+    defp confirm_and_run(token, path, body) do
+      response = call(:post, path <> "/preview", token, body) |> json_response(200)
+      assert_schema(response, "OperatorActionPreviewResponse", ApiSpec.spec())
+      preview = response["preview"]
+      assert preview["confirmation"]["required"] == true
+
+      call(
+        :post,
+        path,
+        token,
+        Map.merge(body, %{
+          "expected_revision" => preview["expected_revision"],
+          "operation_id" => Ecto.UUID.generate(),
+          "confirmation_token" => preview["confirmation"]["token"]
+        })
+      )
+    end
+
+    test "queue, claim, approve, read back; the applicant can't use any of it", c do
+      page = call(:get, @admin <> "?status=submitted&limit=10", c.op_token) |> json_response(200)
+      assert_schema(page, "SponsorApplicationQueueResponse", ApiSpec.spec())
+      assert [%{"application_id" => id} = row] = page["applications"]
+      assert id == c.app.id
+      refute Map.has_key?(row, "contact_email")
+      refute Jason.encode!(page) =~ "ada@acme.example"
+
+      assert %{"error" => %{"code" => "validation_error"}} =
+               call(:get, @admin <> "?status=draft", c.op_token) |> json_response(422)
+
+      claim!(c.op_token, c.app)
+
+      approved =
+        confirm_and_run(c.op_token, "#{@admin}/#{c.app.id}/approve", %{
+          "reason_code" => "review_complete"
+        })
+        |> json_response(200)
+
+      assert_schema(approved, "SponsorApplicationReviewResponse", ApiSpec.spec())
+
+      assert %{"status" => "approved", "organization" => %{"status" => "active"}} =
+               approved["application"]
+
+      history = approved["application"]["history"]
+
+      assert %{"event" => "sponsor_application.approved", "actor" => "operator"} =
+               List.last(history)
+
+      assert %{"event" => "sponsor_application.created", "actor" => "applicant"} = hd(history)
+
+      mine = call(:get, @me, c.token) |> json_response(200)
+      assert mine["application"]["status"] == "approved"
+
+      assert mine["application"]["sponsor_id"] ==
+               approved["application"]["organization"]["sponsor_id"]
+
+      # Without an operator, every admin route is not found.
+      for {method, path} <- [
+            {:get, @admin},
+            {:get, "#{@admin}/#{c.app.id}"},
+            {:post, "#{@admin}/#{c.app.id}/reject/preview"}
+          ] do
+        assert %{"error" => %{"code" => "not_found"}} =
+                 call(method, path, c.token, if(method == :post, do: %{"reason_code" => "other"}))
+                 |> json_response(404)
+      end
+
+      assert build_conn() |> get(@admin) |> json_response(401)
+    end
+
+    test "approval without a confirmation is refused; a rejection is final", c do
+      claim!(c.op_token, c.app)
+
+      assert %{"error" => %{"code" => "confirmation_required"}} =
+               call(:post, "#{@admin}/#{c.app.id}/approve", c.op_token, %{
+                 "reason_code" => "review_complete",
+                 "expected_revision" => Repo.reload!(c.app).revision,
+                 "operation_id" => Ecto.UUID.generate()
+               })
+               |> json_response(428)
+
+      rejected =
+        confirm_and_run(c.op_token, "#{@admin}/#{c.app.id}/reject", %{"reason_code" => "other"})
+        |> json_response(200)
+
+      assert rejected["application"]["status"] == "rejected"
+      assert rejected["application"]["organization"] == nil
+
+      assert %{"error" => %{"code" => "conflict", "details" => %{"status" => "rejected"}}} =
+               call(:post, "#{@admin}/#{c.app.id}/approve/preview", c.op_token, %{
+                 "reason_code" => "review_complete"
+               })
+               |> json_response(409)
+
+      # The applicant sees the status and nothing of the reason.
+      mine = call(:get, @me, c.token) |> json_response(200)
+      assert mine["application"]["status"] == "rejected"
+      refute Jason.encode!(mine) =~ "reason_code"
+    end
+
+    test "a submitted document downloads as a no-store attachment", c do
+      other = email_user!("docs-#{System.unique_integer([:positive])}@example.com")
+      {other_token, _} = session!(other)
+      draft = draft!(other)
+
+      %{"evidence" => %{"evidence_id" => doc}} =
+        call(:post, @me <> "/evidence", other_token, %{
+          "expected_revision" => draft.revision,
+          "kind" => "brand_deck",
+          "file_name" => "deck.pdf",
+          "content_type" => "application/pdf",
+          "byte_size" => 10
+        })
+        |> json_response(201)
+
+      stub_storage(%{doc => {10, "application/pdf"}})
+      call(:post, "#{@me}/evidence/#{doc}/confirm", other_token, %{}) |> json_response(200)
+      submitted = submitted!(other, Repo.reload!(draft))
+
+      conn = call(:post, "#{@admin}/#{submitted.id}/documents/#{doc}/download", c.op_token, %{})
+      body = json_response(conn, 200)
+      assert_schema(body, "SponsorApplicationDocumentDownloadResponse", ApiSpec.spec())
+      assert get_resp_header(conn, "cache-control") == ["no-store"]
+      assert body["download"]["url"] =~ "response-content-disposition=attachment"
+
+      # Named under another application: not found.
+      assert call(:post, "#{@admin}/#{c.app.id}/documents/#{doc}/download", c.op_token, %{}).status ==
+               404
     end
   end
 end

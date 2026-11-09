@@ -615,7 +615,7 @@ defmodule SimpleFitWeb.Schemas.SponsorApplicationReviewResponse do
     %{
       title: "SponsorApplicationReviewResponse",
       description:
-        "A submitted sponsor application as a reviewer sees it (SF-114): exactly what was last sent, the open change request and the submitted documents' metadata. No storage keys or file names.",
+        "A submitted sponsor application as a reviewer sees it (SF-114): exactly what was last sent, the open change request and the submitted documents' metadata. No storage keys or file names. SF-116 adds the decision time, the organization an approval created and the status history (who acted: applicant or operator, never which person).",
       type: :object,
       additionalProperties: false,
       required: [:application],
@@ -630,9 +630,42 @@ defmodule SimpleFitWeb.Schemas.SponsorApplicationReviewResponse do
             :submitted_at,
             :latest_submission,
             :change_request,
-            :evidence
+            :evidence,
+            :decided_at,
+            :organization,
+            :history
           ],
           properties: %{
+            decided_at: %Schema{type: :string, format: :"date-time", nullable: true},
+            organization: %Schema{
+              type: :object,
+              nullable: true,
+              additionalProperties: false,
+              description:
+                "The organization an approval provisioned (SF-116), or `null`. Approval grants no contract, plan, placement, entitlement or payment.",
+              required: [:sponsor_id, :status],
+              properties: %{
+                sponsor_id: %Schema{type: :string, format: :uuid},
+                status: %Schema{type: :string, enum: ["active", "suspended", "closed"]}
+              }
+            },
+            history: %Schema{
+              type: :array,
+              description: "Status changes, oldest first. Codes only.",
+              items: %Schema{
+                type: :object,
+                additionalProperties: false,
+                required: [:event, :actor, :from_status, :to_status, :reason_code, :occurred_at],
+                properties: %{
+                  event: %Schema{type: :string},
+                  actor: %Schema{type: :string, enum: ["applicant", "operator"]},
+                  from_status: %Schema{type: :string, nullable: true},
+                  to_status: %Schema{type: :string, nullable: true},
+                  reason_code: %Schema{type: :string, nullable: true},
+                  occurred_at: %Schema{type: :string, format: :"date-time"}
+                }
+              }
+            },
             application_id: %Schema{type: :string, format: :uuid},
             status: %Schema{
               type: :string,
@@ -753,6 +786,198 @@ defmodule SimpleFitWeb.Schemas.RequestSponsorApplicationChangesRequest do
           description: "Required to execute."
         },
         operation_id: %Schema{type: :string, format: :uuid, description: "Required to execute."}
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorDecisionRequests do
+  @moduledoc false
+  alias OpenApiSpex.Schema
+
+  @doc false
+  # The body of a decision that needs a confirmation (SF-116): its reason codes.
+  def schema(title, reasons, description) do
+    %Schema{
+      title: title,
+      description: description,
+      type: :object,
+      additionalProperties: false,
+      required: [:reason_code],
+      properties: %{
+        reason_code: %Schema{type: :string, enum: reasons},
+        expected_revision: %Schema{
+          type: :integer,
+          minimum: 1,
+          description: "The application's revision. Required to execute."
+        },
+        operation_id: %Schema{
+          type: :string,
+          format: :uuid,
+          description: "Required to execute; a repeat of the same request changes nothing."
+        },
+        confirmation_token: %Schema{
+          type: :string,
+          maxLength: 100,
+          description:
+            "Required to execute: the one-time confirmation from a preview of exactly this request."
+        }
+      }
+    }
+  end
+end
+
+defmodule SimpleFitWeb.Schemas.ApproveSponsorApplicationRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias SimpleFit.Sponsors.Review
+  alias SimpleFitWeb.Schemas.SponsorDecisionRequests
+
+  OpenApiSpex.schema(
+    SponsorDecisionRequests.schema(
+      "ApproveSponsorApplicationRequest",
+      Review.decision_reasons(:approve),
+      "Approve a sponsor application under review (SF-116)."
+    ),
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.RejectSponsorApplicationRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias SimpleFit.Sponsors.Review
+  alias SimpleFitWeb.Schemas.SponsorDecisionRequests
+
+  OpenApiSpex.schema(
+    SponsorDecisionRequests.schema(
+      "RejectSponsorApplicationRequest",
+      Review.decision_reasons(:reject),
+      "Reject a sponsor application under review (SF-116). The reason is internal: never shown to the applicant."
+    ),
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SuspendSponsorOrganizationRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias SimpleFit.Sponsors.Review
+  alias SimpleFitWeb.Schemas.SponsorDecisionRequests
+
+  OpenApiSpex.schema(
+    SponsorDecisionRequests.schema(
+      "SuspendSponsorOrganizationRequest",
+      Review.decision_reasons(:suspend),
+      "Suspend the organization an approved application created (SF-116)."
+    ),
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.ReinstateSponsorOrganizationRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias SimpleFit.Sponsors.Review
+  alias SimpleFitWeb.Schemas.SponsorDecisionRequests
+
+  OpenApiSpex.schema(
+    SponsorDecisionRequests.schema(
+      "ReinstateSponsorOrganizationRequest",
+      Review.decision_reasons(:reinstate),
+      "Reinstate the suspended organization of an approved application (SF-116)."
+    ),
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationQueueResponse do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+  alias SimpleFit.Sponsors.Review
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationQueueResponse",
+      description:
+        "One page of the sponsor application review queue (SF-116), oldest submission first. What the latest submission says about the company; never the contact, the budget or the goals (read the detail, which is audited).",
+      type: :object,
+      additionalProperties: false,
+      required: [:applications, :next_cursor],
+      properties: %{
+        applications: %Schema{
+          type: :array,
+          items: %Schema{
+            type: :object,
+            additionalProperties: false,
+            required: [
+              :application_id,
+              :status,
+              :revision,
+              :submitted_at,
+              :decided_at,
+              :company_name,
+              :country_code,
+              :industry,
+              :submissions,
+              :submitted_documents,
+              :change_request_open
+            ],
+            properties: %{
+              application_id: %Schema{type: :string, format: :uuid},
+              status: %Schema{
+                type: :string,
+                enum: Enum.map(Review.queue_statuses(), &Atom.to_string/1)
+              },
+              revision: %Schema{type: :integer, minimum: 1},
+              submitted_at: %Schema{type: :string, format: :"date-time"},
+              decided_at: %Schema{type: :string, format: :"date-time", nullable: true},
+              company_name: %Schema{type: :string, nullable: true},
+              country_code: %Schema{type: :string, nullable: true},
+              industry: %Schema{type: :string, nullable: true},
+              submissions: %Schema{type: :integer, minimum: 0},
+              submitted_documents: %Schema{type: :integer, minimum: 0},
+              change_request_open: %Schema{type: :boolean}
+            }
+          }
+        },
+        next_cursor: %Schema{
+          type: :string,
+          nullable: true,
+          description: "Opaque; valid only for the same filters, reader and a limited time."
+        }
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationDocumentDownloadResponse do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationDocumentDownloadResponse",
+      description:
+        "A short-lived presigned download of one submitted document (SF-116). The URL is a credential: never log, store or share it. It always downloads as an attachment (`application/octet-stream`); documents are never scanned for malware.",
+      type: :object,
+      additionalProperties: false,
+      required: [:download],
+      properties: %{
+        download: %Schema{
+          type: :object,
+          additionalProperties: false,
+          required: [:method, :url, :expires_at],
+          properties: %{
+            method: %Schema{type: :string, enum: ["GET"]},
+            url: %Schema{type: :string, format: :uri},
+            expires_at: %Schema{type: :string, format: :"date-time"}
+          }
+        }
       }
     },
     struct?: false

@@ -13,6 +13,9 @@ defmodule SimpleFit.Email.Templates.SponsorApplication do
     * `received/1` - `:company_name`, `:resubmitted` (boolean)
     * `changes_requested/1` - `:company_name`, `:message` (the operator's text, 1..2000)
     * `contact_code/1` - `:code` (6 digits), `:expires_in_minutes`
+    * `approved/1` - `:company_name` (SF-116): the organization now exists; still no
+      contract, campaign, payment or placement
+    * `rejected/1` - `:company_name` (SF-116): no reason is given (no approved wording)
   """
 
   import Ecto.Changeset
@@ -122,6 +125,69 @@ defmodule SimpleFit.Email.Templates.SponsorApplication do
            [
              "Confirming gives no access to SimpleFit or to any sponsor workspace. Didn’t expect this? Ignore this email."
            ], :note}
+        ]
+      )
+    end
+  end
+
+  @spec approved(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
+  def approved(attrs) do
+    with {:ok, data} <-
+           Input.validate(
+             attrs,
+             %{company_name: :string},
+             &Input.validate_line(&1, :company_name, 200)
+           ) do
+      Layout.render(
+        :sponsor_application_approved,
+        %{
+          subject: "Your sponsor application was approved",
+          preheader: "Your organization now has a workspace on SimpleFit.",
+          tag: "SPONSOR APPLICATION",
+          footer: :activity
+        },
+        [
+          {:heading, "Application approved"},
+          {:paragraph,
+           ["SimpleFit approved the application for ", {:strong, data.company_name}, "."]},
+          {:paragraph,
+           [
+             "Your organization now has a workspace, and you are its owner. Sign in to SimpleFit to open it."
+           ]},
+          {:paragraph,
+           [
+             "Approval isn’t a contract, a campaign, a payment or a commitment by either side."
+           ], :note}
+        ]
+      )
+    end
+  end
+
+  @spec rejected(map() | keyword()) :: {:ok, Rendered.t()} | {:error, Input.error()}
+  def rejected(attrs) do
+    with {:ok, data} <-
+           Input.validate(
+             attrs,
+             %{company_name: :string},
+             &Input.validate_line(&1, :company_name, 200)
+           ) do
+      Layout.render(
+        :sponsor_application_rejected,
+        %{
+          subject: "Your sponsor application",
+          preheader: "SimpleFit has decided on your application.",
+          tag: "SPONSOR APPLICATION",
+          footer: :activity
+        },
+        [
+          {:heading, "We can’t go ahead with this application"},
+          {:paragraph,
+           [
+             "SimpleFit reviewed the application for ",
+             {:strong, data.company_name},
+             " and won’t go ahead with it. This decision applies to this application."
+           ]},
+          {:paragraph, ["No Sponsor workspace was created."], :note}
         ]
       )
     end

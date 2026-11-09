@@ -14,15 +14,24 @@ defmodule SimpleFit.Operators.Policy do
 
   # SF-114 adds the first sponsor review permissions, one per action (D-SA16 naming,
   # proposed): reading a submitted application, claiming it, requesting changes.
+  # SF-116 adds approving and rejecting (one each, as gym verification has, rather than
+  # the matrix's combined `.decide`), downloading submitted files, and suspending or
+  # reinstating an approved application's organization (`sponsors.restrict`).
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
-                  sponsors.applications.claim sponsors.applications.request_changes)
+                  sponsors.applications.claim sponsors.applications.request_changes
+                  sponsors.applications.approve sponsors.applications.reject
+                  sponsors.applications.read_files sponsors.restrict)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
     "operators.manage" => :fresh_key,
     "sponsors.applications.read" => :key,
     "sponsors.applications.claim" => :fresh_key,
-    "sponsors.applications.request_changes" => :fresh_key
+    "sponsors.applications.request_changes" => :fresh_key,
+    "sponsors.applications.approve" => :fresh_key,
+    "sponsors.applications.reject" => :fresh_key,
+    "sponsors.applications.read_files" => :fresh_key,
+    "sponsors.restrict" => :fresh_key
   }
 
   @required_authenticators Application.compile_env(

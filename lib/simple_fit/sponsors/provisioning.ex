@@ -5,12 +5,16 @@ defmodule SimpleFit.Sponsors.Provisioning do
   `Authority`, which only this module hands out:
 
   * `application_authority/1` - for the Sponsor Application approval transaction
-    (S6). **Unavailable in SF-112**: there is no application domain yet, so it
-    always returns `{:error, :unavailable}`. The approval task must call
-    `provision_organization/3` with it *inside* the approval transaction, so an
+    (SF-116, ADR 0033). Given only inside a transaction, for an application that the
+    same transaction has locked and approved and that has no organization yet;
+    `provision_organization/3` runs with it *inside* the approval transaction, so an
     application is approved if and only if its organization and owner exist. The
-    organization then records `provisioning_source: sponsor_application` and the
+    organization records `provisioning_source: sponsor_application` and the
     application id (unique: one organization per application).
+  * `operator_authority/1` - for an operator's suspension or reinstatement of an
+    approved application's organization (SF-116). Given only inside a transaction,
+    for an operator the admin action pipeline has locked and authorized
+    (`sponsors.restrict`); recorded as `platform_operator` with the operator's user.
   * `local_fixture_authority/0` - development and test builds only
     (`config :simple_fit, #{inspect(__MODULE__)}, local_fixture: true`); a
     production build refuses to compile with it. Recorded as `local_fixture`,
@@ -45,11 +49,12 @@ defmodule SimpleFit.Sponsors.Provisioning do
   defmodule Authority do
     @moduledoc "A provisioning authority. Only `SimpleFit.Sponsors.Provisioning` constructs one."
     @enforce_keys [:source]
-    defstruct [:source, :application_id]
+    defstruct [:source, :application_id, :actor_user_id]
 
     @type t :: %__MODULE__{
-            source: :sponsor_application | :local_fixture,
-            application_id: Ecto.UUID.t() | nil
+            source: :sponsor_application | :local_fixture | :platform_operator,
+            application_id: Ecto.UUID.t() | nil,
+            actor_user_id: Ecto.UUID.t() | nil
           }
   end
 
@@ -71,11 +76,40 @@ defmodule SimpleFit.Sponsors.Provisioning do
   end
 
   @doc """
-  The authority of an approved sponsor application. Unavailable until the Sponsor
-  Application domain exists (see the moduledoc).
+  The authority of an approved sponsor application: only inside a transaction, for
+  an application that is `approved` in it (locked `FOR UPDATE` here) and has no
+  organization yet. `{:error, :unavailable}` otherwise.
   """
-  @spec application_authority(term()) :: {:error, :unavailable}
-  def application_authority(_application_id), do: {:error, :unavailable}
+  @spec application_authority(Ecto.UUID.t()) :: {:ok, Authority.t()} | {:error, :unavailable}
+  def application_authority(application_id) do
+    with true <- Repo.in_transaction?(),
+         {:ok, id} <- Ecto.UUID.cast(application_id),
+         %{} <-
+           Repo.one(
+             from(a in SimpleFit.Sponsors.Application,
+               where: a.id == ^id and a.status == :approved,
+               lock: "FOR UPDATE"
+             )
+           ),
+         false <-
+           Repo.exists?(from(o in Organization, where: o.source_application_id == ^id)) do
+      {:ok, %Authority{source: :sponsor_application, application_id: id}}
+    else
+      _ -> {:error, :unavailable}
+    end
+  end
+
+  @doc """
+  The authority of a platform operator acting through the admin action pipeline
+  (which locked and authorized them): only inside a transaction.
+  """
+  @spec operator_authority(%{user_id: Ecto.UUID.t()}) ::
+          {:ok, Authority.t()} | {:error, :unavailable}
+  def operator_authority(%{user_id: user_id}) when is_binary(user_id) do
+    if Repo.in_transaction?(),
+      do: {:ok, %Authority{source: :platform_operator, actor_user_id: user_id}},
+      else: {:error, :unavailable}
+  end
 
   ## Organizations
 
@@ -407,6 +441,7 @@ defmodule SimpleFit.Sponsors.Provisioning do
             occurred_at: DateTime.utc_now(),
             event: event,
             authority: authority.source,
+            actor_user_id: authority.actor_user_id,
             request_id: request_id(Map.get(ctx, :request_id))
           },
           Map.new(fields)

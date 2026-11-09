@@ -115,6 +115,14 @@ defmodule SimpleFit.Email.Templates do
   @spec sponsor_contact_code(map() | keyword()) :: result()
   defdelegate sponsor_contact_code(attrs), to: SponsorApplication, as: :contact_code
 
+  @doc "Sponsor application approved (SF-116; no design yet)."
+  @spec sponsor_application_approved(map() | keyword()) :: result()
+  defdelegate sponsor_application_approved(attrs), to: SponsorApplication, as: :approved
+
+  @doc "Sponsor application not approved (SF-116; no design yet)."
+  @spec sponsor_application_rejected(map() | keyword()) :: result()
+  defdelegate sponsor_application_rejected(attrs), to: SponsorApplication, as: :rejected
+
   @doc """
   Builds the `SimpleFit.Email.Message` for a rendered template: the HTML and
   plain-text parts together. `opts` are message fields: `:to` (required),

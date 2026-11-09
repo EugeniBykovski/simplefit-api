@@ -19,7 +19,13 @@ defmodule SimpleFit.Sponsors.OrganizationEvent do
     field :event, :string
 
     field :authority, Ecto.Enum,
-      values: [:sponsor_application, :local_fixture, :organization_member, :system]
+      values: [
+        :sponsor_application,
+        :local_fixture,
+        :organization_member,
+        :system,
+        :platform_operator
+      ]
 
     field :actor_user_id, :binary_id
     field :membership_id, :binary_id

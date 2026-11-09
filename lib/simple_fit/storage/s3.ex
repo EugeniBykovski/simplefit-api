@@ -47,6 +47,8 @@ defmodule SimpleFit.Storage.S3 do
         _none -> []
       end
 
+    query = query ++ Map.get(request, :query, [])
+
     url =
       Req.Utils.aws_sigv4_url(
         access_key_id: config[:access_key_id],

@@ -34,11 +34,12 @@ defmodule SimpleFit.Storage do
   headers, lifetime in seconds and the signing time.
   """
   @type request :: %{
-          method: Presigned.method(),
-          key: ObjectKey.t(),
-          headers: %{optional(String.t()) => String.t()},
-          expires_in: pos_integer(),
-          now: DateTime.t()
+          required(:method) => Presigned.method(),
+          required(:key) => ObjectKey.t(),
+          required(:headers) => %{optional(String.t()) => String.t()},
+          required(:expires_in) => pos_integer(),
+          required(:now) => DateTime.t(),
+          optional(:query) => [{String.t(), String.t()}]
         }
 
   @doc "Signs `request` with the adapter `config` (from application config)."
@@ -85,13 +86,31 @@ defmodule SimpleFit.Storage do
   ## Options
 
     * `:expires_in` - lifetime in seconds, 1..3600, default 300
+    * `:attachment` - `true` signs `response-content-disposition: attachment` and
+      `response-content-type: application/octet-stream` into the URL (SF-116), so a
+      browser saves an untrusted file instead of rendering or sniffing it
   """
   @spec presign_download(ObjectKey.t(), keyword()) ::
           {:ok, Presigned.t()} | {:error, Provider.error()}
   def presign_download(key, opts \\ []) do
     with :ok <- validate_key(key),
          {:ok, expires_in} <- fetch_expires_in(opts, @default_download_expires_in) do
-      presign(%{method: :get, key: key, headers: %{}, expires_in: expires_in, now: now(opts)})
+      query =
+        if Keyword.get(opts, :attachment, false),
+          do: [
+            {"response-content-disposition", "attachment"},
+            {"response-content-type", "application/octet-stream"}
+          ],
+          else: []
+
+      presign(%{
+        method: :get,
+        key: key,
+        headers: %{},
+        expires_in: expires_in,
+        now: now(opts),
+        query: query
+      })
     end
   end
 
