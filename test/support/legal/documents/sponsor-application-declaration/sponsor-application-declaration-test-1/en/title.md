@@ -1,0 +1,1 @@
+TEST FIXTURE ONLY - Sponsor application declaration

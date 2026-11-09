@@ -96,15 +96,32 @@ defmodule SimpleFit.Sponsors do
   @spec lock_workspace(User.t(), term()) :: {:ok, workspace_summary()} | {:error, :not_found}
   def lock_workspace(%User{} = user, sponsor_id), do: one_workspace(user, sponsor_id, true)
 
-  defp one_workspace(user, sponsor_id, lock?) do
+  defp one_workspace(user, sponsor_id, false) do
     with {:ok, id} <- uuid(sponsor_id) do
-      query = from([m, o] in workspaces_query(user.id), where: o.id == ^id, select: {o, m})
-      query = if lock?, do: from(q in query, lock: "FOR SHARE"), else: query
-
-      case Repo.one(query) do
+      case Repo.one(from([m, o] in workspaces_query(user.id), where: o.id == ^id, select: {o, m})) do
         {o, m} -> {:ok, summary(o, m)}
         nil -> {:error, :not_found}
       end
+    end
+  end
+
+  # The organization first, then the membership: the order `Sponsors.Provisioning`
+  # takes them in, so a choice and a revocation never deadlock (SF-113 fix: one
+  # joined `FOR SHARE` query locked the two rows in no fixed order).
+  defp one_workspace(user, sponsor_id, true) do
+    with {:ok, id} <- uuid(sponsor_id),
+         %Organization{status: :active} = o <-
+           Repo.one(from(o in Organization, where: o.id == ^id, lock: "FOR SHARE")),
+         %Membership{} = m <-
+           Repo.one(
+             from(m in Membership,
+               where: m.organization_id == ^id and m.user_id == ^user.id and m.status == :active,
+               lock: "FOR SHARE"
+             )
+           ) do
+      {:ok, summary(o, m)}
+    else
+      _ -> {:error, :not_found}
     end
   end
 

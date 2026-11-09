@@ -16,7 +16,8 @@ defmodule SimpleFit.Legal.Registry do
 
   Rules:
 
-    * `document_id` is `fighter-coach-disclosure` or `coach-data-rules`.
+    * `document_id` is `fighter-coach-disclosure`, `coach-data-rules` or
+      `sponsor-application-declaration` (SF-113).
     * `version` is `<document_id>-<YYYY>-<MM>-<seq>`; only test fixtures
       (`test_only`, accepted only where `allow_test_fixtures` is configured)
       use `<document_id>-test-<n>`. A version appears once.
@@ -26,7 +27,7 @@ defmodule SimpleFit.Legal.Registry do
       `published`, `superseded` and `withdrawn` need `published_at`;
       `withdrawn` needs `withdrawal_notice_ref`.
     * A disclosure names its `scope` (`SimpleFit.Coaching.Disclosure`); the
-      coach data rules have none.
+      coach data rules and the sponsor declaration have none.
     * Languages are product locales; English, the reference language, is
       required from `approved` on. Every part file exists and the variant's
       hash matches its text.
@@ -39,7 +40,7 @@ defmodule SimpleFit.Legal.Registry do
   alias SimpleFit.Coaching.Disclosure
 
   @key {__MODULE__, :state}
-  @document_ids ~w(fighter-coach-disclosure coach-data-rules)
+  @document_ids ~w(fighter-coach-disclosure coach-data-rules sponsor-application-declaration)
   @statuses ~w(draft approved published superseded withdrawn)
   @languages ~w(en pl ru uk de es es-MX fr)
   @parts ~w(title summary checkbox full)
@@ -307,6 +308,7 @@ defmodule SimpleFit.Legal.Registry do
   end
 
   defp scope("coach-data-rules", nil), do: {:ok, nil}
+  defp scope("sponsor-application-declaration", nil), do: {:ok, nil}
   defp scope(_document_id, _scope), do: {:error, :scope}
 
   defp approval("draft", _entry), do: :ok

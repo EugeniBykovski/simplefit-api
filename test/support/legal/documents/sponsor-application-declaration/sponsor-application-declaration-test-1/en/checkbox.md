@@ -1,0 +1,1 @@
+TEST FIXTURE ONLY - I confirm sponsor-application-declaration-test-1 (en).

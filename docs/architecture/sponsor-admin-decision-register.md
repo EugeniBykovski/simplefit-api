@@ -56,6 +56,11 @@ SF-112 ([ADR 0030](adr/0030-sponsor-organizations-and-workspaces.md)) built the 
 foundation without deciding D-SA03, D-SA07, D-SA08, D-SA10, D-SA12 or D-SA26: transfer, edits, invitations and
 approval are not exposed, and the route registry is unchanged. Their status stays as listed.
 
+SF-113 ([ADR 0031](adr/0031-sponsor-applications.md)) built applications on D-SA01's recommended option (account
+first) and the proposed D-SA02 states, used SP5's bands for D-SA05 as a provisional policy version, kept uploads
+unavailable (D-SA09), and blocked reapplication and withdrawal (D-SA03). The sponsor declaration stays BLOCKED until
+counsel publishes it. None of these is approved by that.
+
 | Id | Decision | Recommended | Alternatives | Rationale | Depends on | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D-SA13 | Operator bootstrap | [The ceremony](platform-operator-trust.md#5-founder-bootstrap) | Rejected list there | Independent authorization, identity binding, evidence | D-SA15 | Founder, security reviewer | PROPOSED |

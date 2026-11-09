@@ -126,7 +126,11 @@ defmodule SimpleFit.Sponsors.Provisioning do
       repeated!(attrs, contacts)
     else
       membership = insert_membership!(org.id, owner.id, :owner)
-      Enum.each(contacts, &Repo.insert!(struct(Contact, Map.put(&1, :organization_id, org.id))))
+
+      Enum.each(
+        contacts,
+        &Repo.insert!(struct(Contact, Map.put(&1, :organization_id, org.id)), log: false)
+      )
 
       event!(org.id, "organization.provisioned", authority, ctx, to_state: "active")
 

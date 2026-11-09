@@ -109,6 +109,13 @@ config :simple_fit, SimpleFit.Operators.Bootstrap,
        {:error, _} -> %{}
      end)
 
+# SF-113: a local end-to-end run may point the legal registry at the test-fixture
+# registry (test-only, unapproved texts, e.g. the sponsor declaration fixture) with
+# SIMPLEFIT_DEV_LEGAL_REGISTRY. Unset, development uses priv/legal like production.
+if path = System.get_env("SIMPLEFIT_DEV_LEGAL_REGISTRY") do
+  config :simple_fit, SimpleFit.Legal, registry_path: path, allow_test_fixtures: true
+end
+
 # SF-112: sponsor organizations are provisioned locally by the fixture authority,
 # which a production build refuses (ADR 0030). Recorded as `local_fixture`.
 config :simple_fit, SimpleFit.Sponsors.Provisioning, local_fixture: true

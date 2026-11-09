@@ -40,11 +40,13 @@ defmodule SimpleFit.Entry do
        completed gym and a draft) -> the remembered gym when it is still
        valid and there is no draft, otherwise `gym_selection`.
        `intent: sponsor` (SF-112) -> by the user's real sponsor workspaces
-       (active memberships of active organizations): none ->
-       `sponsor_application` (begin an application; nothing is created, and
-       no application state is inferred: that domain doesn't exist yet); one
-       -> `sponsor_home` (`sponsor_id`); several -> the remembered one while
-       still valid, otherwise `context_selection`.
+       (active memberships of active organizations): one -> `sponsor_home`
+       (`sponsor_id`); several -> the remembered one while still valid,
+       otherwise `context_selection`; none -> by the user's sponsor
+       application (SF-113): none -> `sponsor_application` (begin; nothing is
+       created), a draft -> `sponsor_application_draft`, any other ->
+       `sponsor_application_status`. A workspace always wins over an
+       application; an application grants nothing.
     4. `context` naming a completed profile, `context: gym` with a
        `gym_id` of a completed gym where the user is active staff, or
        `context: sponsor` with a `sponsor_id` of an active organization where
@@ -85,6 +87,7 @@ defmodule SimpleFit.Entry do
   alias SimpleFit.Gyms
   alias SimpleFit.Repo
   alias SimpleFit.Sponsors
+  alias SimpleFit.Sponsors.Applications
 
   @intents ~w(fighter coach gym sponsor)a
   @contexts ContextChoice.contexts()
@@ -111,6 +114,8 @@ defmodule SimpleFit.Entry do
           | :gym_home
           | :gym_selection
           | :sponsor_application
+          | :sponsor_application_draft
+          | :sponsor_application_status
           | :sponsor_home
   @type reason ::
           :account_registration_incomplete
@@ -134,6 +139,11 @@ defmodule SimpleFit.Entry do
           | :gym_choice_required
           | :sponsor_workspace_active
           | :sponsor_choice_required
+          | :sponsor_application_draft
+          | :sponsor_application_submitted
+          | :sponsor_application_under_review
+          | :sponsor_application_changes_requested
+          | :sponsor_application_closed
   @type account_registration :: :not_started | :in_progress | :complete
   @type profile_status :: :not_started | :in_progress | :completed
   @type capability :: :fighter | :coach | :gym_workspace | :sponsor_workspace
@@ -170,7 +180,8 @@ defmodule SimpleFit.Entry do
           },
           optional(:requested_sponsor) => Sponsors.workspace_summary() | nil,
           optional(:last_sponsor_id) => Ecto.UUID.t() | nil,
-          optional(:sponsor_workspaces) => [map()]
+          optional(:sponsor_workspaces) => [map()],
+          optional(:sponsor_application) => {atom(), Ecto.UUID.t()} | nil
         }
 
   @type t :: %{
@@ -214,6 +225,8 @@ defmodule SimpleFit.Entry do
       :gym_home,
       :gym_selection,
       :sponsor_application,
+      :sponsor_application_draft,
+      :sponsor_application_status,
       :sponsor_home
     ]
 
@@ -246,7 +259,12 @@ defmodule SimpleFit.Entry do
       :gym_workspace_completed,
       :gym_choice_required,
       :sponsor_workspace_active,
-      :sponsor_choice_required
+      :sponsor_choice_required,
+      :sponsor_application_draft,
+      :sponsor_application_submitted,
+      :sponsor_application_under_review,
+      :sponsor_application_changes_requested,
+      :sponsor_application_closed
     ]
 
   @doc """
@@ -284,7 +302,8 @@ defmodule SimpleFit.Entry do
           requested_sponsor: requested_sponsor(user, context, sponsor_id),
           last_sponsor_id: last_sponsor_id,
           sponsor_workspaces:
-            Enum.map(sponsors.entries, &Map.put(&1, :selected, &1.sponsor_id == last_sponsor_id))
+            Enum.map(sponsors.entries, &Map.put(&1, :selected, &1.sponsor_id == last_sponsor_id)),
+          sponsor_application: Applications.entry_state(user)
         })
 
       Logger.info("entry resolved",
@@ -325,7 +344,8 @@ defmodule SimpleFit.Entry do
       requested_sponsor: requested.sponsor,
       last: Map.get(facts, :last_context),
       last_gym_id: Map.get(facts, :last_gym_id),
-      last_sponsor_id: Map.get(facts, :last_sponsor_id)
+      last_sponsor_id: Map.get(facts, :last_sponsor_id),
+      sponsor_application: Map.get(facts, :sponsor_application)
     }
 
     {destination, reason, target} = route(account, intent, applied, state)
@@ -482,8 +502,8 @@ defmodule SimpleFit.Entry do
 
   # A Sponsor intent never creates anything, and never infers an application state
   # (that domain doesn't exist yet): no workspace -> begin an application.
-  defp sponsor_intent(%{sponsors: %{count: 0}}),
-    do: {:sponsor_application, :sponsor_intent, nil}
+  defp sponsor_intent(%{sponsors: %{count: 0}} = state),
+    do: sponsor_application(state.sponsor_application)
 
   defp sponsor_intent(%{sponsors: %{count: 1, single_sponsor_id: id}}),
     do: {:sponsor_home, :sponsor_workspace_active, id}
@@ -493,15 +513,38 @@ defmodule SimpleFit.Entry do
 
   defp sponsor_intent(_state), do: {:context_selection, :sponsor_choice_required, nil}
 
+  # By the user's real application (SF-113). An application never names a workspace.
+  defp sponsor_application(nil), do: {:sponsor_application, :sponsor_intent, nil}
+
+  defp sponsor_application({:draft, _id}),
+    do: {:sponsor_application_draft, :sponsor_application_draft, nil}
+
+  defp sponsor_application({:submitted, _id}),
+    do: {:sponsor_application_status, :sponsor_application_submitted, nil}
+
+  defp sponsor_application({:under_review, _id}),
+    do: {:sponsor_application_status, :sponsor_application_under_review, nil}
+
+  defp sponsor_application({:changes_requested, _id}),
+    do: {:sponsor_application_status, :sponsor_application_changes_requested, nil}
+
+  defp sponsor_application({_closed, _id}),
+    do: {:sponsor_application_status, :sponsor_application_closed, nil}
+
   # No completed context: resume the one journey in progress, if any.
   defp resume(state) do
     profile_journeys = Enum.filter(@profile_contexts, &(state.profiles[&1] == :in_progress))
     draft = state.gyms.open_draft_gym_id
-    journeys = profile_journeys ++ if(draft, do: [:gym], else: [])
+
+    journeys =
+      profile_journeys ++
+        if(draft, do: [:gym], else: []) ++
+        if(match?({:draft, _}, state.sponsor_application), do: [:sponsor], else: [])
 
     case journeys do
       [] -> {:role_selection, :no_role_started, nil}
       [:gym] -> {:gym_onboarding, :gym_setup_in_progress, draft}
+      [:sponsor] -> {:sponsor_application_draft, :sponsor_application_draft, nil}
       [context] -> with_no_gym(journey(context, :in_progress))
       [_ | _] -> {:context_selection, :multiple_roles_in_progress, nil}
     end

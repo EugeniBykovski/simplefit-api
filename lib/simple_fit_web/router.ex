@@ -198,6 +198,16 @@ defmodule SimpleFitWeb.Router do
     get "/me/gyms", GymController, :index
     # SF-112: sponsor organizations (ADR 0030). Read-only; each route is authorized
     # by the viewer's active membership of the organization in its path.
+    # SF-113: the viewer's own sponsor application (ADR 0031).
+    get "/me/sponsor-application", SponsorApplicationController, :show
+    patch "/me/sponsor-application", SponsorApplicationController, :save
+    post "/me/sponsor-application/submit", SponsorApplicationController, :submit
+
+    get "/me/sponsor-application/submissions/:submission_id",
+        SponsorApplicationController,
+        :submission
+
+    get "/sponsor-application-policy", SponsorApplicationController, :policy
     get "/me/sponsor-organizations", SponsorOrganizationController, :index
     get "/sponsor-organizations/:sponsor_id", SponsorOrganizationController, :show
     get "/sponsor-organizations/:sponsor_id/members", SponsorOrganizationController, :members
