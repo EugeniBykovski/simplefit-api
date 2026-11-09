@@ -27,15 +27,20 @@ defmodule SimpleFit.Sponsors.Applications do
 
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.User
+  alias SimpleFit.Email.Templates
   alias SimpleFit.Legal.Registry
   alias SimpleFit.{RateLimit, Repo}
 
   alias SimpleFit.Sponsors.{
     Application,
+    ApplicationChangeRequest,
     ApplicationEvent,
+    ApplicationNotifications,
     ApplicationPolicy,
     ApplicationSubmission,
-    Organization
+    Evidence,
+    Organization,
+    Secrets
   }
 
   # Writes carrying answers (contact details, goals) are never logged, not even the
@@ -48,7 +53,10 @@ defmodule SimpleFit.Sponsors.Applications do
           submissions: [ApplicationSubmission.t()],
           missing: [atom()],
           declaration: map(),
-          sponsor_id: Ecto.UUID.t() | nil
+          sponsor_id: Ecto.UUID.t() | nil,
+          evidence: list(),
+          change_request: ApplicationChangeRequest.t() | nil,
+          contact_email_verified: boolean()
         }
 
   ## Reading
@@ -125,7 +133,18 @@ defmodule SimpleFit.Sponsors.Applications do
     )
   end
 
-  defp view(%Application{} = application) do
+  @doc false
+  # Raises the application's revision (any update does, by trigger) and records why.
+  @spec touch!(Application.t(), User.t(), ctx(), String.t()) :: Application.t()
+  def touch!(application, user, ctx, event) do
+    updated = Repo.update!(change(application, updated_at: DateTime.utc_now()), @unlogged)
+    event!(updated, event, user, ctx, revision: updated.revision)
+    updated
+  end
+
+  @doc false
+  @spec view(Application.t()) :: view()
+  def view(%Application{} = application) do
     %{
       application: application,
       submissions:
@@ -137,7 +156,10 @@ defmodule SimpleFit.Sponsors.Applications do
         ),
       missing: ApplicationPolicy.missing(application),
       declaration: declaration(),
-      sponsor_id: organization_id(application)
+      sponsor_id: organization_id(application),
+      evidence: Evidence.live(application.id),
+      change_request: open_change_request(application.id),
+      contact_email_verified: contact_verified?(application)
     }
   end
 
@@ -146,6 +168,25 @@ defmodule SimpleFit.Sponsors.Applications do
     do: Repo.one(from(o in Organization, where: o.source_application_id == ^id, select: o.id))
 
   defp organization_id(_application), do: nil
+
+  @doc false
+  @spec open_change_request(Ecto.UUID.t()) :: ApplicationChangeRequest.t() | nil
+  def open_change_request(application_id),
+    do:
+      Repo.one(
+        from(c in ApplicationChangeRequest,
+          where: c.application_id == ^application_id and is_nil(c.resolved_at)
+        )
+      )
+
+  @doc false
+  # Verified only while the verified address is still the contact email (SF-114).
+  @spec contact_verified?(Application.t()) :: boolean()
+  def contact_verified?(%Application{contact_email: email, contact_email_verified_digest: digest})
+      when is_binary(email) and is_binary(digest),
+      do: Plug.Crypto.secure_compare(Secrets.email_digest(email), digest)
+
+  def contact_verified?(_application), do: false
 
   # The declaration a submission must accept: the published version, if any.
   defp declaration do
@@ -271,6 +312,7 @@ defmodule SimpleFit.Sponsors.Applications do
       true ->
         :ok = limit!("sponsor_application_update", user.id, 120, 3600)
         changeset = ApplicationPolicy.changeset(application, request.answers)
+        :ok = requested_only!(application, changeset)
 
         cond do
           not changeset.valid? ->
@@ -286,6 +328,30 @@ defmodule SimpleFit.Sponsors.Applications do
         end
     end
   end
+
+  # After a change request, only the answers it names can change (SF-114). Answers
+  # sent again unchanged are fine.
+  defp requested_only!(%Application{status: :changes_requested, id: id}, changeset) do
+    allowed = (open_change_request(id) || %{fields: []}).fields
+
+    outside =
+      changeset.changes
+      |> Map.keys()
+      |> Enum.reject(&(Atom.to_string(&1) in allowed))
+      |> Enum.sort()
+
+    if outside == [] do
+      :ok
+    else
+      Repo.rollback(
+        Enum.reduce(outside, changeset, fn field, cs ->
+          add_error(cs, field, "wasn't part of the change request", validation: :not_requested)
+        end)
+      )
+    end
+  end
+
+  defp requested_only!(_application, _changeset), do: :ok
 
   # A create retried after its answer was lost: the same key and the same answers
   # answer with the draft; anything else is stale.
@@ -315,7 +381,10 @@ defmodule SimpleFit.Sponsors.Applications do
     end
   end
 
-  defp lock_current(user_id) do
+  @doc false
+  # The viewer's current application, locked `FOR UPDATE` (inside a transaction).
+  @spec lock_current(Ecto.UUID.t()) :: Application.t() | nil
+  def lock_current(user_id) do
     Repo.one(
       from(a in Application,
         where: a.applicant_user_id == ^user_id and a.status in ^Application.current_statuses(),
@@ -373,7 +442,13 @@ defmodule SimpleFit.Sponsors.Applications do
 
     :ok = limit!("sponsor_application_submit", user.id, 10, 86_400)
     now = DateTime.utc_now()
-    snapshot = ApplicationPolicy.snapshot(application)
+    evidence = Evidence.lock_uploaded!(application.id)
+
+    snapshot =
+      ApplicationPolicy.snapshot(application, %{
+        uploads: Evidence.describe(evidence),
+        contact_email_verified: contact_verified?(application)
+      })
 
     submission =
       Repo.insert!(
@@ -396,11 +471,29 @@ defmodule SimpleFit.Sponsors.Applications do
         @unlogged
       )
 
+    :ok = Evidence.attach!(evidence, submission.id)
+    resubmitted? = application.status == :changes_requested
+    if resubmitted?, do: resolve_change_request!(application.id, submission.id, now)
     updated = Repo.update!(change(application, status: :submitted, submitted_at: now))
+
+    _notification =
+      ApplicationNotifications.notify!(
+        application.id,
+        if(resubmitted?, do: :application_resubmitted, else: :application_received),
+        :applicant,
+        "submitted:#{submission.id}",
+        {applicant_address(user),
+         fn ->
+           Templates.sponsor_application_received(
+             company_name: application.company_name,
+             resubmitted: resubmitted?
+           )
+         end}
+      )
 
     event!(
       updated,
-      if(application.status == :changes_requested,
+      if(resubmitted?,
         do: "sponsor_application.resubmitted",
         else: "sponsor_application.submitted"
       ),
@@ -413,6 +506,29 @@ defmodule SimpleFit.Sponsors.Applications do
     )
 
     updated
+  end
+
+  defp resolve_change_request!(application_id, submission_id, now) do
+    {_count, _} =
+      Repo.update_all(
+        from(c in ApplicationChangeRequest,
+          where: c.application_id == ^application_id and is_nil(c.resolved_at)
+        ),
+        set: [resolved_by_submission_id: submission_id, resolved_at: now]
+      )
+
+    :ok
+  end
+
+  @doc false
+  # Where applicant notifications go: the applicant's own oldest email identity
+  # (verified by email authentication), or `nil` (Google or Apple only).
+  @spec applicant_address(User.t()) :: String.t() | nil
+  def applicant_address(%User{} = user) do
+    case Accounts.list_email_identities(user) do
+      [%{email: email} | _] -> email
+      [] -> nil
+    end
   end
 
   # The same key and request again: the same answer, nothing new. The key for a

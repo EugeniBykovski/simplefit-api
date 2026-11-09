@@ -32,7 +32,7 @@ defmodule SimpleFitWeb.ChangesetErrors do
   @reason_codes ~w(
     required invalid_format too_short too_long wrong_length out_of_range
     invalid_choice invalid_type already_exists does_not_exist
-    must_be_accepted does_not_match too_young immutable invalid
+    must_be_accepted does_not_match too_young immutable not_requested invalid
   )
 
   @doc "All validation reason codes that `details/1` can produce."
@@ -101,7 +101,8 @@ defmodule SimpleFitWeb.ChangesetErrors do
     acceptance: "must_be_accepted",
     confirmation: "does_not_match",
     too_young: "too_young",
-    immutable: "immutable"
+    immutable: "immutable",
+    not_requested: "not_requested"
   }
   @length_codes %{min: "too_short", max: "too_long", is: "wrong_length"}
   @constraint_codes %{

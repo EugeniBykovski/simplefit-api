@@ -52,7 +52,9 @@ config :simple_fit, Oban,
        {"17 * * * *", SimpleFit.Billing.Stripe.SweepWorker},
        # SF-103: deletes the storage objects of verification uploads that
        # were never confirmed or were removed before submission.
-       {"*/30 * * * *", SimpleFit.Gyms.VerificationCleanupWorker}
+       {"*/30 * * * *", SimpleFit.Gyms.VerificationCleanupWorker},
+       # SF-114: the same for sponsor application evidence never submitted.
+       {"*/30 * * * *", SimpleFit.Sponsors.EvidenceCleanupWorker}
      ]}
   ]
 

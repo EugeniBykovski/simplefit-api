@@ -38,9 +38,19 @@ defmodule SimpleFit.Operators.Actions do
   require Logger
 
   alias SimpleFit.Accounts.{Session, User}
-  alias SimpleFit.Operators.{Action, Audit, Confirmation, Operation, Operator, OperatorActions}
+
+  alias SimpleFit.Operators.{
+    Action,
+    Audit,
+    Confirmation,
+    Operation,
+    OperatorActions,
+    OperatorTarget
+  }
+
   alias SimpleFit.Operators.{Policy, Redaction}
   alias SimpleFit.{RateLimit, Repo}
+  alias SimpleFit.Sponsors.ReviewActions
 
   @token_prefix "sfc_"
   @token_bytes 32
@@ -49,12 +59,14 @@ defmodule SimpleFit.Operators.Actions do
 
   @doc "The declared action with this id."
   @spec fetch!(String.t()) :: Action.t()
-  def fetch!(id),
-    do: Enum.find(OperatorActions.definitions(), &(&1.id == id)) || raise(ArgumentError)
+  def fetch!(id), do: Enum.find(definitions(), &(&1.id == id)) || raise(ArgumentError)
 
   @doc "Every declared action id."
   @spec ids() :: [String.t()]
-  def ids, do: Enum.map(OperatorActions.definitions(), & &1.id)
+  def ids, do: Enum.map(definitions(), & &1.id)
+
+  # Operator administration (SF-111) and sponsor application review (SF-114).
+  defp definitions, do: OperatorActions.definitions() ++ ReviewActions.definitions()
 
   ## Preview
 
@@ -72,7 +84,7 @@ defmodule SimpleFit.Operators.Actions do
          :ok <- authorize_now(actor, session, action),
          {:ok, attrs} <- cast_request(action, params, :preview),
          {:ok, target} <- resolve(action, target_id),
-         :ok <- not_self(actor, target),
+         :ok <- not_self(action, actor, target),
          :ok <- revision(target, attrs[:expected_revision]),
          {:ok, plan} <- action.plan.(actor, target, attrs),
          :ok <- limit("operator_action_preview", user.id, Policy.preview_limit()) do
@@ -88,7 +100,7 @@ defmodule SimpleFit.Operators.Actions do
   defp preview_view(action, actor, session, target, attrs, plan) do
     %{
       action: action.id,
-      target: %{type: action.target_type, id: target.id, status: Atom.to_string(target.status)},
+      target: %{type: action.target_type, id: target.id, status: action.target.status(target)},
       expected_revision: target.revision,
       current_state: plan.from_state,
       proposed_state: plan.to_state,
@@ -169,7 +181,7 @@ defmodule SimpleFit.Operators.Actions do
     |> case do
       {:error, {:replayed, target_id}} ->
         emit(:replayed, action, :execute)
-        {:ok, summary(Repo.get!(Operator, target_id))}
+        {:ok, action.target.project(action.target.fetch(target_id))}
 
       {:ok, summary} ->
         emit(:committed, action, :execute)
@@ -190,7 +202,7 @@ defmodule SimpleFit.Operators.Actions do
     plan = plan!(action, actor, target, attrs)
     _ = action.apply.(actor, target, attrs, DateTime.utc_now(), plan)
     record_operation!(attrs.operation_id, actor.id, action.id, target.id, request_digest)
-    updated = Repo.get!(Operator, target.id)
+    updated = action.target.fetch(target.id)
 
     Audit.record!(
       %{
@@ -211,31 +223,39 @@ defmodule SimpleFit.Operators.Actions do
       Map.merge(ctx, %{session_id: session.id, operation_id: attrs.operation_id})
     )
 
-    summary(updated)
+    action.target.project(updated)
   end
 
-  # Holds the session, locks actor and target (id order), authorizes again under the
-  # locks and resolves the target, which is never the actor.
+  # Holds the session, locks the actor and the target (operators in id order, any
+  # other target after the actor), authorizes again under the locks and resolves the
+  # target, of which the actor is never a party.
   defp locked_parties!(action, user, session, target_id) do
     hold_session!(user, session)
     actor_id = (usable_operator(user.id) || Repo.rollback(:not_found)).id
-    locked = lock_operators!(Enum.uniq([actor_id, target_id]))
-    actor = Map.fetch!(locked, actor_id)
+    {actor, target} = lock_both!(action.target, actor_id, target_id)
 
     case check(actor, session.id, action.permission, action.assurance) do
       {:ok, _principal} -> emit(:authorized, action, :execute)
       {:error, reason, _op} -> Repo.rollback(reason)
     end
 
-    target = Map.get(locked, target_id) || Repo.rollback(:target_not_found)
-    if actor.id == target.id, do: Repo.rollback({:conflict, %{target: "self"}})
+    target = target || Repo.rollback(:target_not_found)
+    if action.target.party?(target, actor), do: Repo.rollback({:conflict, %{target: "self"}})
     {actor, target}
   end
 
-  defp current!(%Operator{revision: revision}, revision), do: :ok
+  defp lock_both!(OperatorTarget, actor_id, target_id) do
+    locked = lock_operators!(Enum.uniq([actor_id, target_id]))
+    {Map.fetch!(locked, actor_id), Map.get(locked, target_id)}
+  end
 
-  defp current!(%Operator{revision: current}, _expected),
-    do: Repo.rollback({:revision_conflict, current})
+  defp lock_both!(target_module, actor_id, target_id) do
+    actor = lock_operators!([actor_id]) |> Map.fetch!(actor_id)
+    {actor, target_module.lock!(target_id)}
+  end
+
+  defp current!(%{revision: revision}, revision), do: :ok
+  defp current!(%{revision: current}, _expected), do: Repo.rollback({:revision_conflict, current})
 
   defp plan!(action, actor, target, attrs) do
     case action.plan.(actor, target, attrs) do
@@ -343,23 +363,25 @@ defmodule SimpleFit.Operators.Actions do
     end
   end
 
-  defp resolve(%Action{target_type: "operator"}, target_id) do
+  defp resolve(%Action{target: target_module}, target_id) do
     with {:ok, id} <- uuid(target_id),
-         %Operator{} = target <- Repo.get(Operator, id) do
+         %{} = target <- target_module.fetch(id) do
       {:ok, target}
     else
       _ -> {:error, :target_not_found}
     end
   end
 
-  defp not_self(actor, target),
-    do: if(actor.id == target.id, do: {:error, {:conflict, %{target: "self"}}}, else: :ok)
+  defp not_self(action, actor, target),
+    do:
+      if(action.target.party?(target, actor),
+        do: {:error, {:conflict, %{target: "self"}}},
+        else: :ok
+      )
 
   defp revision(_target, nil), do: :ok
-  defp revision(%Operator{revision: revision}, revision), do: :ok
-
-  defp revision(%Operator{revision: current}, _expected),
-    do: {:error, {:revision_conflict, current}}
+  defp revision(%{revision: revision}, revision), do: :ok
+  defp revision(%{revision: current}, _expected), do: {:error, {:revision_conflict, current}}
 
   # The canonical request: everything a confirmation and an operation id stand for.
   # Not the operation id (idempotency is separate) and not the token.

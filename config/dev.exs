@@ -120,6 +120,13 @@ end
 # which a production build refuses (ADR 0030). Recorded as `local_fixture`.
 config :simple_fit, SimpleFit.Sponsors.Provisioning, local_fixture: true
 
+# SF-114: sponsor application evidence uploads and emails exist here; production keeps
+# both off until approved (D-SA09 file scanning; email copy and design).
+config :simple_fit, SimpleFit.Sponsors,
+  secret_key_base: "dev-sponsors-4Hq7Wz1Kc9Lm3Np8Rt2Vx6Yb0Fd5Gj7Ks1Mw4Pz9Qc3Rv8Tx2Ub6Ye0Ah5Jn",
+  evidence_uploads: true,
+  application_emails: true
+
 config :simple_fit, SimpleFit.Gyms.VerificationAuthority,
   backend: SimpleFit.Gyms.VerificationAuthority.Local
 

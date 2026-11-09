@@ -9,8 +9,15 @@ defmodule SimpleFit.SponsorApplicationHelpers do
   import Ecto.Query, only: [from: 2]
 
   alias SimpleFit.Accounts.User
+  alias SimpleFit.Operators.Operator
   alias SimpleFit.Repo
-  alias SimpleFit.Sponsors.{Application, Applications}
+
+  alias SimpleFit.Sponsors.{
+    Application,
+    ApplicationChangeRequest,
+    ApplicationPolicy,
+    Applications
+  }
 
   @doc "Every answer a submission needs (string keys, as a client sends them)."
   def complete_answers(overrides \\ %{}) do
@@ -63,8 +70,12 @@ defmodule SimpleFit.SponsorApplicationHelpers do
     view.application
   end
 
-  @doc "Test only: moves `application` to `status` as a future reviewer would."
-  def review!(%Application{id: id}, status) do
+  @doc """
+  Test only: moves `application` to `status` directly, standing in for an
+  operator. Moving to `changes_requested` also records an open change request for
+  `fields` (all answers by default), from a fixture operator row.
+  """
+  def review!(%Application{id: id} = application, status, fields \\ nil) do
     now = DateTime.utc_now()
 
     stamps =
@@ -78,6 +89,37 @@ defmodule SimpleFit.SponsorApplicationHelpers do
         set: [status: status] ++ stamps
       )
 
+    if status == :changes_requested do
+      Repo.insert!(%ApplicationChangeRequest{
+        application_id: id,
+        requested_by_operator_id: fixture_operator_id!(),
+        reason_code: "other",
+        fields: fields || Enum.map(ApplicationPolicy.answers(), &Atom.to_string/1),
+        message: "Please clarify.",
+        application_revision: application.revision,
+        requested_at: now
+      })
+    end
+
     Repo.get!(Application, id)
+  end
+
+  # A bootstrap operator row for fixtures (one per database at most).
+  defp fixture_operator_id! do
+    case Repo.one(from(o in Operator, where: o.bootstrap, select: o.id)) do
+      nil ->
+        user = SimpleFit.GymHelpers.registered!("fixture-operator")
+
+        Repo.insert!(%Operator{
+          user_id: user.id,
+          status: :pending_enrollment,
+          bootstrap: true,
+          ceremony_id: Ecto.UUID.generate(),
+          enrollment_expires_at: DateTime.add(DateTime.utc_now(), 3600)
+        }).id
+
+      id ->
+        id
+    end
   end
 end

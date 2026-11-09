@@ -335,6 +335,14 @@ case config_env() do
     # invitations (E06, SF-133) work the same way with GYM_STAFF_INVITATIONS,
     # enabled only under release approval after the deployed `/invite/staff`
     # page passed its smoke test.
+    # SF-114: sponsor application evidence uploads stay off until a file scanner or
+    # an accepted risk is approved (D-SA09); sponsor application emails until their
+    # copy and design are approved. Only "enabled" turns either on.
+    config :simple_fit, SimpleFit.Sponsors,
+      secret_key_base: secret_key_base,
+      evidence_uploads: System.get_env("SPONSOR_EVIDENCE_UPLOADS") == "enabled",
+      application_emails: System.get_env("SPONSOR_APPLICATION_EMAILS") == "enabled"
+
     config :simple_fit, SimpleFit.Gyms,
       secret_key_base: secret_key_base,
       web_app_url:

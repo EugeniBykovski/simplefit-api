@@ -41,7 +41,8 @@ defmodule SimpleFit.OperatorsRaceTest do
     %{users: users}
   end
 
-  defp truncate!, do: Repo.query!("TRUNCATE #{Enum.join(@tables, ", ")}")
+  # CASCADE: sponsor application change requests (SF-114) reference operators.
+  defp truncate!, do: Repo.query!("TRUNCATE #{Enum.join(@tables, ", ")} CASCADE")
 
   defp user!(users, prefix) do
     user = registered!(prefix)

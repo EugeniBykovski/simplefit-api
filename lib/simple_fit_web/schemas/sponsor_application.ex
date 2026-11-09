@@ -167,15 +167,198 @@ defmodule SimpleFitWeb.Schemas.SponsorApplicationUploads do
   OpenApiSpex.schema(
     %{
       title: "SponsorApplicationUploads",
-      description:
-        "Uploads (logo, files) are unavailable until a file scanner is approved (D-SA09). Optional.",
+      description: """
+      Evidence uploads (logo, files; SF-114): optional. `available: false` (`file_scanning_unavailable`) where
+      uploads are off - production until a file scanner or an accepted risk is approved (D-SA09). Documents are
+      never scanned for malware: `scanned` is always `false`.
+      """,
       type: :object,
       additionalProperties: false,
-      required: [:available, :reason],
+      required: [
+        :available,
+        :reason,
+        :content_types,
+        :max_bytes,
+        :max_documents,
+        :kinds,
+        :scanned
+      ],
       properties: %{
-        available: %Schema{type: :boolean, enum: [false]},
-        reason: %Schema{type: :string, enum: ["file_scanning_unavailable"]}
+        available: %Schema{type: :boolean},
+        reason: %Schema{type: :string, enum: ["file_scanning_unavailable", nil], nullable: true},
+        content_types: %Schema{type: :array, items: %Schema{type: :string}},
+        max_bytes: %Schema{type: :integer},
+        max_documents: %Schema{type: :integer},
+        kinds: %Schema{type: :array, items: %Schema{type: :string}},
+        scanned: %Schema{type: :boolean, enum: [false]}
       }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationEvidence do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationEvidence",
+      description:
+        "A document of the application (no storage key). `pending_upload` until confirmed; `submitted` once part of a submission (then frozen). Never scanned.",
+      type: :object,
+      additionalProperties: false,
+      required: [
+        :evidence_id,
+        :kind,
+        :status,
+        :file_name,
+        :content_type,
+        :byte_size,
+        :uploaded_at,
+        :submitted,
+        :scanned
+      ],
+      properties: %{
+        evidence_id: %Schema{type: :string, format: :uuid},
+        kind: %Schema{type: :string, enum: ["logo", "brand_deck", "campaign_brief", "other"]},
+        status: %Schema{type: :string, enum: ["pending_upload", "uploaded"]},
+        file_name: %Schema{type: :string},
+        content_type: %Schema{type: :string, enum: ["application/pdf", "image/jpeg", "image/png"]},
+        byte_size: %Schema{type: :integer, minimum: 1},
+        uploaded_at: %Schema{type: :string, format: :"date-time", nullable: true},
+        submitted: %Schema{type: :boolean},
+        scanned: %Schema{type: :boolean, enum: [false]}
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationChangeRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationChangeRequest",
+      description:
+        "SimpleFit's open request for changes: only the listed answers can change until the next submission.",
+      type: :object,
+      additionalProperties: false,
+      required: [:reason_code, :fields, :message, :requested_at],
+      properties: %{
+        reason_code: %Schema{type: :string},
+        fields: %Schema{type: :array, items: %Schema{type: :string}},
+        message: %Schema{type: :string, description: "Plain text from SimpleFit."},
+        requested_at: %Schema{type: :string, format: :"date-time"}
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationUpload do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationUpload",
+      description: """
+      Send the file's bytes with exactly this method, URL and headers before `expires_at`, then confirm the
+      document. The URL is a short-lived credential for this one object: never log, store or share it.
+      """,
+      type: :object,
+      additionalProperties: false,
+      required: [:method, :url, :headers, :expires_at],
+      properties: %{
+        method: %Schema{type: :string, enum: ["PUT"]},
+        url: %Schema{type: :string, format: :uri},
+        headers: %Schema{type: :object, additionalProperties: %Schema{type: :string}},
+        expires_at: %Schema{type: :string, format: :"date-time"}
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationEvidenceRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationEvidenceRequest",
+      type: :object,
+      additionalProperties: false,
+      required: [:expected_revision, :kind, :file_name, :content_type, :byte_size],
+      properties: %{
+        expected_revision: %Schema{type: :integer, minimum: 1},
+        kind: %Schema{type: :string, enum: ["logo", "brand_deck", "campaign_brief", "other"]},
+        file_name: %Schema{type: :string, minLength: 1, maxLength: 120},
+        content_type: %Schema{type: :string, enum: ["application/pdf", "image/jpeg", "image/png"]},
+        byte_size: %Schema{type: :integer, minimum: 1, maximum: 10_485_760}
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationEvidenceResponse do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationEvidenceResponse",
+      type: :object,
+      additionalProperties: false,
+      required: [:application, :evidence, :upload],
+      properties: %{
+        application: SimpleFitWeb.Schemas.SponsorApplication,
+        evidence: SimpleFitWeb.Schemas.SponsorApplicationEvidence,
+        upload: SimpleFitWeb.Schemas.SponsorApplicationUpload
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationRevisionRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationRevisionRequest",
+      type: :object,
+      additionalProperties: false,
+      required: [:expected_revision],
+      properties: %{expected_revision: %Schema{type: :integer, minimum: 1}}
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorContactCodeRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorContactCodeRequest",
+      type: :object,
+      additionalProperties: false,
+      required: [:code],
+      properties: %{code: %Schema{type: :string, pattern: "^\\d{6}$"}}
     },
     struct?: false
   )
@@ -231,6 +414,8 @@ defmodule SimpleFitWeb.Schemas.SponsorApplication do
         :submissions,
         :declaration,
         :uploads,
+        :evidence,
+        :change_request,
         :sponsor_id,
         :created_at,
         :updated_at
@@ -240,7 +425,17 @@ defmodule SimpleFitWeb.Schemas.SponsorApplication do
         status: %Schema{type: :string, enum: Enum.map(Application.statuses(), &Atom.to_string/1)},
         revision: %Schema{type: :integer, minimum: 1},
         answers: SimpleFitWeb.Schemas.SponsorApplicationAnswers,
-        contact_email_verified: %Schema{type: :boolean, enum: [false]},
+        contact_email_verified: %Schema{
+          type: :boolean,
+          description:
+            "The contact email was confirmed with a code and hasn't changed since. Grants nothing."
+        },
+        evidence: %Schema{type: :array, items: SimpleFitWeb.Schemas.SponsorApplicationEvidence},
+        change_request: %Schema{
+          allOf: [SimpleFitWeb.Schemas.SponsorApplicationChangeRequest],
+          type: :object,
+          nullable: true
+        },
         missing_fields: %Schema{
           type: :array,
           items: %Schema{
@@ -403,6 +598,161 @@ defmodule SimpleFitWeb.Schemas.SponsorApplicationPolicyResponse do
             declaration: SimpleFitWeb.Schemas.SponsorApplicationDeclaration
           }
         }
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.SponsorApplicationReviewResponse do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+  alias SimpleFit.Sponsors.Application
+  alias SimpleFitWeb.Schemas.SponsorApplicationAnswers
+
+  OpenApiSpex.schema(
+    %{
+      title: "SponsorApplicationReviewResponse",
+      description:
+        "A submitted sponsor application as a reviewer sees it (SF-114): exactly what was last sent, the open change request and the submitted documents' metadata. No storage keys or file names.",
+      type: :object,
+      additionalProperties: false,
+      required: [:application],
+      properties: %{
+        application: %Schema{
+          type: :object,
+          additionalProperties: false,
+          required: [
+            :application_id,
+            :status,
+            :revision,
+            :submitted_at,
+            :latest_submission,
+            :change_request,
+            :evidence
+          ],
+          properties: %{
+            application_id: %Schema{type: :string, format: :uuid},
+            status: %Schema{
+              type: :string,
+              enum: Enum.map(Application.statuses() -- [:draft], &Atom.to_string/1)
+            },
+            revision: %Schema{type: :integer, minimum: 1},
+            submitted_at: %Schema{type: :string, format: :"date-time", nullable: true},
+            latest_submission: %Schema{
+              type: :object,
+              nullable: true,
+              additionalProperties: false,
+              required: [
+                :submission_id,
+                :sequence,
+                :submitted_at,
+                :policy_version,
+                :answers,
+                :contact_email_verified,
+                :declaration_version,
+                :declaration_language
+              ],
+              properties: %{
+                submission_id: %Schema{type: :string, format: :uuid},
+                sequence: %Schema{type: :integer, minimum: 1},
+                submitted_at: %Schema{type: :string, format: :"date-time"},
+                policy_version: %Schema{type: :string},
+                answers: SponsorApplicationAnswers,
+                contact_email_verified: %Schema{type: :boolean},
+                declaration_version: %Schema{type: :string},
+                declaration_language: %Schema{type: :string}
+              }
+            },
+            change_request: %Schema{
+              allOf: [SimpleFitWeb.Schemas.SponsorApplicationChangeRequest],
+              type: :object,
+              nullable: true
+            },
+            evidence: %Schema{
+              type: :array,
+              items: %Schema{
+                type: :object,
+                additionalProperties: false,
+                required: [:evidence_id, :kind, :content_type, :byte_size, :scanned],
+                properties: %{
+                  evidence_id: %Schema{type: :string, format: :uuid},
+                  kind: %Schema{type: :string},
+                  content_type: %Schema{type: :string},
+                  byte_size: %Schema{type: :integer},
+                  scanned: %Schema{type: :boolean, enum: [false]}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.ClaimSponsorApplicationRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "ClaimSponsorApplicationRequest",
+      type: :object,
+      additionalProperties: false,
+      required: [:reason_code],
+      properties: %{
+        reason_code: %Schema{type: :string, enum: ["review_started"]},
+        expected_revision: %Schema{
+          type: :integer,
+          minimum: 1,
+          description: "Required to execute."
+        },
+        operation_id: %Schema{type: :string, format: :uuid, description: "Required to execute."}
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.RequestSponsorApplicationChangesRequest do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+  alias SimpleFit.Sponsors.{ApplicationPolicy, Review}
+
+  OpenApiSpex.schema(
+    %{
+      title: "RequestSponsorApplicationChangesRequest",
+      type: :object,
+      additionalProperties: false,
+      required: [:reason_code, :fields, :message],
+      properties: %{
+        reason_code: %Schema{type: :string, enum: Review.change_reasons()},
+        fields: %Schema{
+          type: :array,
+          minItems: 1,
+          items: %Schema{
+            type: :string,
+            enum: Enum.map(ApplicationPolicy.answers(), &Atom.to_string/1)
+          },
+          description: "The answers the applicant may change."
+        },
+        message: %Schema{
+          type: :string,
+          minLength: 1,
+          maxLength: 2000,
+          description: "Plain text shown to the applicant and sent by email where enabled."
+        },
+        expected_revision: %Schema{
+          type: :integer,
+          minimum: 1,
+          description: "Required to execute."
+        },
+        operation_id: %Schema{type: :string, format: :uuid, description: "Required to execute."}
       }
     },
     struct?: false

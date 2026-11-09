@@ -115,6 +115,23 @@ defmodule SimpleFitWeb.Router do
 
     get "/audit-events", OperatorAdminController, :audit_events
     get "/audit-events/:event_id", OperatorAdminController, :audit_event
+
+    # SF-114: sponsor application review (no approval or rejection).
+    get "/sponsor-applications/:application_id", AdminSponsorApplicationController, :show
+
+    post "/sponsor-applications/:application_id/claim/preview",
+         AdminSponsorApplicationController,
+         :preview_claim
+
+    post "/sponsor-applications/:application_id/claim", AdminSponsorApplicationController, :claim
+
+    post "/sponsor-applications/:application_id/request-changes/preview",
+         AdminSponsorApplicationController,
+         :preview_request_changes
+
+    post "/sponsor-applications/:application_id/request-changes",
+         AdminSponsorApplicationController,
+         :request_changes
   end
 
   scope "/api/v1", SimpleFitWeb do
@@ -208,6 +225,26 @@ defmodule SimpleFitWeb.Router do
         :submission
 
     get "/sponsor-application-policy", SponsorApplicationController, :policy
+
+    # SF-114: evidence and contact verification of the viewer's own application.
+    post "/me/sponsor-application/evidence", SponsorApplicationController, :initiate_evidence
+
+    post "/me/sponsor-application/evidence/:evidence_id/confirm",
+         SponsorApplicationController,
+         :confirm_evidence
+
+    post "/me/sponsor-application/evidence/:evidence_id/remove",
+         SponsorApplicationController,
+         :remove_evidence
+
+    post "/me/sponsor-application/contact-verification",
+         SponsorApplicationController,
+         :request_contact_code
+
+    post "/me/sponsor-application/contact-verification/confirm",
+         SponsorApplicationController,
+         :confirm_contact_code
+
     get "/me/sponsor-organizations", SponsorOrganizationController, :index
     get "/sponsor-organizations/:sponsor_id", SponsorOrganizationController, :show
     get "/sponsor-organizations/:sponsor_id/members", SponsorOrganizationController, :members

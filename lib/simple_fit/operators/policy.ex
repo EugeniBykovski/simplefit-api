@@ -12,8 +12,18 @@ defmodule SimpleFit.Operators.Policy do
     production build refuses fewer than two.
   """
 
-  @permissions ~w(operators.read operators.manage audit.read)
-  @assurance %{"operators.read" => :key, "audit.read" => :key, "operators.manage" => :fresh_key}
+  # SF-114 adds the first sponsor review permissions, one per action (D-SA16 naming,
+  # proposed): reading a submitted application, claiming it, requesting changes.
+  @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
+                  sponsors.applications.claim sponsors.applications.request_changes)
+  @assurance %{
+    "operators.read" => :key,
+    "audit.read" => :key,
+    "operators.manage" => :fresh_key,
+    "sponsors.applications.read" => :key,
+    "sponsors.applications.claim" => :fresh_key,
+    "sponsors.applications.request_changes" => :fresh_key
+  }
 
   @required_authenticators Application.compile_env(
                              :simple_fit,

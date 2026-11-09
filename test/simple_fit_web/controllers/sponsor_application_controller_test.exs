@@ -58,7 +58,8 @@ defmodule SimpleFitWeb.SponsorApplicationControllerTest do
            } = a
 
     assert "goals" in a["missing_fields"]
-    assert a["uploads"] == %{"available" => false, "reason" => "file_scanning_unavailable"}
+    # Uploads exist in test (SF-114); never scanned.
+    assert %{"available" => true, "reason" => nil, "scanned" => false} = a["uploads"]
     assert a["sponsor_id"] == nil and a["contact_email_verified"] == false
 
     stale =

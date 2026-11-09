@@ -11,22 +11,44 @@ defmodule SimpleFit.SponsorApplicationsRaceTest do
   import Ecto.Query, only: [from: 2]
   import SimpleFit.SponsorApplicationHelpers
   import SimpleFit.GymHelpers, only: [registered!: 1]
+  import SimpleFit.VerificationHelpers, only: [stub_storage: 1]
 
   alias Ecto.Adapters.SQL.Sandbox
   alias SimpleFit.Accounts.User
+  alias SimpleFit.Email.JobPayload
   alias SimpleFit.Repo
-  alias SimpleFit.Sponsors.{Application, Applications, ApplicationSubmission}
 
-  @tables ~w(sponsor_application_events sponsor_application_submissions sponsor_applications)
+  alias SimpleFit.Sponsors.{
+    Application,
+    ApplicationEvent,
+    ApplicationNotification,
+    Applications,
+    ApplicationSubmission,
+    ContactVerification,
+    Evidence
+  }
+
+  # SF-114 rows (evidence, change requests and the fixture operator they name,
+  # contact codes, notifications) are committed too. TRUNCATE fires no row triggers.
+  @tables ~w(sponsor_application_notifications sponsor_application_contact_codes
+             sponsor_application_evidence sponsor_application_events
+             sponsor_application_submissions sponsor_application_change_requests
+             sponsor_applications platform_operators)
 
   setup do
     Sandbox.mode(Repo, :auto)
     truncate!()
     {:ok, users} = Agent.start(fn -> [] end)
+    # Emails queued by these tests (SF-114) are committed too.
+    first_job = Repo.one(from(j in Oban.Job, select: max(j.id))) || 0
 
     on_exit(fn ->
       Sandbox.mode(Repo, :auto)
+      # `review!/2` commits a fixture operator and its user: remove that user too.
+      operators = Repo.all(from(o in "platform_operators", select: type(o.user_id, :binary_id)))
       truncate!()
+      Repo.delete_all(from(u in User, where: u.id in ^operators))
+      Repo.delete_all(from(j in Oban.Job, where: j.id > ^first_job and j.queue == "mailers"))
       Repo.delete_all(from(u in User, where: u.id in ^Agent.get(users, & &1)))
       Repo.delete_all("auth_rate_limits")
       Agent.stop(users)
@@ -218,5 +240,107 @@ defmodule SimpleFit.SponsorApplicationsRaceTest do
 
     assert hd(Enum.sort_by(submissions, & &1.sequence)).snapshot["answers"]["goals"] ==
              "Support amateur boxing events in Poland."
+  end
+
+  ## SF-114
+
+  defp initiate!(user, application) do
+    {:ok, {_view, evidence, _upload}} =
+      Evidence.initiate(user, %{
+        "expected_revision" => Repo.reload!(application).revision,
+        "kind" => "logo",
+        "file_name" => "logo.png",
+        "content_type" => "image/png",
+        "byte_size" => 1000
+      })
+
+    evidence
+  end
+
+  test "one upload confirmed five times at once: attached once, every answer the same", %{
+    users: users
+  } do
+    user = user!(users)
+    app = draft!(user)
+    evidence = initiate!(user, app)
+    stub_storage(%{evidence.id => {1000, "image/png"}})
+
+    results = concurrently(for _ <- 1..5, do: fn -> Evidence.confirm(user, evidence.id) end)
+
+    assert Enum.all?(results, &match?({:ok, _}, &1))
+    assert Repo.reload!(evidence).status == :uploaded
+
+    assert Repo.aggregate(
+             from(e in ApplicationEvent,
+               where:
+                 e.application_id == ^app.id and
+                   e.event == "sponsor_application.evidence_uploaded"
+             ),
+             :count
+           ) == 1
+  end
+
+  test "a removal racing the submission: the snapshot and the frozen documents agree", %{
+    users: users
+  } do
+    user = user!(users)
+    app = draft!(user)
+    evidence = initiate!(user, app)
+    stub_storage(%{evidence.id => {1000, "image/png"}})
+    {:ok, _} = Evidence.confirm(user, evidence.id)
+    current = Repo.reload!(app)
+
+    [remove, submit] =
+      concurrently([
+        fn -> Evidence.remove(user, evidence.id, %{"expected_revision" => current.revision}) end,
+        fn -> Applications.submit(user, submit_params(current)) end
+      ])
+
+    assert Enum.count([remove, submit], &match?({:ok, _}, &1)) == 1
+    evidence = Repo.reload!(evidence)
+
+    case Repo.one(from(s in ApplicationSubmission, where: s.application_id == ^app.id)) do
+      nil ->
+        assert evidence.status == :removed and evidence.submission_id == nil
+
+      submission ->
+        assert [%{"evidence_id" => id}] = submission.snapshot["uploads"]
+        assert id == evidence.id
+        assert evidence.status == :uploaded and evidence.submission_id == submission.id
+    end
+  end
+
+  test "repeated submissions at once queue one notification", %{users: users} do
+    user = user!(users)
+    params = submit_params(draft!(user))
+
+    app_id =
+      Repo.one!(from(a in Application, where: a.applicant_user_id == ^user.id, select: a.id))
+
+    results = concurrently(for _ <- 1..5, do: fn -> Applications.submit(user, params) end)
+    assert Enum.all?(results, &match?({:ok, _}, &1))
+
+    assert Repo.aggregate(
+             from(n in ApplicationNotification, where: n.application_id == ^app_id),
+             :count
+           ) == 1
+  end
+
+  test "the right contact code confirmed five times at once: verified once", %{users: users} do
+    user = user!(users)
+    app = draft!(user)
+    {:ok, _} = ContactVerification.request(user)
+    job = Repo.one!(from(j in Oban.Job, order_by: [desc: j.id], limit: 1))
+    {:ok, message} = JobPayload.open(job.args["payload"])
+    [code] = Regex.run(~r/\b\d{6}\b/, message.text)
+
+    results =
+      concurrently(
+        for _ <- 1..5, do: fn -> ContactVerification.confirm(user, %{"code" => code}) end
+      )
+
+    assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+    assert Enum.all?(results, &(match?({:ok, _}, &1) or &1 == {:error, :code_expired}))
+    assert Repo.reload!(app).contact_email_verified_at
   end
 end

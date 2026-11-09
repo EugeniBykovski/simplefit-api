@@ -55,6 +55,8 @@ defmodule SimpleFit.Sponsors.Application do
     field :market_cities, {:array, :string}, default: []
     field :budget_band, :string
     field :goals, :string
+    field :contact_email_verified_digest, :binary, redact: true
+    field :contact_email_verified_at, :utc_datetime_usec
 
     field :submitted_at, :utc_datetime_usec
     field :decided_at, :utc_datetime_usec
