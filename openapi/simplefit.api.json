@@ -73,6 +73,24 @@
         },
         "description": "409 The request conflicts with the current state of the resource"
       },
+      "EnrollmentRequired": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "enrollment_required",
+                "details": {},
+                "message": "Register your security keys to continue",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "403 Register your security keys to continue"
+      },
       "Forbidden": {
         "content": {
           "application/json": {
@@ -217,6 +235,24 @@
         },
         "description": "429 Too many requests, retry later"
       },
+      "SecurityKeyRejected": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "security_key_rejected",
+                "details": {},
+                "message": "The security key response was not accepted",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "422 The security key response was not accepted"
+      },
       "ServiceUnavailable": {
         "content": {
           "application/json": {
@@ -234,6 +270,24 @@
           }
         },
         "description": "503 The service is temporarily unavailable"
+      },
+      "StepUpRequired": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "step_up_required",
+                "details": {},
+                "message": "Confirm with your security key to continue",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "403 Confirm with your security key to continue"
       },
       "Unauthorized": {
         "content": {
@@ -2527,7 +2581,7 @@
         },
         "properties": {
           "code": {
-            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `code_expired`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
+            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `step_up_required`, `enrollment_required`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `security_key_rejected`, `code_expired`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
             "example": "not_found",
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
@@ -3167,6 +3221,33 @@
           "account"
         ],
         "title": "GoogleAuthResponse",
+        "type": "object"
+      },
+      "GrantOperatorPermissionRequest": {
+        "properties": {
+          "operation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permission": {
+            "enum": [
+              "operators.read",
+              "operators.manage",
+              "audit.read"
+            ],
+            "type": "string"
+          },
+          "reason_code": {
+            "pattern": "^[a-z][a-z0-9_]{1,59}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "permission",
+          "reason_code",
+          "operation_id"
+        ],
+        "title": "GrantOperatorPermissionRequest",
         "type": "object"
       },
       "Gym": {
@@ -10111,6 +10192,478 @@
         "title": "MyTrainingSessionResponse",
         "type": "object"
       },
+      "OperatorActionRequest": {
+        "description": "A reason code and a client-generated operation id. Repeating an operation id changes nothing.",
+        "properties": {
+          "operation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "pattern": "^[a-z][a-z0-9_]{1,59}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "operation_id"
+        ],
+        "title": "OperatorActionRequest",
+        "type": "object"
+      },
+      "OperatorAuditEvent": {
+        "description": "An append-only operator security event. Ids and codes only.",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor_operator_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "actor_user_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "authority": {
+            "enum": [
+              "platform_operator",
+              "signed_ceremony",
+              "local_development_ceremony",
+              "system"
+            ],
+            "type": "string"
+          },
+          "ceremony_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "operation_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "allowed",
+              "refused"
+            ],
+            "type": "string"
+          },
+          "permission": {
+            "nullable": true,
+            "type": "string"
+          },
+          "reason_code": {
+            "nullable": true,
+            "type": "string"
+          },
+          "request_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "session_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "target_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "target_type": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "action",
+          "outcome",
+          "authority"
+        ],
+        "title": "OperatorAuditEvent",
+        "type": "object"
+      },
+      "OperatorAuditEventListResponse": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/OperatorAuditEvent"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "events"
+        ],
+        "title": "OperatorAuditEventListResponse",
+        "type": "object"
+      },
+      "OperatorCredential": {
+        "description": "A registered security key. Metadata only: no key material.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "last_used_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "revoked_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "revoked_reason": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "created_at",
+          "last_used_at",
+          "revoked_at",
+          "revoked_reason"
+        ],
+        "title": "OperatorCredential",
+        "type": "object"
+      },
+      "OperatorCredentialListResponse": {
+        "properties": {
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/OperatorCredential"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "credentials"
+        ],
+        "title": "OperatorCredentialListResponse",
+        "type": "object"
+      },
+      "OperatorCredentialRegistered": {
+        "properties": {
+          "credential": {
+            "$ref": "#/components/schemas/OperatorCredential"
+          },
+          "security_keys": {
+            "$ref": "#/components/schemas/OperatorSecurityKeys"
+          },
+          "status": {
+            "enum": [
+              "pending_enrollment",
+              "active"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "credential",
+          "status",
+          "security_keys"
+        ],
+        "title": "OperatorCredentialRegistered",
+        "type": "object"
+      },
+      "OperatorCredentialResponse": {
+        "properties": {
+          "credential": {
+            "$ref": "#/components/schemas/OperatorCredential"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "OperatorCredentialResponse",
+        "type": "object"
+      },
+      "OperatorListResponse": {
+        "properties": {
+          "operators": {
+            "items": {
+              "$ref": "#/components/schemas/OperatorSummary"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "operators"
+        ],
+        "title": "OperatorListResponse",
+        "type": "object"
+      },
+      "OperatorSecurityKeys": {
+        "description": "Security keys the operator has registered, and how many the policy requires to be active.",
+        "properties": {
+          "registered": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "required": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "registered",
+          "required"
+        ],
+        "title": "OperatorSecurityKeys",
+        "type": "object"
+      },
+      "OperatorSelf": {
+        "description": "The viewer's own operator state. `permissions` lists what is granted while `active`; it is empty otherwise. Holding a permission still requires `step_up` at request time.",
+        "properties": {
+          "activated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "enrollment_expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "security_keys": {
+            "$ref": "#/components/schemas/OperatorSecurityKeys"
+          },
+          "status": {
+            "enum": [
+              "pending_enrollment",
+              "active"
+            ],
+            "type": "string"
+          },
+          "step_up": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OperatorStepUp"
+              }
+            ],
+            "nullable": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "permissions",
+          "security_keys",
+          "step_up",
+          "enrollment_expires_at",
+          "activated_at"
+        ],
+        "title": "OperatorSelf",
+        "type": "object"
+      },
+      "OperatorSelfResponse": {
+        "properties": {
+          "operator": {
+            "$ref": "#/components/schemas/OperatorSelf"
+          }
+        },
+        "required": [
+          "operator"
+        ],
+        "title": "OperatorSelfResponse",
+        "type": "object"
+      },
+      "OperatorStepUp": {
+        "description": "The security-key check of this session. Valid only in this session, until `expires_at`. High-risk actions also need `fresh_seconds_remaining > 0`.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fresh_seconds_remaining": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verified_at",
+          "expires_at",
+          "fresh_seconds_remaining"
+        ],
+        "title": "OperatorStepUp",
+        "type": "object"
+      },
+      "OperatorStepUpResponse": {
+        "properties": {
+          "step_up": {
+            "$ref": "#/components/schemas/OperatorStepUp"
+          }
+        },
+        "required": [
+          "step_up"
+        ],
+        "title": "OperatorStepUpResponse",
+        "type": "object"
+      },
+      "OperatorSummary": {
+        "description": "An operator as other operators see it. Ids only: no names or email addresses.",
+        "properties": {
+          "activated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "bootstrap": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by_operator_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "enrollment_expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revoked_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "security_keys": {
+            "$ref": "#/components/schemas/OperatorSecurityKeys"
+          },
+          "status": {
+            "enum": [
+              "pending_enrollment",
+              "active",
+              "suspended",
+              "revoked"
+            ],
+            "type": "string"
+          },
+          "suspended_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "status",
+          "bootstrap",
+          "created_by_operator_id",
+          "permissions",
+          "security_keys",
+          "enrollment_expires_at",
+          "activated_at",
+          "suspended_at",
+          "revoked_at",
+          "created_at"
+        ],
+        "title": "OperatorSummary",
+        "type": "object"
+      },
+      "OperatorSummaryResponse": {
+        "properties": {
+          "operator": {
+            "$ref": "#/components/schemas/OperatorSummary"
+          }
+        },
+        "required": [
+          "operator"
+        ],
+        "title": "OperatorSummaryResponse",
+        "type": "object"
+      },
+      "ProvisionOperatorRequest": {
+        "description": "An existing account (by user id, never by email) with completed registration, and the exact permissions.",
+        "properties": {
+          "operation_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "reason_code": {
+            "pattern": "^[a-z][a-z0-9_]{1,59}$",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "permissions",
+          "reason_code",
+          "operation_id"
+        ],
+        "title": "ProvisionOperatorRequest",
+        "type": "object"
+      },
       "RefreshSessionRequest": {
         "additionalProperties": false,
         "description": "Body transport (mobile and other non-browser clients). Web clients send the refresh cookie instead and no body token.",
@@ -10128,6 +10681,36 @@
           "refresh_token"
         ],
         "title": "RefreshSessionRequest",
+        "type": "object"
+      },
+      "RegisterOperatorCredentialRequest": {
+        "description": "The authenticator's registration response, base64url-encoded.",
+        "properties": {
+          "attestation_object": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "challenge_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "client_data_json": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 60,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "attestation_object",
+          "client_data_json",
+          "label"
+        ],
+        "title": "RegisterOperatorCredentialRequest",
         "type": "object"
       },
       "SaasPlan": {
@@ -10716,6 +11299,59 @@
           "field_codes"
         ],
         "title": "ValidationErrorDetails",
+        "type": "object"
+      },
+      "VerifyOperatorStepUpRequest": {
+        "description": "The authenticator's assertion response, base64url-encoded.",
+        "properties": {
+          "authenticator_data": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "challenge_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "client_data_json": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "credential_id": {
+            "maxLength": 16384,
+            "type": "string"
+          },
+          "signature": {
+            "maxLength": 16384,
+            "type": "string"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "credential_id",
+          "authenticator_data",
+          "client_data_json",
+          "signature"
+        ],
+        "title": "VerifyOperatorStepUpRequest",
+        "type": "object"
+      },
+      "WebAuthnOptionsResponse": {
+        "description": "A one-time challenge. `public_key` is the WebAuthn JSON form (camelCase, base64url values) for `PublicKeyCredential.parseCreationOptionsFromJSON` or `parseRequestOptionsFromJSON`. Answer within its `timeout`, in this session only.",
+        "properties": {
+          "challenge_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "public_key": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "challenge_id",
+          "public_key"
+        ],
+        "title": "WebAuthnOptionsResponse",
         "type": "object"
       }
     },
@@ -11534,6 +12170,1031 @@
         "summary": "The authenticated user",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/admin/audit-events": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `audit.read`. Newest first; `before` pages back.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "listOperatorAuditEvents",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorAuditEventListResponse"
+                }
+              }
+            },
+            "description": "Events"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Operator audit log",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/credentials": {
+      "get": {
+        "callbacks": {},
+        "description": "Metadata only.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n",
+        "operationId": "listOperatorCredentials",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorCredentialListResponse"
+                }
+              }
+            },
+            "description": "Keys"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The viewer's security keys",
+        "tags": [
+          "Platform operators"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Verifies the registration response (origin, relying party, user verification) and stores the public key. Syncable credentials are refused. The challenge is spent even if verification fails. Reaching the required number of keys activates a `pending_enrollment` operator.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n* `security_key_rejected` - verification failed, or the challenge is unknown, spent or expired.\n* `conflict` - `details.credential: \"already_registered\"` or `details.enrollment: \"expired\"`.",
+        "operationId": "registerOperatorCredential",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterOperatorCredentialRequest"
+              }
+            }
+          },
+          "description": "Registration response",
+          "required": false
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorCredentialRegistered"
+                }
+              }
+            },
+            "description": "Registered"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/SecurityKeyRejected"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Register a security key",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/credentials/options": {
+      "post": {
+        "callbacks": {},
+        "description": "A one-time challenge for this session. A `pending_enrollment` operator may register with their session alone, until enrolment expires; an active operator needs a fresh key check.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n* `step_up_required` - an active operator without a fresh key check.\n* `conflict` - `details.enrollment: \"expired\"`.\n* `rate_limited` - 20 challenges per hour.\n* `service_unavailable` - WebAuthn isn't configured.",
+        "operationId": "createOperatorCredentialOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnOptionsResponse"
+                }
+              }
+            },
+            "description": "Options"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Start registering a security key",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/credentials/{credential_id}/revoke": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs a fresh key check. Refused below the required number of keys: register a replacement first.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n* `step_up_required`.\n* `conflict` - `details.credentials: \"minimum_required\"`.",
+        "operationId": "revokeOperatorCredential",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "credential_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorCredentialResponse"
+                }
+              }
+            },
+            "description": "Revoked"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/StepUpRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Revoke one of the viewer's security keys",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/me": {
+      "get": {
+        "callbacks": {},
+        "description": "Status, permissions (while active), security keys and this session's key check.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n",
+        "operationId": "getCurrentOperator",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSelfResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The viewer's operator state",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `operators.read`.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "listOperators",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorListResponse"
+                }
+              }
+            },
+            "description": "Operators"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List operators",
+        "tags": [
+          "Platform operators"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Needs `operators.manage` and a fresh key check. For an existing account with completed registration, named by user id. The new operator is `pending_enrollment` and holds exactly the listed permissions.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "operationId": "provisionOperator",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionOperatorRequest"
+              }
+            }
+          },
+          "description": "Provisioning",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Provision an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `operators.read`.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "getOperator",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}/credentials/{credential_id}/revoke": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `operators.manage` and a fresh key check. For a lost or compromised key. With fewer keys than required the operator returns to `pending_enrollment` and must register a replacement.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "operationId": "revokeOtherOperatorCredential",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "credential_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorActionRequest"
+              }
+            }
+          },
+          "description": "Reason",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Revoke another operator's security key",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}/permissions": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `operators.manage` and a fresh key check. Never to oneself.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "operationId": "grantOperatorPermission",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantOperatorPermissionRequest"
+              }
+            }
+          },
+          "description": "Grant",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Grant a permission",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}/permissions/{permission}/revoke": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `operators.manage` and a fresh key check. Never one's own.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "operationId": "revokeOperatorPermission",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "permission",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorActionRequest"
+              }
+            }
+          },
+          "description": "Reason",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Revoke a permission",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}/reinstate": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `operators.manage` and a fresh key check. Never oneself. Suspended operators only. With fewer keys than required they return to `pending_enrollment`.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "operationId": "reinstateOperator",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorActionRequest"
+              }
+            }
+          },
+          "description": "Reason",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Reinstate an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}/revoke": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `operators.manage` and a fresh key check. Never oneself. Final. Their permissions, keys and key checks end in the same transaction.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "operationId": "revokeOperator",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorActionRequest"
+              }
+            }
+          },
+          "description": "Reason",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Revoke an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operators/{operator_id}/suspend": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `operators.manage` and a fresh key check. Never oneself. Active operators only. Ends their key checks.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "operationId": "suspendOperator",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "operator_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorActionRequest"
+              }
+            }
+          },
+          "description": "Reason",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorSummaryResponse"
+                }
+              }
+            },
+            "description": "The operator"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Suspend an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/step-up": {
+      "delete": {
+        "callbacks": {},
+        "description": "Used when leaving the Control Plane. Idempotent.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n",
+        "operationId": "endOperatorStepUp",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "Ended"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "End this session's security-key check",
+        "tags": [
+          "Platform operators"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "Verifies the assertion (origin, relying party, user verification, signature counter) and records a check bound to this session only. Another session, a sign-out or a suspension ends it.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n* `enrollment_required`.\n* `security_key_rejected` - verification failed, or the challenge is unknown, spent or expired.\n* `rate_limited` - 30 per hour.",
+        "operationId": "verifyOperatorStepUp",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyOperatorStepUpRequest"
+              }
+            }
+          },
+          "description": "Assertion",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorStepUpResponse"
+                }
+              }
+            },
+            "description": "Verified"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/EnrollmentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/SecurityKeyRejected"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Complete a security-key check",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/step-up/options": {
+      "post": {
+        "callbacks": {},
+        "description": "A one-time challenge for this session, listing the operator's keys.\n\n* `not_found` - the account isn't an operator, or the operator is suspended or revoked (indistinguishable).\n* `enrollment_required` - security keys aren't registered yet.\n* `rate_limited` - 20 per hour.\n* `service_unavailable` - WebAuthn isn't configured.",
+        "operationId": "createOperatorStepUpOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebAuthnOptionsResponse"
+                }
+              }
+            },
+            "description": "Options"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/EnrollmentRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Start a security-key check",
+        "tags": [
+          "Platform operators"
         ]
       }
     },
@@ -23262,6 +24923,10 @@
     {
       "description": "A gym's business verification (SF-103): the owner's application, documents in private storage and submission; only SimpleFit operators decide, outside the API. And the gym's go-live readiness, derived from its records. Separate from gym setup, SimpleFit plans and Stripe; nothing is published (no public gym surface is approved).",
       "name": "Gym verification"
+    },
+    {
+      "description": "Platform operators (SF-110): the viewer's operator state, WebAuthn security keys, the session-bound key check, operator administration and the operator audit log. Everything answers `not_found` to an account without a usable operator.",
+      "name": "Platform operators"
     },
     {
       "description": "Inbound Stripe webhooks (SF-102), authenticated by the Stripe-Signature header over the raw body, never by a session. Not for clients.",

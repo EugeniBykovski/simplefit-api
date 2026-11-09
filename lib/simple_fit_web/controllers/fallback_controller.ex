@@ -13,6 +13,7 @@ defmodule SimpleFitWeb.FallbackController do
   | `{:error, :conflict}` | `conflict` |
   | `{:error, {:conflict, details}}` | `conflict`, with `details` (e.g. `%{disclosure_version: "stale"}`) |
   | `{:error, :invitation_unavailable}` / `:invitation_recipient_mismatch` | the same code |
+  | `{:error, :step_up_required}` / `:enrollment_required` / `:security_key_rejected` (SF-110) | the same code |
   | `{:error, {:rate_limited, retry_after}}` | `rate_limited`, with `retry-after` |
   | `{:error, :service_unavailable}` | `service_unavailable` |
   | `{:error, provider_reason}` retryable (`:rate_limited`, `:timeout`, `:unavailable`) | `service_unavailable` |
@@ -56,7 +57,13 @@ defmodule SimpleFitWeb.FallbackController do
   end
 
   def call(conn, {:error, reason})
-      when reason in [:invitation_unavailable, :invitation_recipient_mismatch] do
+      when reason in [
+             :invitation_unavailable,
+             :invitation_recipient_mismatch,
+             :step_up_required,
+             :enrollment_required,
+             :security_key_rejected
+           ] do
     APIError.send_error(conn, Atom.to_string(reason))
   end
 

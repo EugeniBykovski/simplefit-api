@@ -1,6 +1,8 @@
 # ADR 0027 — Sponsor and platform operator architecture
 
-* Status: **Proposed** (SF-107, 2026-11-07). Epic SF-106. **Not approved. Nothing is implemented.**
+* Status: **Proposed** (SF-107, 2026-11-07). Epic SF-106. **Not approved.** The operator half was
+  implemented outside production by SF-110 ([ADR 0028](0028-platform-operator-identity.md)); production
+  bootstrap is BLOCKED. The Sponsor half isn't implemented.
 * Context: ADR 0009 (one global user), 0010 (sessions), 0016 (registration), 0017 (entry), 0018 (first
   run), 0021 and 0024 (invitations bound to verified email), 0026 (gyms; SF-136 and SF-138 amendments),
   SF-139 (gym publication proposal), the route registry.
