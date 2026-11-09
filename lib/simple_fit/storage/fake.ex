@@ -22,7 +22,11 @@ defmodule SimpleFit.Storage.Fake do
        method: request.method,
        url:
          "https://fake-storage.invalid/#{bucket}/#{config[:key_prefix] || ""}#{request.key}" <>
-           "?method=#{request.method}&expires=#{DateTime.to_unix(expires_at)}",
+           "?" <>
+           URI.encode_query(
+             [{"method", request.method}, {"expires", DateTime.to_unix(expires_at)}] ++
+               Map.get(request, :query, [])
+           ),
        headers: request.headers,
        expires_at: expires_at
      }}

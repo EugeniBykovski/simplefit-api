@@ -116,8 +116,13 @@ defmodule SimpleFitWeb.Router do
     get "/audit-events", OperatorAdminController, :audit_events
     get "/audit-events/:event_id", OperatorAdminController, :audit_event
 
-    # SF-114: sponsor application review (no approval or rejection).
+    # SF-114: sponsor application review; SF-116: the queue, documents and decisions.
+    get "/sponsor-applications", AdminSponsorApplicationController, :index
     get "/sponsor-applications/:application_id", AdminSponsorApplicationController, :show
+
+    post "/sponsor-applications/:application_id/documents/:evidence_id/download",
+         AdminSponsorApplicationController,
+         :download
 
     post "/sponsor-applications/:application_id/claim/preview",
          AdminSponsorApplicationController,
@@ -132,6 +137,38 @@ defmodule SimpleFitWeb.Router do
     post "/sponsor-applications/:application_id/request-changes",
          AdminSponsorApplicationController,
          :request_changes
+
+    post "/sponsor-applications/:application_id/approve/preview",
+         AdminSponsorApplicationController,
+         :preview_approve
+
+    post "/sponsor-applications/:application_id/approve",
+         AdminSponsorApplicationController,
+         :approve
+
+    post "/sponsor-applications/:application_id/reject/preview",
+         AdminSponsorApplicationController,
+         :preview_reject
+
+    post "/sponsor-applications/:application_id/reject",
+         AdminSponsorApplicationController,
+         :reject
+
+    post "/sponsor-applications/:application_id/suspend-organization/preview",
+         AdminSponsorApplicationController,
+         :preview_suspend_organization
+
+    post "/sponsor-applications/:application_id/suspend-organization",
+         AdminSponsorApplicationController,
+         :suspend_organization
+
+    post "/sponsor-applications/:application_id/reinstate-organization/preview",
+         AdminSponsorApplicationController,
+         :preview_reinstate_organization
+
+    post "/sponsor-applications/:application_id/reinstate-organization",
+         AdminSponsorApplicationController,
+         :reinstate_organization
   end
 
   scope "/api/v1", SimpleFitWeb do

@@ -50,7 +50,12 @@ defmodule SimpleFit.Operators.Redaction do
     :credential,
     :required,
     :enrollment,
-    :current_revision
+    :current_revision,
+    # SF-116: sponsor decisions (`organization`: exists | none | active | suspended |
+    # closed | invalid; `applicant`: not_eligible; `provisioning_key`: reused).
+    :organization,
+    :applicant,
+    :provisioning_key
   ]
 
   @doc "The audit event fields a reader with `audit.read` sees."

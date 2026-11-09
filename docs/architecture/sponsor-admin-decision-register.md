@@ -66,6 +66,13 @@ behind a switch that stays off in production (D-SA09 still NEEDS DECISION), kept
 retention is undecided (D-SA18), added operator claim and request-changes with proposed reason codes, and placeholder
 sponsor emails that stay off in production until S7 copy exists. D-SA03, D-SA10 and D-SA22 are unchanged.
 
+SF-116 ([ADR 0033](adr/0033-sponsor-application-decisions.md)) built approval, rejection and organization
+suspension or reinstatement on D-SA10's and D-SA07's recommended options (organization plus the applicant as owner,
+nothing commercial) and the lifecycle's "suspend the organization" answer to a mistaken approval, with proposed reason
+codes and per-action permissions in place of `.decide`. Rejection gives the applicant no reason, a `revoked` state and
+closing an organization aren't built, and nothing runs in production while D-SA13, D-SA14 and D-SA22 are open. None of
+these is approved by that.
+
 | Id | Decision | Recommended | Alternatives | Rationale | Depends on | Owner | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | D-SA13 | Operator bootstrap | [The ceremony](platform-operator-trust.md#5-founder-bootstrap) | Rejected list there | Independent authorization, identity binding, evidence | D-SA15 | Founder, security reviewer | PROPOSED |

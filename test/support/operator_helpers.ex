@@ -211,7 +211,11 @@ defmodule SimpleFit.OperatorHelpers do
     "operator.permission.revoke" => "role_change",
     "operator.suspend" => "security_concern",
     "operator.reinstate" => "administrative_correction",
-    "operator.revoke" => "left_organization"
+    "operator.revoke" => "left_organization",
+    "sponsor_application.approve" => "review_complete",
+    "sponsor_application.reject" => "insufficient_information",
+    "sponsor_application.suspend_organization" => "approval_mistaken",
+    "sponsor_application.reinstate_organization" => "concern_resolved"
   }
 
   @doc "A reason code `action_id` accepts."

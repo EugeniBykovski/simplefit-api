@@ -786,6 +786,38 @@
         "title": "AppleAuthResponse",
         "type": "object"
       },
+      "ApproveSponsorApplicationRequest": {
+        "additionalProperties": false,
+        "description": "Approve a sponsor application under review (SF-116).",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "review_complete"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "ApproveSponsorApplicationRequest",
+        "type": "object"
+      },
       "ClaimSponsorApplicationRequest": {
         "additionalProperties": false,
         "properties": {
@@ -3393,7 +3425,11 @@
               "audit.read",
               "sponsors.applications.read",
               "sponsors.applications.claim",
-              "sponsors.applications.request_changes"
+              "sponsors.applications.request_changes",
+              "sponsors.applications.approve",
+              "sponsors.applications.reject",
+              "sponsors.applications.read_files",
+              "sponsors.restrict"
             ],
             "type": "string"
           },
@@ -3437,7 +3473,11 @@
               "audit.read",
               "sponsors.applications.read",
               "sponsors.applications.claim",
-              "sponsors.applications.request_changes"
+              "sponsors.applications.request_changes",
+              "sponsors.applications.approve",
+              "sponsors.applications.reject",
+              "sponsors.applications.read_files",
+              "sponsors.restrict"
             ],
             "type": "string"
           },
@@ -10417,7 +10457,11 @@
                   "operator.reinstate",
                   "operator.revoke",
                   "sponsor_application.claim",
-                  "sponsor_application.request_changes"
+                  "sponsor_application.request_changes",
+                  "sponsor_application.approve",
+                  "sponsor_application.reject",
+                  "sponsor_application.suspend_organization",
+                  "sponsor_application.reinstate_organization"
                 ],
                 "type": "string"
               },
@@ -11155,6 +11199,76 @@
           "confirmation_token"
         ],
         "title": "ReinstateOperatorRequest",
+        "type": "object"
+      },
+      "ReinstateSponsorOrganizationRequest": {
+        "additionalProperties": false,
+        "description": "Reinstate the suspended organization of an approved application (SF-116).",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "concern_resolved",
+              "approval_confirmed",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "ReinstateSponsorOrganizationRequest",
+        "type": "object"
+      },
+      "RejectSponsorApplicationRequest": {
+        "additionalProperties": false,
+        "description": "Reject a sponsor application under review (SF-116). The reason is internal: never shown to the applicant.",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "not_a_business",
+              "outside_supported_categories",
+              "insufficient_information",
+              "duplicate_application",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "RejectSponsorApplicationRequest",
         "type": "object"
       },
       "RequestSponsorApplicationChangesRequest": {
@@ -11910,6 +12024,42 @@
         "title": "SponsorApplicationDeclaration",
         "type": "object"
       },
+      "SponsorApplicationDocumentDownloadResponse": {
+        "additionalProperties": false,
+        "description": "A short-lived presigned download of one submitted document (SF-116). The URL is a credential: never log, store or share it. It always downloads as an attachment (`application/octet-stream`); documents are never scanned for malware.",
+        "properties": {
+          "download": {
+            "additionalProperties": false,
+            "properties": {
+              "expires_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "method": {
+                "enum": [
+                  "GET"
+                ],
+                "type": "string"
+              },
+              "url": {
+                "format": "uri",
+                "type": "string"
+              }
+            },
+            "required": [
+              "method",
+              "url",
+              "expires_at"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "download"
+        ],
+        "title": "SponsorApplicationDocumentDownloadResponse",
+        "type": "object"
+      },
       "SponsorApplicationEvidence": {
         "additionalProperties": false,
         "description": "A document of the application (no storage key). `pending_upload` until confirmed; `submitted` once part of a submission (then frozen). Never scanned.",
@@ -12162,6 +12312,96 @@
         "title": "SponsorApplicationPolicyResponse",
         "type": "object"
       },
+      "SponsorApplicationQueueResponse": {
+        "additionalProperties": false,
+        "description": "One page of the sponsor application review queue (SF-116), oldest submission first. What the latest submission says about the company; never the contact, the budget or the goals (read the detail, which is audited).",
+        "properties": {
+          "applications": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "application_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "change_request_open": {
+                  "type": "boolean"
+                },
+                "company_name": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "country_code": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "decided_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "industry": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "revision": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "status": {
+                  "enum": [
+                    "submitted",
+                    "under_review",
+                    "changes_requested",
+                    "approved",
+                    "rejected",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                "submissions": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "submitted_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "submitted_documents": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "application_id",
+                "status",
+                "revision",
+                "submitted_at",
+                "decided_at",
+                "company_name",
+                "country_code",
+                "industry",
+                "submissions",
+                "submitted_documents",
+                "change_request_open"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Opaque; valid only for the same filters, reader and a limited time.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "applications",
+          "next_cursor"
+        ],
+        "title": "SponsorApplicationQueueResponse",
+        "type": "object"
+      },
       "SponsorApplicationResponse": {
         "additionalProperties": false,
         "properties": {
@@ -12177,7 +12417,7 @@
       },
       "SponsorApplicationReviewResponse": {
         "additionalProperties": false,
-        "description": "A submitted sponsor application as a reviewer sees it (SF-114): exactly what was last sent, the open change request and the submitted documents' metadata. No storage keys or file names.",
+        "description": "A submitted sponsor application as a reviewer sees it (SF-114): exactly what was last sent, the open change request and the submitted documents' metadata. No storage keys or file names. SF-116 adds the decision time, the organization an approval created and the status history (who acted: applicant or operator, never which person).",
         "properties": {
           "application": {
             "additionalProperties": false,
@@ -12194,6 +12434,11 @@
                 ],
                 "nullable": true,
                 "type": "object"
+              },
+              "decided_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
               },
               "evidence": {
                 "items": {
@@ -12225,6 +12470,50 @@
                     "content_type",
                     "byte_size",
                     "scanned"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "history": {
+                "description": "Status changes, oldest first. Codes only.",
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "actor": {
+                      "enum": [
+                        "applicant",
+                        "operator"
+                      ],
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "from_status": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "occurred_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "reason_code": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "to_status": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "event",
+                    "actor",
+                    "from_status",
+                    "to_status",
+                    "reason_code",
+                    "occurred_at"
                   ],
                   "type": "object"
                 },
@@ -12274,6 +12563,30 @@
                 ],
                 "type": "object"
               },
+              "organization": {
+                "additionalProperties": false,
+                "description": "The organization an approval provisioned (SF-116), or `null`. Approval grants no contract, plan, placement, entitlement or payment.",
+                "nullable": true,
+                "properties": {
+                  "sponsor_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "active",
+                      "suspended",
+                      "closed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "sponsor_id",
+                  "status"
+                ],
+                "type": "object"
+              },
               "revision": {
                 "minimum": 1,
                 "type": "integer"
@@ -12302,7 +12615,10 @@
               "submitted_at",
               "latest_submission",
               "change_request",
-              "evidence"
+              "evidence",
+              "decided_at",
+              "organization",
+              "history"
             ],
             "type": "object"
           }
@@ -13161,6 +13477,41 @@
           "confirmation_token"
         ],
         "title": "SuspendOperatorRequest",
+        "type": "object"
+      },
+      "SuspendSponsorOrganizationRequest": {
+        "additionalProperties": false,
+        "description": "Suspend the organization an approved application created (SF-116).",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "approval_mistaken",
+              "policy_concern",
+              "under_investigation",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "SuspendSponsorOrganizationRequest",
         "type": "object"
       },
       "TrainingSessionCreateRequest": {
@@ -15676,6 +16027,115 @@
         ]
       }
     },
+    "/api/v1/admin/sponsor-applications": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.read` and a key check. Submitted applications (never drafts), oldest\nsubmission first, with what the latest submission says about the company and nothing about the contact.\n`limit` 1..100 (default 50); `cursor` from the previous page, valid only for the same filters and reader.\nEach query is audited.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "listSponsorApplicationsForReview",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "submitted",
+                "under_review",
+                "changes_requested",
+                "approved",
+                "rejected",
+                "withdrawn"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "submitted_after",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "submitted_before",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationQueueResponse"
+                }
+              }
+            },
+            "description": "A page"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The sponsor application review queue",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/sponsor-applications/{application_id}": {
       "get": {
         "callbacks": {},
@@ -15732,6 +16192,150 @@
           }
         ],
         "summary": "A sponsor application for review",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/approve": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.approve` and a fresh key check. `under_review` -> `approved`. In one transaction: the organization (from exactly what was last submitted) and the applicant as its owner, the audit event and the applicant's email intent. A repeat makes no second organization. Grants no contract, plan, placement, entitlement, payment or public listing.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\napplication, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of\nthe same request returns the current state and changes nothing).\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "approveSponsorApplication",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveSponsorApplicationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationReviewResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Approve a sponsor application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/approve/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.approve` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "previewApproveSponsorApplication",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveSponsorApplicationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: approve a sponsor application",
         "tags": [
           "Platform operators"
         ]
@@ -15881,6 +16485,368 @@
         ]
       }
     },
+    "/api/v1/admin/sponsor-applications/{application_id}/documents/{evidence_id}/download": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.read_files` and a fresh key check. A presigned `GET` valid for 5 minutes that\nalways downloads as an attachment (`application/octet-stream`); only documents that were part of a\nsubmission; never the operator's own application. Audited before the URL is returned. The URL is a\ncredential: never log, store or share it. Documents are not scanned for malware.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "downloadSponsorApplicationDocument",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "evidence_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationDocumentDownloadResponse"
+                }
+              }
+            },
+            "description": "The download"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Download a submitted document of a sponsor application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/reinstate-organization": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.restrict` and a fresh key check. The organization this approval created: `suspended` -> `active`.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\napplication, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of\nthe same request returns the current state and changes nothing).\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "reinstateSponsorApplicationOrganization",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstateSponsorOrganizationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationReviewResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Reinstate the organization of an approved application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/reinstate-organization/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.restrict` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "previewReinstateSponsorApplicationOrganization",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReinstateSponsorOrganizationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: reinstate the organization of an approved application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/reject": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.reject` and a fresh key check. `under_review` -> `rejected`, final. Nothing is created; the reason is internal and never shown to the applicant.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\napplication, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of\nthe same request returns the current state and changes nothing).\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "rejectSponsorApplication",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectSponsorApplicationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationReviewResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Reject a sponsor application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/reject/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.applications.reject` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "previewRejectSponsorApplication",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectSponsorApplicationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: reject a sponsor application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/sponsor-applications/{application_id}/request-changes": {
       "post": {
         "callbacks": {},
@@ -16020,6 +16986,150 @@
           }
         ],
         "summary": "Preview requesting changes",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/suspend-organization": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.restrict` and a fresh key check. The organization this approval created: `active` -> `suspended` (read-only for its members, no workspace entry). The application stays approved; nothing is deleted; no other organization or membership changes. `conflict` with `details.organization` when it isn't active.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\napplication, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of\nthe same request returns the current state and changes nothing).\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "suspendSponsorApplicationOrganization",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendSponsorOrganizationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationReviewResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Suspend the organization of an approved application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-applications/{application_id}/suspend-organization/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.restrict` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator, or no such submitted application (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator's own application), or the application's status.\n* `revision_conflict` - the application changed since `expected_revision`.\n",
+        "operationId": "previewSuspendSponsorApplicationOrganization",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendSponsorOrganizationRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: suspend the organization of an approved application",
         "tags": [
           "Platform operators"
         ]

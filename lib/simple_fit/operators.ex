@@ -634,6 +634,14 @@ defmodule SimpleFit.Operators do
     "sponsor_applications.detail" => %{
       permission: "sponsors.applications.read",
       audit: "sponsor_application.viewed"
+    },
+    "sponsor_applications.queue" => %{
+      permission: "sponsors.applications.read",
+      audit: "sponsor_applications.queue_read"
+    },
+    "sponsor_applications.file" => %{
+      permission: "sponsors.applications.read_files",
+      audit: "sponsor_application.file_downloaded"
     }
   }
 
@@ -703,6 +711,67 @@ defmodule SimpleFit.Operators do
     end)
   end
 
+  @doc """
+  One page of the sponsor application review queue (`sponsors.applications.read`,
+  SF-116), oldest submission first. Filters: `status` (any status but `draft`),
+  `submitted_after`, `submitted_before`; `limit` 1..100 (default 50); `cursor` from
+  the previous page, valid only for the same filters and reader. Drafts never
+  appear. Each query is audited (`sponsor_applications.queue_read`).
+  """
+  @spec list_sponsor_applications(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{applications: list(), next_cursor: String.t() | nil}} | {:error, error()}
+  def list_sponsor_applications(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("sponsor_applications.queue", user, session, ctx, fn principal ->
+      with {:ok, attrs} <- queue_query(params),
+           filters = queue_filters(attrs),
+           {:ok, position} <- queue_position(attrs, filters, principal.operator_id) do
+        {rows, next} = Review.queue(filters, Map.get(attrs, :limit, 50), position)
+
+        {:ok,
+         %{
+           applications: rows,
+           next_cursor: next && Cursor.encode(next, filters, principal.operator_id)
+         }, {"sponsor_application_queue", nil}}
+      end
+    end)
+  end
+
+  @doc """
+  A short-lived (5 minutes), attachment-only presigned download of one submitted
+  document of a submitted application (`sponsors.applications.read_files` with a
+  fresh key check, SF-116). Never a draft's or an unsubmitted file, never the
+  operator's own application. Audited (`sponsor_application.file_downloaded`, the
+  document as target) before the URL is returned; the URL itself is never stored or
+  logged.
+  """
+  @spec download_sponsor_application_document(User.t(), Session.t(), term(), term(), ctx()) ::
+          {:ok, SimpleFit.Storage.Presigned.t()} | {:error, error() | term()}
+  def download_sponsor_application_document(
+        %User{} = user,
+        %Session{} = session,
+        application_id,
+        evidence_id,
+        ctx \\ %{}
+      ) do
+    project("sponsor_applications.file", user, session, ctx, fn principal ->
+      with {:ok, id} <- uuid(application_id),
+           %{} = application <- Review.fetch(id),
+           false <- application.applicant_user_id == principal.user_id,
+           %{} = document <- Review.submitted_document(application, evidence_id),
+           {:ok, download} <-
+             SimpleFit.Storage.presign_download(document.object_key,
+               expires_in: 300,
+               attachment: true
+             ) do
+        {:ok, download, {"sponsor_application_evidence", document.id}}
+      else
+        true -> {:error, {:conflict, %{target: "self"}}}
+        {:error, reason} -> {:error, reason}
+        _ -> {:error, :not_found}
+      end
+    end)
+  end
+
   @doc "One audit event (`audit.read`). Each view is audited (`audit.event_viewed`)."
   @spec get_audit_event(User.t(), Session.t(), term(), ctx()) ::
           {:ok, AuditEvent.t()} | {:error, error()}
@@ -755,6 +824,47 @@ defmodule SimpleFit.Operators do
     |> validate_range()
     |> apply_action(:validate)
   end
+
+  defp queue_query(params) do
+    types = %{
+      limit: :integer,
+      cursor: :string,
+      status: :string,
+      submitted_after: :utc_datetime_usec,
+      submitted_before: :utc_datetime_usec
+    }
+
+    {%{}, types}
+    |> cast(params, Map.keys(types))
+    |> validate_number(:limit, greater_than: 0, less_than_or_equal_to: 100)
+    |> validate_inclusion(:status, Enum.map(Review.queue_statuses(), &Atom.to_string/1))
+    |> validate_length(:cursor, max: 1024)
+    |> apply_action(:validate)
+  end
+
+  # The scope a queue cursor is bound to: the filters and which list it pages.
+  defp queue_filters(attrs) do
+    attrs
+    |> Map.take([:status, :submitted_after, :submitted_before])
+    |> Map.update(:status, nil, &String.to_existing_atom/1)
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.put(:queue, "sponsor_applications")
+  end
+
+  defp queue_position(%{cursor: cursor}, filters, operator_id) do
+    case Cursor.decode(cursor, filters, operator_id) do
+      {:ok, position} ->
+        {:ok, position}
+
+      :error ->
+        {:error,
+         {%{}, %{cursor: :string}}
+         |> change()
+         |> add_error(:cursor, "is invalid", validation: :format)}
+    end
+  end
+
+  defp queue_position(_attrs, _filters, _operator_id), do: {:ok, nil}
 
   defp validate_exclusive(changeset, one, other) do
     if get_change(changeset, one) && get_change(changeset, other),

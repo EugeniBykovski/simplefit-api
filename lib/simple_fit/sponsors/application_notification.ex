@@ -21,7 +21,9 @@ defmodule SimpleFit.Sponsors.ApplicationNotification do
         :application_received,
         :application_resubmitted,
         :changes_requested,
-        :contact_verification_code
+        :contact_verification_code,
+        :application_approved,
+        :application_rejected
       ]
 
     field :recipient, Ecto.Enum, values: [:applicant, :contact]
