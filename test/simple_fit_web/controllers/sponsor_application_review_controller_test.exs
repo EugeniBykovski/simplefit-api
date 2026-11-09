@@ -410,6 +410,39 @@ defmodule SimpleFitWeb.SponsorApplicationReviewControllerTest do
       refute Jason.encode!(mine) =~ "reason_code"
     end
 
+    test "stale and invalid decisions: 409 with only the current revision, 422 with codes; nothing leaks",
+         c do
+      claim!(c.op_token, c.app)
+      revision = Repo.reload!(c.app).revision
+
+      stale =
+        call(:post, "#{@admin}/#{c.app.id}/approve", c.op_token, %{
+          "reason_code" => "review_complete",
+          "expected_revision" => revision + 5,
+          "operation_id" => Ecto.UUID.generate(),
+          "confirmation_token" => "sfc_" <> String.duplicate("a", 43)
+        })
+        |> json_response(409)
+
+      assert %{"error" => %{"code" => "revision_conflict", "details" => details}} = stale
+      assert details == %{"current_revision" => revision}
+
+      invalid =
+        call(:post, "#{@admin}/#{c.app.id}/reject/preview", c.op_token, %{
+          "reason_code" => "not a code; DROP TABLE"
+        })
+        |> json_response(422)
+
+      assert %{"error" => %{"code" => "validation_error", "details" => %{"field_codes" => codes}}} =
+               invalid
+
+      assert Map.keys(codes) == ["reason_code"]
+
+      for body <- [stale, invalid] do
+        refute Jason.encode!(body) =~ ~r/Ecto|Postgrex|SELECT|sponsor_applications|stacktrace/i
+      end
+    end
+
     test "a submitted document downloads as a no-store attachment", c do
       other = email_user!("docs-#{System.unique_integer([:positive])}@example.com")
       {other_token, _} = session!(other)

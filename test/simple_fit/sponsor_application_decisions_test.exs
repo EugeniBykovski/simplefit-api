@@ -14,8 +14,8 @@ defmodule SimpleFit.SponsorApplicationDecisionsTest do
   import SimpleFit.VerificationHelpers, only: [stub_storage: 1]
   import SimpleFit.GymHelpers, only: [registered!: 1, live_session!: 1, email_user!: 1]
 
-  alias SimpleFit.{Entry, Operators}
-  alias SimpleFit.Operators.{AuditEvent, Policy, StepUp}
+  alias SimpleFit.{Entry, Operators, Sponsors}
+  alias SimpleFit.Operators.{AuditEvent, Confirmation, Policy, StepUp}
 
   alias SimpleFit.Sponsors.{
     Application,
@@ -452,6 +452,152 @@ defmodule SimpleFit.SponsorApplicationDecisionsTest do
     end
   end
 
+  describe "suspension enforces SF-112's access policy on every path" do
+    test "no workspace capability or entry while suspended; reads stay; history kept; reinstated back",
+         c do
+      {:ok, _} = decide(c.r, "sponsor_application.approve", c.app)
+      org = Repo.one!(Organization)
+      assert {:ok, _} = Sponsors.workspace(c.applicant, org.id)
+
+      {:ok, _} = decide(c.r, "sponsor_application.suspend_organization", c.app)
+
+      # Read-only: the organization and its members are still readable by the member...
+      assert {:ok, _} = Sponsors.get_organization(c.applicant, org.id)
+      assert {:ok, _} = Sponsors.list_members(c.applicant, org.id)
+      # ...but it is no workspace: no capability, no entry destination, no context choice.
+      assert {:error, :not_found} = Sponsors.workspace(c.applicant, org.id)
+      {:ok, entry} = Entry.resolve(c.applicant, %{"intent" => "sponsor"})
+      refute :sponsor_workspace in entry.capabilities
+      refute entry.destination == :sponsor_home
+
+      {:ok, chosen} =
+        Entry.resolve(c.applicant, %{"context" => "sponsor", "sponsor_id" => org.id})
+
+      assert chosen.context == nil and chosen.sponsor_id == nil
+      refute chosen.destination == :sponsor_home
+
+      # Nothing was deleted: membership, application decision and history remain.
+      assert [%Membership{status: :active, role: :owner}] = Repo.all(Membership)
+      assert Repo.reload!(c.app).status == :approved
+
+      assert Repo.exists?(
+               from(e in OrganizationEvent, where: e.event == "organization.suspended")
+             )
+
+      {:ok, _} = decide(c.r, "sponsor_application.reinstate_organization", c.app)
+      assert {:ok, _} = Sponsors.workspace(c.applicant, org.id)
+      {:ok, entry} = Entry.resolve(c.applicant, %{"intent" => "sponsor"})
+      assert :sponsor_workspace in entry.capabilities
+    end
+
+    test "reinstatement needs its permission, a fresh key check and a confirmation", c do
+      {:ok, _} = decide(c.r, "sponsor_application.approve", c.app)
+      {:ok, _} = decide(c.r, "sponsor_application.suspend_organization", c.app)
+
+      reader = reviewer!(c.r, "reader-only", ["sponsors.applications.read"])
+
+      assert {:error, :forbidden} =
+               decide(reader, "sponsor_application.reinstate_organization", c.app)
+
+      assert {:error, :confirmation_required} =
+               Operators.execute(
+                 "sponsor_application.reinstate_organization",
+                 c.r.user,
+                 c.r.session,
+                 c.app.id,
+                 %{
+                   "reason_code" => "concern_resolved",
+                   "expected_revision" => Repo.reload!(c.app).revision,
+                   "operation_id" => Ecto.UUID.generate()
+                 }
+               )
+
+      assert Repo.one!(Organization).status == :suspended
+    end
+  end
+
+  describe "confirmations are bound to the operator, the session and time" do
+    test "another operator, another session of the same operator, or an expired one can't use it",
+         c do
+      {:ok, execute, _} =
+        confirmed(c.r.user, c.r.session, "sponsor_application.approve", c.app.id)
+
+      # Another operator with the same permission.
+      other = reviewer!(c.r, "other", ["sponsors.applications.approve"])
+
+      assert {:error, :confirmation_invalid} =
+               Operators.execute(
+                 "sponsor_application.approve",
+                 other.user,
+                 other.session,
+                 c.app.id,
+                 %{
+                   execute
+                   | "operation_id" => Ecto.UUID.generate()
+                 }
+               )
+
+      # The same operator in another session (with its own fresh key check).
+      second = live_session!(c.r.user)
+      _ = step_up!(c.r.user, second, c.r.key)
+
+      assert {:error, :confirmation_invalid} =
+               Operators.execute("sponsor_application.approve", c.r.user, second, c.app.id, %{
+                 execute
+                 | "operation_id" => Ecto.UUID.generate()
+               })
+
+      # Expired: the same binding, issued in the past (confirmations can't be edited).
+      real = Repo.one!(from(x in Confirmation, where: x.action == "sponsor_application.approve"))
+      token = "sfc_" <> Base.url_encode64(:crypto.strong_rand_bytes(32), padding: false)
+      past = DateTime.add(DateTime.utc_now(), -10)
+
+      Repo.insert!(
+        Ecto.put_meta(
+          %{
+            real
+            | id: nil,
+              token_sha256: :crypto.hash(:sha256, token),
+              inserted_at: DateTime.add(past, -Policy.confirmation_ttl()),
+              expires_at: past
+          },
+          state: :built
+        )
+      )
+
+      assert {:error, :confirmation_invalid} =
+               Operators.execute(
+                 "sponsor_application.approve",
+                 c.r.user,
+                 c.r.session,
+                 c.app.id,
+                 %{
+                   execute
+                   | "operation_id" => Ecto.UUID.generate(),
+                     "confirmation_token" => token
+                 }
+               )
+
+      assert Repo.reload!(c.app).status == :under_review
+      assert count(Organization) == 0
+    end
+
+    test "an operator who never passed a key check in this session can't decide", c do
+      fresh_session = live_session!(c.r.user)
+
+      assert {:error, :step_up_required} =
+               Operators.preview(
+                 "sponsor_application.approve",
+                 c.r.user,
+                 fresh_session,
+                 c.app.id,
+                 %{
+                   "reason_code" => "review_complete"
+                 }
+               )
+    end
+  end
+
   describe "the queue" do
     test "submitted applications only, oldest first, paged by a cursor bound to its reader", c do
       drafter = registered!("drafter")
@@ -516,7 +662,7 @@ defmodule SimpleFit.SponsorApplicationDecisionsTest do
   end
 
   describe "documents" do
-    setup c do
+    setup do
       fresh = email_user!("docs-#{System.unique_integer([:positive])}@example.com")
       app = draft!(fresh)
 

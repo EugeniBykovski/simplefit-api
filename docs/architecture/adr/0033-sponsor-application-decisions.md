@@ -104,3 +104,36 @@ Lock order is the operator, the application, then the organization.
 | Evidence and contact verification required for approval | No (D-SA09 open; contact verification optional by ADR 0032) |
 | Malware scanning | None; documents are never reported scanned and always download as attachments |
 | Reviewer staffing (D-SA22), second operator (D-SA14) | **BLOCKED** |
+
+## Verification layers (SF-116 corrections)
+
+These are kept apart, and none stands in for another:
+
+| Layer | What it is | Where |
+| --- | --- | --- |
+| Domain and in-process HTTP | ExUnit in the SQL sandbox; Phoenix endpoint and router in-process (`ConnTest`) | `test/simple_fit/sponsor_application_decisions_test.exs`, `test/simple_fit_web/controllers/sponsor_application_*_test.exs` |
+| Real PostgreSQL races | Concurrent `Task`s on separate pooled connections, real commits, outside the sandbox | `test/simple_fit/sponsor_application_decisions_race_test.exs` |
+| Standalone HTTP E2E | A separately running `mix phx.server` on a disposable database, driven over real HTTP | `test/standalone/sponsor_review_http_e2e_test.exs` (skipped unless pointed at a server) |
+| WebAuthn | The repository's **software** authenticator (`SimpleFit.OperatorHelpers`) against the production verification code | All of the above |
+| Hardware security keys | **Not performed.** An operational check before any production use | — |
+
+### Standalone HTTP E2E
+
+The server needs:
+* a disposable database (with `e2e` in its name);
+* the development configuration;
+* the test-only legal registry, which holds the published declaration fixture;
+* the local development ceremony key, created before the server starts so that it trusts it at boot.
+
+Nothing is injected into requests: accounts use the email-code API, and the founder is bootstrapped by the development ceremony. Two keys and the key check go over HTTP.
+
+A database can have only one founder (SF-110), so each run needs a **fresh** disposable database. The test refuses a database that already has an operator. Disposable databases are never dropped by the procedure.
+
+```bash
+export E2E_DB=postgres://postgres:postgres@localhost/simple_fit_sf116_e2e
+MIX_ENV=dev mix operators.dev_ceremony --user-id 00000000-0000-4000-8000-000000000000 --out /tmp/x.json  # creates .operator-dev/ keys
+MIX_ENV=dev DATABASE_URL=$E2E_DB mix ecto.create && MIX_ENV=dev DATABASE_URL=$E2E_DB mix ecto.migrate
+env -u RESEND_API_KEY MIX_ENV=dev PORT=4116 DATABASE_URL=$E2E_DB \
+  SIMPLEFIT_DEV_LEGAL_REGISTRY=test/support/legal mix phx.server &
+E2E_API_URL=http://127.0.0.1:4116 E2E_API_DATABASE_URL=$E2E_DB mix test test/standalone
+```

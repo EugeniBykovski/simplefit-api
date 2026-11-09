@@ -251,8 +251,15 @@ defmodule SimpleFit.SponsorApplicationDecisionsRaceTest do
       CHECK (action <> 'sponsor_application.approved') NOT VALID
     """)
 
-    assert {:error, :action_failed} = prepared(c.f, "sponsor_application.approve", c.app).()
-    assert Repo.reload!(c.app).status == :under_review
+    {:ok, execute, _} = confirmed(c.f.user, c.f.session, "sponsor_application.approve", c.app.id)
+
+    run = fn ->
+      Operators.execute("sponsor_application.approve", c.f.user, c.f.session, c.app.id, execute)
+    end
+
+    # The client gets the generic internal error; nothing of the transaction survives.
+    assert {:error, :action_failed} = run.()
+    assert Repo.reload!(c.app).status == :under_review and Repo.reload!(c.app).decided_at == nil
     assert Repo.aggregate(Organization, :count) == 0
     assert Repo.aggregate(Membership, :count) == 0
 
@@ -260,6 +267,19 @@ defmodule SimpleFit.SponsorApplicationDecisionsRaceTest do
              from(n in ApplicationNotification, where: n.kind == :application_approved),
              :count
            ) == 0
+
+    assert allowed("sponsor_application.approve") == 0
+
+    assert [%{outcome: :failed, result_code: "mutation_failed"}] =
+             Repo.all(from(e in AuditEvent, where: e.command == "sponsor_application.approve"))
+
+    # The confirmation and the operation id were rolled back with it: once storage of
+    # the audit works again, the very same request commits exactly once.
+    Repo.query!("ALTER TABLE operator_audit_events DROP CONSTRAINT sf116_audit_fails")
+    assert {:ok, %{application: %{status: :approved}}} = run.()
+
+    assert Repo.aggregate(Organization, :count) == 1 and
+             allowed("sponsor_application.approve") == 1
   end
 
   test "H: an operator revoked while approving never commits after the revocation", c do
