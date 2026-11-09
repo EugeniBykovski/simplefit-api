@@ -347,7 +347,8 @@ defmodule SimpleFit.EntryCoachTest do
             %{"intent" => "admin"},
             %{"context" => "GYM"},
             %{"context" => "COACH"},
-            %{"context" => "sponsor"}
+            %{"context" => "admin"},
+            %{"context" => "SPONSOR"}
           ] do
         assert {:error, changeset} = Entry.resolve(user, params)
 
@@ -425,7 +426,9 @@ defmodule SimpleFit.EntryCoachTest do
 
     test "unsupported, missing and extra values are validation errors", %{user: user} do
       for {params, codes} <- [
-            {%{"context" => "sponsor"}, %{"context" => ["invalid_choice"]}},
+            {%{"context" => "sponsor"}, %{"sponsor_id" => ["required"]}},
+            {%{"context" => "coach", "sponsor_id" => Ecto.UUID.generate()},
+             %{"sponsor_id" => ["invalid"]}},
             {%{"context" => "admin"}, %{"context" => ["invalid_choice"]}},
             {%{"context" => "gym"}, %{"gym_id" => ["required"]}},
             {%{"context" => "coach", "gym_id" => Ecto.UUID.generate()},
@@ -492,12 +495,14 @@ defmodule SimpleFit.EntryCoachTest do
       assert Repo.aggregate(ContextChoice, :count) == 0
     end
 
-    test "the database accepts only known contexts, and a gym choice must name its gym", %{
-      user: user
-    } do
+    test "the database accepts only known contexts, and a gym or sponsor choice must name its target",
+         %{
+           user: user
+         } do
       for {context, constraint} <- [
-            {"sponsor", "context_values"},
-            {"gym", "gym_choice_names_gym"}
+            {"admin", "context_values"},
+            {"gym", "gym_choice_names_gym"},
+            {"sponsor", "sponsor_choice_names_organization"}
           ] do
         assert_raise Postgrex.Error, ~r/#{constraint}/, fn ->
           Repo.query!(

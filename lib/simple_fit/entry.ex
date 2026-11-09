@@ -39,12 +39,19 @@ defmodule SimpleFit.Entry do
        completed gym and no draft -> `gym_home` (`gym_id`); several (or a
        completed gym and a draft) -> the remembered gym when it is still
        valid and there is no draft, otherwise `gym_selection`.
-       `sponsor` -> `sponsor_application` (nothing is created).
-    4. `context` naming a completed profile, or `context: gym` with a
-       `gym_id` of a completed gym where the user is active staff -> that
-       home (`requested_context`). Anything else is ignored.
-    5. Otherwise, by completed contexts (completed profiles and completed
-       gym workspaces, each gym counting once):
+       `intent: sponsor` (SF-112) -> by the user's real sponsor workspaces
+       (active memberships of active organizations): none ->
+       `sponsor_application` (begin an application; nothing is created, and
+       no application state is inferred: that domain doesn't exist yet); one
+       -> `sponsor_home` (`sponsor_id`); several -> the remembered one while
+       still valid, otherwise `context_selection`.
+    4. `context` naming a completed profile, `context: gym` with a
+       `gym_id` of a completed gym where the user is active staff, or
+       `context: sponsor` with a `sponsor_id` of an active organization where
+       the user is an active member -> that home (`requested_context`).
+       Anything else is ignored.
+    5. Otherwise, by completed contexts (completed profiles, completed gym
+       workspaces and sponsor workspaces, each organization counting once):
        * none: nothing started -> `role_selection`; one journey in progress
          (a profile onboarding, or the gym draft the user owns) -> resume it;
          several -> `context_selection`;
@@ -53,13 +60,16 @@ defmodule SimpleFit.Entry do
        * several -> the last explicit choice's home while still valid, or
          `context_selection`.
 
-  `capabilities` projects completed profiles (`FIGHTER`, `COACH`) and, from
+  `capabilities` projects completed profiles (`FIGHTER`, `COACH`), from
   an active staff membership at a gym with a completed setup,
-  `GYM_WORKSPACE`. A draft gym grants no capability: its owner resumes setup
+  `GYM_WORKSPACE`, and from an active membership of an active sponsor
+  organization, `SPONSOR_WORKSPACE` (SF-112). Never an operator capability:
+  operator state is only `GET /api/v1/admin/me`. A draft gym grants no capability: its owner resumes setup
   through rule 3 or 5. Gym facts come only from `SimpleFit.Gyms` (the
   viewer's own active memberships, re-read on every resolution), and a gym
   id in the answer is navigation: every gym operation authorizes the id in
-  its own path (ADR 0026, D-G15/D-G23).
+  its own path (ADR 0026, D-G15/D-G23). Sponsor facts likewise come only from
+  `SimpleFit.Sponsors`, and a `sponsor_id` is navigation (ADR 0030).
   """
 
   import Ecto.Changeset
@@ -74,6 +84,7 @@ defmodule SimpleFit.Entry do
   alias SimpleFit.Fighters
   alias SimpleFit.Gyms
   alias SimpleFit.Repo
+  alias SimpleFit.Sponsors
 
   @intents ~w(fighter coach gym sponsor)a
   @contexts ContextChoice.contexts()
@@ -84,9 +95,10 @@ defmodule SimpleFit.Entry do
   @chooser_limit 25
 
   @no_gyms %{completed_count: 0, single_completed_gym_id: nil, open_draft_gym_id: nil}
+  @no_sponsors %{count: 0, single_sponsor_id: nil}
 
   @type intent :: :fighter | :coach | :gym | :sponsor
-  @type context :: :fighter | :coach | :gym
+  @type context :: :fighter | :coach | :gym | :sponsor
   @type destination ::
           :account_registration
           | :role_selection
@@ -99,6 +111,7 @@ defmodule SimpleFit.Entry do
           | :gym_home
           | :gym_selection
           | :sponsor_application
+          | :sponsor_home
   @type reason ::
           :account_registration_incomplete
           | :fighter_onboarding_not_started
@@ -119,9 +132,11 @@ defmodule SimpleFit.Entry do
           | :gym_setup_in_progress
           | :gym_workspace_completed
           | :gym_choice_required
+          | :sponsor_workspace_active
+          | :sponsor_choice_required
   @type account_registration :: :not_started | :in_progress | :complete
   @type profile_status :: :not_started | :in_progress | :completed
-  @type capability :: :fighter | :coach | :gym_workspace
+  @type capability :: :fighter | :coach | :gym_workspace | :sponsor_workspace
 
   @typedoc "The viewer's gym workspace counts (see `SimpleFit.Gyms.workspace_overview/2`)."
   @type gym_facts :: %{
@@ -148,7 +163,14 @@ defmodule SimpleFit.Entry do
           optional(:requested_gym) => Gyms.workspace_summary() | nil,
           optional(:last_gym_id) => Ecto.UUID.t() | nil,
           optional(:gym_workspaces) => [map()],
-          optional(:gym_workspace_count) => non_neg_integer()
+          optional(:gym_workspace_count) => non_neg_integer(),
+          optional(:sponsors) => %{
+            count: non_neg_integer(),
+            single_sponsor_id: Ecto.UUID.t() | nil
+          },
+          optional(:requested_sponsor) => Sponsors.workspace_summary() | nil,
+          optional(:last_sponsor_id) => Ecto.UUID.t() | nil,
+          optional(:sponsor_workspaces) => [map()]
         }
 
   @type t :: %{
@@ -163,14 +185,17 @@ defmodule SimpleFit.Entry do
           coach_profile: profile_status(),
           capabilities: [capability()],
           gym_workspaces: [map()],
-          gym_workspace_count: non_neg_integer()
+          gym_workspace_count: non_neg_integer(),
+          sponsor_id: Ecto.UUID.t() | nil,
+          sponsor_workspaces: [map()],
+          sponsor_workspace_count: non_neg_integer()
         }
 
   @doc "The allowed navigation intents."
   @spec intents() :: [intent()]
   def intents, do: @intents
 
-  @doc "The contexts a user can request or choose (profiles, and `gym` with a gym id)."
+  @doc "The contexts a user can request or choose (profiles, `gym` with a gym id, `sponsor` with a sponsor id)."
   @spec contexts() :: [context()]
   def contexts, do: @contexts
 
@@ -188,7 +213,8 @@ defmodule SimpleFit.Entry do
       :gym_onboarding,
       :gym_home,
       :gym_selection,
-      :sponsor_application
+      :sponsor_application,
+      :sponsor_home
     ]
 
   @doc """
@@ -218,21 +244,27 @@ defmodule SimpleFit.Entry do
       :gym_setup_not_started,
       :gym_setup_in_progress,
       :gym_workspace_completed,
-      :gym_choice_required
+      :gym_choice_required,
+      :sponsor_workspace_active,
+      :sponsor_choice_required
     ]
 
   @doc """
   Resolves the entry of an authenticated user. `params` may carry `"intent"`
   (one of `intents/0`), `"context"` (one of `contexts/0`) and, with
-  `context: gym`, `"gym_id"`, as strings; absent, `nil` or `""` means none.
+  `context: gym`, `"gym_id"` or, with `context: sponsor`, `"sponsor_id"`,
+  as strings; absent, `nil` or `""` means none.
   Any other value is a validation error, never a role. Read-only.
   """
   @spec resolve(User.t(), map()) :: {:ok, t()} | {:error, Ecto.Changeset.t()}
   def resolve(%User{} = user, params \\ %{}) when is_map(params) do
-    with {:ok, %{intent: intent, context: context, gym_id: gym_id}} <- cast_request(params) do
+    with {:ok, %{intent: intent, context: context, gym_id: gym_id, sponsor_id: sponsor_id}} <-
+           cast_request(params) do
       overview = Gyms.workspace_overview(user, @chooser_limit)
+      sponsors = Sponsors.workspace_overview(user, @chooser_limit)
       choice = last_choice(user)
       last_gym_id = valid_last_gym(user, choice)
+      last_sponsor_id = valid_last_sponsor(user, choice)
 
       entry =
         decide(%{
@@ -247,7 +279,12 @@ defmodule SimpleFit.Entry do
           last_gym_id: last_gym_id,
           gym_workspaces:
             Enum.map(overview.entries, &Map.put(&1, :selected, &1.gym_id == last_gym_id)),
-          gym_workspace_count: overview.total
+          gym_workspace_count: overview.total,
+          sponsors: %{count: sponsors.total, single_sponsor_id: sponsors.single_sponsor_id},
+          requested_sponsor: requested_sponsor(user, context, sponsor_id),
+          last_sponsor_id: last_sponsor_id,
+          sponsor_workspaces:
+            Enum.map(sponsors.entries, &Map.put(&1, :selected, &1.sponsor_id == last_sponsor_id))
         })
 
       Logger.info("entry resolved",
@@ -269,20 +306,30 @@ defmodule SimpleFit.Entry do
   def decide(%{intent: intent, account_registration: account, fighter_profile: fighter} = facts) do
     profiles = %{fighter: fighter, coach: Map.get(facts, :coach_profile, :not_started)}
     gyms = Map.merge(@no_gyms, Map.get(facts, :gyms, %{}))
+    sponsors = Map.merge(@no_sponsors, Map.get(facts, :sponsors, %{}))
     completed = for context <- @profile_contexts, profiles[context] == :completed, do: context
-    requested_gym = Map.get(facts, :requested_gym)
-    applied = applied_context(Map.get(facts, :context), completed, requested_gym)
+
+    requested = %{
+      gym: Map.get(facts, :requested_gym),
+      sponsor: Map.get(facts, :requested_sponsor)
+    }
+
+    applied = applied_context(Map.get(facts, :context), completed, requested)
 
     state = %{
       profiles: profiles,
       completed: completed,
       gyms: gyms,
-      requested_gym: requested_gym,
+      sponsors: sponsors,
+      requested_gym: requested.gym,
+      requested_sponsor: requested.sponsor,
       last: Map.get(facts, :last_context),
-      last_gym_id: Map.get(facts, :last_gym_id)
+      last_gym_id: Map.get(facts, :last_gym_id),
+      last_sponsor_id: Map.get(facts, :last_sponsor_id)
     }
 
-    {destination, reason, gym_id} = route(account, intent, applied, state)
+    {destination, reason, target} = route(account, intent, applied, state)
+    {gym_id, sponsor_id} = target_ids(destination, target)
 
     %{
       destination: destination,
@@ -294,17 +341,24 @@ defmodule SimpleFit.Entry do
       account_registration: account,
       fighter_profile: profiles.fighter,
       coach_profile: profiles.coach,
-      capabilities: completed ++ if(gyms.completed_count > 0, do: [:gym_workspace], else: []),
+      capabilities:
+        completed ++
+          if(gyms.completed_count > 0, do: [:gym_workspace], else: []) ++
+          if(sponsors.count > 0, do: [:sponsor_workspace], else: []),
       gym_workspaces: Map.get(facts, :gym_workspaces, []),
-      gym_workspace_count: Map.get(facts, :gym_workspace_count, 0)
+      gym_workspace_count: Map.get(facts, :gym_workspace_count, 0),
+      sponsor_id: sponsor_id,
+      sponsor_workspaces: Map.get(facts, :sponsor_workspaces, []),
+      sponsor_workspace_count: sponsors.count
     }
   end
 
   @doc """
   Records the user's explicit context choice (a context switcher or the
-  context-selection screen): a completed profile (`fighter`, `coach`) or,
-  with `gym_id`, a gym with a completed setup where the user holds an active
-  staff membership (SF-84). The latest choice replaces the previous one.
+  context-selection screen): a completed profile (`fighter`, `coach`), with
+  `gym_id` a gym with a completed setup where the user holds an active staff
+  membership (SF-84), or with `sponsor_id` an active sponsor organization where
+  the user holds an active membership (SF-112; share-locked the same way). The latest choice replaces the previous one.
   `{:error, :conflict}` when the profile is not completed, `{:conflict,
   %{setup_status: "draft"}}` for a draft gym, `{:error, :not_found}` for any
   gym where the user is not active staff (existence is never revealed), and
@@ -325,23 +379,49 @@ defmodule SimpleFit.Entry do
   defp store_choice(user, %{context: :gym, gym_id: gym_id}) do
     Repo.transaction(fn ->
       case Gyms.lock_workspace(user, gym_id) do
-        {:ok, %{setup_status: :completed, gym_id: id}} -> upsert_choice!(user, :gym, id)
+        {:ok, %{setup_status: :completed, gym_id: id}} -> upsert_choice!(user, :gym, id, nil)
         {:ok, %{setup_status: :draft}} -> Repo.rollback({:conflict, %{setup_status: "draft"}})
         {:error, :not_found} -> Repo.rollback(:not_found)
       end
     end)
   end
 
-  defp store_choice(user, %{context: context}) do
-    with :ok <- require_completed(user, context), do: {:ok, upsert_choice!(user, context, nil)}
+  # SF-112: the organization and the membership are share-locked while the choice is
+  # written, so a concurrent revocation commits before (`not_found`) or after it.
+  defp store_choice(user, %{context: :sponsor, sponsor_id: sponsor_id}) do
+    Repo.transaction(fn ->
+      case Sponsors.lock_workspace(user, sponsor_id) do
+        {:ok, %{sponsor_id: id}} -> upsert_choice!(user, :sponsor, nil, id)
+        {:error, :not_found} -> Repo.rollback(:not_found)
+      end
+    end)
   end
 
-  defp upsert_choice!(%User{id: user_id}, context, gym_id) do
+  defp store_choice(user, %{context: context}) do
+    with :ok <- require_completed(user, context),
+         do: {:ok, upsert_choice!(user, context, nil, nil)}
+  end
+
+  defp upsert_choice!(%User{id: user_id}, context, gym_id, sponsor_id) do
     now = DateTime.utc_now()
 
     Repo.insert!(
-      %ContextChoice{user_id: user_id, context: context, gym_id: gym_id, chosen_at: now},
-      on_conflict: [set: [context: context, gym_id: gym_id, chosen_at: now, updated_at: now]],
+      %ContextChoice{
+        user_id: user_id,
+        context: context,
+        gym_id: gym_id,
+        sponsor_organization_id: sponsor_id,
+        chosen_at: now
+      },
+      on_conflict: [
+        set: [
+          context: context,
+          gym_id: gym_id,
+          sponsor_organization_id: sponsor_id,
+          chosen_at: now,
+          updated_at: now
+        ]
+      ],
       conflict_target: :user_id,
       returning: true
     )
@@ -354,8 +434,9 @@ defmodule SimpleFit.Entry do
     if requested in completed, do: requested
   end
 
-  defp applied_context(:gym, _completed, %{setup_status: :completed}), do: :gym
-  defp applied_context(_requested, _completed, _requested_gym), do: nil
+  defp applied_context(:gym, _completed, %{gym: %{setup_status: :completed}}), do: :gym
+  defp applied_context(:sponsor, _completed, %{sponsor: %{sponsor_id: _}}), do: :sponsor
+  defp applied_context(_requested, _completed, _requested_targets), do: nil
 
   defp route(account, _intent, _context, _state) when account != :complete,
     do: {:account_registration, :account_registration_incomplete, nil}
@@ -365,17 +446,19 @@ defmodule SimpleFit.Entry do
 
   defp route(_account, :gym, _context, state), do: gym_intent(state)
 
-  defp route(_account, :sponsor, _context, _state),
-    do: {:sponsor_application, :sponsor_intent, nil}
+  defp route(_account, :sponsor, _context, state), do: sponsor_intent(state)
 
   defp route(_account, nil, :gym, state),
     do: {:gym_home, :requested_context, state.requested_gym.gym_id}
+
+  defp route(_account, nil, :sponsor, state),
+    do: {:sponsor_home, :requested_context, state.requested_sponsor.sponsor_id}
 
   defp route(_account, nil, context, _state) when not is_nil(context),
     do: {home(context), :requested_context, nil}
 
   defp route(_account, nil, nil, state) do
-    case length(state.completed) + state.gyms.completed_count do
+    case length(state.completed) + state.gyms.completed_count + state.sponsors.count do
       0 -> resume(state)
       1 -> only_completed(state)
       _several -> last_or_choose(state)
@@ -397,6 +480,19 @@ defmodule SimpleFit.Entry do
 
   defp gym_intent(_state), do: {:gym_selection, :gym_choice_required, nil}
 
+  # A Sponsor intent never creates anything, and never infers an application state
+  # (that domain doesn't exist yet): no workspace -> begin an application.
+  defp sponsor_intent(%{sponsors: %{count: 0}}),
+    do: {:sponsor_application, :sponsor_intent, nil}
+
+  defp sponsor_intent(%{sponsors: %{count: 1, single_sponsor_id: id}}),
+    do: {:sponsor_home, :sponsor_workspace_active, id}
+
+  defp sponsor_intent(%{last_sponsor_id: last}) when is_binary(last),
+    do: {:sponsor_home, :last_context, last}
+
+  defp sponsor_intent(_state), do: {:context_selection, :sponsor_choice_required, nil}
+
   # No completed context: resume the one journey in progress, if any.
   defp resume(state) do
     profile_journeys = Enum.filter(@profile_contexts, &(state.profiles[&1] == :in_progress))
@@ -413,11 +509,17 @@ defmodule SimpleFit.Entry do
 
   defp only_completed(%{completed: [context]}), do: with_no_gym(journey(context, :completed))
 
-  defp only_completed(%{gyms: gyms}),
+  defp only_completed(%{gyms: %{completed_count: 1} = gyms}),
     do: {:gym_home, :gym_workspace_completed, gyms.single_completed_gym_id}
+
+  defp only_completed(%{sponsors: sponsors}),
+    do: {:sponsor_home, :sponsor_workspace_active, sponsors.single_sponsor_id}
 
   defp last_or_choose(%{last: :gym, last_gym_id: gym_id}) when is_binary(gym_id),
     do: {:gym_home, :last_context, gym_id}
+
+  defp last_or_choose(%{last: :sponsor, last_sponsor_id: sponsor_id}) when is_binary(sponsor_id),
+    do: {:sponsor_home, :last_context, sponsor_id}
 
   defp last_or_choose(%{last: last, completed: completed}) do
     if last in completed,
@@ -426,6 +528,11 @@ defmodule SimpleFit.Entry do
   end
 
   defp with_no_gym({destination, reason}), do: {destination, reason, nil}
+
+  # A route names at most one target: a gym for gym destinations, an organization
+  # for `sponsor_home`.
+  defp target_ids(:sponsor_home, id), do: {nil, id}
+  defp target_ids(_destination, id), do: {id, nil}
 
   defp journey(:fighter, :completed), do: {:fighter_home, :fighter_onboarding_completed}
   defp journey(:fighter, :in_progress), do: {:fighter_onboarding, :fighter_onboarding_in_progress}
@@ -450,7 +557,7 @@ defmodule SimpleFit.Entry do
     Repo.one(
       from(c in ContextChoice,
         where: c.user_id == ^user_id,
-        select: %{context: c.context, gym_id: c.gym_id}
+        select: %{context: c.context, gym_id: c.gym_id, sponsor_id: c.sponsor_organization_id}
       )
     )
   end
@@ -465,6 +572,26 @@ defmodule SimpleFit.Entry do
   end
 
   defp valid_last_gym(_user, _choice), do: nil
+
+  # A remembered sponsor organization counts only while it is active and the user an
+  # active member there.
+  defp valid_last_sponsor(user, %{context: :sponsor, sponsor_id: sponsor_id}) do
+    case Sponsors.workspace(user, sponsor_id) do
+      {:ok, %{sponsor_id: id}} -> id
+      {:error, :not_found} -> nil
+    end
+  end
+
+  defp valid_last_sponsor(_user, _choice), do: nil
+
+  defp requested_sponsor(user, :sponsor, sponsor_id) do
+    case Sponsors.workspace(user, sponsor_id) do
+      {:ok, workspace} -> workspace
+      {:error, :not_found} -> nil
+    end
+  end
+
+  defp requested_sponsor(_user, _context, _sponsor_id), do: nil
 
   defp requested_gym(user, :gym, gym_id) do
     case Gyms.workspace(user, gym_id) do
@@ -483,11 +610,11 @@ defmodule SimpleFit.Entry do
   end
 
   defp cast_request(params) do
-    {%{}, %{intent: :string, context: :string, gym_id: Ecto.UUID}}
-    |> cast(params, [:intent, :context, :gym_id], empty_values: [nil, ""])
+    {%{}, %{intent: :string, context: :string, gym_id: Ecto.UUID, sponsor_id: Ecto.UUID}}
+    |> cast(params, [:intent, :context, :gym_id, :sponsor_id], empty_values: [nil, ""])
     |> validate_inclusion(:intent, Enum.map(@intents, &Atom.to_string/1))
     |> validate_inclusion(:context, Enum.map(@contexts, &Atom.to_string/1))
-    |> validate_gym_id()
+    |> validate_target_ids()
     |> apply_action(:resolve)
     |> case do
       {:ok, values} ->
@@ -495,7 +622,8 @@ defmodule SimpleFit.Entry do
          %{
            intent: to_atom(values[:intent]),
            context: to_atom(values[:context]),
-           gym_id: values[:gym_id]
+           gym_id: values[:gym_id],
+           sponsor_id: values[:sponsor_id]
          }}
 
       {:error, _changeset} = error ->
@@ -504,36 +632,54 @@ defmodule SimpleFit.Entry do
   end
 
   defp cast_choice(params) do
-    {%{}, %{context: :string, gym_id: Ecto.UUID}}
-    |> cast(params, [:context, :gym_id], empty_values: [nil, ""])
-    |> reject_unknown_keys(params, ["context", :context, "gym_id", :gym_id])
+    {%{}, %{context: :string, gym_id: Ecto.UUID, sponsor_id: Ecto.UUID}}
+    |> cast(params, [:context, :gym_id, :sponsor_id], empty_values: [nil, ""])
+    |> reject_unknown_keys(params, [
+      "context",
+      :context,
+      "gym_id",
+      :gym_id,
+      "sponsor_id",
+      :sponsor_id
+    ])
     |> validate_required([:context])
     |> validate_inclusion(:context, Enum.map(@contexts, &Atom.to_string/1))
-    |> validate_gym_id()
+    |> validate_target_ids()
     |> apply_action(:record)
     |> case do
       {:ok, %{context: context} = values} ->
-        {:ok, %{context: String.to_existing_atom(context), gym_id: values[:gym_id]}}
+        {:ok,
+         %{
+           context: String.to_existing_atom(context),
+           gym_id: values[:gym_id],
+           sponsor_id: values[:sponsor_id]
+         }}
 
       {:error, _changeset} = error ->
         error
     end
   end
 
-  # `gym_id` goes with `context: gym`, and only with it. A malformed id is
-  # already a cast error and is reported once.
-  defp validate_gym_id(changeset) do
-    if Keyword.has_key?(changeset.errors, :gym_id),
-      do: changeset,
-      else: validate_gym_id_pairing(changeset)
+  # `gym_id` goes with `context: gym` and `sponsor_id` with `context: sponsor`, and
+  # only with them. A malformed id is already a cast error and is reported once.
+  defp validate_target_ids(changeset) do
+    changeset
+    |> validate_target_id(:gym_id, "gym")
+    |> validate_target_id(:sponsor_id, "sponsor")
   end
 
-  defp validate_gym_id_pairing(changeset) do
-    case {get_field(changeset, :context), get_field(changeset, :gym_id)} do
-      {"gym", nil} -> add_error(changeset, :gym_id, "can't be blank", validation: :required)
-      {"gym", _gym_id} -> changeset
-      {_other, nil} -> changeset
-      {_other, _gym_id} -> add_error(changeset, :gym_id, "is only allowed with context gym")
+  defp validate_target_id(changeset, field, context) do
+    if Keyword.has_key?(changeset.errors, field),
+      do: changeset,
+      else: validate_pairing(changeset, field, context)
+  end
+
+  defp validate_pairing(changeset, field, context) do
+    case {get_field(changeset, :context) == context, get_field(changeset, field)} do
+      {true, nil} -> add_error(changeset, field, "can't be blank", validation: :required)
+      {true, _id} -> changeset
+      {false, nil} -> changeset
+      {false, _id} -> add_error(changeset, field, "is only allowed with context #{context}")
     end
   end
 

@@ -141,7 +141,7 @@ defmodule SimpleFitWeb.EntryCoachControllerTest do
 
     test "an unknown context is invalid_choice" do
       token = user!() |> session!()
-      conn = token |> authed() |> get(@entry <> "?context=sponsor")
+      conn = token |> authed() |> get(@entry <> "?context=admin")
 
       assert %{
                "code" => "validation_error",
@@ -210,7 +210,8 @@ defmodule SimpleFitWeb.EntryCoachControllerTest do
 
     test "invalid bodies are validation errors and record nothing", %{user: user, token: token} do
       for {body, codes} <- [
-            {%{"context" => "sponsor"}, %{"context" => ["invalid_choice"]}},
+            {%{"context" => "admin"}, %{"context" => ["invalid_choice"]}},
+            {%{"context" => "sponsor"}, %{"sponsor_id" => ["required"]}},
             {%{"context" => "gym"}, %{"gym_id" => ["required"]}},
             {%{}, %{"context" => ["required"]}},
             {%{"context" => "coach", "user_id" => Ecto.UUID.generate()},

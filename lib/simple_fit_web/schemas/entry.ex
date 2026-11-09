@@ -36,7 +36,10 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
             :coach_profile,
             :capabilities,
             :gym_workspaces,
-            :gym_workspace_count
+            :gym_workspace_count,
+            :sponsor_id,
+            :sponsor_workspaces,
+            :sponsor_workspace_count
           ],
           additionalProperties: false,
           properties: %{
@@ -51,8 +54,11 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
               once completed. `gym_onboarding`: start Gym setup (`gym_id` null; nothing is created) or resume the
               draft gym the user owns (`gym_id`). `gym_home`: the gym workspace `gym_id` (a completed gym where the
               user is active staff). `gym_selection`: the user chooses among their gym workspaces
-              (`gym_workspaces`). `sponsor_application`: that journey's entry point; nothing is created. A client
-              that does not know a destination must fail visibly, never guess.
+              (`gym_workspaces`). `sponsor_application`: begin a sponsor application; nothing is created and no
+              application state is implied. `sponsor_home`: the sponsor workspace `sponsor_id` (an active
+              organization where the user is an active member; SF-112). `context_selection` also answers a
+              `sponsor` intent with several sponsor workspaces and no valid remembered one. A client that does not
+              know a destination must fail visibly, never guess.
               """
             },
             reason: %Schema{
@@ -80,8 +86,9 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
               enum: @contexts ++ [nil],
               nullable: true,
               description: """
-              The requested `context` when it was applied (a completed profile, or `gym` with the `gym_id` of a
-              completed gym where the user is active staff; no `intent`; registration complete); otherwise `null`.
+              The requested `context` when it was applied (a completed profile, `gym` with the `gym_id` of a
+              completed gym where the user is active staff, or `sponsor` with the `sponsor_id` of an active
+              organization where the user is an active member; no `intent`; registration complete); otherwise `null`.
               Never stored.
               """
             },
@@ -110,6 +117,32 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
               description:
                 "How many active gym staff memberships the viewer holds (drafts included)."
             },
+            sponsor_id: %Schema{
+              type: :string,
+              format: :uuid,
+              nullable: true,
+              description: """
+              The sponsor organization `destination` refers to (`sponsor_home`); otherwise `null`. Navigation only:
+              every sponsor operation authorizes the id in its own path (`/api/v1/sponsor-organizations/{sponsor_id}`).
+              """
+            },
+            sponsor_workspaces: %Schema{
+              type: :array,
+              maxItems: 25,
+              items: SimpleFitWeb.Schemas.EntrySponsorWorkspace,
+              description: """
+              The viewer's sponsor workspaces (active memberships of active organizations), at most 25, oldest
+              membership first. `sponsor_workspace_count` is the total; read them all with
+              `listMySponsorOrganizations`. Re-read on every resolution: a revoked or suspended membership is gone
+              from the next answer.
+              """
+            },
+            sponsor_workspace_count: %Schema{
+              type: :integer,
+              minimum: 0,
+              description:
+                "How many active memberships of active sponsor organizations the viewer holds."
+            },
             account_registration: %Schema{
               type: :string,
               enum: ["not_started", "in_progress", "complete"],
@@ -127,12 +160,16 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
             },
             capabilities: %Schema{
               type: :array,
-              items: %Schema{type: :string, enum: ["FIGHTER", "COACH", "GYM_WORKSPACE"]},
+              items: %Schema{
+                type: :string,
+                enum: ["FIGHTER", "COACH", "GYM_WORKSPACE", "SPONSOR_WORKSPACE"]
+              },
               description: """
               Capabilities derived from real backend state, in the client route registry's vocabulary
               (`FIGHTER` once Fighter onboarding is complete, `COACH` once Coach onboarding is complete,
-              `GYM_WORKSPACE` while the viewer is active staff at a gym with a completed setup; any combination can
-              be held). A routing projection, not an authorization grant: `COACH` opens the user's own Coach
+              `GYM_WORKSPACE` while the viewer is active staff at a gym with a completed setup, `SPONSOR_WORKSPACE`
+              while the viewer is an active member of an active sponsor organization; any combination can be held).
+              Registration intent never grants `SPONSOR_WORKSPACE`. A routing projection, not an authorization grant: `COACH` opens the user's own Coach
               application only, and gym access is decided per gym by its path.
               """
             }
@@ -152,7 +189,10 @@ defmodule SimpleFitWeb.Schemas.EntryResponse do
           capabilities: ["COACH"],
           gym_id: nil,
           gym_workspaces: [],
-          gym_workspace_count: 0
+          gym_workspace_count: 0,
+          sponsor_id: nil,
+          sponsor_workspaces: [],
+          sponsor_workspace_count: 0
         }
       }
     },
@@ -172,8 +212,9 @@ defmodule SimpleFitWeb.Schemas.EntryContextChoiceRequest do
     %{
       title: "EntryContextChoiceRequest",
       description: """
-      The context the viewer chose: a completed profile, or a gym workspace (with `gym_id`) with a completed setup
-      where the viewer is active staff.
+      The context the viewer chose: a completed profile, a gym workspace (with `gym_id`) with a completed setup
+      where the viewer is active staff, or a sponsor workspace (with `sponsor_id`) where the viewer is an active
+      member of the active organization.
       """,
       type: :object,
       required: [:context],
@@ -182,12 +223,18 @@ defmodule SimpleFitWeb.Schemas.EntryContextChoiceRequest do
         context: %Schema{
           type: :string,
           enum: Enum.map(Entry.contexts(), &Atom.to_string/1),
-          description: "`fighter`, `coach` or `gym` (with `gym_id`)."
+          description:
+            "`fighter`, `coach`, `gym` (with `gym_id`) or `sponsor` (with `sponsor_id`)."
         },
         gym_id: %Schema{
           type: :string,
           format: :uuid,
           description: "Required with `context: gym`, rejected otherwise."
+        },
+        sponsor_id: %Schema{
+          type: :string,
+          format: :uuid,
+          description: "Required with `context: sponsor`, rejected otherwise."
         }
       },
       example: %{context: "gym", gym_id: "4b2c1a7e-1f0a-4c8e-9a52-0d6f3c1b9e21"}
@@ -235,6 +282,37 @@ defmodule SimpleFitWeb.Schemas.EntryGymWorkspace do
         selected: %Schema{
           type: :boolean,
           description: "This gym is the viewer's remembered choice and is still valid."
+        }
+      }
+    },
+    struct?: false
+  )
+end
+
+defmodule SimpleFitWeb.Schemas.EntrySponsorWorkspace do
+  @moduledoc "OpenAPI schema: one of the viewer's sponsor workspaces in the entry answer (SF-112)."
+
+  require OpenApiSpex
+
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(
+    %{
+      title: "EntrySponsorWorkspace",
+      description: """
+      An active sponsor organization where the viewer holds an active membership: only its display name and the
+      viewer's own role. No member, contact, application, campaign, plan or commercial data exists here.
+      """,
+      type: :object,
+      additionalProperties: false,
+      required: [:display_name, :role, :selected, :sponsor_id],
+      properties: %{
+        sponsor_id: %Schema{type: :string, format: :uuid},
+        display_name: %Schema{type: :string},
+        role: %Schema{type: :string, enum: ["owner", "manager", "member"]},
+        selected: %Schema{
+          type: :boolean,
+          description: "This organization is the viewer's remembered choice and is still valid."
         }
       }
     },

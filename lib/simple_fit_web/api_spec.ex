@@ -143,6 +143,13 @@ defmodule SimpleFitWeb.ApiSpec do
               "nothing is published (no public gym surface is approved)."
         },
         %Tag{
+          name: "Sponsors",
+          description:
+            "Sponsor organizations (SF-112): the viewer's own memberships, and each organization's details, " <>
+              "members and contacts, authorized by the viewer's active membership of that organization. " <>
+              "Read-only: organizations are provisioned internally on approval, never created here."
+        },
+        %Tag{
           name: "Platform operators",
           description:
             "Platform operators (SF-110): the viewer's operator state, WebAuthn security keys, the " <>

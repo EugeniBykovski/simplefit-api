@@ -2367,23 +2367,29 @@
       },
       "EntryContextChoiceRequest": {
         "additionalProperties": false,
-        "description": "The context the viewer chose: a completed profile, or a gym workspace (with `gym_id`) with a completed setup\nwhere the viewer is active staff.\n",
+        "description": "The context the viewer chose: a completed profile, a gym workspace (with `gym_id`) with a completed setup\nwhere the viewer is active staff, or a sponsor workspace (with `sponsor_id`) where the viewer is an active\nmember of the active organization.\n",
         "example": {
           "context": "gym",
           "gym_id": "4b2c1a7e-1f0a-4c8e-9a52-0d6f3c1b9e21"
         },
         "properties": {
           "context": {
-            "description": "`fighter`, `coach` or `gym` (with `gym_id`).",
+            "description": "`fighter`, `coach`, `gym` (with `gym_id`) or `sponsor` (with `sponsor_id`).",
             "enum": [
               "fighter",
               "coach",
-              "gym"
+              "gym",
+              "sponsor"
             ],
             "type": "string"
           },
           "gym_id": {
             "description": "Required with `context: gym`, rejected otherwise.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "sponsor_id": {
+            "description": "Required with `context: sponsor`, rejected otherwise.",
             "format": "uuid",
             "type": "string"
           }
@@ -2467,7 +2473,10 @@
             "gym_workspaces": [],
             "intent": "fighter",
             "mandatory": true,
-            "reason": "fighter_onboarding_in_progress"
+            "reason": "fighter_onboarding_in_progress",
+            "sponsor_id": null,
+            "sponsor_workspace_count": 0,
+            "sponsor_workspaces": []
           }
         },
         "properties": {
@@ -2484,12 +2493,13 @@
                 "type": "string"
               },
               "capabilities": {
-                "description": "Capabilities derived from real backend state, in the client route registry's vocabulary\n(`FIGHTER` once Fighter onboarding is complete, `COACH` once Coach onboarding is complete,\n`GYM_WORKSPACE` while the viewer is active staff at a gym with a completed setup; any combination can\nbe held). A routing projection, not an authorization grant: `COACH` opens the user's own Coach\napplication only, and gym access is decided per gym by its path.\n",
+                "description": "Capabilities derived from real backend state, in the client route registry's vocabulary\n(`FIGHTER` once Fighter onboarding is complete, `COACH` once Coach onboarding is complete,\n`GYM_WORKSPACE` while the viewer is active staff at a gym with a completed setup, `SPONSOR_WORKSPACE`\nwhile the viewer is an active member of an active sponsor organization; any combination can be held).\nRegistration intent never grants `SPONSOR_WORKSPACE`. A routing projection, not an authorization grant: `COACH` opens the user's own Coach\napplication only, and gym access is decided per gym by its path.\n",
                 "items": {
                   "enum": [
                     "FIGHTER",
                     "COACH",
-                    "GYM_WORKSPACE"
+                    "GYM_WORKSPACE",
+                    "SPONSOR_WORKSPACE"
                   ],
                   "type": "string"
                 },
@@ -2505,18 +2515,19 @@
                 "type": "string"
               },
               "context": {
-                "description": "The requested `context` when it was applied (a completed profile, or `gym` with the `gym_id` of a\ncompleted gym where the user is active staff; no `intent`; registration complete); otherwise `null`.\nNever stored.\n",
+                "description": "The requested `context` when it was applied (a completed profile, `gym` with the `gym_id` of a\ncompleted gym where the user is active staff, or `sponsor` with the `sponsor_id` of an active\norganization where the user is an active member; no `intent`; registration complete); otherwise `null`.\nNever stored.\n",
                 "enum": [
                   "fighter",
                   "coach",
                   "gym",
+                  "sponsor",
                   null
                 ],
                 "nullable": true,
                 "type": "string"
               },
               "destination": {
-                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\na journey to start. `context_selection`: the user chooses between their profile contexts (both\ncompleted without a remembered choice, or both onboardings in progress). `fighter_onboarding` /\n`fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application\nonce completed. `gym_onboarding`: start Gym setup (`gym_id` null; nothing is created) or resume the\ndraft gym the user owns (`gym_id`). `gym_home`: the gym workspace `gym_id` (a completed gym where the\nuser is active staff). `gym_selection`: the user chooses among their gym workspaces\n(`gym_workspaces`). `sponsor_application`: that journey's entry point; nothing is created. A client\nthat does not know a destination must fail visibly, never guess.\n",
+                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\na journey to start. `context_selection`: the user chooses between their profile contexts (both\ncompleted without a remembered choice, or both onboardings in progress). `fighter_onboarding` /\n`fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application\nonce completed. `gym_onboarding`: start Gym setup (`gym_id` null; nothing is created) or resume the\ndraft gym the user owns (`gym_id`). `gym_home`: the gym workspace `gym_id` (a completed gym where the\nuser is active staff). `gym_selection`: the user chooses among their gym workspaces\n(`gym_workspaces`). `sponsor_application`: begin a sponsor application; nothing is created and no\napplication state is implied. `sponsor_home`: the sponsor workspace `sponsor_id` (an active\norganization where the user is an active member; SF-112). `context_selection` also answers a\n`sponsor` intent with several sponsor workspaces and no valid remembered one. A client that does not\nknow a destination must fail visibly, never guess.\n",
                 "enum": [
                   "account_registration",
                   "role_selection",
@@ -2528,7 +2539,8 @@
                   "gym_onboarding",
                   "gym_home",
                   "gym_selection",
-                  "sponsor_application"
+                  "sponsor_application",
+                  "sponsor_home"
                 ],
                 "type": "string"
               },
@@ -2596,9 +2608,30 @@
                   "gym_setup_not_started",
                   "gym_setup_in_progress",
                   "gym_workspace_completed",
-                  "gym_choice_required"
+                  "gym_choice_required",
+                  "sponsor_workspace_active",
+                  "sponsor_choice_required"
                 ],
                 "type": "string"
+              },
+              "sponsor_id": {
+                "description": "The sponsor organization `destination` refers to (`sponsor_home`); otherwise `null`. Navigation only:\nevery sponsor operation authorizes the id in its own path (`/api/v1/sponsor-organizations/{sponsor_id}`).\n",
+                "format": "uuid",
+                "nullable": true,
+                "type": "string"
+              },
+              "sponsor_workspace_count": {
+                "description": "How many active memberships of active sponsor organizations the viewer holds.",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "sponsor_workspaces": {
+                "description": "The viewer's sponsor workspaces (active memberships of active organizations), at most 25, oldest\nmembership first. `sponsor_workspace_count` is the total; read them all with\n`listMySponsorOrganizations`. Re-read on every resolution: a revoked or suspended membership is gone\nfrom the next answer.\n",
+                "items": {
+                  "$ref": "#/components/schemas/EntrySponsorWorkspace"
+                },
+                "maxItems": 25,
+                "type": "array"
               }
             },
             "required": [
@@ -2613,7 +2646,10 @@
               "coach_profile",
               "capabilities",
               "gym_workspaces",
-              "gym_workspace_count"
+              "gym_workspace_count",
+              "sponsor_id",
+              "sponsor_workspaces",
+              "sponsor_workspace_count"
             ],
             "type": "object"
           }
@@ -2622,6 +2658,39 @@
           "entry"
         ],
         "title": "EntryResponse",
+        "type": "object"
+      },
+      "EntrySponsorWorkspace": {
+        "additionalProperties": false,
+        "description": "An active sponsor organization where the viewer holds an active membership: only its display name and the\nviewer's own role. No member, contact, application, campaign, plan or commercial data exists here.\n",
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "manager",
+              "member"
+            ],
+            "type": "string"
+          },
+          "selected": {
+            "description": "This organization is the viewer's remembered choice and is still valid.",
+            "type": "boolean"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "display_name",
+          "role",
+          "selected",
+          "sponsor_id"
+        ],
+        "title": "EntrySponsorWorkspace",
         "type": "object"
       },
       "Error": {
@@ -11389,6 +11458,257 @@
           "refresh_token_transport"
         ],
         "title": "SessionTokens",
+        "type": "object"
+      },
+      "SponsorContact": {
+        "additionalProperties": false,
+        "description": "A business contact. Not an account and not a member: it grants no access.",
+        "properties": {
+          "contact_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "job_title": {
+            "nullable": true,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "primary",
+              "additional"
+            ],
+            "type": "string"
+          },
+          "phone": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "contact_id",
+          "kind",
+          "full_name",
+          "job_title",
+          "email",
+          "phone"
+        ],
+        "title": "SponsorContact",
+        "type": "object"
+      },
+      "SponsorContactListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "contacts": {
+            "items": {
+              "$ref": "#/components/schemas/SponsorContact"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contacts"
+        ],
+        "title": "SponsorContactListResponse",
+        "type": "object"
+      },
+      "SponsorMember": {
+        "additionalProperties": false,
+        "description": "The short account name only: never an email, full name or other account field.",
+        "properties": {
+          "is_viewer": {
+            "type": "boolean"
+          },
+          "joined_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "membership_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "manager",
+              "member"
+            ],
+            "type": "string"
+          },
+          "short_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "membership_id",
+          "short_name",
+          "role",
+          "status",
+          "joined_at",
+          "is_viewer"
+        ],
+        "title": "SponsorMember",
+        "type": "object"
+      },
+      "SponsorMemberListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/SponsorMember"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "members",
+          "next_cursor"
+        ],
+        "title": "SponsorMemberListResponse",
+        "type": "object"
+      },
+      "SponsorOrganization": {
+        "additionalProperties": false,
+        "description": "An approved sponsor organization. No verification, plan, contract, subscription or other commercial state\nexists: approval grants none (ADR 0030).\n",
+        "properties": {
+          "country_code": {
+            "pattern": "^[A-Z]{2}$",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "legal_name": {
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "description": "`suspended`: read-only for its members. A closed organization is not found.",
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "website": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "sponsor_id",
+          "legal_name",
+          "display_name",
+          "country_code",
+          "website",
+          "status",
+          "revision",
+          "created_at"
+        ],
+        "title": "SponsorOrganization",
+        "type": "object"
+      },
+      "SponsorOrganizationListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "organizations": {
+            "description": "The viewer's active memberships of organizations that aren't closed, oldest membership first.",
+            "items": {
+              "$ref": "#/components/schemas/SponsorOrganizationResponse"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "organizations"
+        ],
+        "title": "SponsorOrganizationListResponse",
+        "type": "object"
+      },
+      "SponsorOrganizationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "membership": {
+            "$ref": "#/components/schemas/SponsorViewerMembership"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/SponsorOrganization"
+          }
+        },
+        "required": [
+          "organization",
+          "membership"
+        ],
+        "title": "SponsorOrganizationResponse",
+        "type": "object"
+      },
+      "SponsorViewerMembership": {
+        "additionalProperties": false,
+        "properties": {
+          "joined_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "membership_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permissions": {
+            "description": "For display only: every operation checks the viewer's active membership and role again.",
+            "items": {
+              "enum": [
+                "view_organization",
+                "view_members",
+                "view_contacts"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "manager",
+              "member"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "membership_id",
+          "role",
+          "permissions",
+          "joined_at"
+        ],
+        "title": "SponsorViewerMembership",
         "type": "object"
       },
       "StaffInvitationAcceptResponse": {
@@ -23386,7 +23706,7 @@
     "/api/v1/me/entry": {
       "get": {
         "callbacks": {},
-        "description": "Resolves where the authenticated user should go next, as a semantic destination that each client maps to its\nown route (never a path). The answer is derived from current state on every call and resolving writes nothing,\nso repeated and concurrent calls are safe and advance on their own as registration and onboarding complete.\n\nOrder (ADR 0017 as amended by SF-51): mandatory account registration first; then an explicit `intent`\n(`fighter` / `coach` lead to that profile's home when completed, otherwise to its onboarding, whatever the\nother profile's state; `gym` by the viewer's real gym workspaces (SF-84): none - `gym_onboarding` to start\nsetup (nothing is created); only the draft they own - `gym_onboarding` resuming it; one completed gym -\n`gym_home`; several - the remembered gym, or `gym_selection`; `sponsor` to its entry point); then a requested\n`context` that names a completed profile, or `context=gym&gym_id=` naming a completed gym where the viewer is\nactive staff; otherwise the default by completed contexts (completed profiles and completed gyms): none -\nresume the one journey in progress (an onboarding, or the viewer's draft gym) or choose (`role_selection`, or\n`context_selection` when several are in progress); one - its home; several - the last context chosen with\n`chooseMyEntryContext` while still valid, or `context_selection`. `intent`, `context` and `gym_id` are\nnavigation only and grant nothing; `capabilities` (`GYM_WORKSPACE` from an active staff membership at a\ncompleted gym) is a routing projection, and every gym operation authorizes the gym in its own path. A gym id\nthe viewer cannot use is ignored, never reported.\n\n* `validation_error` - `intent` or `context` is not an allowed value (`invalid_choice`); `gym_id` is not a\n  UUID, missing with `context=gym` (`required`) or sent without it.\n",
+        "description": "Resolves where the authenticated user should go next, as a semantic destination that each client maps to its\nown route (never a path). The answer is derived from current state on every call and resolving writes nothing,\nso repeated and concurrent calls are safe and advance on their own as registration and onboarding complete.\n\nOrder (ADR 0017 as amended by SF-51): mandatory account registration first; then an explicit `intent`\n(`fighter` / `coach` lead to that profile's home when completed, otherwise to its onboarding, whatever the\nother profile's state; `gym` by the viewer's real gym workspaces (SF-84): none - `gym_onboarding` to start\nsetup (nothing is created); only the draft they own - `gym_onboarding` resuming it; one completed gym -\n`gym_home`; several - the remembered gym, or `gym_selection`; `sponsor` by the viewer's real sponsor\nworkspaces (SF-112): none - `sponsor_application` to begin an application (nothing is created, and no\napplication state is reported: that domain doesn't exist yet); one - `sponsor_home` with `sponsor_id`;\nseveral - the remembered organization, or `context_selection`); then a requested `context` that names a\ncompleted profile, `context=gym&gym_id=` naming a completed gym where the viewer is active staff, or\n`context=sponsor&sponsor_id=` naming an active sponsor organization where the viewer is an active member;\notherwise the default by completed contexts (completed profiles, completed gyms and sponsor workspaces): none -\nresume the one journey in progress (an onboarding, or the viewer's draft gym) or choose (`role_selection`, or\n`context_selection` when several are in progress); one - its home; several - the last context chosen with\n`chooseMyEntryContext` while still valid, or `context_selection`. `intent`, `context` and `gym_id` are\nnavigation only and grant nothing; `capabilities` (`GYM_WORKSPACE` from an active staff membership at a\ncompleted gym, `SPONSOR_WORKSPACE` from an active membership of an active sponsor organization) is a routing\nprojection, and every gym or sponsor operation authorizes its id in its own path. A gym or sponsor id the\nviewer cannot use is ignored, never reported. Operator state never appears here.\n\n* `validation_error` - `intent` or `context` is not an allowed value (`invalid_choice`); `gym_id` or\n  `sponsor_id` is not a UUID, missing with its context (`required`) or sent without it.\n",
         "operationId": "resolveMyEntry",
         "parameters": [
           {
@@ -23413,7 +23733,8 @@
               "enum": [
                 "fighter",
                 "coach",
-                "gym"
+                "gym",
+                "sponsor"
               ],
               "type": "string"
             }
@@ -23422,6 +23743,16 @@
             "description": "With `context=gym`: the gym workspace to open. Ignored unless the viewer is active staff there.",
             "in": "query",
             "name": "gym_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "With `context=sponsor`: the sponsor organization to open. Ignored unless the viewer is an active member of that active organization.",
+            "in": "query",
+            "name": "sponsor_id",
             "required": false,
             "schema": {
               "format": "uuid",
@@ -23464,7 +23795,7 @@
     "/api/v1/me/entry/context": {
       "put": {
         "callbacks": {},
-        "description": "Records an explicit choice among the viewer's completed contexts (a context switcher or the context-selection\nscreen): a completed profile, or (`context: gym` with `gym_id`, SF-84) a gym with a completed setup where the\nviewer is active staff. With several completed contexts and no `intent` or `context`, the entry then resolves\nto this context's home. The latest choice replaces the previous one, for the viewer's account on every device\nand session; it is a navigation preference, never an authorization grant: it is re-checked on every\nresolution (a revoked membership or an unavailable gym is ignored), and each request still names its own gym\nin its path, so tabs and devices on different gyms never interfere. Resolving the entry never records a\nchoice.\n\n* `not_found` - no gym `gym_id` where the viewer is active staff (existence is never revealed); nothing is\n  recorded.\n* `conflict` - that profile context is not completed, or the gym's setup is a draft\n  (`details.setup_status: \"draft\"`); nothing is recorded.\n* `validation_error` - `context` is missing (`required`) or not an allowed value (`invalid_choice`); `gym_id`\n  missing with `context: gym`, sent without it, or not a UUID; any other field is rejected with `invalid`\n  under its name.\n",
+        "description": "Records an explicit choice among the viewer's completed contexts (a context switcher or the context-selection\nscreen): a completed profile, (`context: gym` with `gym_id`, SF-84) a gym with a completed setup where the\nviewer is active staff, or (`context: sponsor` with `sponsor_id`, SF-112) an active sponsor organization where\nthe viewer is an active member. With several completed contexts and no `intent` or `context`, the entry then resolves\nto this context's home. The latest choice replaces the previous one, for the viewer's account on every device\nand session; it is a navigation preference, never an authorization grant: it is re-checked on every\nresolution (a revoked membership or an unavailable gym is ignored), and each request still names its own gym\nin its path, so tabs and devices on different gyms never interfere. Resolving the entry never records a\nchoice.\n\n* `not_found` - no gym `gym_id` where the viewer is active staff, or no active sponsor organization\n  `sponsor_id` where the viewer is an active member (existence is never revealed); nothing is recorded.\n* `conflict` - that profile context is not completed, or the gym's setup is a draft\n  (`details.setup_status: \"draft\"`); nothing is recorded.\n* `validation_error` - `context` is missing (`required`) or not an allowed value (`invalid_choice`); `gym_id`\n  or `sponsor_id` missing with its context, sent without it, or not a UUID; any other field is rejected with `invalid`\n  under its name.\n",
         "operationId": "chooseMyEntryContext",
         "parameters": [],
         "requestBody": {
@@ -25072,6 +25403,41 @@
         ]
       }
     },
+    "/api/v1/me/sponsor-organizations": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's active memberships of sponsor organizations that aren't closed, with each organization and the\nviewer's role. Empty for anyone without one: registration intent, a sponsor application, a contact entry, a\ngym role or operator authority never adds one.\n",
+        "operationId": "listMySponsorOrganizations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorOrganizationListResponse"
+                }
+              }
+            },
+            "description": "Organizations"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My sponsor organizations",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
     "/api/v1/me/staff-invitations": {
       "get": {
         "callbacks": {},
@@ -25812,6 +26178,179 @@
         ]
       }
     },
+    "/api/v1/sponsor-organizations/{sponsor_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "The organization, the viewer's membership and its permissions (display only).\n\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed\n  (indistinguishable).\n",
+        "operationId": "getSponsorOrganization",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorOrganizationResponse"
+                }
+              }
+            },
+            "description": "Organization"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/contacts": {
+      "get": {
+        "callbacks": {},
+        "description": "The organization's business contacts, primary first. Owner and manager only. A contact is not an account or a member and grants nothing.\n\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed\n  (indistinguishable).\n* `forbidden` - the viewer's role can't see contacts.\n",
+        "operationId": "listSponsorContacts",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorContactListResponse"
+                }
+              }
+            },
+            "description": "Contacts"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Business contacts of a sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/members": {
+      "get": {
+        "callbacks": {},
+        "description": "Active and suspended members, oldest first; short account names only. `limit` 1..100 (default 50), `cursor` from the previous page.\n\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed\n  (indistinguishable).\n* `validation_error` - `limit` out of range or a malformed `cursor`.\n",
+        "operationId": "listSponsorMembers",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorMemberListResponse"
+                }
+              }
+            },
+            "description": "Members"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Members of a sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
     "/api/v1/staff-invitations/preview": {
       "post": {
         "callbacks": {},
@@ -26001,6 +26540,10 @@
     {
       "description": "A gym's business verification (SF-103): the owner's application, documents in private storage and submission; only SimpleFit operators decide, outside the API. And the gym's go-live readiness, derived from its records. Separate from gym setup, SimpleFit plans and Stripe; nothing is published (no public gym surface is approved).",
       "name": "Gym verification"
+    },
+    {
+      "description": "Sponsor organizations (SF-112): the viewer's own memberships, and each organization's details, members and contacts, authorized by the viewer's active membership of that organization. Read-only: organizations are provisioned internally on approval, never created here.",
+      "name": "Sponsors"
     },
     {
       "description": "Platform operators (SF-110): the viewer's operator state, WebAuthn security keys, the session-bound key check, operator administration and the operator audit log. Everything answers `not_found` to an account without a usable operator.",

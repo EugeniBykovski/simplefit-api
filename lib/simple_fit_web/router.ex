@@ -196,6 +196,12 @@ defmodule SimpleFitWeb.Router do
     # path; access comes from the viewer's active staff membership there.
     post "/gyms", GymController, :create
     get "/me/gyms", GymController, :index
+    # SF-112: sponsor organizations (ADR 0030). Read-only; each route is authorized
+    # by the viewer's active membership of the organization in its path.
+    get "/me/sponsor-organizations", SponsorOrganizationController, :index
+    get "/sponsor-organizations/:sponsor_id", SponsorOrganizationController, :show
+    get "/sponsor-organizations/:sponsor_id/members", SponsorOrganizationController, :members
+    get "/sponsor-organizations/:sponsor_id/contacts", SponsorOrganizationController, :contacts
     get "/gyms/:gym_id", GymController, :show
     # SF-85: gym owner registration and setup (draft -> completed).
     get "/gyms/:gym_id/setup", GymSetupController, :show

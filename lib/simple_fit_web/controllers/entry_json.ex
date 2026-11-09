@@ -18,7 +18,10 @@ defmodule SimpleFitWeb.EntryJSON do
         coach_profile: entry.coach_profile,
         capabilities: Enum.map(entry.capabilities, &capability/1),
         gym_workspaces: Enum.map(entry.gym_workspaces, &gym_workspace/1),
-        gym_workspace_count: entry.gym_workspace_count
+        gym_workspace_count: entry.gym_workspace_count,
+        sponsor_id: entry.sponsor_id,
+        sponsor_workspaces: Enum.map(entry.sponsor_workspaces, &sponsor_workspace/1),
+        sponsor_workspace_count: entry.sponsor_workspace_count
       }
     }
   end
@@ -35,8 +38,19 @@ defmodule SimpleFitWeb.EntryJSON do
     }
   end
 
+  # Only the organization's display name and the viewer's own role (SF-112).
+  defp sponsor_workspace(workspace) do
+    %{
+      sponsor_id: workspace.sponsor_id,
+      display_name: workspace.display_name,
+      role: Atom.to_string(workspace.role),
+      selected: workspace.selected
+    }
+  end
+
   # The client route registry's capability vocabulary.
   defp capability(:fighter), do: "FIGHTER"
   defp capability(:coach), do: "COACH"
   defp capability(:gym_workspace), do: "GYM_WORKSPACE"
+  defp capability(:sponsor_workspace), do: "SPONSOR_WORKSPACE"
 end
