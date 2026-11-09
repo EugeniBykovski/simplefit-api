@@ -37,7 +37,8 @@
    verification. `sponsor_id` appears in the DTO only once an approval has created an organization.
 6. **Review states** exist in the schema and the trigger but no applicant or public endpoint sets them. Review
    (claim, request changes, approve, reject, approval provisioning through `Sponsors.Provisioning`) is S6,
-   through the SF-111 action framework. Tests use a test-support fixture for them.
+   through the SF-111 action framework. Tests use a test-support fixture for them. *SF-114 (ADR 0032):
+   claim and request changes exist; approval and rejection still don't.*
 7. **Entry** (ADR 0017, amended): `intent=sponsor` without a workspace resolves by the real application: none ->
    `sponsor_application`; draft -> `sponsor_application_draft`; submitted, under review or changes requested ->
    `sponsor_application_status` (with the matching reason); rejected, withdrawn or approved without membership
@@ -51,13 +52,13 @@
 | Account before SP1 (D-SA01) | Followed (recommended option A; design's option B not built) |
 | States (D-SA02) | The proposed seven; proposed, not approved |
 | Budget (D-SA05, NEEDS DECISION) | SP5's six annual EUR bands as codes with integer bounds; an estimate only |
-| Uploads (D-SA09) | Unavailable (`file_scanning_unavailable`); optional, so not a blocker. Logo and SP7 files not stored |
+| Uploads (D-SA09) | Unavailable (`file_scanning_unavailable`); optional, so not a blocker. Logo and SP7 files not stored. *SF-114: built behind a switch, off in production (ADR 0032)* |
 | Declaration | **BLOCKED** until counsel writes and publishes it; submission fails closed. A test-only fixture exists for tests and local E2E |
-| Contact email | Never verified, grants nothing, never linked to an account |
+| Contact email | Never verified, grants nothing, never linked to an account. *SF-114: verifiable by code where emails are enabled; still grants nothing (ADR 0032)* |
 | Reapplication (D-SA03) | **Blocked**: a user with a rejected or withdrawn application can't start another |
 | Withdrawal (T9) | **Not exposed**: with reapplication blocked it would lock the applicant out for good |
 | Discard draft (T2) | Not exposed; retention undecided |
-| Emails | None (no templates; S7) |
+| Emails | None (no templates; S7). *SF-114: an outbox and placeholder templates, sending off in production (ADR 0032)* |
 
 ## Trust boundary
 
