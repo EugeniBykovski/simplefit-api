@@ -1,0 +1,1 @@
+TEST FIXTURE ONLY - sponsor-application-declaration-test-1. Never a legal text; counsel has not written the sponsor declaration.

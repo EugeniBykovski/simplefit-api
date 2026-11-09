@@ -1,6 +1,8 @@
 # ADR 0030 — Sponsor organizations, workspace memberships and entry resolution
 
 * Status: **Accepted for implementation in non-production environments** (SF-112, 2026-11-09). Epic SF-106.
+  **Amended by [ADR 0031](0031-sponsor-applications.md) (SF-113):** applications exist and entry resolves by them;
+  `source_application_id` now has its foreign key.
   Implements the organization and membership part of the **proposed** [ADR 0027](0027-sponsor-and-platform-operator-architecture.md)
   (task S2's foundation and S3's API rules). **No production path creates an organization**: approval (S1/S6)
   doesn't exist, and the only working authority is a local fixture that a production build refuses.

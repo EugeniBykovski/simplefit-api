@@ -143,6 +143,12 @@ defmodule SimpleFitWeb.ApiSpec do
               "nothing is published (no public gym surface is approved)."
         },
         %Tag{
+          name: "Sponsor applications",
+          description:
+            "The viewer's own sponsor application (SF-113): resumable drafts, server-owned validation, " <>
+              "explicit submission with an immutable copy of what was sent. An application grants nothing."
+        },
+        %Tag{
           name: "Sponsors",
           description:
             "Sponsor organizations (SF-112): the viewer's own memberships, and each organization's details, " <>

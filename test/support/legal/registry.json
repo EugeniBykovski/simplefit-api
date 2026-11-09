@@ -40,6 +40,23 @@
           "content_sha256": "e90522acc1954deead106c4259d11b7ab24a9b204167291c54c1706c0e966125"
         }
       }
+    },
+    {
+      "document_id": "sponsor-application-declaration",
+      "version": "sponsor-application-declaration-test-1",
+      "status": "published",
+      "test_only": true,
+      "approval_ref": "TEST-FIXTURE-NOT-APPROVED",
+      "approved_by": [
+        "test fixture"
+      ],
+      "effective_at": "2026-01-01T00:00:00Z",
+      "published_at": "2026-01-01T00:00:00Z",
+      "languages": {
+        "en": {
+          "content_sha256": "3c83693609012ca4514407cee4ea37581e4f5526fbd016665198d4fcb032d1ee"
+        }
+      }
     }
   ]
 }

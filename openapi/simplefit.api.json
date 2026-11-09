@@ -2527,7 +2527,7 @@
                 "type": "string"
               },
               "destination": {
-                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\na journey to start. `context_selection`: the user chooses between their profile contexts (both\ncompleted without a remembered choice, or both onboardings in progress). `fighter_onboarding` /\n`fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application\nonce completed. `gym_onboarding`: start Gym setup (`gym_id` null; nothing is created) or resume the\ndraft gym the user owns (`gym_id`). `gym_home`: the gym workspace `gym_id` (a completed gym where the\nuser is active staff). `gym_selection`: the user chooses among their gym workspaces\n(`gym_workspaces`). `sponsor_application`: begin a sponsor application; nothing is created and no\napplication state is implied. `sponsor_home`: the sponsor workspace `sponsor_id` (an active\norganization where the user is an active member; SF-112). `context_selection` also answers a\n`sponsor` intent with several sponsor workspaces and no valid remembered one. A client that does not\nknow a destination must fail visibly, never guess.\n",
+                "description": "`account_registration`: shared basics and consents (mandatory). `role_selection`: the user chooses\na journey to start. `context_selection`: the user chooses between their profile contexts (both\ncompleted without a remembered choice, or both onboardings in progress). `fighter_onboarding` /\n`fighter_home` and `coach_onboarding` / `coach_home`: a profile's onboarding, or its application\nonce completed. `gym_onboarding`: start Gym setup (`gym_id` null; nothing is created) or resume the\ndraft gym the user owns (`gym_id`). `gym_home`: the gym workspace `gym_id` (a completed gym where the\nuser is active staff). `gym_selection`: the user chooses among their gym workspaces\n(`gym_workspaces`). `sponsor_application`: begin a sponsor application; nothing is created.\n`sponsor_application_draft`: resume the viewer's draft application. `sponsor_application_status`: the\nviewer's application status (submitted, under review, changes requested, or a closed one; read it\nwith `getMySponsorApplication`). An application grants nothing. `sponsor_home`: the sponsor workspace `sponsor_id` (an active\norganization where the user is an active member; SF-112). `context_selection` also answers a\n`sponsor` intent with several sponsor workspaces and no valid remembered one. A client that does not\nknow a destination must fail visibly, never guess.\n",
                 "enum": [
                   "account_registration",
                   "role_selection",
@@ -2540,6 +2540,8 @@
                   "gym_home",
                   "gym_selection",
                   "sponsor_application",
+                  "sponsor_application_draft",
+                  "sponsor_application_status",
                   "sponsor_home"
                 ],
                 "type": "string"
@@ -2610,7 +2612,12 @@
                   "gym_workspace_completed",
                   "gym_choice_required",
                   "sponsor_workspace_active",
-                  "sponsor_choice_required"
+                  "sponsor_choice_required",
+                  "sponsor_application_draft",
+                  "sponsor_application_submitted",
+                  "sponsor_application_under_review",
+                  "sponsor_application_changes_requested",
+                  "sponsor_application_closed"
                 ],
                 "type": "string"
               },
@@ -9264,7 +9271,8 @@
           "document_id": {
             "enum": [
               "fighter-coach-disclosure",
-              "coach-data-rules"
+              "coach-data-rules",
+              "sponsor-application-declaration"
             ],
             "type": "string"
           },
@@ -11458,6 +11466,710 @@
           "refresh_token_transport"
         ],
         "title": "SessionTokens",
+        "type": "object"
+      },
+      "SponsorApplication": {
+        "additionalProperties": false,
+        "description": "The viewer's sponsor application. It grants nothing in any status: no organization, membership,\nagreement, payment or verification. `sponsor_id` appears only once an approval created an organization.\n",
+        "properties": {
+          "allowed_actions": {
+            "items": {
+              "enum": [
+                "edit",
+                "submit"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "answers": {
+            "$ref": "#/components/schemas/SponsorApplicationAnswers"
+          },
+          "application_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "contact_email_verified": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "declaration": {
+            "$ref": "#/components/schemas/SponsorApplicationDeclaration"
+          },
+          "missing_fields": {
+            "description": "Answers a submission still needs, in step order.",
+            "items": {
+              "enum": [
+                "company_name",
+                "website",
+                "country_code",
+                "industry",
+                "contact_full_name",
+                "contact_position",
+                "contact_email",
+                "contact_phone",
+                "interests",
+                "market_scope",
+                "market_countries",
+                "market_cities",
+                "budget_band",
+                "goals"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "submitted",
+              "under_review",
+              "changes_requested",
+              "approved",
+              "rejected",
+              "withdrawn"
+            ],
+            "type": "string"
+          },
+          "submissions": {
+            "items": {
+              "$ref": "#/components/schemas/SponsorApplicationSubmissionSummary"
+            },
+            "type": "array"
+          },
+          "submit_blockers": {
+            "description": "Why `submit` isn't allowed now while editing is.",
+            "items": {
+              "enum": [
+                "incomplete",
+                "declaration_unavailable"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "uploads": {
+            "$ref": "#/components/schemas/SponsorApplicationUploads"
+          }
+        },
+        "required": [
+          "application_id",
+          "status",
+          "revision",
+          "answers",
+          "contact_email_verified",
+          "missing_fields",
+          "allowed_actions",
+          "submit_blockers",
+          "submitted_at",
+          "submissions",
+          "declaration",
+          "uploads",
+          "sponsor_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SponsorApplication",
+        "type": "object"
+      },
+      "SponsorApplicationAnswers": {
+        "additionalProperties": false,
+        "description": "The applicant's answers (SP1-SP6). `null` or `[]` where not answered yet.",
+        "properties": {
+          "budget_band": {
+            "description": "An annual estimate in EUR excluding VAT. Not an amount, price, commitment or verified figure.",
+            "enum": [
+              "eur_under_5000",
+              "eur_5000_20000",
+              "eur_20000_50000",
+              "eur_50000_100000",
+              "eur_100000_plus",
+              "to_be_discussed"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "company_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "contact_email": {
+            "description": "A work address to discuss the application. Never verified; grants nothing.",
+            "maxLength": 254,
+            "nullable": true,
+            "type": "string"
+          },
+          "contact_full_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "contact_phone": {
+            "description": "E.164.",
+            "nullable": true,
+            "pattern": "^\\+[1-9][0-9]{6,14}$",
+            "type": "string"
+          },
+          "contact_position": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "country_code": {
+            "description": "ISO 3166-1 alpha-2.",
+            "nullable": true,
+            "pattern": "^[A-Z]{2}$",
+            "type": "string"
+          },
+          "goals": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "industry": {
+            "enum": [
+              "boxing_equipment",
+              "sports_apparel",
+              "nutrition",
+              "recovery",
+              "fitness_technology",
+              "events",
+              "other"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "items": {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "website": {
+            "maxLength": 200,
+            "nullable": true,
+            "pattern": "^https://\\S+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "budget_band",
+          "company_name",
+          "contact_email",
+          "contact_full_name",
+          "contact_phone",
+          "contact_position",
+          "country_code",
+          "goals",
+          "industry",
+          "interests",
+          "market_cities",
+          "market_countries",
+          "market_scope",
+          "website"
+        ],
+        "title": "SponsorApplicationAnswers",
+        "type": "object"
+      },
+      "SponsorApplicationDeclaration": {
+        "additionalProperties": false,
+        "description": "The declaration a submission must accept: the published legal registry version. `available: false` while counsel hasn't published one; submission is then unavailable.",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "document_id": {
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "document_id",
+          "version",
+          "languages"
+        ],
+        "title": "SponsorApplicationDeclaration",
+        "type": "object"
+      },
+      "SponsorApplicationPolicyResponse": {
+        "additionalProperties": false,
+        "description": "What the backend accepts and what a submission needs (codes; clients translate). Versioned.",
+        "properties": {
+          "policy": {
+            "additionalProperties": false,
+            "properties": {
+              "budget_bands": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "currency": {
+                      "enum": [
+                        "EUR"
+                      ],
+                      "type": "string"
+                    },
+                    "max": {
+                      "description": "Whole euros per year.",
+                      "nullable": true,
+                      "type": "integer"
+                    },
+                    "min": {
+                      "description": "Whole euros per year.",
+                      "nullable": true,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "currency",
+                    "min",
+                    "max"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "declaration": {
+                "$ref": "#/components/schemas/SponsorApplicationDeclaration"
+              },
+              "industries": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "interests": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "required": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "scopes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "steps": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "fields": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "step": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "step",
+                    "fields"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "uploads": {
+                "$ref": "#/components/schemas/SponsorApplicationUploads"
+              },
+              "version": {
+                "example": "sponsor-application-2026-11.v1",
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "steps",
+              "required",
+              "industries",
+              "interests",
+              "scopes",
+              "budget_bands",
+              "uploads",
+              "declaration"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "policy"
+        ],
+        "title": "SponsorApplicationPolicyResponse",
+        "type": "object"
+      },
+      "SponsorApplicationResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "application": {
+            "$ref": "#/components/schemas/SponsorApplication"
+          }
+        },
+        "required": [
+          "application"
+        ],
+        "title": "SponsorApplicationResponse",
+        "type": "object"
+      },
+      "SponsorApplicationSaveRequest": {
+        "additionalProperties": false,
+        "description": "Any subset of the answers; only those change, each validated now (an invalid save changes nothing). `null`\nclears an answer. Starting an application needs at least one non-blank answer and `client_request_id`;\nevery later save needs `expected_revision`.\n",
+        "properties": {
+          "budget_band": {
+            "description": "An annual estimate in EUR excluding VAT. Not an amount, price, commitment or verified figure.",
+            "enum": [
+              "eur_under_5000",
+              "eur_5000_20000",
+              "eur_20000_50000",
+              "eur_50000_100000",
+              "eur_100000_plus",
+              "to_be_discussed"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "company_name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "contact_email": {
+            "description": "A work address to discuss the application. Never verified; grants nothing.",
+            "maxLength": 254,
+            "nullable": true,
+            "type": "string"
+          },
+          "contact_full_name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "contact_phone": {
+            "description": "E.164.",
+            "nullable": true,
+            "pattern": "^\\+[1-9][0-9]{6,14}$",
+            "type": "string"
+          },
+          "contact_position": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "country_code": {
+            "description": "ISO 3166-1 alpha-2.",
+            "nullable": true,
+            "pattern": "^[A-Z]{2}$",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "goals": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "industry": {
+            "enum": [
+              "boxing_equipment",
+              "sports_apparel",
+              "nutrition",
+              "recovery",
+              "fitness_technology",
+              "events",
+              "other"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "items": {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "website": {
+            "maxLength": 200,
+            "nullable": true,
+            "pattern": "^https://\\S+$",
+            "type": "string"
+          }
+        },
+        "title": "SponsorApplicationSaveRequest",
+        "type": "object"
+      },
+      "SponsorApplicationSubmissionResponse": {
+        "additionalProperties": false,
+        "description": "Exactly what one submission sent. Immutable.",
+        "properties": {
+          "submission": {
+            "additionalProperties": false,
+            "properties": {
+              "answers": {
+                "$ref": "#/components/schemas/SponsorApplicationAnswers"
+              },
+              "declaration_language": {
+                "type": "string"
+              },
+              "declaration_version": {
+                "type": "string"
+              },
+              "policy_version": {
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "submission_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "submitted_at": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "submission_id",
+              "sequence",
+              "submitted_at",
+              "policy_version",
+              "answers",
+              "declaration_version",
+              "declaration_language"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "submission"
+        ],
+        "title": "SponsorApplicationSubmissionResponse",
+        "type": "object"
+      },
+      "SponsorApplicationSubmissionSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "policy_version": {
+            "type": "string"
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "submission_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submission_id",
+          "sequence",
+          "submitted_at",
+          "policy_version"
+        ],
+        "title": "SponsorApplicationSubmissionSummary",
+        "type": "object"
+      },
+      "SponsorApplicationSubmitRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "description": "One per submit attempt; a repeat with the same request answers the same.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "declaration_accepted": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "declaration_language": {
+            "description": "One of `declaration.languages`.",
+            "type": "string"
+          },
+          "declaration_version": {
+            "description": "The published declaration version from `declaration.version`.",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "client_request_id",
+          "declaration_accepted",
+          "declaration_version",
+          "declaration_language"
+        ],
+        "title": "SponsorApplicationSubmitRequest",
+        "type": "object"
+      },
+      "SponsorApplicationUploads": {
+        "additionalProperties": false,
+        "description": "Uploads (logo, files) are unavailable until a file scanner is approved (D-SA09). Optional.",
+        "properties": {
+          "available": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "reason": {
+            "enum": [
+              "file_scanning_unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "reason"
+        ],
+        "title": "SponsorApplicationUploads",
         "type": "object"
       },
       "SponsorContact": {
@@ -21481,7 +22193,8 @@
             "schema": {
               "enum": [
                 "fighter-coach-disclosure",
-                "coach-data-rules"
+                "coach-data-rules",
+                "sponsor-application-declaration"
               ],
               "type": "string"
             }
@@ -21534,7 +22247,8 @@
             "schema": {
               "enum": [
                 "fighter-coach-disclosure",
-                "coach-data-rules"
+                "coach-data-rules",
+                "sponsor-application-declaration"
               ],
               "type": "string"
             }
@@ -25403,6 +26117,204 @@
         ]
       }
     },
+    "/api/v1/me/sponsor-application": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's current application (draft, submitted, under review, changes requested), otherwise their latest,\nwith the answers saved so far, what a submission still needs and what the viewer can do now.\n\n* `not_found` - the viewer has no application. Choosing the sponsor journey creates none.\n",
+        "operationId": "getMySponsorApplication",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My sponsor application",
+        "tags": [
+          "Sponsor applications"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Saves any subset of the answers. The first save with at least one non-blank answer starts the draft\n(`client_request_id`; repeating it answers the same); every later save names `expected_revision`. Only the\nsent answers change, each validated now; nothing a later step needs is required yet. An invalid save changes\nnothing. Editable only in `draft` and `changes_requested`.\n\n* `revision_conflict` - the application changed since `expected_revision` (another device); read it again.\n* `conflict` - `details.application`: `not_editable` (submitted or decided), `reapplication_unavailable`\n  (a rejected or withdrawn application exists and reapplication isn't decided, D-SA03), `exists`;\n  `details.client_request_id: \"reused\"`; `details.account_registration: \"incomplete\"`.\n* `validation_error` - per field (`fields`, `field_codes`); `answers` when nothing was given to start with.\n* `rate_limited`.\n",
+        "operationId": "saveMySponsorApplication",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorApplicationSaveRequest"
+              }
+            }
+          },
+          "description": "Answers",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save answers to my sponsor application",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
+    "/api/v1/me/sponsor-application/submissions/{submission_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Exactly what one submission of the viewer's application sent. `not_found` for any other id.",
+        "operationId": "getMySponsorApplicationSubmission",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationSubmissionResponse"
+                }
+              }
+            },
+            "description": "The submission"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One of my submissions",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
+    "/api/v1/me/sponsor-application/submit": {
+      "post": {
+        "callbacks": {},
+        "description": "Submits the draft (or the application whose changes were requested) for review: checks the revision, the\naccepted published declaration and every required answer, then stores an immutable copy of what was sent and\nmoves the application to `submitted`, in one transaction. Repeating the same request with the same\n`client_request_id` answers the same and sends nothing new. Submitting grants nothing.\n\n* `validation_error` - `field_codes` name each missing answer (`required`), or a malformed request.\n* `revision_conflict` - the application changed since `expected_revision`.\n* `conflict` - `details.declaration`: `unavailable` (none published; submission is closed) or `stale` (a newer\n  version); `details.application: \"not_submittable\"`; `details.client_request_id: \"reused\"`.\n* `not_found` - the viewer has no current application.\n* `rate_limited`.\n",
+        "operationId": "submitMySponsorApplication",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorApplicationSubmitRequest"
+              }
+            }
+          },
+          "description": "Submission",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationResponse"
+                }
+              }
+            },
+            "description": "The application"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Submit my sponsor application",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
     "/api/v1/me/sponsor-organizations": {
       "get": {
         "callbacks": {},
@@ -26178,6 +27090,41 @@
         ]
       }
     },
+    "/api/v1/sponsor-application-policy": {
+      "get": {
+        "callbacks": {},
+        "description": "The validation policy: steps and their fields, what a submission needs, the allowed codes, budget bands, uploads availability and the declaration to accept.",
+        "operationId": "getSponsorApplicationPolicy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorApplicationPolicyResponse"
+                }
+              }
+            },
+            "description": "Policy"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "What a sponsor application accepts",
+        "tags": [
+          "Sponsor applications"
+        ]
+      }
+    },
     "/api/v1/sponsor-organizations/{sponsor_id}": {
       "get": {
         "callbacks": {},
@@ -26540,6 +27487,10 @@
     {
       "description": "A gym's business verification (SF-103): the owner's application, documents in private storage and submission; only SimpleFit operators decide, outside the API. And the gym's go-live readiness, derived from its records. Separate from gym setup, SimpleFit plans and Stripe; nothing is published (no public gym surface is approved).",
       "name": "Gym verification"
+    },
+    {
+      "description": "The viewer's own sponsor application (SF-113): resumable drafts, server-owned validation, explicit submission with an immutable copy of what was sent. An application grants nothing.",
+      "name": "Sponsor applications"
     },
     {
       "description": "Sponsor organizations (SF-112): the viewer's own memberships, and each organization's details, members and contacts, authorized by the viewer's active membership of that organization. Read-only: organizations are provisioned internally on approval, never created here.",
