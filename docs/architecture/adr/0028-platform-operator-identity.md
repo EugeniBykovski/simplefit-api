@@ -89,3 +89,12 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
 * Production has no operator until the D-SA13 authority exists and its public key is compiled in.
 * The two-key minimum means a founder must own two security keys before any administration.
 * New permissions need a migration (catalog CHECK) and an ADR update.
+
+## Amendment (SF-120)
+
+* The web Control Plane entry (simplefit-platform SF-120) reads `GET /api/v1/admin/me` and runs the registration and
+  step-up ceremonies; it adds no endpoint and changes no rule. Its first visit (ARW1) is the ADR 0018 experience
+  `control_plane_web_tour`, offered to active operators only; it grants nothing.
+* **Development only:** `config/dev.exs` reads `SIMPLEFIT_DEV_WEBAUTHN_ORIGIN` (default `http://localhost:3000`) so a
+  browser E2E on another port can run the real ceremonies; `rp_id` stays `localhost`. Production configuration is
+  unchanged (`WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN` in `runtime.exs`), and production bootstrap stays BLOCKED (D-SA13).

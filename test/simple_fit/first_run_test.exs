@@ -23,7 +23,17 @@ defmodule SimpleFit.FirstRunTest do
 
   defp experience(user, key) do
     states = FirstRun.list_experiences(user)
-    assert Enum.map(states, & &1.experience) == [:fighter_web_tour, :fighter_mobile_first_run]
+
+    assert Enum.map(states, & &1.experience) == [
+             :fighter_web_tour,
+             :fighter_mobile_first_run,
+             :control_plane_web_tour
+           ]
+
+    # SF-120: the Control Plane tour is an operator's only; never offered to this user.
+    assert %{status: :unavailable} =
+             Enum.find(states, &(&1.experience == :control_plane_web_tour))
+
     Enum.find(states, &(&1.experience == key))
   end
 

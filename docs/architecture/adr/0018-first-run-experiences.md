@@ -97,3 +97,16 @@ mobile app would show a dismissed tour again.
   * a repeat returns the kept state;
   * the checklist is derived from the gym's records, never stored.
 * `first_run_outcomes` and its two Fighter keys are unchanged.
+
+## Amendment (SF-120)
+
+A third experience, `control_plane_web_tour`: ARW1, the Control Plane first visit and tour on the web (SF-109,
+D-SA25 proposed). Product decision for SF-120: stored here, per user (one operator per user, ADR 0028), the same on
+every device.
+
+* **Available** only to an **active** operator (`SimpleFit.Operators.active_operator?/1`: enrolled, not suspended or
+  revoked); anyone else, a pending operator included, sees `unavailable` and cannot record it (`409`).
+* **Outcome** as every experience: the first `completed` or `dismissed` is final; recording again keeps it.
+* **Presentation only:** it grants, restores and checks nothing. Every operator call still checks permission and key
+  (ADR 0028, ADR 0029). Steps and the tour position are client-only.
+* No migration: `experience` is text; the OpenAPI enum follows `FirstRun.experiences/0`.

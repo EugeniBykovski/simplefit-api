@@ -268,7 +268,13 @@ defmodule SimpleFitWeb.FighterJourneyE2ETest do
     end
 
     # 9. First run: each client's experience is its own.
-    pending = %{"fighter_web_tour" => "pending", "fighter_mobile_first_run" => "pending"}
+    # SF-120: the Control Plane tour is listed too, never offered to a Fighter who isn't an operator.
+    pending = %{
+      "fighter_web_tour" => "pending",
+      "fighter_mobile_first_run" => "pending",
+      "control_plane_web_tour" => "unavailable"
+    }
+
     assert first_run(web) == pending
     assert record_first_run(web, "fighter_web_tour", "completed") == "completed"
     assert first_run(mobile) == %{pending | "fighter_web_tour" => "completed"}
@@ -279,7 +285,8 @@ defmodule SimpleFitWeb.FighterJourneyE2ETest do
 
     assert first_run(web) == %{
              "fighter_web_tour" => "completed",
-             "fighter_mobile_first_run" => "dismissed"
+             "fighter_mobile_first_run" => "dismissed",
+             "control_plane_web_tour" => "unavailable"
            }
 
     # 10. Web logs out; mobile is untouched.

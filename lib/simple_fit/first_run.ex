@@ -9,7 +9,8 @@ defmodule SimpleFit.FirstRun do
     * `:unavailable` - the user cannot have the experience yet. The Fighter
       web tour and the Fighter mobile introduction need a completed Fighter
       onboarding (ADR 0015), which itself needs a completed account
-      registration (ADR 0016).
+      registration (ADR 0016). The Control Plane tour (ARW1, SF-120) needs an
+      active operator.
     * `:pending` - available, and no outcome is recorded.
     * `:completed` / `:dismissed` - the recorded outcome. It is final: a
       dismissed tour is never offered again, and recording again (the same or
@@ -26,6 +27,7 @@ defmodule SimpleFit.FirstRun do
   alias SimpleFit.Accounts.User
   alias SimpleFit.Fighters
   alias SimpleFit.FirstRun.Outcome
+  alias SimpleFit.Operators
   alias SimpleFit.Repo
 
   @type status :: :unavailable | :pending | Outcome.outcome()
@@ -99,6 +101,11 @@ defmodule SimpleFit.FirstRun do
        when experience in [:fighter_web_tour, :fighter_mobile_first_run] do
     user |> Fighters.get_profile() |> Fighters.onboarding_status() == :completed
   end
+
+  # ARW1 (SF-120): only an active operator (enrolled, not suspended or revoked). A
+  # recorded outcome stays final whatever happens to the operator later, and recording
+  # one grants, restores or checks nothing (D-SA25).
+  defp available?(user, :control_plane_web_tour), do: Operators.active_operator?(user)
 
   # A recorded outcome stays final even if availability were ever to change.
   defp state(experience, _available?, %Outcome{outcome: outcome, recorded_at: at}),

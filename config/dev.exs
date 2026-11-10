@@ -98,7 +98,10 @@ config :simple_fit, SimpleFit.Operators,
 
 config :simple_fit, SimpleFit.Operators.WebAuthn,
   rp_id: "localhost",
-  origin: "http://localhost:3000",
+  # SF-120: the web origin of the operator ceremonies in development. A browser E2E on
+  # another port sets SIMPLEFIT_DEV_WEBAUTHN_ORIGIN (e.g. http://localhost:3100); the rp_id
+  # stays `localhost`. Production reads WEBAUTHN_ORIGIN in runtime.exs and ignores this.
+  origin: System.get_env("SIMPLEFIT_DEV_WEBAUTHN_ORIGIN", "http://localhost:3000"),
   rp_name: "SimpleFit Control Plane (development)"
 
 config :simple_fit, SimpleFit.Operators.Bootstrap,

@@ -49,6 +49,16 @@ defmodule SimpleFit.Operators do
   ## Current operator
 
   @doc """
+  Whether the user is an **active** operator (enrolled, not suspended or revoked), for
+  presentation only (SF-120: the Control Plane first run is offered to active operators).
+  It authorizes nothing: every operator call checks permission and key on its own.
+  """
+  @spec active_operator?(User.t()) :: boolean()
+  def active_operator?(%User{id: user_id}) when is_binary(user_id) do
+    match?(%{status: :active}, usable_operator(user_id))
+  end
+
+  @doc """
   The viewer's own operator state: status, permissions (while active), keys and
   the key check of this session. `:not_found` for anyone without a usable operator.
   """
