@@ -98,3 +98,14 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
 * **Development only:** `config/dev.exs` reads `SIMPLEFIT_DEV_WEBAUTHN_ORIGIN` (default `http://localhost:3000`) so a
   browser E2E on another port can run the real ceremonies; `rp_id` stays `localhost`. Production configuration is
   unchanged (`WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGIN` in `runtime.exs`), and production bootstrap stays BLOCKED (D-SA13).
+
+## Amendment (SF-121)
+
+* Two permissions join the catalog (migration `20261128090000_add_overview_permissions`), as SF-107 proposed them
+  (D-SA16, proposed naming): `platform.dashboard.read` (overview counts, no names) and `system.health.read` (health
+  check results and job counts, no payloads), both at a current key check (`:key`). Nothing is granted by the
+  migration; rollback refuses once either was granted.
+* `GET /api/v1/admin/overview` (`getAdminOverview`) is the overview read. Its sections each follow their own
+  permission and are `restricted` without it; at least one of the overview's permissions is needed. Counts only, so a
+  successful read isn't audited per load (SF-107); refusals are. The metric definitions are in
+  [admin-overview-metrics.md](../admin-overview-metrics.md).

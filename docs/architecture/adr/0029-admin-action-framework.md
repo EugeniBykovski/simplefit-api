@@ -117,3 +117,9 @@ framework event or confirmation exists.
   revision on their own table.
 * Clients must preview before executing confirmed actions and carry `expected_revision`.
 * Audit reads grow the audit table by one row per query; retention is still undecided (D-SA18).
+
+## Amendment (SF-121)
+
+The overview (`SimpleFit.Operators.overview/4`) is a read outside the audited projection map: it authorizes with
+`authorize/4` (refusals audited) and returns aggregate counts only, which SF-107 classifies as "view not logged per
+load". Any read that returns a record, a name or an identifier still goes through the audited projections.

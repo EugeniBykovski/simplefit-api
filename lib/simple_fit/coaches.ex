@@ -204,4 +204,33 @@ defmodule SimpleFit.Coaches do
 
     {inserted == 1, lock_profile(user_id)}
   end
+
+  ## Platform counts (SF-121)
+
+  @doc """
+  Coach profile counts for the operator overview (SF-121), computed in the
+  database: completed onboarding, onboarding in progress, and onboarding completed
+  in `[from, to)`. One profile per user, so a user who is also another kind of
+  profile counts once here. Aggregates only: no profile is read.
+  """
+  @spec profile_counts(DateTime.t(), DateTime.t()) :: %{
+          completed: non_neg_integer(),
+          in_progress: non_neg_integer(),
+          completed_in_period: non_neg_integer()
+        }
+  def profile_counts(%DateTime{} = from, %DateTime{} = to) do
+    Repo.one(
+      from(p in CoachProfile,
+        select: %{
+          completed: filter(count(), not is_nil(p.onboarding_completed_at)),
+          in_progress: filter(count(), is_nil(p.onboarding_completed_at)),
+          completed_in_period:
+            filter(
+              count(),
+              p.onboarding_completed_at >= ^from and p.onboarding_completed_at < ^to
+            )
+        }
+      )
+    )
+  end
 end

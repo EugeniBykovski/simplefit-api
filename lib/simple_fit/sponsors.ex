@@ -325,4 +325,87 @@ defmodule SimpleFit.Sponsors do
       :error -> {:error, :not_found}
     end
   end
+
+  ## Platform counts (SF-121)
+
+  @doc """
+  Sponsor organization counts for the operator overview (SF-121), computed in the
+  database. Only organizations provisioned from an approved application count
+  (development fixtures don't): by status, and those approved in `[from, to)`
+  (an organization is created in its application's approval transaction, so its
+  creation is the approval). Memberships aren't organizations and aren't counted.
+  """
+  @spec organization_counts(DateTime.t(), DateTime.t()) :: %{
+          active: non_neg_integer(),
+          suspended: non_neg_integer(),
+          closed: non_neg_integer(),
+          approved_in_period: non_neg_integer()
+        }
+  def organization_counts(%DateTime{} = from, %DateTime{} = to) do
+    Repo.one(
+      from(o in Organization,
+        where: o.provisioning_source == :sponsor_application,
+        select: %{
+          active: filter(count(), o.status == :active),
+          suspended: filter(count(), o.status == :suspended),
+          closed: filter(count(), o.status == :closed),
+          approved_in_period: filter(count(), o.inserted_at >= ^from and o.inserted_at < ^to)
+        }
+      )
+    )
+  end
+
+  @application_statuses ~w(submitted under_review changes_requested approved rejected withdrawn)a
+
+  @doc """
+  Sponsor application counts for the operator overview (SF-121), computed in the
+  database: submitted applications by current status (drafts are the applicant's
+  and never counted, as operators never see them); applications first submitted in
+  `[from, to)` (the first submission, not a resubmission); and applications
+  approved or rejected in `[from, to)` (their decision time). An approved
+  application stays an application: its organization is counted separately.
+  """
+  @spec application_counts(DateTime.t(), DateTime.t()) :: %{
+          by_status: %{atom() => non_neg_integer()},
+          first_submitted_in_period: non_neg_integer(),
+          approved_in_period: non_neg_integer(),
+          rejected_in_period: non_neg_integer()
+        }
+  def application_counts(%DateTime{} = from, %DateTime{} = to) do
+    found =
+      Repo.all(
+        from(a in SimpleFit.Sponsors.Application,
+          where: a.status in ^@application_statuses,
+          group_by: a.status,
+          select: {a.status, count()}
+        )
+      )
+      |> Map.new()
+
+    first_submitted =
+      Repo.one(
+        from(s in SimpleFit.Sponsors.ApplicationSubmission,
+          where: s.sequence == 1 and s.submitted_at >= ^from and s.submitted_at < ^to,
+          select: count()
+        )
+      )
+
+    decided =
+      Repo.one(
+        from(a in SimpleFit.Sponsors.Application,
+          where: a.decided_at >= ^from and a.decided_at < ^to,
+          select: %{
+            approved: filter(count(), a.status == :approved),
+            rejected: filter(count(), a.status == :rejected)
+          }
+        )
+      )
+
+    %{
+      by_status: Map.new(@application_statuses, &{&1, Map.get(found, &1, 0)}),
+      first_submitted_in_period: first_submitted,
+      approved_in_period: decided.approved,
+      rejected_in_period: decided.rejected
+    }
+  end
 end

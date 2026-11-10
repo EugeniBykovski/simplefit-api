@@ -459,4 +459,44 @@ defmodule SimpleFit.Accounts do
   @doc "See `SimpleFit.Accounts.Registration.date_of_birth/1` (server-side age checks only)."
   @spec date_of_birth(User.t()) :: Date.t() | nil
   defdelegate date_of_birth(user), to: Registration
+
+  ## Platform counts (SF-121)
+
+  @doc """
+  Account counts for the operator overview (SF-121), computed in the database:
+  every user, whose account registration is complete, in progress (profile row,
+  not completed) or not started (no profile row), and registrations completed in
+  `[from, to)`. A user is one row however many identities or contexts it has.
+  Aggregates only: no account is read.
+  """
+  @spec registration_counts(DateTime.t(), DateTime.t()) :: %{
+          total: non_neg_integer(),
+          complete: non_neg_integer(),
+          in_progress: non_neg_integer(),
+          not_started: non_neg_integer(),
+          completed_in_period: non_neg_integer()
+        }
+  def registration_counts(%DateTime{} = from, %DateTime{} = to) do
+    total = Repo.aggregate(User, :count)
+
+    profiles =
+      Repo.one(
+        from(p in AccountProfile,
+          select: %{
+            complete: filter(count(), not is_nil(p.registration_completed_at)),
+            in_progress: filter(count(), is_nil(p.registration_completed_at)),
+            completed_in_period:
+              filter(
+                count(),
+                p.registration_completed_at >= ^from and p.registration_completed_at < ^to
+              )
+          }
+        )
+      )
+
+    Map.merge(profiles, %{
+      total: total,
+      not_started: total - profiles.complete - profiles.in_progress
+    })
+  end
 end

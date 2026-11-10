@@ -29,9 +29,12 @@ defmodule SimpleFit.Billing do
   Stripe's.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias SimpleFit.Accounts.{Session, User}
   alias SimpleFit.Billing.{Catalog, GymSubscription, Payments, PlanVersion, Subscriptions}
-  alias SimpleFit.Billing.Stripe.{Checkout, Invoice}
+  alias SimpleFit.Billing.Stripe.{Checkout, Invoice, WebhookEvent}
+  alias SimpleFit.Repo
 
   @doc "The published SaaS catalog (any signed-in user; nothing is public until approved)."
   @spec published_plans() :: [PlanVersion.t()]
@@ -85,4 +88,13 @@ defmodule SimpleFit.Billing do
   defdelegate reconcile_gym_subscription(user, session, gym_id, subscription_id),
     to: Payments,
     as: :reconcile
+
+  @doc """
+  When the last Stripe webhook event was received (SF-121, the operator health
+  card), or `nil`. A receipt time only: it says nothing about whether payments work.
+  """
+  @spec last_webhook_received_at() :: DateTime.t() | nil
+  def last_webhook_received_at do
+    Repo.one(from(e in WebhookEvent, select: max(e.inserted_at)))
+  end
 end
