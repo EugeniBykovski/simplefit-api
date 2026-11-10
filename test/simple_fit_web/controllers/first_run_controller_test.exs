@@ -25,8 +25,10 @@ defmodule SimpleFitWeb.FirstRunControllerTest do
     assert get_resp_header(conn, "cache-control") == ["no-store"]
     body = json_response(conn, 200)
     assert_schema(body, "FirstRunResponse", ApiSpec.spec())
-    [tour, mobile] = body["experiences"]
+    [tour, mobile, control_plane] = body["experiences"]
     assert mobile["experience"] == "fighter_mobile_first_run"
+    # SF-120: the Control Plane tour is for active operators only.
+    assert %{"experience" => "control_plane_web_tour", "status" => "unavailable"} = control_plane
     tour
   end
 
