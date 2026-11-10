@@ -66,6 +66,7 @@ defmodule SimpleFitWeb.FallbackController do
              :invitation_recipient_mismatch,
              :step_up_required,
              :enrollment_required,
+             :account_suspended,
              :security_key_rejected,
              :confirmation_required,
              :confirmation_invalid,

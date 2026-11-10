@@ -29,7 +29,8 @@ defmodule SimpleFit.Operators do
   import SimpleFit.Operators.Authority
 
   alias SimpleFit.Operators.{Actions, Audit, AuditEvent, Challenge, Credential, Cursor, Grant}
-  alias SimpleFit.Operators.{Operation, Operator, Overview, Policy, Principal, StepUp, WebAuthn}
+  alias SimpleFit.Operators.{Operation, Operator, Overview, Policy, Principal, Redaction}
+  alias SimpleFit.Operators.{StepUp, WebAuthn}
   alias SimpleFit.{RateLimit, Repo}
   alias SimpleFit.Sponsors.Review
 
@@ -652,16 +653,19 @@ defmodule SimpleFit.Operators do
     "sponsor_applications.file" => %{
       permission: "sponsors.applications.read_files",
       audit: "sponsor_application.file_downloaded"
-    }
+    },
+    "users.search" => %{permission: "users.read", audit: "user.searched"},
+    "users.detail" => %{permission: "users.read", audit: "user.viewed"},
+    "users.email" => %{permission: "users.reveal_email", audit: "user.email_revealed"}
   }
 
   defp project(id, user, session, ctx, fun) do
     %{permission: permission, audit: audit_action} = Map.fetch!(@projections, id)
 
     with {:ok, principal} <- authorize(user, session, permission, ctx),
-         {:ok, result, {target_type, target_id}} <- fun.(principal) do
+         {:ok, result, {target_type, target_id}, extra} <- with_extra(fun.(principal)) do
       Audit.record!(
-        %{
+        Map.merge(extra, %{
           action: audit_action,
           command: id,
           outcome: :allowed,
@@ -670,7 +674,7 @@ defmodule SimpleFit.Operators do
           permission: permission,
           target_type: target_type,
           target_id: target_id
-        },
+        }),
         Map.put(ctx, :session_id, session.id)
       )
 
@@ -921,6 +925,154 @@ defmodule SimpleFit.Operators do
     do: {:ok, {before, "00000000-0000-0000-0000-000000000000"}}
 
   defp audit_position(_attrs, _operator_id), do: {:ok, nil}
+
+  # A read may add audit fields (its reason code); most don't.
+  defp with_extra({:ok, result, target}), do: {:ok, result, target, %{}}
+  defp with_extra({:ok, _result, _target, %{}} = answer), do: answer
+  defp with_extra(other), do: other
+
+  ## User administration (SF-122)
+
+  @user_read_reasons ~w(support_request account_security abuse_report legal_request)
+  @user_search_limit 60
+
+  @doc "Reason codes a user read is recorded with (proposed operational defaults)."
+  @spec user_read_reasons() :: [String.t()]
+  def user_read_reasons, do: @user_read_reasons
+
+  @doc """
+  Finds one account by exact user id or exact email address (`users.read`, key check).
+  Never a partial match or a list: at most one result, with masked addresses. Needs a
+  `reason_code`; every search is recorded with it (`user.searched`), found or not, and
+  limited to #{@user_search_limit} per operator and hour.
+  """
+  @spec search_users(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{users: [map()]}} | {:error, error() | term()}
+  def search_users(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    with {:ok, attrs} <- user_query(params, [:query, :reason_code], %{query: :string}) do
+      project("users.search", user, session, ctx, &search_projection(&1, attrs))
+    end
+  end
+
+  @doc """
+  One account (`users.read`, key check): masked addresses, sign-in methods,
+  registration, account state, active sessions (start and end), last sign-in and
+  context counts. Needs a `reason_code`; recorded (`user.viewed`).
+  """
+  @spec get_user(User.t(), Session.t(), term(), map(), ctx()) ::
+          {:ok, map()} | {:error, error() | term()}
+  def get_user(%User{} = user, %Session{} = session, user_id, params, ctx \\ %{}) do
+    with {:ok, attrs} <- user_query(params, [:reason_code], %{}),
+         {:ok, id} <- user_id(user_id) do
+      project("users.detail", user, session, ctx, fn _principal ->
+        detail_projection(id, attrs)
+      end)
+    end
+  end
+
+  @doc """
+  An account's full email addresses (`users.reveal_email`, fresh key check). Needs a
+  `reason_code`; recorded (`user.email_revealed`) before the addresses are returned.
+  """
+  @spec reveal_user_email(User.t(), Session.t(), term(), map(), ctx()) ::
+          {:ok, %{email_addresses: [String.t()]}} | {:error, error() | term()}
+  def reveal_user_email(%User{} = user, %Session{} = session, user_id, params, ctx \\ %{}) do
+    with {:ok, attrs} <- user_query(params, [:reason_code], %{}),
+         {:ok, id} <- user_id(user_id) do
+      project("users.email", user, session, ctx, fn _principal -> email_projection(id, attrs) end)
+    end
+  end
+
+  defp search_projection(principal, attrs) do
+    with :ok <- user_search_limit(principal) do
+      found = Accounts.find_for_admin(attrs.query)
+      users = if found, do: [user_summary(found)], else: []
+      {:ok, %{users: users}, {"user", found}, %{reason_code: attrs.reason_code}}
+    end
+  end
+
+  defp detail_projection(id, attrs) do
+    case user_detail(id) do
+      nil -> {:error, :not_found}
+      detail -> {:ok, detail, {"user", id}, %{reason_code: attrs.reason_code}}
+    end
+  end
+
+  defp email_projection(id, attrs) do
+    case Accounts.admin_view(id) do
+      nil ->
+        {:error, :not_found}
+
+      view ->
+        {:ok, %{email_addresses: view.email_addresses}, {"user", id},
+         %{reason_code: attrs.reason_code}}
+    end
+  end
+
+  defp user_query(params, required, types) do
+    types = Map.put(types, :reason_code, :string)
+
+    {%{}, types}
+    |> cast(params, Map.keys(types))
+    |> validate_required(required)
+    |> validate_inclusion(:reason_code, @user_read_reasons)
+    |> then(
+      &if(Map.has_key?(types, :query),
+        do: validate_length(&1, :query, min: 1, max: 320),
+        else: &1
+      )
+    )
+    |> apply_action(:validate)
+  end
+
+  defp user_id(value) do
+    case Ecto.UUID.cast(value) do
+      {:ok, id} -> {:ok, id}
+      :error -> {:error, :not_found}
+    end
+  end
+
+  defp user_search_limit(principal) do
+    RateLimit.hit([
+      {"operator_user_search", :crypto.hash(:sha256, principal.user_id), @user_search_limit, 3600}
+    ])
+  end
+
+  defp user_summary(id) do
+    detail = user_detail(id)
+    Map.take(detail, [:id, :name, :joined_at, :status, :masked_emails, :contexts])
+  end
+
+  defp user_detail(id) do
+    case Accounts.admin_view(id) do
+      nil ->
+        nil
+
+      view ->
+        view
+        |> Map.drop([:email_addresses, :suspension])
+        |> Map.merge(%{
+          masked_emails: Enum.map(view.email_addresses, &Redaction.mask_email/1),
+          suspension:
+            view.suspension &&
+              %{since: view.suspension.started_at, reason_code: view.suspension.reason_code},
+          contexts: contexts(id)
+        })
+    end
+  end
+
+  defp contexts(id) do
+    gyms = SimpleFit.Gyms.relationship_counts(id)
+
+    %{
+      fighter_profile: SimpleFit.Fighters.profile_status(id),
+      coach_profile: SimpleFit.Coaches.profile_status(id),
+      gym_staff: gyms.staff,
+      gym_member: gyms.member,
+      sponsor_memberships: SimpleFit.Sponsors.active_membership_count(id),
+      platform_operator: usable_operator(id) != nil
+    }
+  end
 
   ## Overview (SF-121)
 

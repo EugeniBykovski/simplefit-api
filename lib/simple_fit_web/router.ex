@@ -90,6 +90,22 @@ defmodule SimpleFitWeb.Router do
     # SF-121: the overview (AD1), one fixed read-only projection.
     get "/overview", AdminOverviewController, :show
 
+    # SF-122: account administration: exact search, one account, its addresses, and three
+    # typed actions (each with its own preview); no generic update, no list, no "act as user".
+    get "/users", AdminUserController, :search
+    get "/users/:user_id", AdminUserController, :show
+    post "/users/:user_id/reveal-email", AdminUserController, :reveal_email
+    post "/users/:user_id/suspend/preview", AdminUserController, :preview_suspend
+    post "/users/:user_id/suspend", AdminUserController, :suspend
+    post "/users/:user_id/lift-suspension/preview", AdminUserController, :preview_lift_suspension
+    post "/users/:user_id/lift-suspension", AdminUserController, :lift_suspension
+
+    post "/users/:user_id/sign-out-everywhere/preview",
+         AdminUserController,
+         :preview_sign_out_everywhere
+
+    post "/users/:user_id/sign-out-everywhere", AdminUserController, :sign_out_everywhere
+
     get "/operators", OperatorAdminController, :index
     post "/operators", OperatorAdminController, :provision
     get "/operators/:operator_id", OperatorAdminController, :show

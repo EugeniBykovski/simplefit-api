@@ -233,4 +233,9 @@ defmodule SimpleFit.Coaches do
       )
     )
   end
+
+  @doc "The onboarding status of a user's coach profile, for operator account views (SF-122)."
+  @spec profile_status(Ecto.UUID.t()) :: :not_started | :in_progress | :completed
+  def profile_status(user_id),
+    do: CoachProfile.onboarding_status(Repo.get_by(CoachProfile, user_id: user_id))
 end

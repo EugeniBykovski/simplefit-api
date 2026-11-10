@@ -60,6 +60,8 @@ defmodule SimpleFitWeb.APIError do
     {"forbidden", 403, "You do not have permission to perform this action"},
     {"step_up_required", 403, "Confirm with your security key to continue"},
     {"enrollment_required", 403, "Register your security keys to continue"},
+    {"account_suspended", 403,
+     "This account is suspended; it can't sign in until the suspension is lifted"},
     {"invitation_recipient_mismatch", 403,
      "This invitation was sent to another email address; sign in with that address to respond"},
     {"not_found", 404, "The requested resource was not found"},
@@ -90,6 +92,7 @@ defmodule SimpleFitWeb.APIError do
   # ever sent explicitly (email authentication outcomes, ADR 0012).
   @explicit_codes [
     "verified_elsewhere",
+    "account_suspended",
     "code_invalid",
     "code_expired",
     "invitation_recipient_mismatch",

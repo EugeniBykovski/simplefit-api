@@ -45,7 +45,7 @@ defmodule SimpleFit.Accounts.AppleAuth do
   @type error ::
           {:error, Ecto.Changeset.t()}
           | {:error, {:rate_limited, pos_integer()}}
-          | {:error, :unauthorized | :unavailable}
+          | {:error, :unauthorized | :unavailable | :account_suspended | :not_found}
 
   @doc "Signs in with an Apple identity token, creating the account on first use."
   @spec authenticate(term(), term(), String.t()) :: {:ok, result()} | error()

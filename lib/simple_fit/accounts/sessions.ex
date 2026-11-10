@@ -51,7 +51,7 @@ defmodule SimpleFit.Accounts.Sessions do
 
   require Logger
 
-  alias SimpleFit.Accounts.{RefreshToken, Session, User}
+  alias SimpleFit.Accounts.{AccountState, RefreshToken, Restrictions, Session, User}
   alias SimpleFit.Repo
 
   @access_prefix "sfa_"
@@ -143,13 +143,19 @@ defmodule SimpleFit.Accounts.Sessions do
 
   ## Issue
 
-  @doc "Creates a session for `user` and issues its first credentials."
-  @spec create(User.t()) :: {:ok, credentials()} | {:error, :not_found}
+  @doc """
+  Creates a session for `user` and issues its first credentials. A suspended account
+  gets none (`:account_suspended`, SF-122), whichever identity signed in: the user
+  row is locked `FOR KEY SHARE` first, the lock a suspension waits for.
+  """
+  @spec create(User.t()) :: {:ok, credentials()} | {:error, :not_found | :account_suspended}
   def create(%User{id: user_id}) when is_binary(user_id) do
     config = config!()
     now = now()
 
     Repo.transaction(fn ->
+      hold_unrestricted!(user_id)
+
       session =
         %Session{user_id: user_id, expires_at: DateTime.add(now, config.session_lifetime)}
         |> Ecto.Changeset.change()
@@ -164,6 +170,14 @@ defmodule SimpleFit.Accounts.Sessions do
     end)
   end
 
+  # The user row, `FOR KEY SHARE` (a suspension holds it `FOR UPDATE`), then its state.
+  defp hold_unrestricted!(user_id) do
+    case Repo.one(from(u in User, where: u.id == ^user_id, select: u.id, lock: "FOR KEY SHARE")) do
+      nil -> Repo.rollback(:not_found)
+      _id -> if Restrictions.suspended?(user_id), do: Repo.rollback(:account_suspended), else: :ok
+    end
+  end
+
   ## Authenticate
 
   @doc "Resolves the viewer for an access token, or `:unauthorized`."
@@ -175,7 +189,11 @@ defmodule SimpleFit.Accounts.Sessions do
       query =
         from s in Session,
           join: u in assoc(s, :user),
+          left_join: st in AccountState,
+          on: st.user_id == s.user_id,
           where: s.id == ^session_id and is_nil(s.revoked_at) and s.expires_at > ^now,
+          # Suspension revokes every session; this keeps a suspended account out even so.
+          where: is_nil(st.status) or st.status != :suspended,
           select: {s, u}
 
       case Repo.one(query) do
@@ -246,7 +264,8 @@ defmodule SimpleFit.Accounts.Sessions do
   defp rotate(hash, now, config) do
     with %RefreshToken{session_id: session_id} <- token_by_hash(hash),
          %Session{} = session <- lock_session(session_id),
-         true <- active?(session, now) do
+         true <- active?(session, now),
+         false <- Restrictions.suspended?(session.user_id) do
       decide(token_by_hash(hash), session, now, config)
     else
       _unknown_or_inactive -> :rejected
