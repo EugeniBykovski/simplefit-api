@@ -684,6 +684,210 @@
         "title": "AccountProfileUpdateRequest",
         "type": "object"
       },
+      "AdminOverview": {
+        "description": "Platform counts, review queues and health as one snapshot at `as_of`. `period` is `[from, to)` in UTC and drives only `period_counts`. `health.state: restricted` means no `system.health.read`.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "health": {
+            "properties": {
+              "checks": {
+                "items": {
+                  "$ref": "#/components/schemas/AdminOverviewCheck"
+                },
+                "type": "array"
+              },
+              "state": {
+                "enum": [
+                  "available",
+                  "restricted"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "checks"
+            ],
+            "type": "object"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/AdminOverviewMetric"
+            },
+            "type": "array"
+          },
+          "period": {
+            "properties": {
+              "from": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "key": {
+                "enum": [
+                  "24h",
+                  "7d",
+                  "30d"
+                ],
+                "type": "string"
+              },
+              "to": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "from",
+              "to"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "as_of",
+          "period",
+          "metrics",
+          "health"
+        ],
+        "title": "AdminOverview",
+        "type": "object"
+      },
+      "AdminOverviewCheck": {
+        "description": "One health check, from a real signal only; nothing is called healthy without a check.\n\n* `database` - `healthy` when the overview's own queries answered.\n* `background_jobs` - Oban's table: `counts` `waiting` and `discarded_24h`; `degraded` when any job\n  was discarded (retries exhausted) in the last 24 hours, else `healthy`.\n* `payments_webhooks` - always `unknown`; `last_event_at` is when the last Stripe webhook arrived.\n* `email_provider` - `no_telemetry`: the provider reports nothing to SimpleFit.\n",
+        "properties": {
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/AdminOverviewCount"
+            },
+            "type": "array"
+          },
+          "id": {
+            "enum": [
+              "database",
+              "background_jobs",
+              "payments_webhooks",
+              "email_provider"
+            ],
+            "type": "string"
+          },
+          "last_event_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "healthy",
+              "degraded",
+              "unknown",
+              "no_telemetry",
+              "unavailable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "counts",
+          "last_event_at"
+        ],
+        "title": "AdminOverviewCheck",
+        "type": "object"
+      },
+      "AdminOverviewCount": {
+        "description": "One named count.",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "AdminOverviewCount",
+        "type": "object"
+      },
+      "AdminOverviewMetric": {
+        "description": "One overview metric (definitions: simplefit-api docs/architecture/admin-overview-metrics.md).\n\n* `state: available` - `value` is the count as of `as_of` (0 is a real zero); `breakdown` splits it\n  by status, `period_counts` are the explicit \"in period\" counts.\n* `state: restricted` - the operator lacks this metric's permission: no value, never 0.\n* `state: unavailable` - SimpleFit can't produce this metric yet: no value, never 0.\n\n`id`: `accounts` (account registration complete; breakdown `in_progress`, `not_started`; period\n`registration_completed`), `fighter_profiles` and `coach_profiles` (onboarding completed; breakdown\n`in_progress`; period `onboarding_completed`), `gyms` (setup completed; breakdown `draft`; period\n`setup_completed`), `sponsor_organizations` (active, provisioned from an approved application;\nbreakdown `suspended`, `closed`; period `approved`), `operators` (active), `sponsor_applications_waiting`\n(submitted or under review; breakdown by every non-draft status; period `first_submitted`, `approved`,\n`rejected`), `gym_verifications_waiting` (always unavailable today).\n",
+        "properties": {
+          "breakdown": {
+            "items": {
+              "$ref": "#/components/schemas/AdminOverviewCount"
+            },
+            "type": "array"
+          },
+          "group": {
+            "enum": [
+              "population",
+              "reviews"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "enum": [
+              "accounts",
+              "fighter_profiles",
+              "coach_profiles",
+              "gyms",
+              "sponsor_organizations",
+              "operators",
+              "sponsor_applications_waiting",
+              "gym_verifications_waiting"
+            ],
+            "type": "string"
+          },
+          "period_counts": {
+            "items": {
+              "$ref": "#/components/schemas/AdminOverviewCount"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "restricted",
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "group",
+          "state",
+          "value",
+          "breakdown",
+          "period_counts"
+        ],
+        "title": "AdminOverviewMetric",
+        "type": "object"
+      },
+      "AdminOverviewResponse": {
+        "properties": {
+          "overview": {
+            "$ref": "#/components/schemas/AdminOverview"
+          }
+        },
+        "required": [
+          "overview"
+        ],
+        "title": "AdminOverviewResponse",
+        "type": "object"
+      },
       "AppleAuthRequest": {
         "additionalProperties": false,
         "description": "`id_token` is the Apple identity token (a JWT) from Sign in with Apple (Apple JS on the web, iOS). Its\nrequest must have carried the lowercase hex SHA-256 of `nonce`; the raw `nonce` is sent here. Both are\nverified by the API and never stored. Nothing else about the person (name, email) is sent or trusted.\n",
@@ -3430,7 +3634,9 @@
               "sponsors.applications.approve",
               "sponsors.applications.reject",
               "sponsors.applications.read_files",
-              "sponsors.restrict"
+              "sponsors.restrict",
+              "platform.dashboard.read",
+              "system.health.read"
             ],
             "type": "string"
           },
@@ -3478,7 +3684,9 @@
               "sponsors.applications.approve",
               "sponsors.applications.reject",
               "sponsors.applications.read_files",
-              "sponsors.restrict"
+              "sponsors.restrict",
+              "platform.dashboard.read",
+              "system.health.read"
             ],
             "type": "string"
           },
@@ -16098,6 +16306,66 @@
           }
         ],
         "summary": "Preview suspending an operator",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/overview": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs a key check of this session and at least one of `platform.dashboard.read` (platform counts;\nthe operator count also `operators.read`), `sponsors.applications.read` (the sponsor review queue)\nor `system.health.read` (health). Each section the operator can't see is `restricted`, without a\nvalue. Not audited per load (counts only); refusals are.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route).\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - none of the overview's permissions is granted.\n* `step_up_required` - no key check in this session.\n* `validation_error` - `period` isn't `24h`, `7d` or `30d`.\n",
+        "operationId": "getAdminOverview",
+        "parameters": [
+          {
+            "description": "The window of the \"in period\" counts, ending now. Default `7d`.",
+            "in": "query",
+            "name": "period",
+            "required": false,
+            "schema": {
+              "default": "7d",
+              "enum": [
+                "24h",
+                "7d",
+                "30d"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOverviewResponse"
+                }
+              }
+            },
+            "description": "The overview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The Control Plane overview",
         "tags": [
           "Platform operators"
         ]

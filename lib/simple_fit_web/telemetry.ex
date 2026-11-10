@@ -116,6 +116,13 @@ defmodule SimpleFitWeb.Telemetry do
       counter("simple_fit.admin_action.audit_suppressed.count", tags: [:action]),
       counter("simple_fit.admin_action.audit_failed.count", tags: [:action]),
 
+      # Control Plane overview reads (SF-121): outcome only (ok, invalid, not_found,
+      # forbidden, step_up_required, enrollment_required), never who read it.
+      summary("simple_fit.admin_overview.read.duration",
+        tags: [:outcome],
+        unit: {:native, :millisecond}
+      ),
+
       # Background jobs (Oban)
       summary("oban.job.stop.duration",
         tags: [:queue, :worker, :state],

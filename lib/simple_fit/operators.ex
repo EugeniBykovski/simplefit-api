@@ -29,7 +29,7 @@ defmodule SimpleFit.Operators do
   import SimpleFit.Operators.Authority
 
   alias SimpleFit.Operators.{Actions, Audit, AuditEvent, Challenge, Credential, Cursor, Grant}
-  alias SimpleFit.Operators.{Operation, Operator, Policy, Principal, StepUp, WebAuthn}
+  alias SimpleFit.Operators.{Operation, Operator, Overview, Policy, Principal, StepUp, WebAuthn}
   alias SimpleFit.{RateLimit, Repo}
   alias SimpleFit.Sponsors.Review
 
@@ -921,6 +921,59 @@ defmodule SimpleFit.Operators do
     do: {:ok, {before, "00000000-0000-0000-0000-000000000000"}}
 
   defp audit_position(_attrs, _operator_id), do: {:ok, nil}
+
+  ## Overview (SF-121)
+
+  @doc """
+  The Control Plane overview (AD1): platform counts, review queue sizes and health
+  checks, as one snapshot (`SimpleFit.Operators.Overview`). Needs an active operator
+  with a current key check and at least one of `Overview.permissions/0`; each
+  section shows only with its own permission and is `restricted` (no value)
+  otherwise. Counts only, no names: reads aren't audited per load (SF-107),
+  refusals are.
+
+  `params`: `period` (`24h`, `7d` default, `30d`), for the "in period" counts.
+  """
+  @spec overview(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, Overview.t()} | {:error, error() | Ecto.Changeset.t()}
+  def overview(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    started = System.monotonic_time()
+
+    result =
+      with {:ok, period} <- Overview.period(params),
+           {:ok, principal} <- authorize(user, session, overview_permission(user), ctx) do
+        granted = MapSet.new(active_permissions(principal.operator_id))
+        {:ok, Overview.build(granted, period)}
+      end
+
+    :telemetry.execute(
+      [:simple_fit, :admin_overview, :read],
+      %{duration: System.monotonic_time() - started},
+      %{outcome: overview_outcome(result)}
+    )
+
+    result
+  end
+
+  # The permission whose check (and refusal audit) stands for the overview: the
+  # first of its permissions the operator holds, else the dashboard's own.
+  defp overview_permission(user) do
+    case usable_operator(user.id) do
+      %Operator{id: id} ->
+        Enum.find(Overview.permissions(), hd(Overview.permissions()), &granted?(id, &1))
+
+      nil ->
+        hd(Overview.permissions())
+    end
+  end
+
+  defp overview_outcome({:ok, _}), do: :ok
+  defp overview_outcome({:error, %Ecto.Changeset{}}), do: :invalid
+  defp overview_outcome({:error, reason}), do: reason
+
+  @doc "How many operators are active (the overview's operator count)."
+  @spec active_count() :: non_neg_integer()
+  def active_count, do: Repo.aggregate(from(o in Operator, where: o.status == :active), :count)
 
   ## The write pipeline
 

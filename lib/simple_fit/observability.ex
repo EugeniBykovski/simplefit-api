@@ -23,6 +23,8 @@ defmodule SimpleFit.Observability do
   request or job.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias SimpleFit.Observability.{
     JobLogger,
     LogRedactor,
@@ -30,6 +32,8 @@ defmodule SimpleFit.Observability do
     RequestLogger,
     SentryFilter
   }
+
+  alias SimpleFit.Repo
 
   @service "simplefit-api"
 
@@ -97,5 +101,24 @@ defmodule SimpleFit.Observability do
     # lifeline) are housekeeping noise.
     _ = OpentelemetryOban.setup(plugin: :disabled)
     ProviderTracing.attach()
+  end
+
+  @doc """
+  Background job counts for the operator health card (SF-121), from Oban's own
+  table: jobs waiting to run (available, scheduled or retrying) and jobs discarded
+  (retries exhausted) since `since`. Counts only: no worker arguments, errors or
+  payloads leave the database. Discarded jobs are pruned after a day, so `since`
+  must be within the last day.
+  """
+  @spec job_counts(DateTime.t()) :: %{waiting: non_neg_integer(), discarded: non_neg_integer()}
+  def job_counts(%DateTime{} = since) do
+    Repo.one(
+      from(j in Oban.Job,
+        select: %{
+          waiting: filter(count(), j.state in ["available", "scheduled", "retryable"]),
+          discarded: filter(count(), j.state == "discarded" and j.discarded_at >= ^since)
+        }
+      )
+    )
   end
 end

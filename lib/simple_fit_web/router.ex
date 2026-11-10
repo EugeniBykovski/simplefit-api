@@ -87,6 +87,9 @@ defmodule SimpleFitWeb.Router do
     post "/step-up", OperatorController, :verify_step_up
     delete "/step-up", OperatorController, :end_step_up
 
+    # SF-121: the overview (AD1), one fixed read-only projection.
+    get "/overview", AdminOverviewController, :show
+
     get "/operators", OperatorAdminController, :index
     post "/operators", OperatorAdminController, :provision
     get "/operators/:operator_id", OperatorAdminController, :show

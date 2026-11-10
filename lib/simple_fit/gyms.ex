@@ -46,6 +46,7 @@ defmodule SimpleFit.Gyms do
   alias SimpleFit.Gyms.{
     Access,
     Audit,
+    AuditEvent,
     Bookings,
     ClassTemplates,
     Commerce,
@@ -975,5 +976,42 @@ defmodule SimpleFit.Gyms do
     else
       _ -> :error
     end
+  end
+
+  ## Platform counts (SF-121)
+
+  @doc """
+  Gym counts for the operator overview (SF-121), computed in the database: gyms
+  whose setup is completed, drafts, and gyms that completed setup in `[from, to)`
+  (the `setup_completed` audit event, the only record of that moment). Gyms have no
+  verification, publication or suspension state in these counts: a completed setup
+  isn't a verified business. Aggregates only: no gym is read.
+  """
+  @spec setup_counts(DateTime.t(), DateTime.t()) :: %{
+          completed: non_neg_integer(),
+          draft: non_neg_integer(),
+          completed_in_period: non_neg_integer()
+        }
+  def setup_counts(%DateTime{} = from, %DateTime{} = to) do
+    counts =
+      Repo.one(
+        from(g in Gym,
+          select: %{
+            completed: filter(count(), g.setup_status == :completed),
+            draft: filter(count(), g.setup_status == :draft)
+          }
+        )
+      )
+
+    completed_in_period =
+      Repo.one(
+        from(e in AuditEvent,
+          where:
+            e.event_type == :setup_completed and e.occurred_at >= ^from and e.occurred_at < ^to,
+          select: count(e.gym_id, :distinct)
+        )
+      )
+
+    Map.put(counts, :completed_in_period, completed_in_period)
   end
 end

@@ -17,10 +17,14 @@ defmodule SimpleFit.Operators.Policy do
   # SF-116 adds approving and rejecting (one each, as gym verification has, rather than
   # the matrix's combined `.decide`), downloading submitted files, and suspending or
   # reinstating an approved application's organization (`sponsors.restrict`).
+  # SF-121 adds the overview (AD1) and its health card: `platform.dashboard.read` (counts only,
+  # no names) and `system.health.read` (check results and job counts, no payloads), both
+  # routine reads at a current key check and not audited per load (SF-107).
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
                   sponsors.applications.claim sponsors.applications.request_changes
                   sponsors.applications.approve sponsors.applications.reject
-                  sponsors.applications.read_files sponsors.restrict)
+                  sponsors.applications.read_files sponsors.restrict
+                  platform.dashboard.read system.health.read)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
@@ -31,7 +35,9 @@ defmodule SimpleFit.Operators.Policy do
     "sponsors.applications.approve" => :fresh_key,
     "sponsors.applications.reject" => :fresh_key,
     "sponsors.applications.read_files" => :fresh_key,
-    "sponsors.restrict" => :fresh_key
+    "sponsors.restrict" => :fresh_key,
+    "platform.dashboard.read" => :key,
+    "system.health.read" => :key
   }
 
   @required_authenticators Application.compile_env(
