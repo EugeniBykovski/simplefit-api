@@ -126,3 +126,10 @@ what the extension relies on and the one fix it needed.
    revocation committing between them made entry crash (`500`) on a total of one with no entry. It is now one
    statement with a window count, as gyms did in SF-85. Found by `test/simple_fit/entry_sponsor_race_test.exs`.
 
+6. **Verification layers.** Domain and in-process HTTP: `test/simple_fit_web/controllers/entry_sponsor_context_test.exs`.
+   Real PostgreSQL races: `test/simple_fit/entry_sponsor_race_test.exs`. Standalone HTTP E2E against a separately
+   running server on a fresh e2e database (started as in ADR 0033; a real founder operator approves, suspends and
+   reinstates over HTTP; adding and revoking a member use `mix sponsors.fixture`, since no HTTP route exists):
+   `test/standalone/sponsor_entry_http_e2e_test.exs`. With `E2E_SPONSOR_HANDOFF=<file>` it writes the accounts'
+   emails and organization ids (no token or code) for the browser leg, simplefit-platform
+   `e2e/real-api/sponsor-portal.spec.ts`.
