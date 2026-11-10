@@ -28,7 +28,7 @@ defmodule SimpleFit.Sponsors do
   alias SimpleFit.Accounts
   alias SimpleFit.Accounts.User
   alias SimpleFit.Repo
-  alias SimpleFit.Sponsors.{Contact, Membership, Organization, Policy}
+  alias SimpleFit.Sponsors.{Contact, FirstRun, Membership, Organization, Policy}
 
   @default_limit 50
   @max_limit 100
@@ -157,6 +157,17 @@ defmodule SimpleFit.Sponsors do
   end
 
   ## One organization (authorized by the viewer's membership)
+
+  ## The partner portal first run (SF-119)
+
+  @doc "The viewer's first run in the organization (`SimpleFit.Sponsors.FirstRun`)."
+  @spec get_first_run(User.t(), term()) :: {:ok, FirstRun.state()} | {:error, :not_found}
+  defdelegate get_first_run(user, sponsor_id), to: FirstRun, as: :get
+
+  @doc "Starts, completes or dismisses the viewer's first run (`SimpleFit.Sponsors.FirstRun`)."
+  @spec first_run_transition(User.t(), term(), FirstRun.action(), map()) ::
+          {:ok, FirstRun.state()} | {:error, FirstRun.error()}
+  defdelegate first_run_transition(user, sponsor_id, action, attrs), to: FirstRun, as: :transition
 
   @doc "The organization, the viewer's membership and its permissions (`view_organization`)."
   @spec get_organization(User.t(), term()) ::

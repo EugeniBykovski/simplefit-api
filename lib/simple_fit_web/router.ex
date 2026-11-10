@@ -286,6 +286,18 @@ defmodule SimpleFitWeb.Router do
     get "/sponsor-organizations/:sponsor_id", SponsorOrganizationController, :show
     get "/sponsor-organizations/:sponsor_id/members", SponsorOrganizationController, :members
     get "/sponsor-organizations/:sponsor_id/contacts", SponsorOrganizationController, :contacts
+    # SF-119: the partner portal first run (SRW1, SRW2), per organization and member.
+    get "/sponsor-organizations/:sponsor_id/first-run", SponsorFirstRunController, :show
+    post "/sponsor-organizations/:sponsor_id/first-run/start", SponsorFirstRunController, :start
+
+    post "/sponsor-organizations/:sponsor_id/first-run/complete",
+         SponsorFirstRunController,
+         :complete
+
+    post "/sponsor-organizations/:sponsor_id/first-run/dismiss",
+         SponsorFirstRunController,
+         :dismiss
+
     get "/gyms/:gym_id", GymController, :show
     # SF-85: gym owner registration and setup (draft -> completed).
     get "/gyms/:gym_id/setup", GymSetupController, :show

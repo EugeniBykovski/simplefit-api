@@ -13049,6 +13049,81 @@
         "title": "SponsorContactListResponse",
         "type": "object"
       },
+      "SponsorFirstRun": {
+        "additionalProperties": false,
+        "description": "The viewer's introduction to one sponsor organization's portal (SRW1 welcome, SRW2 tour), per organization and\nmember, the same on every client. Presentation only: it grants, restores or changes no access.\n",
+        "example": {
+          "completed_at": null,
+          "dismissed_at": null,
+          "sponsor_id": "4c2e8a1d-6b3f-4e7a-9c5d-2f1b8e3a7d60",
+          "started_at": null,
+          "status": "not_started"
+        },
+        "properties": {
+          "completed_at": {
+            "description": "When it was finished; `null` otherwise.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "dismissed_at": {
+            "description": "When it was dismissed or ended; `null` otherwise.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "When the tour was started; `null` if never (or dismissed unstarted).",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "description": "`unavailable`: the organization is suspended (no introduction while it is). `not_started`: offer it.\n`in_progress`: started on some client and not ended; offer to resume. `completed` / `dismissed`: final;\nnever offer it again (replaying the tour is client-only and records nothing).\n",
+            "enum": [
+              "unavailable",
+              "not_started",
+              "in_progress",
+              "completed",
+              "dismissed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "sponsor_id",
+          "status",
+          "started_at",
+          "completed_at",
+          "dismissed_at"
+        ],
+        "title": "SponsorFirstRun",
+        "type": "object"
+      },
+      "SponsorFirstRunResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "first_run": {
+            "$ref": "#/components/schemas/SponsorFirstRun"
+          }
+        },
+        "required": [
+          "first_run"
+        ],
+        "title": "SponsorFirstRunResponse",
+        "type": "object"
+      },
+      "SponsorFirstRunTransitionRequest": {
+        "additionalProperties": false,
+        "description": "No fields: the organization comes from the path and the user from the session. Any field (a `user_id`, a\nstep) answers `422 validation_error`.\n",
+        "properties": {},
+        "title": "SponsorFirstRunTransitionRequest",
+        "type": "object"
+      },
       "SponsorMember": {
         "additionalProperties": false,
         "description": "The short account name only: never an email, full name or other account field.",
@@ -29478,6 +29553,253 @@
           }
         ],
         "summary": "Business contacts of a sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/first-run": {
+      "get": {
+        "callbacks": {},
+        "description": "The viewer's introduction to this organization's portal: `not_started`, `in_progress`, `completed` or\n`dismissed`, per organization and member, the same on every client and after any sign-in; `unavailable`\nwhile the organization is suspended. Reading creates nothing, and nothing here grants access.\n\n* `not_found` - no such organization, it is closed, or the viewer holds no active membership there (revoked,\n  suspended or never a member; existence is never revealed).\n\n",
+        "operationId": "getSponsorFirstRun",
+        "parameters": [
+          {
+            "description": "The sponsor organization.",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The viewer's partner portal first run",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/first-run/complete": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the viewer finished the tour (`completed`, final). It changes nothing about the organization or\nanyone's access. Repeating it returns the same state with the first `completed_at`.\n\n* `not_found` - no such organization, it is closed, or the viewer holds no active membership there (revoked,\n  suspended or never a member; existence is never revealed).\n\n* `conflict` - the organization is suspended (`details.organization_status: \"suspended\"`), or the introduction\n  already ended the other way (`details.first_run: \"completed\"` or `\"dismissed\"`); nothing changes.\n* `validation_error` - the body has a field (none is accepted).\n\n",
+        "operationId": "completeSponsorFirstRun",
+        "parameters": [
+          {
+            "description": "The sponsor organization.",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorFirstRunTransitionRequest"
+              }
+            }
+          },
+          "description": "No fields",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Finish the partner portal tour",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/first-run/dismiss": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the viewer dismissed the welcome or ended the tour (`dismissed`, final: it is not offered again\nand cannot be resumed). Repeating it returns the same state with the first `dismissed_at`.\n\n* `not_found` - no such organization, it is closed, or the viewer holds no active membership there (revoked,\n  suspended or never a member; existence is never revealed).\n\n* `conflict` - the organization is suspended (`details.organization_status: \"suspended\"`), or the introduction\n  already ended the other way (`details.first_run: \"completed\"` or `\"dismissed\"`); nothing changes.\n* `validation_error` - the body has a field (none is accepted).\n\n",
+        "operationId": "dismissSponsorFirstRun",
+        "parameters": [
+          {
+            "description": "The sponsor organization.",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorFirstRunTransitionRequest"
+              }
+            }
+          },
+          "description": "No fields",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Skip or end the partner portal introduction",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/first-run/start": {
+      "post": {
+        "callbacks": {},
+        "description": "Records that the viewer started the tour (`in_progress`), so another client can offer to resume it. Repeating\nit while in progress returns the same state with the first `started_at`.\n\n* `not_found` - no such organization, it is closed, or the viewer holds no active membership there (revoked,\n  suspended or never a member; existence is never revealed).\n\n* `conflict` - the organization is suspended (`details.organization_status: \"suspended\"`), or the introduction\n  already ended the other way (`details.first_run: \"completed\"` or `\"dismissed\"`); nothing changes.\n* `validation_error` - the body has a field (none is accepted).\n\n",
+        "operationId": "startSponsorFirstRun",
+        "parameters": [
+          {
+            "description": "The sponsor organization.",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorFirstRunTransitionRequest"
+              }
+            }
+          },
+          "description": "No fields",
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorFirstRunResponse"
+                }
+              }
+            },
+            "description": "The first run"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Start the partner portal tour",
         "tags": [
           "Sponsors"
         ]
