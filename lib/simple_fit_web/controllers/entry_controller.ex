@@ -28,8 +28,10 @@ defmodule SimpleFitWeb.EntryController do
     other profile's state; `gym` by the viewer's real gym workspaces (SF-84): none - `gym_onboarding` to start
     setup (nothing is created); only the draft they own - `gym_onboarding` resuming it; one completed gym -
     `gym_home`; several - the remembered gym, or `gym_selection`; `sponsor` by the viewer's real sponsor
-    workspaces (SF-112): none - `sponsor_application` to begin an application (nothing is created, and no
-    application state is reported: that domain doesn't exist yet); one - `sponsor_home` with `sponsor_id`;
+    workspaces (SF-112): none - by the viewer's own application (SF-113): no application -
+    `sponsor_application` to begin one (nothing is created), a draft - `sponsor_application_draft`, any other
+    state - `sponsor_application_status`; an application, even an approved one, never opens a workspace (SF-117:
+    only an active membership of an active organization does); one - `sponsor_home` with `sponsor_id`;
     several - the remembered organization, or `context_selection`); then a requested `context` that names a
     completed profile, `context=gym&gym_id=` naming a completed gym where the viewer is active staff, or
     `context=sponsor&sponsor_id=` naming an active sponsor organization where the viewer is an active member;

@@ -73,14 +73,27 @@ defmodule SimpleFit.Sponsors do
           entries: [workspace_summary()]
         }
   def workspace_overview(%User{} = user, limit) do
-    query = workspaces_query(user.id)
-    total = Repo.aggregate(query, :count)
-    entries = Repo.all(from([m, o] in query, limit: ^limit, select: {o, m}))
+    # One statement, one snapshot (SF-117): a count and a page read separately could
+    # straddle a concurrent suspension or revocation (a total of 1 with no entry).
+    # The window count is taken before the limit, so it is the full total.
+    rows =
+      Repo.all(
+        from([m, o] in workspaces_query(user.id),
+          limit: ^limit,
+          select: {o, m, over(count(m.id))}
+        )
+      )
+
+    total =
+      case rows do
+        [{_o, _m, total} | _] -> total
+        [] -> 0
+      end
 
     %{
       total: total,
-      single_sponsor_id: if(total == 1, do: entries |> hd() |> elem(0) |> Map.fetch!(:id)),
-      entries: Enum.map(entries, fn {o, m} -> summary(o, m) end)
+      single_sponsor_id: if(total == 1, do: rows |> hd() |> elem(0) |> Map.fetch!(:id)),
+      entries: Enum.map(rows, fn {o, m, _total} -> summary(o, m) end)
     }
   end
 

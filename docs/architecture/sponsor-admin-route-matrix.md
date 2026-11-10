@@ -53,8 +53,9 @@ from `first_run_outcomes`. Skip, resume and completion follow ADR 0018.
 **Why id-based:** the registry's `D-WORKSPACE-NOT-IN-URL` assumed the backend session holds the active
 workspace. It doesn't, and the gym consoles left that model (D-G23), for reasons that apply here: tabs
 on different organizations, links from email, and no server-side state that resembles authority.
-Everything is still a placeholder, so moving costs little. **This reopens a RESOLVED registry
-decision and needs approval** ([D-SA26](sponsor-admin-decision-register.md)).
+Everything is still a placeholder, so moving costs little. This reopened a RESOLVED registry
+decision; [D-SA26](sponsor-admin-decision-register.md) was **approved on 2026-11-10 for SF-117**, which re-keys the
+dashboard. The settings route is re-keyed when its page is built.
 
 ### Sponsor, deferred
 
