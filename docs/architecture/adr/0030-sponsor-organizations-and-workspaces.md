@@ -99,3 +99,30 @@ Triggers and constraints bind the application's database role, not a superuser o
 ## Amendment (SF-116)
 
 `application_authority/1` is now given inside the approval transaction only ([ADR 0033](0033-sponsor-application-decisions.md)); `operator_authority/1` (recorded as `platform_operator`) lets the admin action pipeline suspend or reinstate an approved application's organization.
+
+## Amendment (SF-117)
+
+Sponsor entry, context switching and the web workspace route. Nothing in entry's contract changes; this records
+what the extension relies on and the one fix it needed.
+
+1. **D-SA26 approved** (2026-11-10, product owner, SF-117): sponsor workspace URLs are id-based,
+   `/sponsor/:sponsorId/*`, replacing D-WORKSPACE-NOT-IN-URL. `sponsor_home` maps to
+   `web.sponsor._sponsor-id.dashboard` with the answer's `sponsor_id` (route registry, simplefit-platform). Mobile
+   keeps no sponsor surface (D-MOBILE-SPONSOR-ADMIN, D-SA27): `sponsor_home` stays unmapped there and fails
+   visibly.
+2. **One resolver.** Entry stays the only routing authority; the application states (SF-113) and workspaces
+   (SF-112) are facts it reads. An application, approved or not, never opens a workspace: only an active membership
+   of an active organization does. An approved application whose organization is missing, suspended or closed
+   opens the application status (`sponsor_application_closed`), never a guessed workspace.
+3. **Access is per request.** The URL names the organization; `GET /sponsor-organizations/{sponsor_id}` (and every
+   organization route) authorizes it on each call against current rows, with no cache. Revocation is `404` on
+   the next request with the same session; suspension leaves the details readable as `suspended` (rule 3, ADR
+   0033) but removes the workspace from entry, ignores a remembered or requested context, and refuses a new
+   choice (`404`). Reinstatement makes the same rows valid again; nothing is recreated. Data a browser already
+   received isn't recalled by any of this; clients drop it on the next denial.
+4. **The remembered choice** (`entry_context_choices`) stays a server-side preference, re-validated on every
+   read and never authority. A stale row is ignored, not deleted. Clients keep no workspace in browser storage.
+5. **Fix:** `Sponsors.workspace_overview/2` read the total and the page in two statements; a suspension or
+   revocation committing between them made entry crash (`500`) on a total of one with no entry. It is now one
+   statement with a window count, as gyms did in SF-85. Found by `test/simple_fit/entry_sponsor_race_test.exs`.
+

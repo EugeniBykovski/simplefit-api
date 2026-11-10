@@ -500,8 +500,8 @@ defmodule SimpleFit.Entry do
 
   defp gym_intent(_state), do: {:gym_selection, :gym_choice_required, nil}
 
-  # A Sponsor intent never creates anything, and never infers an application state
-  # (that domain doesn't exist yet): no workspace -> begin an application.
+  # A Sponsor intent never creates anything. No workspace -> the user's own application
+  # decides (SF-113); an application, approved or not, never opens a workspace (SF-117).
   defp sponsor_intent(%{sponsors: %{count: 0}} = state),
     do: sponsor_application(state.sponsor_application)
 

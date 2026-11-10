@@ -16,7 +16,7 @@ Not reopened unless stated. Evidence is the merged document.
 | D-G01 | No generic workspaces table | ADR 0026 |
 | SF-136 | Session isn't operator proof; no interim authority; no email allowlist; per-call check | ADR 0026 amendment, merged |
 | SF-138 | Billing commands refused in production until SF-110; Stripe Live NO-GO | ADR 0026 amendment |
-| D-WORKSPACE-NOT-IN-URL | Sponsor workspace in session context | Registry. **D-SA26 proposes to change this** |
+| D-WORKSPACE-NOT-IN-URL | Sponsor workspace in session context | Registry. **Superseded by D-SA26 (approved 2026-11-10, SF-117)** |
 | D-ADMIN-SPONSOR-CAMPAIGN-PATHS | No application route unless a domain ticket makes it addressable | Registry. SF-107's proposal is that ticket |
 
 ## Sponsor product
@@ -40,7 +40,7 @@ Not reopened unless stated. Evidence is the merged document.
 | D-SA22 | Staffing and service levels | Name who reviews and watches alerts. No promised times until then. Remove "5 business days", "Sarah" | Keep promises | A false promise and an unwatched queue | — | Founder | **BLOCKED**: no staff named |
 | D-SA23 | Monetization | None in MVP. Sponsor invoicing and flat fees are a later decision | Charge at approval | Stripe Live NO-GO; no B2B invoicing | SF-138 | Founder, finance | PROPOSED |
 | D-SA24 | Sponsor analytics | None until measured. If later: aggregate only, suppression threshold (design says 50) | Show examples | No invented reach. Threshold needs privacy review | Tracking, counsel | Founder, counsel | PROPOSED |
-| D-SA26 | Sponsor workspace URLs | Id-based, `/sponsor/:sponsorId/*` | Keep session context | Same reasons as D-G23; session context was never built | Registry update | Founder | PROPOSED; **reopens a resolved registry decision** |
+| D-SA26 | Sponsor workspace URLs | Id-based, `/sponsor/:sponsorId/*` | Keep session context | Same reasons as D-G23; session context was never built | Registry update | Founder | **APPROVED** 2026-11-10 by the product owner for SF-117 (the recommended option, chosen during the SF-117 session); replaces D-WORKSPACE-NOT-IN-URL |
 
 ## Platform operators
 
@@ -65,6 +65,10 @@ SF-114 ([ADR 0032](adr/0032-sponsor-application-evidence-review-and-notification
 behind a switch that stays off in production (D-SA09 still NEEDS DECISION), kept all submitted evidence because
 retention is undecided (D-SA18), added operator claim and request-changes with proposed reason codes, and placeholder
 sponsor emails that stay off in production until S7 copy exists. D-SA03, D-SA10 and D-SA22 are unchanged.
+
+SF-117 ([ADR 0030 amendment](adr/0030-sponsor-organizations-and-workspaces.md#amendment-sf-117)) records D-SA26 as
+approved and builds the web route on it. D-SA12 (several organizations) is used as SF-112 built it: every active
+membership of an active organization is a choice; invitations stay unbuilt and D-SA12 stays PROPOSED.
 
 SF-116 ([ADR 0033](adr/0033-sponsor-application-decisions.md)) built approval, rejection and organization
 suspension or reinstatement on D-SA10's and D-SA07's recommended options (organization plus the applicant as owner,
