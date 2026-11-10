@@ -88,7 +88,10 @@ defmodule SimpleFit.Operators.AdminActionsTest do
                "sponsor_application.approve",
                "sponsor_application.reject",
                "sponsor_application.suspend_organization",
-               "sponsor_application.reinstate_organization"
+               "sponsor_application.reinstate_organization",
+               "user.suspend",
+               "user.lift_suspension",
+               "user.sign_out_everywhere"
              ]
 
       for id <- Actions.ids(), action = Actions.fetch!(id) do
