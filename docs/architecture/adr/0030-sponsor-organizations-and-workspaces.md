@@ -133,3 +133,25 @@ what the extension relies on and the one fix it needed.
    `test/standalone/sponsor_entry_http_e2e_test.exs`. With `E2E_SPONSOR_HANDOFF=<file>` it writes the accounts'
    emails and organization ids (no token or code) for the browser leg, simplefit-platform
    `e2e/real-api/sponsor-portal.spec.ts`.
+
+## Amendment (SF-119)
+
+The partner portal first run (SRW1 welcome, SRW2 tour), as the gym first run (SF-90) and ADR 0018:
+
+1. **Scope:** per organization and member (`sponsor_first_runs`, unique `(organization_id, user_id)`), as the
+   ticket's "once per Sponsor workspace and actor". Another organization, or another member, starts fresh.
+2. **States:** no row is `not_started`; `start` records `started_at` (`in_progress`, so another client can offer to
+   resume); `complete` or `dismiss` records the outcome, final: repeating it returns the same state, the other is
+   `409 conflict` (`first_run: completed | dismissed`). A trigger keeps keys, start and outcome immutable. Steps,
+   highlights and replays are client-only.
+3. **Who:** any active member of an organization that isn't closed; anyone else `404`. A suspended organization
+   answers `unavailable` and refuses transitions (`409 organization_status: suspended`); a recorded outcome stays.
+4. **Locks:** organization, then membership (`FOR SHARE`), then the row (`FOR UPDATE`): a suspension or
+   revocation commits entirely before or after a transition.
+5. **Routes:** `GET /api/v1/sponsor-organizations/{sponsor_id}/first-run`, `POST …/first-run/start | complete |
+   dismiss` (empty body; any field is `422`). Presentation only: nothing here grants, restores or changes access,
+   and no audit event is written (personal presentation state, as `first_run_outcomes`). Telemetry
+   `[:simple_fit, :sponsors, :first_run, action]` carries outcomes only.
+6. **Tests:** `test/simple_fit_web/controllers/sponsor_first_run_controller_test.exs` (HTTP, OpenAPI) and
+   `test/simple_fit/sponsor_first_run_race_test.exs` (real commits: duplicate completion, complete against dismiss,
+   revocation and suspension racing a transition, two organizations at once).
