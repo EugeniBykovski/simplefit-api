@@ -13,10 +13,12 @@ defmodule SimpleFit.FirstRun.Outcome do
 
   # `fighter_mobile_first_run` (SF-41) is the Fighter mobile introduction; it
   # is independent of the web tour: one outcome never counts for the other.
-  @experiences [:fighter_web_tour, :fighter_mobile_first_run]
+  # `control_plane_web_tour` (SF-120) is ARW1, the Control Plane first visit and tour of an
+  # active operator (D-SA25: presentation only, never a gate, grants nothing).
+  @experiences [:fighter_web_tour, :fighter_mobile_first_run, :control_plane_web_tour]
   @outcomes [:completed, :dismissed]
 
-  @type experience :: :fighter_web_tour | :fighter_mobile_first_run
+  @type experience :: :fighter_web_tour | :fighter_mobile_first_run | :control_plane_web_tour
   @type outcome :: :completed | :dismissed
 
   @type t :: %__MODULE__{
