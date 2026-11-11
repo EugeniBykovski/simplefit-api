@@ -1,6 +1,24 @@
 {
   "components": {
     "responses": {
+      "AccountSuspended": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "account_suspended",
+                "details": {},
+                "message": "This account is suspended; it can't sign in until the suspension is lifted",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "403 This account is suspended; it can't sign in until the suspension is lifted"
+      },
       "BadRequest": {
         "content": {
           "application/json": {
@@ -886,6 +904,314 @@
           "overview"
         ],
         "title": "AdminOverviewResponse",
+        "type": "object"
+      },
+      "AdminUser": {
+        "description": "One account for operator administration (SF-122). Addresses are masked (`users.reveal_email` shows\nthem). Sign-in methods are the identities the person proved control of: an email code, a Google or\nan Apple sign-in. No identity or document verification exists, and none is implied. Sessions carry\nonly their start and end: nothing else is recorded.\n",
+        "properties": {
+          "contexts": {
+            "$ref": "#/components/schemas/AdminUserContexts"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "joined_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_sign_in_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "masked_emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "providers": {
+            "items": {
+              "enum": [
+                "email",
+                "google",
+                "apple"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "registration": {
+            "enum": [
+              "not_started",
+              "in_progress",
+              "complete"
+            ],
+            "type": "string"
+          },
+          "revision": {
+            "description": "The account state's revision.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sessions": {
+            "description": "Active sessions, newest first.",
+            "items": {
+              "properties": {
+                "expires_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "started_at": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "started_at",
+                "expires_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "suspension": {
+            "nullable": true,
+            "properties": {
+              "reason_code": {
+                "type": "string"
+              },
+              "since": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "since",
+              "reason_code"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "joined_at",
+          "status",
+          "revision",
+          "suspension",
+          "registration",
+          "providers",
+          "masked_emails",
+          "sessions",
+          "last_sign_in_at",
+          "contexts"
+        ],
+        "title": "AdminUser",
+        "type": "object"
+      },
+      "AdminUserContexts": {
+        "description": "What the account takes part in, as statuses and counts only: never profile content, gym, member or organization data.",
+        "properties": {
+          "coach_profile": {
+            "enum": [
+              "not_started",
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "fighter_profile": {
+            "enum": [
+              "not_started",
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "gym_member": {
+            "description": "Active gym memberships.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "gym_staff": {
+            "description": "Active staff memberships.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "platform_operator": {
+            "description": "A usable platform operator: administered through operator administration only.",
+            "type": "boolean"
+          },
+          "sponsor_memberships": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fighter_profile",
+          "coach_profile",
+          "gym_staff",
+          "gym_member",
+          "sponsor_memberships",
+          "platform_operator"
+        ],
+        "title": "AdminUserContexts",
+        "type": "object"
+      },
+      "AdminUserEmailResponse": {
+        "properties": {
+          "email_addresses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "email_addresses"
+        ],
+        "title": "AdminUserEmailResponse",
+        "type": "object"
+      },
+      "AdminUserReadRequest": {
+        "additionalProperties": false,
+        "description": "Why the operator reads this: recorded with the read.",
+        "properties": {
+          "reason_code": {
+            "enum": [
+              "support_request",
+              "account_security",
+              "abuse_report",
+              "legal_request"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "AdminUserReadRequest",
+        "type": "object"
+      },
+      "AdminUserResponse": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AdminUser"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "AdminUserResponse",
+        "type": "object"
+      },
+      "AdminUserSearchResponse": {
+        "description": "At most one account: search is exact, never a list.",
+        "properties": {
+          "users": {
+            "items": {
+              "$ref": "#/components/schemas/AdminUserSummary"
+            },
+            "maxItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "users"
+        ],
+        "title": "AdminUserSearchResponse",
+        "type": "object"
+      },
+      "AdminUserStateResponse": {
+        "description": "The account's state after an action.",
+        "properties": {
+          "user": {
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "revision": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "status": {
+                "enum": [
+                  "active",
+                  "suspended"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "revision"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "user"
+        ],
+        "title": "AdminUserStateResponse",
+        "type": "object"
+      },
+      "AdminUserSummary": {
+        "description": "An account found by exact search: masked addresses only.",
+        "properties": {
+          "contexts": {
+            "$ref": "#/components/schemas/AdminUserContexts"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "joined_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "masked_emails": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "description": "The account's full name, if registered.",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "joined_at",
+          "status",
+          "masked_emails",
+          "contexts"
+        ],
+        "title": "AdminUserSummary",
         "type": "object"
       },
       "AppleAuthRequest": {
@@ -2973,7 +3299,7 @@
         },
         "properties": {
           "code": {
-            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `step_up_required`, `enrollment_required`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `revision_conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `security_key_rejected`, `confirmation_invalid`, `code_expired`, `confirmation_required`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
+            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `step_up_required`, `enrollment_required`, `account_suspended`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `revision_conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `security_key_rejected`, `confirmation_invalid`, `code_expired`, `confirmation_required`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
             "example": "not_found",
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
@@ -3636,7 +3962,11 @@
               "sponsors.applications.read_files",
               "sponsors.restrict",
               "platform.dashboard.read",
-              "system.health.read"
+              "system.health.read",
+              "users.read",
+              "users.reveal_email",
+              "users.restrict",
+              "users.sessions.revoke"
             ],
             "type": "string"
           },
@@ -3686,7 +4016,11 @@
               "sponsors.applications.read_files",
               "sponsors.restrict",
               "platform.dashboard.read",
-              "system.health.read"
+              "system.health.read",
+              "users.read",
+              "users.reveal_email",
+              "users.restrict",
+              "users.sessions.revoke"
             ],
             "type": "string"
           },
@@ -9658,6 +9992,40 @@
         "title": "LegalDocumentResponse",
         "type": "object"
       },
+      "LiftUserSuspensionRequest": {
+        "additionalProperties": false,
+        "description": "Lift an account's suspension (SF-122): sign-in allowed again; sessions stay revoked.",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "appeal_upheld",
+              "issue_resolved",
+              "suspended_in_error"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "LiftUserSuspensionRequest",
+        "type": "object"
+      },
       "MyCoachRelationship": {
         "additionalProperties": false,
         "description": "One of the viewer's coaching relationships, seen by the fighter: the coach's public identity and the\nfields of the viewer's profile it discloses while `active`; the coach's name at the end once `ended`.\n",
@@ -10670,7 +11038,10 @@
                   "sponsor_application.approve",
                   "sponsor_application.reject",
                   "sponsor_application.suspend_organization",
-                  "sponsor_application.reinstate_organization"
+                  "sponsor_application.reinstate_organization",
+                  "user.suspend",
+                  "user.lift_suspension",
+                  "user.sign_out_everywhere"
                 ],
                 "type": "string"
               },
@@ -11885,6 +12256,40 @@
           "refresh_token_transport"
         ],
         "title": "SessionTokens",
+        "type": "object"
+      },
+      "SignOutUserEverywhereRequest": {
+        "additionalProperties": false,
+        "description": "Revoke every active session of an account (SF-122).",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "account_compromise",
+              "user_request",
+              "security_review"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "SignOutUserEverywhereRequest",
         "type": "object"
       },
       "SponsorApplication": {
@@ -13796,6 +14201,42 @@
           "reason_code"
         ],
         "title": "SuspendSponsorOrganizationRequest",
+        "type": "object"
+      },
+      "SuspendUserRequest": {
+        "additionalProperties": false,
+        "description": "Suspend an account (SF-122): signed out everywhere, no sign-in until lifted.",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "abuse_report",
+              "account_compromise",
+              "fraud",
+              "legal_request",
+              "terms_violation"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "SuspendUserRequest",
         "type": "object"
       },
       "TrainingSessionCreateRequest": {
@@ -17611,6 +18052,666 @@
           }
         ],
         "summary": "Start a security-key check",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `users.read` and a key check. Exact only: a full email address (case-insensitive) or a user id;\nnever part of either, never a list. At most one account, with masked addresses. Every search is\nrecorded with its `reason_code` (`user.searched`), found or not; 60 per operator and hour.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n* `rate_limited` - too many searches.",
+        "operationId": "searchAdminUsers",
+        "parameters": [
+          {
+            "description": "An exact email address or user id.",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 320,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Why the operator reads this account; recorded with the read.",
+            "in": "query",
+            "name": "reason_code",
+            "required": true,
+            "schema": {
+              "enum": [
+                "support_request",
+                "account_security",
+                "abuse_report",
+                "legal_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserSearchResponse"
+                }
+              }
+            },
+            "description": "At most one account"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find one account by exact email or user id",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `users.read` and a key check. Recorded with its `reason_code` (`user.viewed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "getAdminUser",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Why the operator reads this account; recorded with the read.",
+            "in": "query",
+            "name": "reason_code",
+            "required": true,
+            "schema": {
+              "enum": [
+                "support_request",
+                "account_security",
+                "abuse_report",
+                "legal_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserResponse"
+                }
+              }
+            },
+            "description": "The account"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One account",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/lift-suspension": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `users.restrict` and a fresh key check. `suspended` -> `active`: sign-in works again. Revoked sessions stay revoked.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\naccount, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of the\nsame request returns the current state and changes nothing).\n* `conflict` - `details.target: \"self\"` (the operator's own account), `details.target: \"operator\"` (a\n  platform operator's account: use operator administration), or `details.status`.\n* `revision_conflict` - the account changed since `expected_revision`.\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "liftSuspensionAdminUser",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftUserSuspensionRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserStateResponse"
+                }
+              }
+            },
+            "description": "The account's state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Lift an account's suspension",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/lift-suspension/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `users.restrict` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "previewLiftSuspensionAdminUser",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftUserSuspensionRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: lift an account's suspension",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/reveal-email": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `users.reveal_email` and a fresh key check. Recorded with its `reason_code` (`user.email_revealed`) before the addresses are returned.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "revealAdminUserEmail",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserReadRequest"
+              }
+            }
+          },
+          "description": "Reason",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserEmailResponse"
+                }
+              }
+            },
+            "description": "Addresses"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Show an account's full email addresses",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/sign-out-everywhere": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `users.sessions.revoke` and a fresh key check. Revokes every active session; the next request with any of them is refused. The account can sign in again.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\naccount, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of the\nsame request returns the current state and changes nothing).\n* `conflict` - `details.target: \"self\"` (the operator's own account), `details.target: \"operator\"` (a\n  platform operator's account: use operator administration), or `details.status`.\n* `revision_conflict` - the account changed since `expected_revision`.\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "signOutEverywhereAdminUser",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignOutUserEverywhereRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserStateResponse"
+                }
+              }
+            },
+            "description": "The account's state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Sign an account out everywhere",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/sign-out-everywhere/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `users.sessions.revoke` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "previewSignOutEverywhereAdminUser",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignOutUserEverywhereRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: sign an account out everywhere",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/suspend": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `users.restrict` and a fresh key check. `active` -> `suspended`: every session is revoked and no identity (email code, Google, Apple) can sign in until the suspension is lifted. Data, profiles and memberships stay as they are.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\naccount, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of the\nsame request returns the current state and changes nothing).\n* `conflict` - `details.target: \"self\"` (the operator's own account), `details.target: \"operator\"` (a\n  platform operator's account: use operator administration), or `details.status`.\n* `revision_conflict` - the account changed since `expected_revision`.\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "suspendAdminUser",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendUserRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserStateResponse"
+                }
+              }
+            },
+            "description": "The account's state"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Suspend an account",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/users/{user_id}/suspend/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `users.restrict` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such account.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed query.\n",
+        "operationId": "previewSuspendAdminUser",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendUserRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: suspend an account",
         "tags": [
           "Platform operators"
         ]

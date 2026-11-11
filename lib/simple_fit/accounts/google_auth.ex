@@ -39,7 +39,7 @@ defmodule SimpleFit.Accounts.GoogleAuth do
   @type error ::
           {:error, Ecto.Changeset.t()}
           | {:error, {:rate_limited, pos_integer()}}
-          | {:error, :unauthorized | :unavailable}
+          | {:error, :unauthorized | :unavailable | :account_suspended | :not_found}
 
   @doc "Signs in with a Google ID token, creating the account on first use."
   @spec authenticate(term(), String.t()) :: {:ok, result()} | error()

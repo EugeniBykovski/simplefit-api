@@ -123,3 +123,9 @@ framework event or confirmation exists.
 The overview (`SimpleFit.Operators.overview/4`) is a read outside the audited projection map: it authorizes with
 `authorize/4` (refusals audited) and returns aggregate counts only, which SF-107 classifies as "view not logged per
 load". Any read that returns a record, a name or an identifier still goes through the audited projections.
+
+## Amendment (SF-122)
+
+User accounts become the third target kind (`SimpleFit.Operators.UserTarget`: the account state's id and revision),
+with three actions in `SimpleFit.Operators.UserActions`. Read projections may now record extra audit fields; the
+user reads record their reason code (`user.searched`, `user.viewed`, `user.email_revealed`).

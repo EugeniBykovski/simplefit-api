@@ -10,6 +10,7 @@ defmodule SimpleFitWeb.APIErrorTest do
     "invitation_recipient_mismatch" => 403,
     "step_up_required" => 403,
     "enrollment_required" => 403,
+    "account_suspended" => 403,
     "security_key_rejected" => 422,
     "confirmation_invalid" => 422,
     "revision_conflict" => 409,
@@ -41,6 +42,7 @@ defmodule SimpleFitWeb.APIErrorTest do
           "invitation_recipient_mismatch",
           "step_up_required",
           "enrollment_required",
+          "account_suspended",
           "security_key_rejected",
           "revision_conflict",
           "confirmation_invalid"

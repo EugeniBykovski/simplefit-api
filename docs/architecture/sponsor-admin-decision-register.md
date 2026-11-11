@@ -89,7 +89,7 @@ these is approved by that.
 | D-SA25 | Admin first-run | Presentation only, never a gate. Truthful checklist: key enrolled, permissions, where audit is. Runbooks and shadowing only if they exist | ARW1 as drawn; blocking checklist | Authority can't depend on onboarding | — | Founder | PROPOSED |
 | D-SA27 | Sponsor users on mobile | Handoff row only | Mobile portal | Extends D-MOBILE-SPONSOR-ADMIN | — | Founder | PROPOSED |
 | D-SA28 | Production access controls | Separate database roles, restricted shell, documented access | Accept the risk, in writing | App controls can't stop a superuser; SF-136 said so | Infrastructure | Founder | NEEDS DECISION |
-| D-SA29 | User restriction | Reversible suspension only in MVP, with a new table. Bans and deletion later | No restriction at MVP | `web.account.suspended` needs a real source; appeal rights need counsel | Counsel | Founder, counsel | NEEDS DECISION |
+| D-SA29 | User restriction | Reversible suspension only in MVP, with a new table. Bans and deletion later | No restriction at MVP | `web.account.suspended` needs a real source; appeal rights need counsel | Counsel | Founder, counsel | **MVP APPROVED by the founder (SF-122)**: reversible suspension only, enforced at sign-in, refresh and every request, with operator sign-out. Notice and appeal (DSA) still NEED COUNSEL; no suspension email is sent |
 
 ## Legal and design
 

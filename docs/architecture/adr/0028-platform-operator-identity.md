@@ -109,3 +109,21 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
   permission and are `restricted` without it; at least one of the overview's permissions is needed. Counts only, so a
   successful read isn't audited per load (SF-107); refusals are. The metric definitions are in
   [admin-overview-metrics.md](../admin-overview-metrics.md).
+
+## Amendment (SF-122)
+
+* Four permissions join the catalog (migration `20261201090000_create_user_restrictions`, SF-107 naming, proposed):
+  `users.read` (exact search and one account, masked, at a key check, every read recorded with its reason code),
+  `users.reveal_email`, `users.restrict` and `users.sessions.revoke` (each at a fresh key check). Nothing is granted.
+* Account suspension (D-SA29, approved for the MVP by the founder as reversible suspension only) lives in
+  `SimpleFit.Accounts.Restrictions`: `user_account_states` (status, trigger-maintained revision) and
+  `user_restrictions` (history, lifted at most once, never deleted). Suspending revokes every session
+  (`account_suspended`); session issue, refresh and every authenticated request refuse a suspended account,
+  whatever identity signed in (`account_suspended`, 403, at sign-in). Lifting never restores a revoked session.
+  Operator sign-out revokes every session (`operator_revoked`).
+* The three account actions (`user.suspend`, `user.lift_suspension`, `user.sign_out_everywhere`) use the
+  ADR 0029 framework. They refuse the operator's own account and any platform operator's account: operators are
+  administered only through operator administration, which keeps its own safeguards. That check runs under the
+  user row lock that operator provisioning for the same user also needs.
+* No recovery exists for users (sign-in is passwordless): operators can't change identities, link providers, mark
+  anything verified or act as a user.

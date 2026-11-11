@@ -408,4 +408,13 @@ defmodule SimpleFit.Sponsors do
       rejected_in_period: decided.rejected
     }
   end
+
+  @doc "How many active sponsor memberships a user has, for operator account views (SF-122)."
+  @spec active_membership_count(Ecto.UUID.t()) :: non_neg_integer()
+  def active_membership_count(user_id),
+    do:
+      Repo.aggregate(
+        from(m in Membership, where: m.user_id == ^user_id and m.status == :active),
+        :count
+      )
 end

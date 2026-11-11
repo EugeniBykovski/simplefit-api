@@ -259,7 +259,14 @@ defmodule SimpleFitWeb.EmailAuthController do
     do: APIError.send_error(conn, "rate_limited", retry_after: retry_after)
 
   defp respond({:error, reason}, conn)
-       when reason in [:code_invalid, :code_expired, :verified_elsewhere, :forbidden, :conflict],
+       when reason in [
+              :code_invalid,
+              :code_expired,
+              :verified_elsewhere,
+              :forbidden,
+              :conflict,
+              :account_suspended
+            ],
        do: APIError.send_error(conn, Atom.to_string(reason))
 
   defp respond({:error, :bad_transport}, conn), do: APIError.send_error(conn, "bad_request")

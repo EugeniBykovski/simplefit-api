@@ -40,6 +40,7 @@ defmodule SimpleFit.Accounts do
     GoogleAuth,
     Identity,
     Registration,
+    Restrictions,
     Session,
     Sessions,
     User
@@ -499,4 +500,106 @@ defmodule SimpleFit.Accounts do
       not_started: total - profiles.complete - profiles.in_progress
     })
   end
+
+  ## Operator account views (SF-122)
+
+  @doc """
+  What operator administration may know about an account (SF-122): when it joined,
+  its name, registration status, sign-in methods, email addresses (the caller masks
+  them unless revealed), active sessions (start and end only: nothing else is
+  recorded) and when it last signed in, and its state. Never tokens, codes or
+  provider data. `nil` for no such user.
+  """
+  @spec admin_view(Ecto.UUID.t()) :: map() | nil
+  def admin_view(user_id) do
+    case Repo.get(User, user_id) do
+      nil ->
+        nil
+
+      %User{} = user ->
+        profile = Repo.get_by(AccountProfile, user_id: user_id)
+        identities = Repo.all(from(i in Identity, where: i.user_id == ^user_id), log: false)
+        now = DateTime.utc_now()
+
+        sessions =
+          Repo.all(
+            from(s in Session,
+              where: s.user_id == ^user_id and is_nil(s.revoked_at) and s.expires_at > ^now,
+              order_by: [desc: s.inserted_at, desc: s.id],
+              select: %{started_at: s.inserted_at, expires_at: s.expires_at}
+            )
+          )
+
+        last_sign_in =
+          Repo.one(from(s in Session, where: s.user_id == ^user_id, select: max(s.inserted_at)))
+
+        state = Restrictions.state(user_id)
+
+        %{
+          id: user.id,
+          joined_at: user.inserted_at,
+          name: profile && profile.full_name,
+          registration: registration_of(profile),
+          providers: identities |> Enum.map(& &1.provider) |> Enum.uniq() |> Enum.sort(),
+          email_addresses:
+            for(%Identity{provider: :email, provider_subject: address} <- identities, do: address)
+            |> Enum.sort(),
+          sessions: sessions,
+          last_sign_in_at: last_sign_in,
+          status: state.status,
+          revision: state.revision,
+          suspension: Restrictions.open(user_id)
+        }
+    end
+  end
+
+  defp registration_of(nil), do: :not_started
+  defp registration_of(%AccountProfile{registration_completed_at: nil}), do: :in_progress
+  defp registration_of(%AccountProfile{}), do: :complete
+
+  @doc """
+  The account an operator searched for (SF-122): by exact user id or exact email
+  address (canonicalized), never by part of either. `nil` when nothing matches.
+  """
+  @spec find_for_admin(String.t()) :: Ecto.UUID.t() | nil
+  def find_for_admin(query) when is_binary(query) do
+    case Ecto.UUID.cast(String.trim(query)) do
+      {:ok, id} ->
+        if Repo.exists?(from(u in User, where: u.id == ^id)), do: id
+
+      :error ->
+        case normalize_email(query) do
+          {:ok, address} ->
+            Repo.one(
+              from(i in Identity,
+                where: i.provider == :email and i.provider_subject == ^address,
+                select: i.user_id
+              ),
+              log: false
+            )
+
+          _ ->
+            nil
+        end
+    end
+  end
+
+  @doc "See `SimpleFit.Accounts.Restrictions.state/1`."
+  defdelegate account_state(user_id), to: Restrictions, as: :state
+
+  @doc "See `SimpleFit.Accounts.Restrictions.lock!/1`."
+  defdelegate lock_account!(user_id), to: Restrictions, as: :lock!
+
+  @doc "See `SimpleFit.Accounts.Restrictions.suspend!/4`."
+  defdelegate suspend_account!(user_id, operator_id, reason_code, now),
+    to: Restrictions,
+    as: :suspend!
+
+  @doc "See `SimpleFit.Accounts.Restrictions.lift!/4`."
+  defdelegate lift_account_suspension!(user_id, operator_id, reason_code, now),
+    to: Restrictions,
+    as: :lift!
+
+  @doc "See `SimpleFit.Accounts.Restrictions.sign_out_everywhere!/2`."
+  defdelegate sign_out_everywhere!(user_id, now), to: Restrictions
 end

@@ -45,7 +45,8 @@ defmodule SimpleFit.Operators.Actions do
     Confirmation,
     Operation,
     OperatorActions,
-    OperatorTarget
+    OperatorTarget,
+    UserActions
   }
 
   alias SimpleFit.Operators.{Policy, Redaction}
@@ -66,7 +67,8 @@ defmodule SimpleFit.Operators.Actions do
   def ids, do: Enum.map(definitions(), & &1.id)
 
   # Operator administration (SF-111) and sponsor application review (SF-114).
-  defp definitions, do: OperatorActions.definitions() ++ ReviewActions.definitions()
+  defp definitions,
+    do: OperatorActions.definitions() ++ ReviewActions.definitions() ++ UserActions.definitions()
 
   ## Preview
 

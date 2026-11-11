@@ -236,4 +236,9 @@ defmodule SimpleFit.Fighters do
       )
     )
   end
+
+  @doc "The onboarding status of a user's fighter profile, for operator account views (SF-122)."
+  @spec profile_status(Ecto.UUID.t()) :: :not_started | :in_progress | :completed
+  def profile_status(user_id),
+    do: FighterProfile.onboarding_status(Repo.get_by(FighterProfile, user_id: user_id))
 end

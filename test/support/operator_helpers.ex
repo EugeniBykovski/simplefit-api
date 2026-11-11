@@ -215,7 +215,10 @@ defmodule SimpleFit.OperatorHelpers do
     "sponsor_application.approve" => "review_complete",
     "sponsor_application.reject" => "insufficient_information",
     "sponsor_application.suspend_organization" => "approval_mistaken",
-    "sponsor_application.reinstate_organization" => "concern_resolved"
+    "sponsor_application.reinstate_organization" => "concern_resolved",
+    "user.suspend" => "abuse_report",
+    "user.lift_suspension" => "issue_resolved",
+    "user.sign_out_everywhere" => "account_compromise"
   }
 
   @doc "A reason code `action_id` accepts."

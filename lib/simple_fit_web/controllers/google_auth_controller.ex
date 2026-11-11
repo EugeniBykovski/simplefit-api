@@ -113,6 +113,9 @@ defmodule SimpleFitWeb.GoogleAuthController do
   defp respond({:error, :unavailable}, conn), do: APIError.send_error(conn, "service_unavailable")
   defp respond({:error, :forbidden}, conn), do: APIError.send_error(conn, "forbidden")
 
+  defp respond({:error, :account_suspended}, conn),
+    do: APIError.send_error(conn, "account_suspended")
+
   defp respond({:error, _reason} = error, conn),
     do: SimpleFitWeb.FallbackController.call(conn, error)
 end

@@ -20,11 +20,16 @@ defmodule SimpleFit.Operators.Policy do
   # SF-121 adds the overview (AD1) and its health card: `platform.dashboard.read` (counts only,
   # no names) and `system.health.read` (check results and job counts, no payloads), both
   # routine reads at a current key check and not audited per load (SF-107).
+  # SF-122 adds user administration (SF-107 naming, proposed): `users.read` (exact search,
+  # one account, masked, each read recorded with its reason), `users.reveal_email`,
+  # `users.restrict` (suspend or lift, D-SA29 MVP) and `users.sessions.revoke` (sign
+  # out everywhere), the last three at a fresh key check.
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
                   sponsors.applications.claim sponsors.applications.request_changes
                   sponsors.applications.approve sponsors.applications.reject
                   sponsors.applications.read_files sponsors.restrict
-                  platform.dashboard.read system.health.read)
+                  platform.dashboard.read system.health.read
+                  users.read users.reveal_email users.restrict users.sessions.revoke)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
@@ -37,7 +42,11 @@ defmodule SimpleFit.Operators.Policy do
     "sponsors.applications.read_files" => :fresh_key,
     "sponsors.restrict" => :fresh_key,
     "platform.dashboard.read" => :key,
-    "system.health.read" => :key
+    "system.health.read" => :key,
+    "users.read" => :key,
+    "users.reveal_email" => :fresh_key,
+    "users.restrict" => :fresh_key,
+    "users.sessions.revoke" => :fresh_key
   }
 
   @required_authenticators Application.compile_env(

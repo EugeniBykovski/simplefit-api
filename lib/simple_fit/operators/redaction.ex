@@ -83,4 +83,17 @@ defmodule SimpleFit.Operators.Redaction do
     |> Map.take(@detail_keys)
     |> Map.filter(fn {_key, value} -> is_binary(value) or is_integer(value) end)
   end
+
+  @doc """
+  An email address masked for operator views (SF-122): the first character of the
+  local part and the domain (`n•••@example.com`). The full address needs
+  `users.reveal_email`.
+  """
+  @spec mask_email(String.t()) :: String.t()
+  def mask_email(address) when is_binary(address) do
+    case String.split(address, "@", parts: 2) do
+      [local, domain] when local != "" -> String.first(local) <> "•••@" <> domain
+      _ -> "•••"
+    end
+  end
 end

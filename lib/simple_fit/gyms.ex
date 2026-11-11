@@ -1014,4 +1014,27 @@ defmodule SimpleFit.Gyms do
 
     Map.put(counts, :completed_in_period, completed_in_period)
   end
+
+  @doc """
+  How many active gym relationships a user has, for operator account views (SF-122):
+  staff memberships and gym memberships. Counts only: no gym, role or member data.
+  """
+  @spec relationship_counts(Ecto.UUID.t()) :: %{
+          staff: non_neg_integer(),
+          member: non_neg_integer()
+        }
+  def relationship_counts(user_id) do
+    %{
+      staff:
+        Repo.aggregate(
+          from(s in StaffMembership, where: s.user_id == ^user_id and s.status == :active),
+          :count
+        ),
+      member:
+        Repo.aggregate(
+          from(m in SimpleFit.Gyms.Member, where: m.user_id == ^user_id and m.status == :active),
+          :count
+        )
+    }
+  end
 end
