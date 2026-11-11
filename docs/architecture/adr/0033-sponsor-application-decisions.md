@@ -137,3 +137,15 @@ env -u RESEND_API_KEY MIX_ENV=dev PORT=4116 DATABASE_URL=$E2E_DB \
   SIMPLEFIT_DEV_LEGAL_REGISTRY=test/support/legal mix phx.server &
 E2E_API_URL=http://127.0.0.1:4116 E2E_API_DATABASE_URL=$E2E_DB mix test test/standalone
 ```
+
+## Amendment (SF-124)
+
+The Control Plane review console (AS1, AS2) uses these endpoints unchanged. One additive read-only field:
+`GET /api/v1/admin/sponsor-applications/{id}` returns `viewer_is_party`, whether the reading operator is a party
+to the application by the same rule the actions apply (the applicant, or a member of the organization its
+approval created, `SimpleFit.Sponsors.ReviewTarget.party?/2`), so the console can say so before any action is
+tried. Action results don't carry it (they have no reader). The rule, the refusal (`conflict`,
+`details.target: "self"`) and every other contract are unchanged. An unanswered decision is reconciled by
+sending the identical request again under the same `operation_id`: the framework's replay check runs before the
+revision and confirmation checks, so a committed request answers with the current state and is never applied
+twice.

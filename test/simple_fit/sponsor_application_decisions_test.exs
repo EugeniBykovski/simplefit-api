@@ -368,6 +368,32 @@ defmodule SimpleFit.SponsorApplicationDecisionsTest do
 
       assert Repo.reload!(org).status == :active
     end
+
+    test "SF-124: a read says whether the reader is a party, by the rule the actions apply", c do
+      assert {:ok, %{viewer_is_party: false}} =
+               Operators.get_sponsor_application(c.r.user, c.r.session, c.app.id)
+
+      own = submitted!(c.r.user, draft!(c.r.user))
+
+      assert {:ok, %{viewer_is_party: true}} =
+               Operators.get_sponsor_application(c.r.user, c.r.session, own.id)
+
+      {:ok, _} = decide(c.r, "sponsor_application.approve", c.app)
+      org = Repo.one!(Organization)
+      member_op = reviewer!(c.r, "party-op", ["sponsors.applications.read"])
+
+      assert {:ok, %{viewer_is_party: false}} =
+               Operators.get_sponsor_application(member_op.user, member_op.session, c.app.id)
+
+      {:ok, fixture} = Provisioning.local_fixture_authority()
+      {:ok, _} = Provisioning.add_member(fixture, org.id, member_op.user.id, :member)
+
+      assert {:ok, %{viewer_is_party: true}} =
+               Operators.get_sponsor_application(member_op.user, member_op.session, c.app.id)
+
+      # Action results carry no reader, so no flag.
+      refute Map.has_key?(Repo.reload!(c.app) |> Sponsors.Review.view(), :viewer_is_party)
+    end
   end
 
   describe "rejection" do

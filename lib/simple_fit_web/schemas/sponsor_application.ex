@@ -636,6 +636,13 @@ defmodule SimpleFitWeb.Schemas.SponsorApplicationReviewResponse do
             :history
           ],
           properties: %{
+            viewer_is_party: %Schema{
+              type: :boolean,
+              description:
+                "SF-124, on a read only (absent from action results): whether the reading operator is a party " <>
+                  "(the applicant, or a member of the organization its approval created). A party's actions " <>
+                  "are refused with `conflict` and `details.target: \"self\"`."
+            },
             decided_at: %Schema{type: :string, format: :"date-time", nullable: true},
             organization: %Schema{
               type: :object,
