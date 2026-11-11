@@ -94,8 +94,12 @@ defmodule SimpleFit.Operators.Overview do
   defp ceil_second(now),
     do: now |> DateTime.truncate(:second) |> DateTime.add(1, :second)
 
-  @doc false
-  # Runs `fun` in the overview's snapshot (public for the real-commit test).
+  @doc """
+  Runs `fun` in one `REPEATABLE READ, READ ONLY` transaction, so the reads it makes
+  describe the same instant: the overview's counts, and each SF-123 oversight detail
+  (a gym's people and verification, a profile's counts). Off in the SQL sandbox
+  (`snapshot: false`); the real-commit tests turn it on.
+  """
   @spec snapshot((-> result)) :: result when result: term()
   def snapshot(fun) do
     if Keyword.get(Application.get_env(:simple_fit, __MODULE__, []), :snapshot, true) do

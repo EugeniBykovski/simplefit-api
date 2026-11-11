@@ -106,6 +106,15 @@ defmodule SimpleFitWeb.Router do
 
     post "/users/:user_id/sign-out-everywhere", AdminUserController, :sign_out_everywhere
 
+    # SF-123: gym, coach and fighter oversight, read-only, one permission per domain. Gyms
+    # are a filtered list; people are exact lookups. No update, intervention or export.
+    get "/gyms", AdminOversightController, :gyms
+    get "/gyms/:gym_id", AdminOversightController, :gym
+    get "/coaches", AdminOversightController, :coaches
+    get "/coaches/:coach_id", AdminOversightController, :coach
+    get "/fighters", AdminOversightController, :fighters
+    get "/fighters/:fighter_id", AdminOversightController, :fighter
+
     get "/operators", OperatorAdminController, :index
     post "/operators", OperatorAdminController, :provision
     get "/operators/:operator_id", OperatorAdminController, :show

@@ -238,4 +238,43 @@ defmodule SimpleFit.Coaches do
   @spec profile_status(Ecto.UUID.t()) :: :not_started | :in_progress | :completed
   def profile_status(user_id),
     do: CoachProfile.onboarding_status(Repo.get_by(CoachProfile, user_id: user_id))
+
+  ## Operator oversight (SF-123)
+
+  @doc "The id of a user's coach profile, for operator lookup, or `nil`."
+  @spec oversight_find({:user, Ecto.UUID.t()}) :: Ecto.UUID.t() | nil
+  def oversight_find({:user, user_id}),
+    do: Repo.one(from(p in CoachProfile, where: p.user_id == ^user_id, select: p.id), @unlogged)
+
+  @doc """
+  A coach profile as operators see it (SF-123), or `nil`: professional identity and
+  formats, onboarding status and creation time. Never the free-text bio, the
+  account's name, date of birth or email. Coaches have no verification state, so
+  none is reported.
+  """
+  @spec oversight_view(Ecto.UUID.t()) :: map() | nil
+  def oversight_view(profile_id) do
+    case Repo.get(CoachProfile, profile_id, @unlogged) do
+      nil ->
+        nil
+
+      profile ->
+        profile
+        |> Map.take([
+          :id,
+          :user_id,
+          :display_name,
+          :brand_name,
+          :country_code,
+          :city,
+          :languages,
+          :coaching_formats,
+          :competition_levels
+        ])
+        |> Map.merge(%{
+          profile_status: CoachProfile.onboarding_status(profile),
+          created_at: profile.inserted_at
+        })
+    end
+  end
 end

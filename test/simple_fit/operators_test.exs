@@ -647,9 +647,10 @@ defmodule SimpleFit.OperatorsTest do
     test "SF-110 adds no gym verification permission and leaves SF-136's authority alone" do
       _f = stepped!(founder!())
 
+      # SF-123's `gyms.read` reads a gym's state only; no verification permission exists.
       refute Enum.any?(
                Policy.permissions(),
-               &String.starts_with?(&1, "gyms.")
+               &String.starts_with?(&1, "gyms.verification.")
              )
 
       assert VerificationAuthority.ambient_credential() ==

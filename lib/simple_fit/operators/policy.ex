@@ -24,12 +24,17 @@ defmodule SimpleFit.Operators.Policy do
   # one account, masked, each read recorded with its reason), `users.reveal_email`,
   # `users.restrict` (suspend or lift, D-SA29 MVP) and `users.sessions.revoke` (sign
   # out everywhere), the last three at a fresh key check.
+  # SF-123 adds read-only oversight, one permission per domain so none implies another:
+  # `gyms.read` (SF-107: list and one gym, counts of people, no member list),
+  # `coaches.read` and `fighters.read` (exact lookup, the profile's shared fields and
+  # relationship counts, never training, health or messages), all at a current key check.
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
                   sponsors.applications.claim sponsors.applications.request_changes
                   sponsors.applications.approve sponsors.applications.reject
                   sponsors.applications.read_files sponsors.restrict
                   platform.dashboard.read system.health.read
-                  users.read users.reveal_email users.restrict users.sessions.revoke)
+                  users.read users.reveal_email users.restrict users.sessions.revoke
+                  gyms.read coaches.read fighters.read)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
@@ -46,7 +51,10 @@ defmodule SimpleFit.Operators.Policy do
     "users.read" => :key,
     "users.reveal_email" => :fresh_key,
     "users.restrict" => :fresh_key,
-    "users.sessions.revoke" => :fresh_key
+    "users.sessions.revoke" => :fresh_key,
+    "gyms.read" => :key,
+    "coaches.read" => :key,
+    "fighters.read" => :key
   }
 
   @required_authenticators Application.compile_env(

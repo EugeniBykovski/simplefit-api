@@ -127,3 +127,27 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
   user row lock that operator provisioning for the same user also needs.
 * No recovery exists for users (sign-in is passwordless): operators can't change identities, link providers, mark
   anything verified or act as a user.
+
+## Amendment (SF-123)
+
+* Three read permissions join the catalog (migration `20261203090000_add_oversight_permissions`), each at a key
+  check and none implying another: `gyms.read` (SF-107 naming), `coaches.read` and `fighters.read` (SF-123, so an
+  operator who reviews gyms sees no people). Nothing is granted. The founder chose them for SF-123 (D-SA31).
+* Gym oversight (`SimpleFit.Gyms.Oversight`, owned by the Gyms context): a list filtered on the server (name
+  prefix on `lower(name) text_pattern_ops`, setup status, current verification status, primary country) in signed
+  keyset pages bound to the filters and the reader, and one gym read in one `REPEATABLE READ, READ ONLY` snapshot:
+  its state, the owner's user id and short name, active staff counts by role, pending staff invitations and member
+  counts. Never member names, contacts, the verification application's business details or documents.
+* Coach and fighter oversight: exact lookup only (fighter `@username`, or the account's exact email or user id;
+  D-SA20), at most one result, sharing a per-operator limit of 60 profile searches an hour. One profile shows the
+  fields the person shares (a fighter: what an accepted coach sees, without the bout count; a coach: professional
+  identity and formats, not the bio), onboarding and account status separately, and relationship counts. Coach–
+  fighter relationships are counts only: who the other party is, training, notes, health and messages have no
+  permission (SF-107 data classes).
+* Every read goes through `Operators.project/5`: permission and key check first (so a missing permission can't
+  reveal whether a record exists), then the read, then its audit event with the reason code (`gyms.listed`,
+  `gym.viewed`, `coach.searched`, `coach.viewed`, `fighter.searched`, `fighter.viewed`). A failed audit insert
+  fails the read.
+* SF-123 adds **no intervention**. Gym suspension has no domain (SF-107 task A9), gym verification review stays
+  behind SF-136's fail-closed authority (not wired to operators), publication is a proposal (SF-139), and
+  relationships have no operator path. Nothing here changes D-SA13: production operator access stays NO-GO.

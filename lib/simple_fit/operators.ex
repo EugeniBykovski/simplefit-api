@@ -656,7 +656,13 @@ defmodule SimpleFit.Operators do
     },
     "users.search" => %{permission: "users.read", audit: "user.searched"},
     "users.detail" => %{permission: "users.read", audit: "user.viewed"},
-    "users.email" => %{permission: "users.reveal_email", audit: "user.email_revealed"}
+    "users.email" => %{permission: "users.reveal_email", audit: "user.email_revealed"},
+    "gyms.list" => %{permission: "gyms.read", audit: "gyms.listed"},
+    "gyms.detail" => %{permission: "gyms.read", audit: "gym.viewed"},
+    "coaches.search" => %{permission: "coaches.read", audit: "coach.searched"},
+    "coaches.detail" => %{permission: "coaches.read", audit: "coach.viewed"},
+    "fighters.search" => %{permission: "fighters.read", audit: "fighter.searched"},
+    "fighters.detail" => %{permission: "fighters.read", audit: "fighter.viewed"}
   }
 
   defp project(id, user, session, ctx, fun) do
@@ -1072,6 +1078,278 @@ defmodule SimpleFit.Operators do
       sponsor_memberships: SimpleFit.Sponsors.active_membership_count(id),
       platform_operator: usable_operator(id) != nil
     }
+  end
+
+  ## Gym, coach and fighter oversight (SF-123)
+
+  @profile_search_limit 60
+
+  @doc """
+  One page of gyms, newest first (`gyms.read`, key check): name, type, lifecycle,
+  verification status, primary country and city, active staff count, creation time.
+  Filters: `query` (a case-insensitive name prefix, 1..80), `lifecycle`,
+  `verification`, `country` (ISO alpha-2); `limit` 1..50 (default 25); `cursor` from
+  the previous page, valid only for the same filters and reader. No member data.
+  Each query is audited (`gyms.listed`).
+  """
+  @spec list_gyms(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{gyms: [map()], next_cursor: String.t() | nil}} | {:error, error() | term()}
+  def list_gyms(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("gyms.list", user, session, ctx, fn principal ->
+      with {:ok, attrs} <- gym_query(params),
+           filters = gym_filters(attrs),
+           {:ok, position} <- gym_position(attrs, filters, principal.operator_id) do
+        {gyms, next} =
+          SimpleFit.Gyms.oversight_page(
+            Map.delete(filters, :list),
+            Map.get(attrs, :limit, 25),
+            position
+          )
+
+        {:ok,
+         %{gyms: gyms, next_cursor: next && Cursor.encode(next, filters, principal.operator_id)},
+         {"gym_list", nil}}
+      end
+    end)
+  end
+
+  @doc """
+  One gym (`gyms.read`, key check), read in one snapshot: its state, the owner (user
+  id and short name), active staff counts by role, pending staff invitations, member
+  counts (never who), and the verification application's status, revision and dates
+  (never its business details or documents). Needs a `reason_code`; recorded
+  (`gym.viewed`).
+  """
+  @spec get_gym(User.t(), Session.t(), term(), map(), ctx()) ::
+          {:ok, map()} | {:error, error() | term()}
+  def get_gym(%User{} = user, %Session{} = session, gym_id, params, ctx \\ %{}) do
+    with {:ok, attrs} <- user_query(params, [:reason_code], %{}),
+         {:ok, id} <- user_id(gym_id) do
+      project("gyms.detail", user, session, ctx, fn _principal -> read_gym(id, attrs) end)
+    end
+  end
+
+  @doc """
+  Finds one coach by the exact email address or user id of their account
+  (`coaches.read`, key check). At most one result; never a partial match or a list.
+  Needs a `reason_code`; every search is recorded (`coach.searched`), found or not,
+  and shares a limit of #{@profile_search_limit} profile searches per operator and hour.
+  """
+  @spec search_coaches(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{coaches: [map()]}} | {:error, error() | term()}
+  def search_coaches(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    with {:ok, attrs} <- user_query(params, [:query, :reason_code], %{query: :string}) do
+      project("coaches.search", user, session, ctx, fn principal ->
+        profile_search(principal, attrs, :coach)
+      end)
+    end
+  end
+
+  @doc """
+  One coach (`coaches.read`, key check): the profile's professional fields, onboarding
+  and account status, relationship counts (active, ended, pending invitations) and the
+  gyms they coach at (ids only). Never the bio, training, notes, messages or who their
+  fighters are. Needs a `reason_code`; recorded (`coach.viewed`).
+  """
+  @spec get_coach(User.t(), Session.t(), term(), map(), ctx()) ::
+          {:ok, map()} | {:error, error() | term()}
+  def get_coach(%User{} = user, %Session{} = session, coach_id, params, ctx \\ %{}) do
+    profile_detail(user, session, coach_id, params, ctx, :coach)
+  end
+
+  @doc """
+  Finds one fighter by exact `@username`, or by the exact email address or user id of
+  their account (`fighters.read`, key check). At most one result. Needs a
+  `reason_code`; every search is recorded (`fighter.searched`), found or not, and
+  shares the profile search limit.
+  """
+  @spec search_fighters(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{fighters: [map()]}} | {:error, error() | term()}
+  def search_fighters(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    with {:ok, attrs} <- user_query(params, [:query, :reason_code], %{query: :string}) do
+      project("fighters.search", user, session, ctx, fn principal ->
+        profile_search(principal, attrs, :fighter)
+      end)
+    end
+  end
+
+  @doc """
+  One fighter (`fighters.read`, key check): the fields a fighter shares with an
+  accepted coach (no bout count), onboarding and account status, relationship counts
+  and active gym membership count. Never weight, height, goals, fights, age, health,
+  training, notes or messages. Needs a `reason_code`; recorded (`fighter.viewed`).
+  """
+  @spec get_fighter(User.t(), Session.t(), term(), map(), ctx()) ::
+          {:ok, map()} | {:error, error() | term()}
+  def get_fighter(%User{} = user, %Session{} = session, fighter_id, params, ctx \\ %{}) do
+    profile_detail(user, session, fighter_id, params, ctx, :fighter)
+  end
+
+  defp gym_query(params) do
+    types = %{
+      query: :string,
+      lifecycle: :string,
+      verification: :string,
+      country: :string,
+      limit: :integer,
+      cursor: :string
+    }
+
+    {%{}, types}
+    |> cast(params, Map.keys(types), empty_values: [])
+    |> validate_length(:query, min: 1, max: 80)
+    |> validate_inclusion(:lifecycle, ~w(draft completed))
+    |> validate_inclusion(
+      :verification,
+      Enum.map(SimpleFit.Gyms.oversight_verification_statuses(), &Atom.to_string/1)
+    )
+    |> validate_format(:country, ~r/^[A-Z]{2}$/)
+    |> validate_number(:limit, greater_than: 0, less_than_or_equal_to: 50)
+    |> validate_length(:cursor, max: 1024)
+    |> apply_action(:validate)
+  end
+
+  # The scope a gym list cursor is bound to: the filters and which list it pages.
+  defp gym_filters(attrs) do
+    %{
+      name_prefix: attrs[:query],
+      lifecycle: attrs[:lifecycle] && String.to_existing_atom(attrs.lifecycle),
+      verification: attrs[:verification] && String.to_existing_atom(attrs.verification),
+      country: attrs[:country]
+    }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.put(:list, "gyms")
+  end
+
+  defp gym_position(%{cursor: cursor}, filters, operator_id) do
+    case Cursor.decode(cursor, filters, operator_id) do
+      {:ok, position} ->
+        {:ok, position}
+
+      :error ->
+        {:error,
+         {%{}, %{cursor: :string}}
+         |> change()
+         |> add_error(:cursor, "is invalid", validation: :format)}
+    end
+  end
+
+  defp gym_position(_attrs, _filters, _operator_id), do: {:ok, nil}
+
+  defp gym_detail(id) do
+    case SimpleFit.Gyms.oversight_view(id) do
+      nil ->
+        nil
+
+      gym ->
+        owner =
+          gym.owner_user_id &&
+            %{
+              user_id: gym.owner_user_id,
+              short_name:
+                get_in(Accounts.short_names([gym.owner_user_id]), [
+                  gym.owner_user_id,
+                  :short_name
+                ])
+            }
+
+        gym |> Map.delete(:owner_user_id) |> Map.put(:owner, owner)
+    end
+  end
+
+  defp profile_search(principal, attrs, kind) do
+    with :ok <- profile_search_limit(principal) do
+      found = profile_find(kind, attrs.query)
+      results = if found, do: [profile_summary(kind, found)], else: []
+
+      {:ok, %{profile_key(kind) => results}, {profile_target(kind), found},
+       %{reason_code: attrs.reason_code}}
+    end
+  end
+
+  defp profile_find(:fighter, "@" <> username),
+    do: SimpleFit.Fighters.oversight_find({:username, username})
+
+  defp profile_find(kind, query) do
+    case Accounts.find_for_admin(query) do
+      nil -> nil
+      user_id -> profile_module(kind).oversight_find({:user, user_id})
+    end
+  end
+
+  defp profile_detail(user, session, profile_id, params, ctx, kind) do
+    with {:ok, attrs} <- user_query(params, [:reason_code], %{}),
+         {:ok, id} <- user_id(profile_id) do
+      project(profile_projection(kind), user, session, ctx, fn _principal ->
+        read_profile(kind, id, attrs)
+      end)
+    end
+  end
+
+  defp read_gym(id, attrs),
+    do: found(Overview.snapshot(fn -> gym_detail(id) end), {"gym", id}, attrs)
+
+  defp read_profile(kind, id, attrs),
+    do:
+      found(
+        Overview.snapshot(fn -> profile_view(kind, id) end),
+        {profile_target(kind), id},
+        attrs
+      )
+
+  # A read's answer: the record with its audit target and reason, or `not_found`.
+  defp found(nil, _target, _attrs), do: {:error, :not_found}
+  defp found(view, target, attrs), do: {:ok, view, target, %{reason_code: attrs.reason_code}}
+
+  defp profile_summary(kind, id) do
+    view = Overview.snapshot(fn -> profile_view(kind, id) end)
+
+    view
+    |> Map.take([:id, :user_id, :display_name, :profile_status, :account_status])
+    |> Map.merge(%{
+      username: Map.get(view, :username),
+      brand_name: Map.get(view, :brand_name),
+      active_relationships: view.relationships.active
+    })
+  end
+
+  defp profile_view(kind, id) do
+    case profile_module(kind).oversight_view(id) do
+      nil ->
+        nil
+
+      view ->
+        view
+        |> Map.merge(%{
+          account_status: Accounts.account_state(view.user_id).status,
+          relationships: SimpleFit.Coaching.relationship_counts(kind, id)
+        })
+        |> Map.merge(profile_gyms(kind, view.user_id))
+    end
+  end
+
+  defp profile_gyms(:coach, user_id), do: %{gyms: SimpleFit.Gyms.coach_affiliations(user_id)}
+
+  defp profile_gyms(:fighter, user_id),
+    do: %{gym_memberships: SimpleFit.Gyms.relationship_counts(user_id).member}
+
+  defp profile_module(:coach), do: SimpleFit.Coaches
+  defp profile_module(:fighter), do: SimpleFit.Fighters
+
+  defp profile_key(:coach), do: :coaches
+  defp profile_key(:fighter), do: :fighters
+
+  defp profile_target(:coach), do: "coach_profile"
+  defp profile_target(:fighter), do: "fighter_profile"
+
+  defp profile_projection(:coach), do: "coaches.detail"
+  defp profile_projection(:fighter), do: "fighters.detail"
+
+  defp profile_search_limit(principal) do
+    RateLimit.hit([
+      {"operator_profile_search", :crypto.hash(:sha256, principal.user_id), @profile_search_limit,
+       3600}
+    ])
   end
 
   ## Overview (SF-121)

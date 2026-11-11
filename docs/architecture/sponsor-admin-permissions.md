@@ -43,7 +43,9 @@ Assurance A1 means a current key check and A2 a very recent one ([definition](pl
 | `users.read` | Routine | Search by exact email or id; read one user | Masked email, identity providers, linked context **types** and gym or organization ids. Not profile content | A1 | Each view, with `ticket_ref` | Yes |
 | `users.reveal_email` | Elevated | Show one full address | One email | A2 | Each reveal, with reason | Yes |
 | `users.restrict` | High | Suspend or lift | State only | A2 | Write, reason, before and after | Yes |
-| `gyms.read` | Routine | AD2, AD12 reduced | Name, status, location, staff count, verification status. **No member list** | A1 | Each detail view | Yes |
+| `gyms.read` | Routine | AD2, AD12 reduced | Name, status, location, staff count, verification status. **No member list** | A1 | Each detail view | Yes. **Built in SF-123**: also counts by role and the owner's short name; each list query audited too |
+| `coaches.read` | Routine | AD7 Coaches tab | Exact lookup; shared profile fields, account state, relationship counts, gym ids. **No relationships, bio or training** | A1 | Each search and view | Yes (SF-123) |
+| `fighters.read` | Routine | AD7 Fighters tab | Exact lookup; shared profile fields, account state, relationship and gym membership counts. **No body, health, goals or training** | A1 | Each search and view | Yes (SF-123) |
 | `gyms.suspend` | High | Suspend or reinstate | State | A2 | Write | Yes |
 | `audit.read` | Elevated | AD14 | Audit rows | A1 | Each query | Yes |
 | `system.health.read` | Routine | Reduced AD17 | Queue and job counts. No args, no payloads | A1 | None | Yes |
