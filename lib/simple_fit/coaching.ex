@@ -65,7 +65,7 @@ defmodule SimpleFit.Coaching do
 
   alias SimpleFit.Accounts.User
   alias SimpleFit.{Coaches, Fighters, Repo, Training}
-  alias SimpleFit.Coaching.{Invitations, LegalPolicy, Relationship}
+  alias SimpleFit.Coaching.{Invitation, Invitations, LegalPolicy, Relationship}
 
   # Relationship rows and projections carry personal data; not logged.
   @unlogged [log: false]
@@ -101,6 +101,53 @@ defmodule SimpleFit.Coaching do
 
   @typedoc "A page of entries and the cursor of the next one (`nil` on the last page)."
   @type page(entry) :: %{entries: [entry], next_cursor: String.t() | nil}
+
+  ## Operator oversight (SF-123)
+
+  @doc """
+  How many coach–fighter relationships a profile has, by status, for operator views
+  (SF-123): `:coach` or `:fighter` side. A coach's count also has their pending,
+  unexpired invitations. Counts only: never who the other party is, when, or anything
+  shared between them (relationships are private coaching, SF-107).
+  """
+  @spec relationship_counts(:coach | :fighter, Ecto.UUID.t()) :: %{
+          required(:active) => non_neg_integer(),
+          required(:ended) => non_neg_integer(),
+          optional(:invitations_pending) => non_neg_integer()
+        }
+  def relationship_counts(side, profile_id) when side in [:coach, :fighter] do
+    query =
+      case side do
+        :coach -> from(r in Relationship, where: r.coach_profile_id == ^profile_id)
+        :fighter -> from(r in Relationship, where: r.fighter_profile_id == ^profile_id)
+      end
+
+    counts =
+      from(r in query, group_by: r.status, select: {r.status, count()})
+      |> Repo.all(@unlogged)
+      |> Map.new()
+
+    base = %{active: Map.get(counts, :active, 0), ended: Map.get(counts, :ended, 0)}
+
+    if side == :coach do
+      now = DateTime.utc_now()
+
+      Map.put(
+        base,
+        :invitations_pending,
+        Repo.aggregate(
+          from(i in Invitation,
+            where:
+              i.coach_profile_id == ^profile_id and i.status == :pending and i.expires_at > ^now
+          ),
+          :count,
+          @unlogged
+        )
+      )
+    else
+      base
+    end
+  end
 
   ## Invitations (SF-57; `SimpleFit.Coaching.Invitations`)
 

@@ -241,4 +241,58 @@ defmodule SimpleFit.Fighters do
   @spec profile_status(Ecto.UUID.t()) :: :not_started | :in_progress | :completed
   def profile_status(user_id),
     do: FighterProfile.onboarding_status(Repo.get_by(FighterProfile, user_id: user_id))
+
+  ## Operator oversight (SF-123)
+
+  @doc """
+  The id of a fighter profile found by its exact username (case-insensitive, with or
+  without a leading `@`) or by its user's id, for operator lookup. Never a partial
+  match.
+  """
+  @spec oversight_find({:username, String.t()} | {:user, Ecto.UUID.t()}) :: Ecto.UUID.t() | nil
+  def oversight_find({:username, username}) do
+    username = username |> String.trim_leading("@") |> String.downcase()
+
+    Repo.one(
+      from(p in FighterProfile,
+        where: fragment("lower(?)", p.username) == ^username,
+        select: p.id
+      ),
+      @unlogged
+    )
+  end
+
+  def oversight_find({:user, user_id}),
+    do: Repo.one(from(p in FighterProfile, where: p.user_id == ^user_id, select: p.id), @unlogged)
+
+  @doc """
+  A fighter profile as operators see it (SF-123), or `nil`: the fields the fighter
+  shares with a coach they accept (`coach_visible_fields/0`) except their bout count,
+  plus onboarding status and creation time. Never weight, height, weight class,
+  goals, the next fight, the account's name, date of birth or email.
+  """
+  @spec oversight_view(Ecto.UUID.t()) :: map() | nil
+  def oversight_view(profile_id) do
+    case Repo.get(FighterProfile, profile_id, @unlogged) do
+      nil ->
+        nil
+
+      profile ->
+        profile
+        |> Map.take([
+          :id,
+          :user_id,
+          :display_name,
+          :username,
+          :country_code,
+          :city,
+          :experience_level,
+          :stance
+        ])
+        |> Map.merge(%{
+          profile_status: FighterProfile.onboarding_status(profile),
+          created_at: profile.inserted_at
+        })
+    end
+  end
 end

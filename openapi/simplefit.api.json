@@ -702,6 +702,710 @@
         "title": "AccountProfileUpdateRequest",
         "type": "object"
       },
+      "AdminCoach": {
+        "description": "One coach for operators (SF-123). The coach profile's onboarding (`profile_status`) and the account's\nstate (`account_status`) are separate. Relationships are counts only: never who the fighters are, their\ntraining, notes or messages. Coaches have no verification state. `gyms` are the gyms they coach at\n(staff membership as coach), ids only: opening one needs `gyms.read`.\n",
+        "properties": {
+          "account_status": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "brand_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "city": {
+            "nullable": true,
+            "type": "string"
+          },
+          "coaching_formats": {
+            "items": {
+              "enum": [
+                "personal_training",
+                "group_coaching",
+                "online_coaching",
+                "fight_camps"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "competition_levels": {
+            "items": {
+              "enum": [
+                "amateur",
+                "professional"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "country_code": {
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "display_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "gyms": {
+            "items": {
+              "properties": {
+                "gym_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "since": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "gym_id",
+                "since"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "languages": {
+            "items": {
+              "enum": [
+                "en",
+                "pl",
+                "ru",
+                "be",
+                "uk"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "profile_status": {
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "relationships": {
+            "properties": {
+              "active": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "ended": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "invitations_pending": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "active",
+              "ended",
+              "invitations_pending"
+            ],
+            "type": "object"
+          },
+          "user_id": {
+            "description": "Opening the account needs `users.read`.",
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "display_name",
+          "brand_name",
+          "country_code",
+          "city",
+          "languages",
+          "coaching_formats",
+          "competition_levels",
+          "profile_status",
+          "account_status",
+          "created_at",
+          "relationships",
+          "gyms"
+        ],
+        "title": "AdminCoach",
+        "type": "object"
+      },
+      "AdminCoachResponse": {
+        "properties": {
+          "coach": {
+            "$ref": "#/components/schemas/AdminCoach"
+          }
+        },
+        "required": [
+          "coach"
+        ],
+        "title": "AdminCoachResponse",
+        "type": "object"
+      },
+      "AdminCoachSearchResponse": {
+        "description": "At most one coach: search is exact, never a list.",
+        "properties": {
+          "coaches": {
+            "items": {
+              "$ref": "#/components/schemas/AdminCoachSummary"
+            },
+            "maxItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "coaches"
+        ],
+        "title": "AdminCoachSearchResponse",
+        "type": "object"
+      },
+      "AdminCoachSummary": {
+        "description": "A coach found by exact search.",
+        "properties": {
+          "account_status": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "active_relationships": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "brand_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "display_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "description": "The coach profile.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "profile_status": {
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "display_name",
+          "brand_name",
+          "profile_status",
+          "account_status",
+          "active_relationships"
+        ],
+        "title": "AdminCoachSummary",
+        "type": "object"
+      },
+      "AdminFighter": {
+        "description": "One fighter for operators (SF-123): the fields a fighter shares with a coach they accept (without the\nbout count), onboarding (`profile_status`) and the account's state (`account_status`), separately.\nRelationships and gym memberships are counts only. Never weight, height, weight class, goals, fights,\nage or date of birth, health, training, notes or messages: no permission exists for them.\n",
+        "properties": {
+          "account_status": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "city": {
+            "nullable": true,
+            "type": "string"
+          },
+          "country_code": {
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "display_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "experience_level": {
+            "enum": [
+              "new_to_boxing",
+              "recreational",
+              "amateur",
+              "competitive_amateur",
+              "professional"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "gym_memberships": {
+            "description": "Active gym memberships: a count, never which gyms.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "profile_status": {
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "relationships": {
+            "properties": {
+              "active": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "ended": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "active",
+              "ended"
+            ],
+            "type": "object"
+          },
+          "stance": {
+            "enum": [
+              "orthodox",
+              "southpaw",
+              "switch"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "user_id": {
+            "description": "Opening the account needs `users.read`.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "username": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "display_name",
+          "username",
+          "country_code",
+          "city",
+          "experience_level",
+          "stance",
+          "profile_status",
+          "account_status",
+          "created_at",
+          "relationships",
+          "gym_memberships"
+        ],
+        "title": "AdminFighter",
+        "type": "object"
+      },
+      "AdminFighterResponse": {
+        "properties": {
+          "fighter": {
+            "$ref": "#/components/schemas/AdminFighter"
+          }
+        },
+        "required": [
+          "fighter"
+        ],
+        "title": "AdminFighterResponse",
+        "type": "object"
+      },
+      "AdminFighterSearchResponse": {
+        "description": "At most one fighter: search is exact, never a list.",
+        "properties": {
+          "fighters": {
+            "items": {
+              "$ref": "#/components/schemas/AdminFighterSummary"
+            },
+            "maxItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "fighters"
+        ],
+        "title": "AdminFighterSearchResponse",
+        "type": "object"
+      },
+      "AdminFighterSummary": {
+        "description": "A fighter found by exact search.",
+        "properties": {
+          "account_status": {
+            "enum": [
+              "active",
+              "suspended"
+            ],
+            "type": "string"
+          },
+          "active_relationships": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "display_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "description": "The fighter profile.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "profile_status": {
+            "enum": [
+              "in_progress",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "username": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "display_name",
+          "username",
+          "profile_status",
+          "account_status",
+          "active_relationships"
+        ],
+        "title": "AdminFighterSummary",
+        "type": "object"
+      },
+      "AdminGym": {
+        "description": "One gym for operators (SF-123), read in one snapshot. People are counts, plus the owner's user id and\nshort name (\"Natalia W.\"): never member names, contact details or staff lists. Verification is the\napplication's status, revision and dates: never its declared business details or documents.\n",
+        "properties": {
+          "city": {
+            "nullable": true,
+            "type": "string"
+          },
+          "country_code": {
+            "description": "The primary location's country (ISO alpha-2); none before setup adds one.",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "gym_type": {
+            "enum": [
+              "boxing_gym",
+              "boxing_club",
+              "amateur_club",
+              "professional_team",
+              "combat_sports_gym",
+              "fitness_boxing_studio"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycle": {
+            "enum": [
+              "draft",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "members": {
+            "description": "Gym members by status: counts only.",
+            "properties": {
+              "active": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "requested": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "active",
+              "requested"
+            ],
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner": {
+            "nullable": true,
+            "properties": {
+              "short_name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "user_id": {
+                "description": "Opening the account needs `users.read`.",
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "user_id",
+              "short_name"
+            ],
+            "type": "object"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "staff": {
+            "description": "Active staff by role, the owner excluded.",
+            "properties": {
+              "coach": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "front_desk": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "manager": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "manager",
+              "coach",
+              "front_desk"
+            ],
+            "type": "object"
+          },
+          "staff_count": {
+            "description": "Active staff, the owner included.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "staff_invitations_pending": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "verification": {
+            "properties": {
+              "decided_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "revision": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "status": {
+                "enum": [
+                  "not_started",
+                  "draft",
+                  "submitted",
+                  "changes_requested",
+                  "approved",
+                  "rejected",
+                  "revoked"
+                ],
+                "type": "string"
+              },
+              "submitted_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "revision",
+              "submitted_at",
+              "decided_at"
+            ],
+            "type": "object"
+          },
+          "verification_status": {
+            "description": "The business verification application's status (SF-103), or `not_started`.",
+            "enum": [
+              "not_started",
+              "draft",
+              "submitted",
+              "changes_requested",
+              "approved",
+              "rejected",
+              "revoked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "gym_type",
+          "lifecycle",
+          "verification_status",
+          "country_code",
+          "city",
+          "staff_count",
+          "created_at",
+          "revision",
+          "owner",
+          "staff",
+          "staff_invitations_pending",
+          "members",
+          "verification"
+        ],
+        "title": "AdminGym",
+        "type": "object"
+      },
+      "AdminGymListResponse": {
+        "description": "One page of gyms, newest first.",
+        "properties": {
+          "gyms": {
+            "items": {
+              "$ref": "#/components/schemas/AdminGymSummary"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "The next page, for the same filters and reader only; `null` on the last page.",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "gyms",
+          "next_cursor"
+        ],
+        "title": "AdminGymListResponse",
+        "type": "object"
+      },
+      "AdminGymResponse": {
+        "properties": {
+          "gym": {
+            "$ref": "#/components/schemas/AdminGym"
+          }
+        },
+        "required": [
+          "gym"
+        ],
+        "title": "AdminGymResponse",
+        "type": "object"
+      },
+      "AdminGymSummary": {
+        "description": "One gym in the operator list (SF-123): its own state, never its people. `lifecycle` is the gym's setup; there is no suspension, closure or publication state.",
+        "properties": {
+          "city": {
+            "nullable": true,
+            "type": "string"
+          },
+          "country_code": {
+            "description": "The primary location's country (ISO alpha-2); none before setup adds one.",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "gym_type": {
+            "enum": [
+              "boxing_gym",
+              "boxing_club",
+              "amateur_club",
+              "professional_team",
+              "combat_sports_gym",
+              "fitness_boxing_studio"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycle": {
+            "enum": [
+              "draft",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "staff_count": {
+            "description": "Active staff, the owner included.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "verification_status": {
+            "description": "The business verification application's status (SF-103), or `not_started`.",
+            "enum": [
+              "not_started",
+              "draft",
+              "submitted",
+              "changes_requested",
+              "approved",
+              "rejected",
+              "revoked"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "gym_type",
+          "lifecycle",
+          "verification_status",
+          "country_code",
+          "city",
+          "staff_count",
+          "created_at"
+        ],
+        "title": "AdminGymSummary",
+        "type": "object"
+      },
       "AdminOverview": {
         "description": "Platform counts, review queues and health as one snapshot at `as_of`. `period` is `[from, to)` in UTC and drives only `period_counts`. `health.state: restricted` means no `system.health.read`.",
         "properties": {
@@ -3966,7 +4670,10 @@
               "users.read",
               "users.reveal_email",
               "users.restrict",
-              "users.sessions.revoke"
+              "users.sessions.revoke",
+              "gyms.read",
+              "coaches.read",
+              "fighters.read"
             ],
             "type": "string"
           },
@@ -4020,7 +4727,10 @@
               "users.read",
               "users.reveal_email",
               "users.restrict",
-              "users.sessions.revoke"
+              "users.sessions.revoke",
+              "gyms.read",
+              "coaches.read",
+              "fighters.read"
             ],
             "type": "string"
           },
@@ -15516,6 +16226,150 @@
         ]
       }
     },
+    "/api/v1/admin/coaches": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `coaches.read` and a key check. Exact only, never a list. Every search is recorded with its\n`reason_code` (`coach.searched`), found or not; 60 profile searches per operator and hour.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record. The\n  permission is checked first, so an operator without it can't learn whether a record exists.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed parameter.\n* `rate_limited` - too many searches.",
+        "operationId": "searchAdminCoaches",
+        "parameters": [
+          {
+            "description": "An exact email address or user id of the person's account.",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 320,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Why the operator reads this; recorded with the read.",
+            "in": "query",
+            "name": "reason_code",
+            "required": true,
+            "schema": {
+              "enum": [
+                "support_request",
+                "account_security",
+                "abuse_report",
+                "legal_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCoachSearchResponse"
+                }
+              }
+            },
+            "description": "At most one coach"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find one coach by exact email or user id",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/coaches/{coach_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `coaches.read` and a key check. Profile, account state, relationship counts and gym ids; never the bio, fighters, training, notes or messages. Recorded with its `reason_code` (`coach.viewed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record. The\n  permission is checked first, so an operator without it can't learn whether a record exists.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed parameter.\n",
+        "operationId": "getAdminCoach",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "coach_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Why the operator reads this; recorded with the read.",
+            "in": "query",
+            "name": "reason_code",
+            "required": true,
+            "schema": {
+              "enum": [
+                "support_request",
+                "account_security",
+                "abuse_report",
+                "legal_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCoachResponse"
+                }
+              }
+            },
+            "description": "The coach"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One coach",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/credentials": {
       "get": {
         "callbacks": {},
@@ -15713,6 +16567,339 @@
           }
         ],
         "summary": "Revoke one of the viewer's security keys",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/fighters": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `fighters.read` and a key check. Exact only, never a list: `@username`, or the account's email\naddress or user id. Every search is recorded with its `reason_code` (`fighter.searched`), found or\nnot; shares the profile search limit.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record. The\n  permission is checked first, so an operator without it can't learn whether a record exists.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed parameter.\n* `rate_limited` - too many searches.",
+        "operationId": "searchAdminFighters",
+        "parameters": [
+          {
+            "description": "`@username`, or an exact email address or user id.",
+            "in": "query",
+            "name": "query",
+            "required": true,
+            "schema": {
+              "maxLength": 320,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Why the operator reads this; recorded with the read.",
+            "in": "query",
+            "name": "reason_code",
+            "required": true,
+            "schema": {
+              "enum": [
+                "support_request",
+                "account_security",
+                "abuse_report",
+                "legal_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFighterSearchResponse"
+                }
+              }
+            },
+            "description": "At most one fighter"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Find one fighter by exact @username, email or user id",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/fighters/{fighter_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `fighters.read` and a key check. Shared profile fields, account state and counts; never body, health, age, goals, training, notes or messages. Recorded with its `reason_code` (`fighter.viewed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record. The\n  permission is checked first, so an operator without it can't learn whether a record exists.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed parameter.\n",
+        "operationId": "getAdminFighter",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "fighter_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Why the operator reads this; recorded with the read.",
+            "in": "query",
+            "name": "reason_code",
+            "required": true,
+            "schema": {
+              "enum": [
+                "support_request",
+                "account_security",
+                "abuse_report",
+                "legal_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminFighterResponse"
+                }
+              }
+            },
+            "description": "The fighter"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One fighter",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/gyms": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `gyms.read` and a key check. Newest first; each gym's own state, the primary location's country\nand city and its active staff count. No member data. Every query is recorded (`gyms.listed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record. The\n  permission is checked first, so an operator without it can't learn whether a record exists.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed parameter.\n",
+        "operationId": "listAdminGyms",
+        "parameters": [
+          {
+            "description": "The start of the gym's name (case-insensitive).",
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "enum": [
+                "draft",
+                "completed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "verification",
+            "required": false,
+            "schema": {
+              "enum": [
+                "not_started",
+                "draft",
+                "submitted",
+                "changes_requested",
+                "approved",
+                "rejected",
+                "revoked"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "The primary location's country, ISO alpha-2.",
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page, with the same filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGymListResponse"
+                }
+              }
+            },
+            "description": "A page"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One page of gyms",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/gyms/{gym_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `gyms.read` and a key check. Counts of people, the owner's short name and the verification status; never member names, contacts, business details or documents. Recorded with its `reason_code` (`gym.viewed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record. The\n  permission is checked first, so an operator without it can't learn whether a record exists.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - a missing or unknown `reason_code`, or a malformed parameter.\n",
+        "operationId": "getAdminGym",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "gym_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Why the operator reads this; recorded with the read.",
+            "in": "query",
+            "name": "reason_code",
+            "required": true,
+            "schema": {
+              "enum": [
+                "support_request",
+                "account_security",
+                "abuse_report",
+                "legal_request"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminGymResponse"
+                }
+              }
+            },
+            "description": "The gym"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One gym",
         "tags": [
           "Platform operators"
         ]

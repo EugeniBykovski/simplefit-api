@@ -1037,4 +1037,34 @@ defmodule SimpleFit.Gyms do
         )
     }
   end
+
+  ## Operator oversight (SF-123)
+
+  @doc "One page of gyms for operators; see `SimpleFit.Gyms.Oversight.page/3`."
+  defdelegate oversight_page(filters, limit, position), to: SimpleFit.Gyms.Oversight, as: :page
+
+  @doc "One gym for operators, or `nil`; see `SimpleFit.Gyms.Oversight.view/1`."
+  defdelegate oversight_view(gym_id), to: SimpleFit.Gyms.Oversight, as: :view
+
+  @doc "The verification statuses the operator gym list filters by."
+  defdelegate oversight_verification_statuses(),
+    to: SimpleFit.Gyms.Oversight,
+    as: :verification_statuses
+
+  @doc """
+  A user's active coach staff memberships, for operator coach views (SF-123): the gym
+  id and since when, oldest first. A coach's gym link is a staff membership (D-G06),
+  never their coach profile. No gym name, other role or member data.
+  """
+  @spec coach_affiliations(Ecto.UUID.t()) :: [%{gym_id: Ecto.UUID.t(), since: DateTime.t()}]
+  def coach_affiliations(user_id) do
+    Repo.all(
+      from(s in StaffMembership,
+        where: s.user_id == ^user_id and s.status == :active and s.role == :coach,
+        order_by: [asc: s.inserted_at, asc: s.id],
+        select: %{gym_id: s.gym_id, since: s.inserted_at}
+      ),
+      log: false
+    )
+  end
 end
