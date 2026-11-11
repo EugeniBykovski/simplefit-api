@@ -90,6 +90,12 @@ defmodule SimpleFitWeb.Router do
     # SF-121: the overview (AD1), one fixed read-only projection.
     get "/overview", AdminOverviewController, :show
 
+    # SF-126: the measured system health page (AD17) and the background job list and
+    # detail. Read only: no retry, replay, queue control or log search exists.
+    get "/operations/health", AdminOperationsController, :health
+    get "/operations/jobs", AdminOperationsController, :jobs
+    get "/operations/jobs/:job_id", AdminOperationsController, :job
+
     # SF-122: account administration: exact search, one account, its addresses, and three
     # typed actions (each with its own preview); no generic update, no list, no "act as user".
     get "/users", AdminUserController, :search

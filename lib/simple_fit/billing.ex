@@ -97,4 +97,22 @@ defmodule SimpleFit.Billing do
   def last_webhook_received_at do
     Repo.one(from(e in WebhookEvent, select: max(e.inserted_at)))
   end
+
+  @doc """
+  Stripe webhook events received since `since`, by processing status, for the
+  operator health page (SF-126): counts only, never an event's payload, ids or
+  object. Statuses: `received` (not yet processed), `processed`, `ignored`, `failed`.
+  """
+  @spec webhook_counts(DateTime.t()) :: %{
+          optional(:received | :processed | :ignored | :failed) => non_neg_integer()
+        }
+  def webhook_counts(%DateTime{} = since) do
+    from(e in WebhookEvent,
+      where: e.inserted_at >= ^since,
+      group_by: e.status,
+      select: {e.status, count()}
+    )
+    |> Repo.all(log: false)
+    |> Map.new()
+  end
 end

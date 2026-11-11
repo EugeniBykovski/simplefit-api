@@ -28,13 +28,15 @@ defmodule SimpleFit.Operators.Policy do
   # `gyms.read` (SF-107: list and one gym, counts of people, no member list),
   # `coaches.read` and `fighters.read` (exact lookup, the profile's shared fields and
   # relationship counts, never training, health or messages), all at a current key check.
+  # SF-126 adds `system.jobs.read` (the background job list and one job's metadata, never
+  # arguments or error messages), separate from `system.health.read`; no job action.
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
                   sponsors.applications.claim sponsors.applications.request_changes
                   sponsors.applications.approve sponsors.applications.reject
                   sponsors.applications.read_files sponsors.restrict
                   platform.dashboard.read system.health.read
                   users.read users.reveal_email users.restrict users.sessions.revoke
-                  gyms.read coaches.read fighters.read)
+                  gyms.read coaches.read fighters.read system.jobs.read)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
@@ -54,7 +56,8 @@ defmodule SimpleFit.Operators.Policy do
     "users.sessions.revoke" => :fresh_key,
     "gyms.read" => :key,
     "coaches.read" => :key,
-    "fighters.read" => :key
+    "fighters.read" => :key,
+    "system.jobs.read" => :key
   }
 
   @required_authenticators Application.compile_env(
