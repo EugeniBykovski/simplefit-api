@@ -32,7 +32,7 @@ defmodule SimpleFit.Operators do
   alias SimpleFit.Operators.{Operation, Operator, Overview, Policy, Principal, Redaction}
   alias SimpleFit.Operators.{StepUp, WebAuthn}
   alias SimpleFit.{RateLimit, Repo}
-  alias SimpleFit.Sponsors.Review
+  alias SimpleFit.Sponsors.{Review, ReviewTarget}
 
   @type ctx :: %{optional(:request_id) => String.t() | nil}
   @type refusal :: :not_found | :forbidden | :step_up_required | :enrollment_required
@@ -721,10 +721,15 @@ defmodule SimpleFit.Operators do
   @spec get_sponsor_application(User.t(), Session.t(), term(), ctx()) ::
           {:ok, map()} | {:error, error()}
   def get_sponsor_application(%User{} = user, %Session{} = session, id, ctx \\ %{}) do
-    project("sponsor_applications.detail", user, session, ctx, fn _principal ->
+    project("sponsor_applications.detail", user, session, ctx, fn principal ->
       with {:ok, id} <- uuid(id),
            %{} = application <- Review.fetch(id) do
-        {:ok, Review.view(application), {"sponsor_application", application.id}}
+        # SF-124: whether the reader is a party (the same rule the actions refuse with
+        # `target: "self"`), so the console can say so before any action is tried.
+        party = ReviewTarget.party?(application, principal)
+
+        {:ok, Map.put(Review.view(application), :viewer_is_party, party),
+         {"sponsor_application", application.id}}
       else
         _ -> {:error, :not_found}
       end

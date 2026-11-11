@@ -40,42 +40,45 @@ defmodule SimpleFitWeb.AdminSponsorApplicationJSON do
     a = r.application
 
     %{
-      application: %{
-        application_id: a.id,
-        status: Atom.to_string(a.status),
-        revision: a.revision,
-        submitted_at: a.submitted_at,
-        decided_at: a.decided_at,
-        organization:
-          r.organization &&
-            %{sponsor_id: r.organization.id, status: Atom.to_string(r.organization.status)},
-        history:
-          Enum.map(
-            r.history,
-            &%{
-              event: &1.event,
-              actor:
-                if(&1.actor_user_id == a.applicant_user_id, do: "applicant", else: "operator"),
-              from_status: &1.from_status,
-              to_status: &1.to_status,
-              reason_code: &1.reason_code,
-              occurred_at: &1.occurred_at
-            }
-          ),
-        latest_submission: submission(r.latest_submission),
-        change_request: SponsorApplicationJSON.change_request(r.change_request),
-        evidence:
-          Enum.map(
-            r.evidence,
-            &%{
-              evidence_id: &1.id,
-              kind: Atom.to_string(&1.kind),
-              content_type: &1.content_type,
-              byte_size: &1.byte_size,
-              scanned: false
-            }
-          )
-      }
+      application:
+        r
+        |> Map.take([:viewer_is_party])
+        |> Map.merge(%{
+          application_id: a.id,
+          status: Atom.to_string(a.status),
+          revision: a.revision,
+          submitted_at: a.submitted_at,
+          decided_at: a.decided_at,
+          organization:
+            r.organization &&
+              %{sponsor_id: r.organization.id, status: Atom.to_string(r.organization.status)},
+          history:
+            Enum.map(
+              r.history,
+              &%{
+                event: &1.event,
+                actor:
+                  if(&1.actor_user_id == a.applicant_user_id, do: "applicant", else: "operator"),
+                from_status: &1.from_status,
+                to_status: &1.to_status,
+                reason_code: &1.reason_code,
+                occurred_at: &1.occurred_at
+              }
+            ),
+          latest_submission: submission(r.latest_submission),
+          change_request: SponsorApplicationJSON.change_request(r.change_request),
+          evidence:
+            Enum.map(
+              r.evidence,
+              &%{
+                evidence_id: &1.id,
+                kind: Atom.to_string(&1.kind),
+                content_type: &1.content_type,
+                byte_size: &1.byte_size,
+                scanned: false
+              }
+            )
+        })
     }
   end
 
