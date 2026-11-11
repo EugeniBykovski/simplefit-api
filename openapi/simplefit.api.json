@@ -1406,6 +1406,341 @@
         "title": "AdminGymSummary",
         "type": "object"
       },
+      "AdminJob": {
+        "description": "One background job's metadata (SF-126): never its arguments, `meta`, error messages or stack traces.\n`failure` is only the exception module of the last error. `retry` is always `not_supported`: no worker\nhas an approved retry policy.\n",
+        "properties": {
+          "attempt": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "attempted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancelled_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "discarded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "errors": {
+            "description": "How many attempts recorded an error.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "failure": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "inserted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "max_attempts": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "queue": {
+            "type": "string"
+          },
+          "retry": {
+            "enum": [
+              "not_supported"
+            ],
+            "type": "string"
+          },
+          "scheduled_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "available",
+              "scheduled",
+              "executing",
+              "retryable",
+              "completed",
+              "discarded",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "worker": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "queue",
+          "worker",
+          "state",
+          "attempt",
+          "max_attempts",
+          "inserted_at",
+          "scheduled_at",
+          "attempted_at",
+          "completed_at",
+          "discarded_at",
+          "cancelled_at",
+          "failure",
+          "errors",
+          "retry"
+        ],
+        "title": "AdminJob",
+        "type": "object"
+      },
+      "AdminJobListResponse": {
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/AdminJob"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobs",
+          "next_cursor"
+        ],
+        "title": "AdminJobListResponse",
+        "type": "object"
+      },
+      "AdminJobResponse": {
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/AdminJob"
+          }
+        },
+        "required": [
+          "job"
+        ],
+        "title": "AdminJobResponse",
+        "type": "object"
+      },
+      "AdminOperationsCheck": {
+        "description": "One measured check (SF-126). `status`: `healthy` (measured fine), `degraded` (measured, with failures in\nthe window), `unavailable` (the measurement itself failed), `unknown` (measured, but the signal can't say),\n`no_telemetry` (nothing is measured; `observed_at` is null). Unknown is never healthy, and a failed\nmeasurement is never zero.\n",
+        "properties": {
+          "counts": {
+            "description": "Measured numbers behind the status: database `query_ms`; jobs `waiting`, `executing`, `failed_24h`; email `accepted_24h` (accepted by the provider, not delivered), `failed_24h`, `pending`; webhooks `received_24h`, `processed_24h`, `ignored_24h`, `failed_24h`.",
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "value": {
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "key",
+                "value"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "id": {
+            "enum": [
+              "api",
+              "database",
+              "background_jobs",
+              "email",
+              "payments_webhooks",
+              "storage",
+              "error_monitoring"
+            ],
+            "type": "string"
+          },
+          "last_event_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "healthy",
+              "degraded",
+              "unavailable",
+              "unknown",
+              "no_telemetry"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "observed_at",
+          "counts",
+          "last_event_at"
+        ],
+        "title": "AdminOperationsCheck",
+        "type": "object"
+      },
+      "AdminOperationsHealthResponse": {
+        "description": "The system health page (AD17). Each check is its own observation, not one atomic snapshot. No uptime or\nSLA: no history is kept. Queue counts: unfinished jobs, plus finished ones from the last 24 hours (Oban\nprunes them after a day). `queues`, `migrations` are null when they couldn't be measured.\n",
+        "properties": {
+          "health": {
+            "properties": {
+              "checks": {
+                "items": {
+                  "$ref": "#/components/schemas/AdminOperationsCheck"
+                },
+                "type": "array"
+              },
+              "migrations": {
+                "nullable": true,
+                "properties": {
+                  "applied": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "latest_version": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "applied",
+                  "latest_version"
+                ],
+                "type": "object"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "queues": {
+                "items": {
+                  "properties": {
+                    "counts": {
+                      "properties": {
+                        "available": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "cancelled": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "completed": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "discarded": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "executing": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "retryable": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "scheduled": {
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "available",
+                        "scheduled",
+                        "executing",
+                        "retryable",
+                        "completed",
+                        "discarded",
+                        "cancelled"
+                      ],
+                      "type": "object"
+                    },
+                    "limit": {
+                      "description": "Configured concurrency.",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "limit",
+                    "counts"
+                  ],
+                  "type": "object"
+                },
+                "nullable": true,
+                "type": "array"
+              },
+              "release": {
+                "properties": {
+                  "environment": {
+                    "type": "string"
+                  },
+                  "release": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "description": "`configured`: supplied by the deployment; `default`: none was, the app version stands in.",
+                    "enum": [
+                      "configured",
+                      "default"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "release",
+                  "environment",
+                  "source"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "observed_at",
+              "checks",
+              "queues",
+              "migrations",
+              "release"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "health"
+        ],
+        "title": "AdminOperationsHealthResponse",
+        "type": "object"
+      },
       "AdminOverview": {
         "description": "Platform counts, review queues and health as one snapshot at `as_of`. `period` is `[from, to)` in UTC and drives only `period_counts`. `health.state: restricted` means no `system.health.read`.",
         "properties": {
@@ -4673,7 +5008,8 @@
               "users.sessions.revoke",
               "gyms.read",
               "coaches.read",
-              "fighters.read"
+              "fighters.read",
+              "system.jobs.read"
             ],
             "type": "string"
           },
@@ -4730,7 +5066,8 @@
               "users.sessions.revoke",
               "gyms.read",
               "coaches.read",
-              "fighters.read"
+              "fighters.read",
+              "system.jobs.read"
             ],
             "type": "string"
           },
@@ -16942,6 +17279,210 @@
           }
         ],
         "summary": "The viewer's operator state",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/health": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `system.health.read` and a key check. Measured checks with their status and observation time, job counts per queue and state, applied migrations and the configured release. No uptime or SLA figure exists.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such job.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "getAdminOperationsHealth",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOperationsHealthResponse"
+                }
+              }
+            },
+            "description": "Health"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The system health page",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/jobs": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `system.jobs.read` and a key check. Newest first; metadata only (never arguments, `meta` or error messages). Every query is recorded (`jobs.listed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such job.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - an unknown filter value or an invalid cursor.",
+        "operationId": "listAdminJobs",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "enum": [
+                "available",
+                "scheduled",
+                "executing",
+                "retryable",
+                "completed",
+                "discarded",
+                "cancelled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "queue",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "worker",
+            "required": false,
+            "schema": {
+              "enum": [
+                "SimpleFit.Accounts.EmailAuth.CleanupWorker",
+                "SimpleFit.Billing.Stripe.EventWorker",
+                "SimpleFit.Billing.Stripe.SweepWorker",
+                "SimpleFit.Email.DeliveryWorker",
+                "SimpleFit.Gyms.VerificationCleanupWorker",
+                "SimpleFit.Sponsors.EvidenceCleanupWorker"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminJobListResponse"
+                }
+              }
+            },
+            "description": "A page"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One page of background jobs",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/operations/jobs/{job_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `system.jobs.read` and a key check. Metadata only; recorded (`job.viewed`). No retry is offered.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such job.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "getAdminJob",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminJobResponse"
+                }
+              }
+            },
+            "description": "The job"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One background job",
         "tags": [
           "Platform operators"
         ]

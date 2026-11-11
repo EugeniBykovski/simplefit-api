@@ -151,3 +151,17 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
 * SF-123 adds **no intervention**. Gym suspension has no domain (SF-107 task A9), gym verification review stays
   behind SF-136's fail-closed authority (not wired to operators), publication is a proposal (SF-139), and
   relationships have no operator path. Nothing here changes D-SA13: production operator access stays NO-GO.
+
+## Amendment (SF-126)
+
+* `system.jobs.read` joins the catalog (migration `20261205090000_add_system_jobs_read_permission`), at a key
+  check, separate from `system.health.read`. Nothing is granted.
+* `GET /api/v1/admin/operations/health` (`system.health.read`, not audited per load, as the overview's health
+  card) reports measured checks with their status and observation time
+  (`SimpleFit.Observability.Operations`): `healthy`, `degraded`, `unavailable` (the measurement failed, never
+  zero), `unknown`, `no_telemetry`. No uptime or SLA figure exists. Job counts per queue and state, applied
+  migrations and the configured release.
+* `GET /api/v1/admin/operations/jobs[/{id}]` (`system.jobs.read`, audited `jobs.listed` / `job.viewed`) returns
+  allowlisted job metadata: never arguments, `meta`, error messages or stack traces; of the last error only the
+  exception module.
+* No job action: retry, replay, queue control, log search, SQL, migration and deploy controls don't exist (D-SA33).

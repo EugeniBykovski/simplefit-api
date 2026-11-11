@@ -28,6 +28,7 @@ defmodule SimpleFit.Operators do
   alias SimpleFit.Accounts.{Session, User}
   import SimpleFit.Operators.Authority
 
+  alias SimpleFit.Observability.Operations
   alias SimpleFit.Operators.{Actions, Audit, AuditEvent, Challenge, Credential, Cursor, Grant}
   alias SimpleFit.Operators.{Operation, Operator, Overview, Policy, Principal, Redaction}
   alias SimpleFit.Operators.{StepUp, WebAuthn}
@@ -662,7 +663,9 @@ defmodule SimpleFit.Operators do
     "coaches.search" => %{permission: "coaches.read", audit: "coach.searched"},
     "coaches.detail" => %{permission: "coaches.read", audit: "coach.viewed"},
     "fighters.search" => %{permission: "fighters.read", audit: "fighter.searched"},
-    "fighters.detail" => %{permission: "fighters.read", audit: "fighter.viewed"}
+    "fighters.detail" => %{permission: "fighters.read", audit: "fighter.viewed"},
+    "jobs.list" => %{permission: "system.jobs.read", audit: "jobs.listed"},
+    "jobs.detail" => %{permission: "system.jobs.read", audit: "job.viewed"}
   }
 
   defp project(id, user, session, ctx, fun) do
@@ -1355,6 +1358,110 @@ defmodule SimpleFit.Operators do
       {"operator_profile_search", :crypto.hash(:sha256, principal.user_id), @profile_search_limit,
        3600}
     ])
+  end
+
+  ## Operations (SF-126)
+
+  @doc """
+  The system health page (AD17; `system.health.read`, key check): measured checks
+  with their status and observation time, job counts per queue and state, applied
+  migrations, and the configured release (`SimpleFit.Observability.Operations.health/1`).
+  Read only; like the overview's health card, not audited per load (SF-107).
+  """
+  @spec operations_health(User.t(), Session.t(), ctx()) :: {:ok, map()} | {:error, error()}
+  def operations_health(%User{} = user, %Session{} = session, ctx \\ %{}) do
+    with {:ok, _principal} <- authorize(user, session, "system.health.read", ctx) do
+      {:ok, Operations.health(DateTime.utc_now())}
+    end
+  end
+
+  @doc """
+  One page of background jobs, newest first (`system.jobs.read`, key check): metadata
+  only, never arguments, `meta` or error messages. Filters: `state`, `queue`, `worker`
+  (each from a fixed list); `limit` 1..50 (default 25); `cursor` from the previous page,
+  valid only for the same filters and reader. Each query is audited (`jobs.listed`).
+  """
+  @spec list_jobs(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{jobs: [map()], next_cursor: String.t() | nil}} | {:error, error() | term()}
+  def list_jobs(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("jobs.list", user, session, ctx, fn principal ->
+      with {:ok, attrs} <- jobs_query(params),
+           filters = Map.take(attrs, [:state, :queue, :worker]),
+           {:ok, position} <- jobs_position(attrs, filters, principal.operator_id) do
+        {jobs, next} = Operations.jobs_page(filters, Map.get(attrs, :limit, 25), position)
+
+        {:ok,
+         %{jobs: jobs, next_cursor: next && jobs_cursor(next, filters, principal.operator_id)},
+         {"oban_job_list", nil}}
+      end
+    end)
+  end
+
+  @doc """
+  One background job's metadata (`system.jobs.read`, key check), or `not_found`.
+  Recorded (`job.viewed`). Retry isn't offered: no worker has an approved retry policy.
+  """
+  @spec get_job(User.t(), Session.t(), term(), ctx()) :: {:ok, map()} | {:error, error()}
+  def get_job(%User{} = user, %Session{} = session, job_id, ctx \\ %{}) do
+    project("jobs.detail", user, session, ctx, fn _principal ->
+      with {id, ""} when id > 0 <- Integer.parse(to_string(job_id)),
+           %{} = job <- Operations.job(id) do
+        {:ok, job, {"oban_job", nil}}
+      else
+        _ -> {:error, :not_found}
+      end
+    end)
+  end
+
+  defp jobs_query(params) do
+    types = %{state: :string, queue: :string, worker: :string, limit: :integer, cursor: :string}
+
+    {%{}, types}
+    |> cast(params, Map.keys(types), empty_values: [])
+    |> validate_inclusion(:state, Operations.states())
+    |> validate_inclusion(:queue, Enum.map(Operations.queues(), & &1.name))
+    |> validate_inclusion(:worker, Operations.workers())
+    |> validate_number(:limit, greater_than: 0, less_than_or_equal_to: 50)
+    |> validate_length(:cursor, max: 1024)
+    |> apply_action(:validate)
+  end
+
+  # Job ids are integers; the signed cursor carries one as its position (the epoch
+  # stands in for the time the audit cursor format expects).
+  defp jobs_cursor(id, filters, operator_id),
+    do:
+      Cursor.encode(
+        {DateTime.from_unix!(0), int_uuid(id)},
+        Map.put(filters, :list, "jobs"),
+        operator_id
+      )
+
+  defp jobs_position(%{cursor: cursor}, filters, operator_id) do
+    with {:ok, {_at, uuid}} <- Cursor.decode(cursor, Map.put(filters, :list, "jobs"), operator_id),
+         {:ok, id} <- uuid_int(uuid) do
+      {:ok, id}
+    else
+      _ ->
+        {:error,
+         {%{}, %{cursor: :string}}
+         |> change()
+         |> add_error(:cursor, "is invalid", validation: :format)}
+    end
+  end
+
+  defp jobs_position(_attrs, _filters, _operator_id), do: {:ok, nil}
+
+  defp int_uuid(id) do
+    hex = id |> Integer.to_string(16) |> String.pad_leading(32, "0") |> String.downcase()
+    <<a::binary-8, b::binary-4, c::binary-4, d::binary-4, e::binary-12>> = hex
+    "#{a}-#{b}-#{c}-#{d}-#{e}"
+  end
+
+  defp uuid_int(uuid) do
+    case Integer.parse(String.replace(uuid, "-", ""), 16) do
+      {id, ""} when id > 0 -> {:ok, id}
+      _ -> :error
+    end
   end
 
   ## Overview (SF-121)
