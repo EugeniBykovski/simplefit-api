@@ -353,6 +353,12 @@ defmodule SimpleFitWeb.SponsorApplicationReviewControllerTest do
       assert %{"status" => "approved", "organization" => %{"status" => "active"}} =
                approved["application"]
 
+      # SF-124: a read says whether the reader is a party; an action result doesn't.
+      refute Map.has_key?(approved["application"], "viewer_is_party")
+      read = call(:get, "#{@admin}/#{c.app.id}", c.op_token) |> json_response(200)
+      assert_schema(read, "SponsorApplicationReviewResponse", ApiSpec.spec())
+      assert read["application"]["viewer_is_party"] == false
+
       history = approved["application"]["history"]
 
       assert %{"event" => "sponsor_application.approved", "actor" => "operator"} =
