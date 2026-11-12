@@ -91,7 +91,9 @@ defmodule SimpleFit.Operators.AdminActionsTest do
                "sponsor_application.reinstate_organization",
                "user.suspend",
                "user.lift_suspension",
-               "user.sign_out_everywhere"
+               "user.sign_out_everywhere",
+               "config.flag.suspend",
+               "config.flag.restore"
              ]
 
       for id <- Actions.ids(), action = Actions.fetch!(id) do
