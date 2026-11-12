@@ -117,7 +117,8 @@ Classification of what the current design shows. A design illustration is not a 
 | Ban, delete | AD9, AD10 | **FUTURE** | Needs account deletion policy and a two-person rule |
 | DSAR | AD18 | **FUTURE**, but **legal may require a process** | Counsel. A manual runbook is possible at first |
 | Support sessions | AD5, AD21 | **FUTURE** | No tickets domain |
-| Money | AD3, AD13, AR1–AR6 | **FUTURE** | Stripe Dashboard stays the tool. SF-138: Live NO-GO |
+| Billing visibility (SF-127) | AD13; AR2, AR4, AR5 read-only | Reduced: one Stripe mode, counts, paid-invoice sums per currency, subscriptions, invoices, reconciliation; no action ([registry](billing-oversight-metrics.md), D-SA34) | `gym_saas_subscriptions`, `saas_plan_versions`, `stripe_*` |
+| Money actions and revenue | AD3, AR1, AR3, AR6 | **FUTURE** | Stripe Dashboard stays the tool for refunds and payouts. No revenue definition. SF-138: Live NO-GO |
 | Flags, emails, markets | AD6, AD15, AD16, AD19 | **FUTURE** | Those are code or config today |
 | Campaigns | AC1–AC5 | **FUTURE** | See above |
 | Enterprise | AE1–AE3 | **FUTURE** | The forms are disabled |
