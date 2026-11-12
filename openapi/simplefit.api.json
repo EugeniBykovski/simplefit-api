@@ -702,6 +702,2164 @@
         "title": "AccountProfileUpdateRequest",
         "type": "object"
       },
+      "AdminBillingInvoice": {
+        "description": "A Stripe invoice of a gym's SaaS subscription as last read (SF-102): amounts are Stripe's, in its own\ncurrency. No hosted invoice or PDF link, no Stripe id, no payment method.\n",
+        "properties": {
+          "amount_due": {
+            "description": "Amount due. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+            "nullable": true,
+            "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_due_minor": {
+            "description": "Amount due.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "amount_paid": {
+            "description": "Amount paid. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+            "nullable": true,
+            "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_paid_minor": {
+            "description": "Amount paid.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "amount_refunded": {
+            "description": "Amount Stripe refunded of it. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+            "nullable": true,
+            "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_refunded_minor": {
+            "description": "Amount Stripe refunded of it.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "amount_remaining": {
+            "description": "Amount remaining. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+            "nullable": true,
+            "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "amount_remaining_minor": {
+            "description": "Amount remaining.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "attempt_count": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "billing_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "currency": {
+            "description": "ISO 4217 code, as Stripe recorded it.",
+            "type": "string"
+          },
+          "disputed": {
+            "description": "A dispute exists for its payment (not a refund).",
+            "type": "boolean"
+          },
+          "gym": {
+            "description": "The subscribing gym: its id and name only, never its people.",
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "description": "SimpleFit's id of the invoice record.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "issue": {
+            "description": "`payment_failed`: open, its last attempt failed (Stripe may retry: `next_payment_attempt_at`); `action_required`: open, the customer must confirm; `uncollectible`: Stripe marked it so. None is a final judgement of the gym; no action is offered here.",
+            "enum": [
+              "payment_failed",
+              "action_required",
+              "uncollectible",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "issued_at": {
+            "description": "When Stripe created it.",
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "mode": {
+            "description": "The invoice's Stripe mode.",
+            "enum": [
+              "test",
+              "live"
+            ],
+            "type": "string"
+          },
+          "next_payment_attempt_at": {
+            "description": "Stripe's next automatic attempt, if any.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "number": {
+            "description": "Stripe's invoice number, once finalized (the reference to look it up in Stripe).",
+            "nullable": true,
+            "type": "string"
+          },
+          "paid_at": {
+            "description": "When it was paid.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "payment_status": {
+            "description": "The last payment attempt's state at Stripe, as last read.",
+            "enum": [
+              "requires_action",
+              "requires_payment_method",
+              "processing",
+              "succeeded",
+              "canceled",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "period_end": {
+            "description": "The billed period's end.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "period_start": {
+            "description": "The billed period's start.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "open",
+              "paid",
+              "uncollectible",
+              "void"
+            ],
+            "type": "string"
+          },
+          "subscription_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "synced_at": {
+            "description": "When SimpleFit last read it from Stripe.",
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "total": {
+            "description": "The invoice total. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+            "nullable": true,
+            "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+            "type": "string"
+          },
+          "total_minor": {
+            "description": "The invoice total.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "amount_due",
+          "amount_due_minor",
+          "amount_paid",
+          "amount_paid_minor",
+          "amount_refunded",
+          "amount_refunded_minor",
+          "amount_remaining",
+          "amount_remaining_minor",
+          "attempt_count",
+          "billing_reason",
+          "currency",
+          "disputed",
+          "id",
+          "issue",
+          "issued_at",
+          "mode",
+          "next_payment_attempt_at",
+          "number",
+          "paid_at",
+          "payment_status",
+          "period_end",
+          "period_start",
+          "status",
+          "subscription_id",
+          "synced_at",
+          "total",
+          "total_minor",
+          "gym"
+        ],
+        "title": "AdminBillingInvoice",
+        "type": "object"
+      },
+      "AdminBillingInvoiceListResponse": {
+        "properties": {
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/AdminBillingInvoice"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "description": "The Stripe mode every figure was read from; never both.",
+            "enum": [
+              "test",
+              "live"
+            ],
+            "type": "string"
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "invoices",
+          "next_cursor"
+        ],
+        "title": "AdminBillingInvoiceListResponse",
+        "type": "object"
+      },
+      "AdminBillingOverviewResponse": {
+        "description": "The billing overview of one Stripe mode (SF-127). Each figure is its own query (no atomic snapshot).\nCounts are measured zeros when zero. `collected` is the gross `amount_paid` of Stripe invoices paid in the\nwindow, per currency, never converted or summed across currencies, and not revenue; `amount_refunded` is\nwhat Stripe refunded of those same invoices so far. `unavailable` names metrics with no approved\ndefinition (MRR, ARR, recognized or net revenue, churn...): they are not reported.\n",
+        "properties": {
+          "overview": {
+            "properties": {
+              "collected": {
+                "properties": {
+                  "currencies": {
+                    "items": {
+                      "properties": {
+                        "amount_paid": {
+                          "description": "Gross amount paid. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                          "nullable": true,
+                          "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                          "type": "string"
+                        },
+                        "amount_paid_minor": {
+                          "description": "Gross amount paid, in minor units.",
+                          "pattern": "^[0-9]{1,20}$",
+                          "type": "string"
+                        },
+                        "amount_refunded": {
+                          "description": "Refunded so far of those invoices. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                          "nullable": true,
+                          "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                          "type": "string"
+                        },
+                        "amount_refunded_minor": {
+                          "description": "Refunded so far, in minor units.",
+                          "pattern": "^[0-9]{1,20}$",
+                          "type": "string"
+                        },
+                        "currency": {
+                          "type": "string"
+                        },
+                        "invoice_count": {
+                          "minimum": 0,
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "currency",
+                        "invoice_count",
+                        "amount_paid",
+                        "amount_paid_minor",
+                        "amount_refunded",
+                        "amount_refunded_minor"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "period_end": {
+                    "description": "Window end.",
+                    "format": "date-time",
+                    "nullable": false,
+                    "type": "string"
+                  },
+                  "period_start": {
+                    "description": "Window start (by `paid_at`).",
+                    "format": "date-time",
+                    "nullable": false,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "period_start",
+                  "period_end",
+                  "currencies"
+                ],
+                "type": "object"
+              },
+              "configured_mode": {
+                "description": "The mode this deployment is configured for (the default).",
+                "enum": [
+                  "test",
+                  "live"
+                ],
+                "type": "string"
+              },
+              "disputes": {
+                "description": "Disputes of this mode by Stripe status.",
+                "items": {
+                  "properties": {
+                    "count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "integration": {
+                "description": "The Stripe integration's state. Disabled: nothing is synced, so figures can't change.",
+                "enum": [
+                  "disabled",
+                  "misconfigured",
+                  "ready"
+                ],
+                "type": "string"
+              },
+              "invoices": {
+                "description": "Recorded invoices of this mode by status.",
+                "properties": {
+                  "draft": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "open": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "paid": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "uncollectible": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "void": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "draft",
+                  "open",
+                  "paid",
+                  "uncollectible",
+                  "void"
+                ],
+                "type": "object"
+              },
+              "last_synced_at": {
+                "description": "When any Stripe object of this mode was last read; null if never.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "last_webhook_at": {
+                "description": "When a webhook of this mode last arrived; null if never.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "mode": {
+                "description": "The Stripe mode every figure was read from; never both.",
+                "enum": [
+                  "test",
+                  "live"
+                ],
+                "type": "string"
+              },
+              "observed_at": {
+                "description": "When the figures were read.",
+                "format": "date-time",
+                "nullable": false,
+                "type": "string"
+              },
+              "payment_issues": {
+                "description": "Open invoices whose last attempt failed or awaits the customer, and uncollectible ones.",
+                "properties": {
+                  "action_required": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "payment_failed": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "uncollectible": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "payment_failed",
+                  "action_required",
+                  "uncollectible"
+                ],
+                "type": "object"
+              },
+              "provider_statuses": {
+                "description": "Stripe Subscription links of this mode by Stripe status.",
+                "properties": {
+                  "active": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "canceled": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "incomplete": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "incomplete_expired": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "past_due": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "paused": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "trialing": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "unpaid": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "incomplete",
+                  "incomplete_expired",
+                  "trialing",
+                  "active",
+                  "past_due",
+                  "canceled",
+                  "unpaid",
+                  "paused"
+                ],
+                "type": "object"
+              },
+              "refunds": {
+                "description": "Refunds of this mode by status (recorded; none can be requested here).",
+                "properties": {
+                  "canceled": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "failed": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pending": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "requested": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "requires_action": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "succeeded": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "requested",
+                  "pending",
+                  "requires_action",
+                  "succeeded",
+                  "failed",
+                  "canceled"
+                ],
+                "type": "object"
+              },
+              "subscriptions": {
+                "description": "SimpleFit subscriptions of this mode by SimpleFit status.",
+                "properties": {
+                  "active": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "cancellation_scheduled": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "cancelled": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "expired": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pending_activation": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "pending_activation",
+                  "active",
+                  "cancellation_scheduled",
+                  "cancelled",
+                  "expired"
+                ],
+                "type": "object"
+              },
+              "unavailable": {
+                "items": {
+                  "properties": {
+                    "metric": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "enum": [
+                        "no_approved_definition"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "metric",
+                    "reason"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "unrecorded_subscriptions": {
+                "description": "Subscriptions with no provider record, by status; in no mode.",
+                "properties": {
+                  "active": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "cancellation_scheduled": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "cancelled": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "expired": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "pending_activation": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "pending_activation",
+                  "active",
+                  "cancellation_scheduled",
+                  "cancelled",
+                  "expired"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "observed_at",
+              "mode",
+              "configured_mode",
+              "integration",
+              "subscriptions",
+              "unrecorded_subscriptions",
+              "provider_statuses",
+              "invoices",
+              "payment_issues",
+              "refunds",
+              "disputes",
+              "collected",
+              "last_synced_at",
+              "last_webhook_at",
+              "unavailable"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "overview"
+        ],
+        "title": "AdminBillingOverviewResponse",
+        "type": "object"
+      },
+      "AdminBillingPlan": {
+        "description": "A SaaS plan and every version as recorded (SF-101), newest first. Published versions are immutable;\na subscription keeps the price version it agreed to. `entitlements` is null in the catalog list and set\non one plan. No edit exists here.\n",
+        "properties": {
+          "created_at": {
+            "description": "When the plan was created.",
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "current_version_id": {
+            "description": "The published version, if one is.",
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "versions": {
+            "items": {
+              "properties": {
+                "approval_reference": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "archived_at": {
+                  "description": "Archived (drafts only).",
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "created_at": {
+                  "description": "Drafted.",
+                  "format": "date-time",
+                  "nullable": false,
+                  "type": "string"
+                },
+                "description": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "entitlements": {
+                  "items": {
+                    "properties": {
+                      "feature_key": {
+                        "type": "string"
+                      },
+                      "quantity_limit": {
+                        "nullable": true,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "feature_key",
+                      "quantity_limit"
+                    ],
+                    "type": "object"
+                  },
+                  "nullable": true,
+                  "type": "array"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "price_source": {
+                  "description": "Where its prices come from. `provisional` prices are never sold live.",
+                  "enum": [
+                    "approved_design",
+                    "product_decision",
+                    "provisional"
+                  ],
+                  "type": "string"
+                },
+                "prices": {
+                  "items": {
+                    "properties": {
+                      "amount": {
+                        "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+                        "nullable": true,
+                        "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+                        "type": "string"
+                      },
+                      "amount_minor": {
+                        "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "description": "ISO 4217 code. No conversion between currencies exists.",
+                        "enum": [
+                          "PLN",
+                          "EUR",
+                          "USD",
+                          "GBP",
+                          "CHF",
+                          "CZK",
+                          "SEK",
+                          "NOK",
+                          "DKK",
+                          "HUF",
+                          "UAH",
+                          "JPY"
+                        ],
+                        "type": "string"
+                      },
+                      "interval": {
+                        "enum": [
+                          "month",
+                          "year"
+                        ],
+                        "type": "string"
+                      },
+                      "price_version_id": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "pricing": {
+                        "description": "`quote_required` has no amount: never free.",
+                        "enum": [
+                          "fixed",
+                          "quote_required"
+                        ],
+                        "type": "string"
+                      },
+                      "stripe_mapped_modes": {
+                        "description": "The modes this price is mapped to a Stripe Price in (no Stripe id).",
+                        "items": {
+                          "description": "A mode it has a Stripe Price in.",
+                          "enum": [
+                            "test",
+                            "live"
+                          ],
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "price_version_id",
+                      "interval",
+                      "currency",
+                      "pricing",
+                      "amount",
+                      "amount_minor",
+                      "stripe_mapped_modes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "proposed_trial_days": {
+                  "description": "Proposed only: no trial is applied by billing.",
+                  "nullable": true,
+                  "type": "integer"
+                },
+                "published_at": {
+                  "description": "Published.",
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "retired_at": {
+                  "description": "Retired.",
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "draft",
+                    "archived",
+                    "published",
+                    "superseded",
+                    "retired"
+                  ],
+                  "type": "string"
+                },
+                "superseded_at": {
+                  "description": "Superseded by a newer version.",
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "version": {
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "version",
+                "name",
+                "description",
+                "status",
+                "price_source",
+                "proposed_trial_days",
+                "approval_reference",
+                "published_at",
+                "superseded_at",
+                "retired_at",
+                "archived_at",
+                "created_at",
+                "prices",
+                "entitlements"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "created_at",
+          "current_version_id",
+          "versions"
+        ],
+        "title": "AdminBillingPlan",
+        "type": "object"
+      },
+      "AdminBillingPlanListResponse": {
+        "properties": {
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/AdminBillingPlan"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "plans"
+        ],
+        "title": "AdminBillingPlanListResponse",
+        "type": "object"
+      },
+      "AdminBillingPlanResponse": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/AdminBillingPlan"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "title": "AdminBillingPlanResponse",
+        "type": "object"
+      },
+      "AdminBillingReconciliationResponse": {
+        "description": "Reconciliation of one Stripe mode (SF-127). There is no reconciliation run: each subscription's Stripe link\nrecords when Stripe was last read and a discrepancy code when it could not be applied. `in_sync` + `stale` +\n`mismatch` = `linked`. Webhook figures are the inbox's (ids and payloads are never stored or shown).\n",
+        "properties": {
+          "reconciliation": {
+            "properties": {
+              "discrepancies": {
+                "items": {
+                  "properties": {
+                    "discrepancy": {
+                      "type": "string"
+                    },
+                    "gym": {
+                      "description": "The subscribing gym: its id and name only, never its people.",
+                      "properties": {
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name"
+                      ],
+                      "type": "object"
+                    },
+                    "provider_status": {
+                      "description": "Stripe's subscription status as last read; null without a link. Not SimpleFit's status: `active` at Stripe is not a collected payment, `past_due` is not a final failure.",
+                      "enum": [
+                        "incomplete",
+                        "incomplete_expired",
+                        "trialing",
+                        "active",
+                        "past_due",
+                        "canceled",
+                        "unpaid",
+                        "paused"
+                      ],
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "subscription_id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "subscription_status": {
+                      "enum": [
+                        "pending_activation",
+                        "active",
+                        "cancellation_scheduled",
+                        "cancelled",
+                        "expired"
+                      ],
+                      "type": "string"
+                    },
+                    "synced_at": {
+                      "description": "When Stripe was last read for it.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "subscription_id",
+                    "gym",
+                    "subscription_status",
+                    "provider_status",
+                    "discrepancy",
+                    "synced_at"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "integration": {
+                "enum": [
+                  "disabled",
+                  "misconfigured",
+                  "ready"
+                ],
+                "type": "string"
+              },
+              "mode": {
+                "description": "The Stripe mode every figure was read from; never both.",
+                "enum": [
+                  "test",
+                  "live"
+                ],
+                "type": "string"
+              },
+              "next_cursor": {
+                "nullable": true,
+                "type": "string"
+              },
+              "observed_at": {
+                "description": "When it was read.",
+                "format": "date-time",
+                "nullable": false,
+                "type": "string"
+              },
+              "summary": {
+                "properties": {
+                  "in_sync": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "last_synced_at": {
+                    "description": "Most recent read of a link; null if none.",
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "linked": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "mismatch": {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "not_linked": {
+                    "description": "Subscriptions with a checkout of this mode but no Stripe link yet.",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "oldest_synced_at": {
+                    "description": "Least recent read of a link; null if none.",
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "stale": {
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "linked",
+                  "in_sync",
+                  "stale",
+                  "mismatch",
+                  "not_linked",
+                  "last_synced_at",
+                  "oldest_synced_at"
+                ],
+                "type": "object"
+              },
+              "webhooks": {
+                "properties": {
+                  "backlog": {
+                    "description": "Events still `received` (not yet processed), any age.",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "counts": {
+                    "description": "Events by processing status.",
+                    "properties": {
+                      "failed": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "ignored": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "processed": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "received": {
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "received",
+                      "processed",
+                      "ignored",
+                      "failed"
+                    ],
+                    "type": "object"
+                  },
+                  "failed": {
+                    "description": "The newest failed events: type and outcome code only.",
+                    "items": {
+                      "properties": {
+                        "attempts": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "event_created_at": {
+                          "description": "When Stripe created the event.",
+                          "format": "date-time",
+                          "nullable": false,
+                          "type": "string"
+                        },
+                        "event_type": {
+                          "type": "string"
+                        },
+                        "outcome": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "processed_at": {
+                          "description": "When processing last finished.",
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "received_at": {
+                          "description": "When it arrived.",
+                          "format": "date-time",
+                          "nullable": false,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "event_type",
+                        "outcome",
+                        "attempts",
+                        "event_created_at",
+                        "received_at",
+                        "processed_at"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "last_received_at": {
+                    "description": "When an event last arrived.",
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "window_start": {
+                    "description": "Counts cover events received since.",
+                    "format": "date-time",
+                    "nullable": false,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "window_start",
+                  "counts",
+                  "backlog",
+                  "last_received_at",
+                  "failed"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "observed_at",
+              "mode",
+              "integration",
+              "summary",
+              "webhooks",
+              "discrepancies",
+              "next_cursor"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "reconciliation"
+        ],
+        "title": "AdminBillingReconciliationResponse",
+        "type": "object"
+      },
+      "AdminBillingSubscription": {
+        "description": "A gym's SimpleFit SaaS subscription (SF-127): SimpleFit's lifecycle status, Stripe's status as last read,\nthe agreed plan version and price, and its reconciliation state. `pending_activation` grants nothing;\nStripe's `trialing` or `active` is not a collected payment.\n",
+        "properties": {
+          "activated_at": {
+            "description": "When verified evidence first activated it.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "cancel_at_period_end": {
+            "description": "Stripe's flag as last read; null without a link.",
+            "nullable": true,
+            "type": "boolean"
+          },
+          "cancel_reason": {
+            "enum": [
+              "requested_by_gym",
+              "gym_closed",
+              "provider_initiated",
+              null
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "cancellation_effective_at": {
+            "description": "When a scheduled cancellation takes effect.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "current_period_end": {
+            "description": "The paid period's end.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "current_period_start": {
+            "description": "The paid period's start.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "ended_at": {
+            "description": "When it was cancelled or expired.",
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "environment": {
+            "description": "Its Stripe link's mode, else its latest checkout's; `none`: no provider record (never counted in a mode).",
+            "enum": [
+              "test",
+              "live",
+              "none"
+            ],
+            "type": "string"
+          },
+          "gym": {
+            "description": "The subscribing gym: its id and name only, never its people.",
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "plan": {
+            "description": "The plan version the subscription agreed to, as it was; never a newer version.",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "plan_version_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "version": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "version_status": {
+                "enum": [
+                  "draft",
+                  "archived",
+                  "published",
+                  "superseded",
+                  "retired"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "plan_version_id",
+              "version",
+              "name",
+              "version_status"
+            ],
+            "type": "object"
+          },
+          "price": {
+            "description": "The price version the subscription agreed to (immutable).",
+            "properties": {
+              "amount": {
+                "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+                "nullable": true,
+                "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+                "type": "string"
+              },
+              "amount_minor": {
+                "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+                "minimum": 0,
+                "nullable": true,
+                "type": "integer"
+              },
+              "currency": {
+                "description": "ISO 4217 code. No conversion between currencies exists.",
+                "enum": [
+                  "PLN",
+                  "EUR",
+                  "USD",
+                  "GBP",
+                  "CHF",
+                  "CZK",
+                  "SEK",
+                  "NOK",
+                  "DKK",
+                  "HUF",
+                  "UAH",
+                  "JPY"
+                ],
+                "type": "string"
+              },
+              "interval": {
+                "enum": [
+                  "month",
+                  "year"
+                ],
+                "type": "string"
+              },
+              "pricing": {
+                "enum": [
+                  "fixed",
+                  "quote_required"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "interval",
+              "currency",
+              "pricing",
+              "amount",
+              "amount_minor"
+            ],
+            "type": "object"
+          },
+          "provider_status": {
+            "description": "Stripe's subscription status as last read; null without a link. Not SimpleFit's status: `active` at Stripe is not a collected payment, `past_due` is not a final failure.",
+            "enum": [
+              "incomplete",
+              "incomplete_expired",
+              "trialing",
+              "active",
+              "past_due",
+              "canceled",
+              "unpaid",
+              "paused"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "reconciliation": {
+            "description": "`in_sync`: the Stripe link was read within six hours and had no discrepancy; `stale`: read longer ago\n(the hourly sweep should have re-read it); `mismatch`: the last read recorded a `discrepancy` code and\ngranted nothing; `not_linked`: a checkout exists but no Stripe Subscription is linked yet;\n`not_evaluated`: no provider record, so nothing was reconciled. Never \"reconciled\" without a read.\n",
+            "properties": {
+              "discrepancy": {
+                "description": "A code: `customer_mismatch`, `price_mismatch`, `ended_locally_live_at_provider`, `invoice_subscription_mismatch`, `invoice_currency_mismatch`, `invoice_amount_mismatch`, `invoice_period_over`, `invoice_period_missing`, `invoice_not_paid`, `invalid_evidence`, or another code reconciliation recorded.",
+                "nullable": true,
+                "type": "string"
+              },
+              "state": {
+                "enum": [
+                  "in_sync",
+                  "stale",
+                  "mismatch",
+                  "not_linked",
+                  "not_evaluated"
+                ],
+                "type": "string"
+              },
+              "synced_at": {
+                "description": "When Stripe was last read for it.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "state",
+              "discrepancy",
+              "synced_at"
+            ],
+            "type": "object"
+          },
+          "requested_at": {
+            "description": "When the gym requested it.",
+            "format": "date-time",
+            "nullable": false,
+            "type": "string"
+          },
+          "status": {
+            "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence (a paid Stripe invoice, SF-102) activates. `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+            "enum": [
+              "pending_activation",
+              "active",
+              "cancellation_scheduled",
+              "cancelled",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "gym",
+          "status",
+          "environment",
+          "plan",
+          "price",
+          "requested_at",
+          "activated_at",
+          "current_period_start",
+          "current_period_end",
+          "cancel_reason",
+          "cancellation_effective_at",
+          "ended_at",
+          "provider_status",
+          "cancel_at_period_end",
+          "reconciliation"
+        ],
+        "title": "AdminBillingSubscription",
+        "type": "object"
+      },
+      "AdminBillingSubscriptionListResponse": {
+        "properties": {
+          "mode": {
+            "description": "The environment listed.",
+            "enum": [
+              "test",
+              "live",
+              "none"
+            ],
+            "type": "string"
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          },
+          "subscriptions": {
+            "items": {
+              "$ref": "#/components/schemas/AdminBillingSubscription"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "mode",
+          "subscriptions",
+          "next_cursor"
+        ],
+        "title": "AdminBillingSubscriptionListResponse",
+        "type": "object"
+      },
+      "AdminBillingSubscriptionResponse": {
+        "description": "One gym SaaS subscription with its billing periods (from verified evidence only), its newest recorded\ninvoices with their refunds and disputes, and its hosted checkouts' states (never their URLs).\n",
+        "properties": {
+          "subscription": {
+            "properties": {
+              "activated_at": {
+                "description": "When verified evidence first activated it.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "cancel_at_period_end": {
+                "description": "Stripe's flag as last read; null without a link.",
+                "nullable": true,
+                "type": "boolean"
+              },
+              "cancel_mode": {
+                "enum": [
+                  "immediate",
+                  "period_end",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              },
+              "cancel_reason": {
+                "enum": [
+                  "requested_by_gym",
+                  "gym_closed",
+                  "provider_initiated",
+                  null
+                ],
+                "nullable": true,
+                "type": "string"
+              },
+              "cancellation_effective_at": {
+                "description": "When a scheduled cancellation takes effect.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "cancellation_requested_at": {
+                "description": "When cancellation was requested.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "checkouts": {
+                "items": {
+                  "properties": {
+                    "completed_at": {
+                      "description": "Completed at Stripe.",
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "description": "Created.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "expires_at": {
+                      "description": "Expires.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "mode": {
+                      "description": "The checkout's Stripe mode.",
+                      "enum": [
+                        "test",
+                        "live"
+                      ],
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "creating",
+                        "open",
+                        "completed",
+                        "expired",
+                        "failed"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "mode",
+                    "status",
+                    "created_at",
+                    "expires_at",
+                    "completed_at"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "current_period_end": {
+                "description": "The paid period's end.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "current_period_start": {
+                "description": "The paid period's start.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "ended_at": {
+                "description": "When it was cancelled or expired.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "environment": {
+                "description": "Its Stripe link's mode, else its latest checkout's; `none`: no provider record (never counted in a mode).",
+                "enum": [
+                  "test",
+                  "live",
+                  "none"
+                ],
+                "type": "string"
+              },
+              "gym": {
+                "description": "The subscribing gym: its id and name only, never its people.",
+                "properties": {
+                  "id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "name": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name"
+                ],
+                "type": "object"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "invoices": {
+                "items": {
+                  "properties": {
+                    "amount_due": {
+                      "description": "Amount due. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                      "nullable": true,
+                      "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                      "type": "string"
+                    },
+                    "amount_due_minor": {
+                      "description": "Amount due.",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "amount_paid": {
+                      "description": "Amount paid. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                      "nullable": true,
+                      "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                      "type": "string"
+                    },
+                    "amount_paid_minor": {
+                      "description": "Amount paid.",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "amount_refunded": {
+                      "description": "Amount Stripe refunded of it. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                      "nullable": true,
+                      "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                      "type": "string"
+                    },
+                    "amount_refunded_minor": {
+                      "description": "Amount Stripe refunded of it.",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "amount_remaining": {
+                      "description": "Amount remaining. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                      "nullable": true,
+                      "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                      "type": "string"
+                    },
+                    "amount_remaining_minor": {
+                      "description": "Amount remaining.",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "attempt_count": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "billing_reason": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "currency": {
+                      "description": "ISO 4217 code, as Stripe recorded it.",
+                      "type": "string"
+                    },
+                    "disputed": {
+                      "description": "A dispute exists for its payment (not a refund).",
+                      "type": "boolean"
+                    },
+                    "disputes": {
+                      "items": {
+                        "properties": {
+                          "amount": {
+                            "description": "Its amount. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                            "nullable": true,
+                            "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                            "type": "string"
+                          },
+                          "amount_minor": {
+                            "description": "Its amount.",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "description": "When SimpleFit recorded it.",
+                            "format": "date-time",
+                            "nullable": false,
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "synced_at": {
+                            "description": "When SimpleFit last read it from Stripe.",
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "amount",
+                          "amount_minor",
+                          "created_at",
+                          "currency",
+                          "reason",
+                          "status",
+                          "synced_at"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "description": "SimpleFit's id of the invoice record.",
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "issue": {
+                      "description": "`payment_failed`: open, its last attempt failed (Stripe may retry: `next_payment_attempt_at`); `action_required`: open, the customer must confirm; `uncollectible`: Stripe marked it so. None is a final judgement of the gym; no action is offered here.",
+                      "enum": [
+                        "payment_failed",
+                        "action_required",
+                        "uncollectible",
+                        null
+                      ],
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "issued_at": {
+                      "description": "When Stripe created it.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "mode": {
+                      "description": "The invoice's Stripe mode.",
+                      "enum": [
+                        "test",
+                        "live"
+                      ],
+                      "type": "string"
+                    },
+                    "next_payment_attempt_at": {
+                      "description": "Stripe's next automatic attempt, if any.",
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "number": {
+                      "description": "Stripe's invoice number, once finalized (the reference to look it up in Stripe).",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "paid_at": {
+                      "description": "When it was paid.",
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "payment_status": {
+                      "description": "The last payment attempt's state at Stripe, as last read.",
+                      "enum": [
+                        "requires_action",
+                        "requires_payment_method",
+                        "processing",
+                        "succeeded",
+                        "canceled",
+                        null
+                      ],
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "period_end": {
+                      "description": "The billed period's end.",
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "period_start": {
+                      "description": "The billed period's start.",
+                      "format": "date-time",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "refunds": {
+                      "items": {
+                        "properties": {
+                          "amount": {
+                            "description": "Its amount. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                            "nullable": true,
+                            "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                            "type": "string"
+                          },
+                          "amount_minor": {
+                            "description": "Its amount.",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "description": "When SimpleFit recorded it.",
+                            "format": "date-time",
+                            "nullable": false,
+                            "type": "string"
+                          },
+                          "currency": {
+                            "type": "string"
+                          },
+                          "origin": {
+                            "enum": [
+                              "operator",
+                              "provider"
+                            ],
+                            "type": "string"
+                          },
+                          "reason": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "synced_at": {
+                            "description": "When SimpleFit last read it from Stripe.",
+                            "format": "date-time",
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "amount",
+                          "amount_minor",
+                          "created_at",
+                          "currency",
+                          "origin",
+                          "reason",
+                          "status",
+                          "synced_at"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "status": {
+                      "enum": [
+                        "draft",
+                        "open",
+                        "paid",
+                        "uncollectible",
+                        "void"
+                      ],
+                      "type": "string"
+                    },
+                    "subscription_id": {
+                      "format": "uuid",
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "synced_at": {
+                      "description": "When SimpleFit last read it from Stripe.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "total": {
+                      "description": "The invoice total. As a decimal string in the currency's major unit; null when SimpleFit doesn't list the currency (its minor units are still exact).",
+                      "nullable": true,
+                      "pattern": "^[0-9]{1,16}(\\.[0-9]{1,6})?$",
+                      "type": "string"
+                    },
+                    "total_minor": {
+                      "description": "The invoice total.",
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "amount_due",
+                    "amount_due_minor",
+                    "amount_paid",
+                    "amount_paid_minor",
+                    "amount_refunded",
+                    "amount_refunded_minor",
+                    "amount_remaining",
+                    "amount_remaining_minor",
+                    "attempt_count",
+                    "billing_reason",
+                    "currency",
+                    "disputed",
+                    "id",
+                    "issue",
+                    "issued_at",
+                    "mode",
+                    "next_payment_attempt_at",
+                    "number",
+                    "paid_at",
+                    "payment_status",
+                    "period_end",
+                    "period_start",
+                    "status",
+                    "subscription_id",
+                    "synced_at",
+                    "total",
+                    "total_minor",
+                    "refunds",
+                    "disputes"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "periods": {
+                "items": {
+                  "properties": {
+                    "period_end": {
+                      "description": "Paid period end.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "period_start": {
+                      "description": "Paid period start.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "recorded_at": {
+                      "description": "When the verified evidence was recorded.",
+                      "format": "date-time",
+                      "nullable": false,
+                      "type": "string"
+                    },
+                    "source": {
+                      "enum": [
+                        "activation",
+                        "renewal"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "period_start",
+                    "period_end",
+                    "source",
+                    "recorded_at"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "plan": {
+                "description": "The plan version the subscription agreed to, as it was; never a newer version.",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "plan_version_id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "version": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "version_status": {
+                    "enum": [
+                      "draft",
+                      "archived",
+                      "published",
+                      "superseded",
+                      "retired"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "plan_version_id",
+                  "version",
+                  "name",
+                  "version_status"
+                ],
+                "type": "object"
+              },
+              "price": {
+                "description": "The price version the subscription agreed to (immutable).",
+                "properties": {
+                  "amount": {
+                    "description": "Decimal amount in the currency's major unit (\"149.00\"; \"0\" decimals for JPY). Never a float; no VAT.",
+                    "nullable": true,
+                    "pattern": "^[0-9]{1,13}(\\.[0-9]{1,6})?$",
+                    "type": "string"
+                  },
+                  "amount_minor": {
+                    "description": "The same amount in integer minor units (14900 for 149.00 PLN).",
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  },
+                  "currency": {
+                    "description": "ISO 4217 code. No conversion between currencies exists.",
+                    "enum": [
+                      "PLN",
+                      "EUR",
+                      "USD",
+                      "GBP",
+                      "CHF",
+                      "CZK",
+                      "SEK",
+                      "NOK",
+                      "DKK",
+                      "HUF",
+                      "UAH",
+                      "JPY"
+                    ],
+                    "type": "string"
+                  },
+                  "interval": {
+                    "enum": [
+                      "month",
+                      "year"
+                    ],
+                    "type": "string"
+                  },
+                  "pricing": {
+                    "enum": [
+                      "fixed",
+                      "quote_required"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "interval",
+                  "currency",
+                  "pricing",
+                  "amount",
+                  "amount_minor"
+                ],
+                "type": "object"
+              },
+              "provider_period_end": {
+                "description": "Stripe's current period end as last read.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "provider_period_start": {
+                "description": "Stripe's current period start as last read.",
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "provider_status": {
+                "description": "Stripe's subscription status as last read; null without a link. Not SimpleFit's status: `active` at Stripe is not a collected payment, `past_due` is not a final failure.",
+                "enum": [
+                  "incomplete",
+                  "incomplete_expired",
+                  "trialing",
+                  "active",
+                  "past_due",
+                  "canceled",
+                  "unpaid",
+                  "paused"
+                ],
+                "nullable": true,
+                "type": "string"
+              },
+              "reconciliation": {
+                "description": "`in_sync`: the Stripe link was read within six hours and had no discrepancy; `stale`: read longer ago\n(the hourly sweep should have re-read it); `mismatch`: the last read recorded a `discrepancy` code and\ngranted nothing; `not_linked`: a checkout exists but no Stripe Subscription is linked yet;\n`not_evaluated`: no provider record, so nothing was reconciled. Never \"reconciled\" without a read.\n",
+                "properties": {
+                  "discrepancy": {
+                    "description": "A code: `customer_mismatch`, `price_mismatch`, `ended_locally_live_at_provider`, `invoice_subscription_mismatch`, `invoice_currency_mismatch`, `invoice_amount_mismatch`, `invoice_period_over`, `invoice_period_missing`, `invoice_not_paid`, `invalid_evidence`, or another code reconciliation recorded.",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "state": {
+                    "enum": [
+                      "in_sync",
+                      "stale",
+                      "mismatch",
+                      "not_linked",
+                      "not_evaluated"
+                    ],
+                    "type": "string"
+                  },
+                  "synced_at": {
+                    "description": "When Stripe was last read for it.",
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "state",
+                  "discrepancy",
+                  "synced_at"
+                ],
+                "type": "object"
+              },
+              "requested_at": {
+                "description": "When the gym requested it.",
+                "format": "date-time",
+                "nullable": false,
+                "type": "string"
+              },
+              "revision": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "status": {
+                "description": "`pending_activation` is an intent and grants nothing; only verified provider evidence (a paid Stripe invoice, SF-102) activates. `cancellation_scheduled` stays in force until `cancellation_effective_at`. `cancelled` and `expired` are final.",
+                "enum": [
+                  "pending_activation",
+                  "active",
+                  "cancellation_scheduled",
+                  "cancelled",
+                  "expired"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "gym",
+              "status",
+              "environment",
+              "plan",
+              "price",
+              "requested_at",
+              "activated_at",
+              "current_period_start",
+              "current_period_end",
+              "cancel_reason",
+              "cancellation_effective_at",
+              "ended_at",
+              "provider_status",
+              "cancel_at_period_end",
+              "reconciliation",
+              "revision",
+              "cancel_mode",
+              "cancellation_requested_at",
+              "provider_period_start",
+              "provider_period_end",
+              "periods",
+              "invoices",
+              "checkouts"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "subscription"
+        ],
+        "title": "AdminBillingSubscriptionResponse",
+        "type": "object"
+      },
       "AdminCoach": {
         "description": "One coach for operators (SF-123). The coach profile's onboarding (`profile_status`) and the account's\nstate (`account_status`) are separate. Relationships are counts only: never who the fighters are, their\ntraining, notes or messages. Coaches have no verification state. `gyms` are the gyms they coach at\n(staff membership as coach), ids only: opening one needs `gyms.read`.\n",
         "properties": {
@@ -5009,7 +7167,9 @@
               "gyms.read",
               "coaches.read",
               "fighters.read",
-              "system.jobs.read"
+              "system.jobs.read",
+              "billing.read",
+              "billing.reconciliation.read"
             ],
             "type": "string"
           },
@@ -5067,7 +7227,9 @@
               "gyms.read",
               "coaches.read",
               "fighters.read",
-              "system.jobs.read"
+              "system.jobs.read",
+              "billing.read",
+              "billing.reconciliation.read"
             ],
             "type": "string"
           },
@@ -16562,6 +18724,567 @@
           }
         ],
         "summary": "One operator audit event",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/invoices": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `billing.read` and a key check. One mode, newest first; `issue` filters payment problems. Every query is recorded (`billing.invoices_listed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - an unknown filter value or an invalid cursor.",
+        "operationId": "listAdminBillingInvoices",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "description": "The Stripe mode to read; the deployment's configured mode by default.",
+              "enum": [
+                "test",
+                "live"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "draft",
+                "open",
+                "paid",
+                "uncollectible",
+                "void"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "payment_status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "requires_action",
+                "requires_payment_method",
+                "processing",
+                "succeeded",
+                "canceled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "issue",
+            "required": false,
+            "schema": {
+              "enum": [
+                "any",
+                "payment_failed",
+                "action_required",
+                "uncollectible"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "pattern": "^[A-Z]{3}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "gym_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingInvoiceListResponse"
+                }
+              }
+            },
+            "description": "A page"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One page of recorded Stripe invoices",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/overview": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `billing.read` and a key check. Counts by status and the gross amount paid of invoices paid in the last 30 days per currency, all of one mode; no MRR, ARR or revenue figure exists. Not recorded per load (counts only).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - an unknown mode.",
+        "operationId": "getAdminBillingOverview",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "description": "The Stripe mode to read; the deployment's configured mode by default.",
+              "enum": [
+                "test",
+                "live"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingOverviewResponse"
+                }
+              }
+            },
+            "description": "Overview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The billing overview of one Stripe mode",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/plans": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `billing.read` and a key check. Every plan with every version as recorded, its prices and the modes each price is mapped to Stripe in. Read only.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "listAdminBillingPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingPlanListResponse"
+                }
+              }
+            },
+            "description": "Plans"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The SaaS plan catalog",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/plans/{plan_key}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `billing.read` and a key check. Every version with its prices and entitlements; nothing is recomputed from a newer version.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "getAdminBillingPlan",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "plan_key",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_]{1,39}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingPlanResponse"
+                }
+              }
+            },
+            "description": "The plan"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One plan's version history",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/reconciliation": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `billing.reconciliation.read` and a key check. Links by state, the webhook inbox and one page of discrepancies; recorded (`billing.reconciliation_read`). No reconcile, sync or replay action exists.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - an unknown mode or an invalid cursor.",
+        "operationId": "getAdminBillingReconciliation",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "description": "The Stripe mode to read; the deployment's configured mode by default.",
+              "enum": [
+                "test",
+                "live"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingReconciliationResponse"
+                }
+              }
+            },
+            "description": "Reconciliation"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Reconciliation of one Stripe mode",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/subscriptions": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `billing.read` and a key check. One environment (`test`, `live`, or `none`: no provider record), newest request first. Every query is recorded (`billing.subscriptions_listed`).\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `validation_error` - an unknown filter value or an invalid cursor.",
+        "operationId": "listAdminBillingSubscriptions",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "description": "The environment; the deployment's configured mode by default.",
+              "enum": [
+                "test",
+                "live",
+                "none"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending_activation",
+                "active",
+                "cancellation_scheduled",
+                "cancelled",
+                "expired"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "plan_key",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9_]{1,39}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "plan_version_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "gym_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingSubscriptionListResponse"
+                }
+              }
+            },
+            "description": "A page"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One page of gym SaaS subscriptions",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/billing/subscriptions/{subscription_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `billing.read` and a key check. Its periods, newest recorded invoices with refunds and disputes, and checkout states; recorded (`billing.subscription_viewed`). No action is offered.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such record.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "getAdminBillingSubscription",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "subscription_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBillingSubscriptionResponse"
+                }
+              }
+            },
+            "description": "The subscription"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One gym SaaS subscription",
         "tags": [
           "Platform operators"
         ]

@@ -96,6 +96,16 @@ defmodule SimpleFitWeb.Router do
     get "/operations/jobs", AdminOperationsController, :jobs
     get "/operations/jobs/:job_id", AdminOperationsController, :job
 
+    # SF-127: billing oversight, read-only projections of one Stripe mode. No refund,
+    # cancellation, price, entitlement, retry, replay or reconcile route; no Stripe proxy.
+    get "/billing/overview", AdminBillingController, :overview
+    get "/billing/plans", AdminBillingController, :plans
+    get "/billing/plans/:plan_key", AdminBillingController, :plan
+    get "/billing/subscriptions", AdminBillingController, :subscriptions
+    get "/billing/subscriptions/:subscription_id", AdminBillingController, :subscription
+    get "/billing/invoices", AdminBillingController, :invoices
+    get "/billing/reconciliation", AdminBillingController, :reconciliation
+
     # SF-122: account administration: exact search, one account, its addresses, and three
     # typed actions (each with its own preview); no generic update, no list, no "act as user".
     get "/users", AdminUserController, :search

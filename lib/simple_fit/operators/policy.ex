@@ -30,13 +30,17 @@ defmodule SimpleFit.Operators.Policy do
   # relationship counts, never training, health or messages), all at a current key check.
   # SF-126 adds `system.jobs.read` (the background job list and one job's metadata, never
   # arguments or error messages), separate from `system.health.read`; no job action.
+  # SF-127 adds `billing.read` (the billing overview, plan catalog, gym subscriptions and
+  # Stripe invoice outcomes) and `billing.reconciliation.read` (discrepancies and webhook
+  # inbox metadata), read only at a current key check; no financial write exists.
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
                   sponsors.applications.claim sponsors.applications.request_changes
                   sponsors.applications.approve sponsors.applications.reject
                   sponsors.applications.read_files sponsors.restrict
                   platform.dashboard.read system.health.read
                   users.read users.reveal_email users.restrict users.sessions.revoke
-                  gyms.read coaches.read fighters.read system.jobs.read)
+                  gyms.read coaches.read fighters.read system.jobs.read
+                  billing.read billing.reconciliation.read)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
@@ -57,7 +61,9 @@ defmodule SimpleFit.Operators.Policy do
     "gyms.read" => :key,
     "coaches.read" => :key,
     "fighters.read" => :key,
-    "system.jobs.read" => :key
+    "system.jobs.read" => :key,
+    "billing.read" => :key,
+    "billing.reconciliation.read" => :key
   }
 
   @required_authenticators Application.compile_env(

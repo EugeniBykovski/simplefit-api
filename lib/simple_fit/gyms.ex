@@ -1046,6 +1046,9 @@ defmodule SimpleFit.Gyms do
   @doc "One gym for operators, or `nil`; see `SimpleFit.Gyms.Oversight.view/1`."
   defdelegate oversight_view(gym_id), to: SimpleFit.Gyms.Oversight, as: :view
 
+  @doc "Gym names by id for operator projections; see `SimpleFit.Gyms.Oversight.names/1`."
+  defdelegate oversight_names(ids), to: SimpleFit.Gyms.Oversight, as: :names
+
   @doc "The verification statuses the operator gym list filters by."
   defdelegate oversight_verification_statuses(),
     to: SimpleFit.Gyms.Oversight,
