@@ -165,3 +165,19 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
   allowlisted job metadata: never arguments, `meta`, error messages or stack traces; of the last error only the
   exception module.
 * No job action: retry, replay, queue control, log search, SQL, migration and deploy controls don't exist (D-SA33).
+
+## Amendment (SF-127)
+
+* `billing.read` and `billing.reconciliation.read` join the catalog (migration
+  `20261207090000_add_billing_read_permissions`), each at a key check. Nothing is granted, and neither implies the
+  other or any other permission.
+* `GET /api/v1/admin/billing/overview` and `/plans[/{key}]` (`billing.read`, not audited per load: counts, sums and
+  the catalog, as the overview); `/subscriptions[/{id}]` and `/invoices` (`billing.read`, audited
+  `billing.subscriptions_listed`, `billing.subscription_viewed`, `billing.invoices_listed`);
+  `/reconciliation` (`billing.reconciliation.read`, audited `billing.reconciliation_read`). The projections are
+  `SimpleFit.Billing.Oversight`, owned by the Billing context.
+* Every answer reads one Stripe mode (`test` or `live`, the deployment's by default), never both; amounts stay
+  in their currency; no MRR, ARR or revenue figure exists ([metric registry](../billing-oversight-metrics.md)).
+* No financial write: refund, cancellation, price, entitlement, retry, replay and reconcile have no route, and no
+  route forwards to Stripe. The SF-102 operator commands stay shell-only and refused in production builds
+  (SF-138). D-SA34. Nothing here changes D-SA13: production operator access stays NO-GO.

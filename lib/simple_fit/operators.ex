@@ -28,6 +28,8 @@ defmodule SimpleFit.Operators do
   alias SimpleFit.Accounts.{Session, User}
   import SimpleFit.Operators.Authority
 
+  alias SimpleFit.Billing.Oversight
+  alias SimpleFit.Clock
   alias SimpleFit.Observability.Operations
   alias SimpleFit.Operators.{Actions, Audit, AuditEvent, Challenge, Credential, Cursor, Grant}
   alias SimpleFit.Operators.{Operation, Operator, Overview, Policy, Principal, Redaction}
@@ -665,7 +667,20 @@ defmodule SimpleFit.Operators do
     "fighters.search" => %{permission: "fighters.read", audit: "fighter.searched"},
     "fighters.detail" => %{permission: "fighters.read", audit: "fighter.viewed"},
     "jobs.list" => %{permission: "system.jobs.read", audit: "jobs.listed"},
-    "jobs.detail" => %{permission: "system.jobs.read", audit: "job.viewed"}
+    "jobs.detail" => %{permission: "system.jobs.read", audit: "job.viewed"},
+    "billing.subscriptions" => %{
+      permission: "billing.read",
+      audit: "billing.subscriptions_listed"
+    },
+    "billing.subscription" => %{
+      permission: "billing.read",
+      audit: "billing.subscription_viewed"
+    },
+    "billing.invoices" => %{permission: "billing.read", audit: "billing.invoices_listed"},
+    "billing.reconciliation" => %{
+      permission: "billing.reconciliation.read",
+      audit: "billing.reconciliation_read"
+    }
   }
 
   defp project(id, user, session, ctx, fun) do
@@ -1463,6 +1478,261 @@ defmodule SimpleFit.Operators do
       _ -> :error
     end
   end
+
+  ## Billing oversight (SF-127)
+
+  @doc """
+  The billing overview of one Stripe mode (`billing.read`, key check): subscriptions
+  by status, Stripe subscription states, invoices, payment issues, refunds, disputes
+  and the gross `amount_paid` of invoices paid in the last 30 days per currency
+  (`SimpleFit.Billing.Oversight.overview/2`). `params`: `mode` (`test`/`live`; the
+  configured mode by default). Counts and sums only, no names: like the overview, not
+  audited per load (SF-107); refusals are.
+  """
+  @spec billing_overview(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, map()} | {:error, error() | Ecto.Changeset.t()}
+  def billing_overview(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    with {:ok, _principal} <- authorize(user, session, "billing.read", ctx),
+         {:ok, attrs} <- billing_query(params, %{mode: :string}, ~w(test live)) do
+      {:ok, Oversight.overview(billing_mode(attrs), Clock.utc_now())}
+    end
+  end
+
+  @doc """
+  The SaaS plan catalog (`billing.read`, key check): every plan with its versions,
+  prices and Stripe mapping modes. The catalog isn't customer data; not audited.
+  """
+  @spec billing_plans(User.t(), Session.t(), ctx()) :: {:ok, [map()]} | {:error, error()}
+  def billing_plans(%User{} = user, %Session{} = session, ctx \\ %{}) do
+    with {:ok, _principal} <- authorize(user, session, "billing.read", ctx) do
+      {:ok, Oversight.plans()}
+    end
+  end
+
+  @doc "One plan by key with its full version history and entitlements (`billing.read`)."
+  @spec billing_plan(User.t(), Session.t(), term(), ctx()) :: {:ok, map()} | {:error, error()}
+  def billing_plan(%User{} = user, %Session{} = session, key, ctx \\ %{}) do
+    with {:ok, _principal} <- authorize(user, session, "billing.read", ctx) do
+      with true <- is_binary(key) and Regex.match?(~r/\A[a-z][a-z0-9_]{1,39}\z/, key),
+           %{} = plan <- Oversight.plan(key) do
+        {:ok, plan}
+      else
+        _ -> {:error, :not_found}
+      end
+    end
+  end
+
+  @doc """
+  One page of gym SaaS subscriptions of one environment (`billing.read`, key check),
+  newest request first. Filters: `mode` (`test`, `live`, or `none` for subscriptions
+  with no provider record; the configured mode by default), `status`, `plan_key`,
+  `plan_version_id`, `gym_id`; `limit` 1..50 (default 25); `cursor` from the previous
+  page, valid only for the same filters and reader. Each query is audited
+  (`billing.subscriptions_listed`).
+  """
+  @spec list_billing_subscriptions(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{subscriptions: [map()], next_cursor: String.t() | nil}}
+          | {:error, error() | Ecto.Changeset.t()}
+  def list_billing_subscriptions(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("billing.subscriptions", user, session, ctx, fn principal ->
+      types = %{
+        mode: :string,
+        status: :string,
+        plan_key: :string,
+        plan_version_id: Ecto.UUID,
+        gym_id: Ecto.UUID,
+        limit: :integer,
+        cursor: :string
+      }
+
+      with {:ok, attrs} <-
+             billing_query(params, types, ~w(test live none), &subscription_validations/1),
+           filters = subscription_filters(attrs),
+           {:ok, position} <- billing_position(attrs, filters, principal.operator_id) do
+        {rows, next} =
+          Oversight.subscriptions_page(
+            Map.delete(filters, :list),
+            Map.get(attrs, :limit, 25),
+            position,
+            Clock.utc_now()
+          )
+
+        {:ok,
+         %{
+           mode: filters.environment,
+           subscriptions: rows,
+           next_cursor: next && Cursor.encode(next, filters, principal.operator_id)
+         }, {"billing_subscription_list", nil}}
+      end
+    end)
+  end
+
+  @doc """
+  One gym SaaS subscription (`billing.read`, key check) with its periods, recorded
+  invoices, refunds, disputes and checkout states, or `not_found`. Recorded
+  (`billing.subscription_viewed`).
+  """
+  @spec get_billing_subscription(User.t(), Session.t(), term(), ctx()) ::
+          {:ok, map()} | {:error, error()}
+  def get_billing_subscription(%User{} = user, %Session{} = session, id, ctx \\ %{}) do
+    project("billing.subscription", user, session, ctx, fn _principal ->
+      with {:ok, id} <- Ecto.UUID.cast(id),
+           %{} = subscription <- Oversight.subscription(id, Clock.utc_now()) do
+        {:ok, subscription, {"billing_subscription", id}}
+      else
+        _ -> {:error, :not_found}
+      end
+    end)
+  end
+
+  @doc """
+  One page of recorded Stripe invoices of one mode (`billing.read`, key check), newest
+  first. Filters: `mode` (`test`/`live`; configured by default), `status`,
+  `payment_status`, `issue` (`any`, `payment_failed`, `action_required`,
+  `uncollectible`), `currency`, `gym_id`; `limit` 1..50 (default 25); `cursor`. Each
+  query is audited (`billing.invoices_listed`).
+  """
+  @spec list_billing_invoices(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{invoices: [map()], next_cursor: String.t() | nil}}
+          | {:error, error() | Ecto.Changeset.t()}
+  def list_billing_invoices(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("billing.invoices", user, session, ctx, fn principal ->
+      types = %{
+        mode: :string,
+        status: :string,
+        payment_status: :string,
+        issue: :string,
+        currency: :string,
+        gym_id: Ecto.UUID,
+        limit: :integer,
+        cursor: :string
+      }
+
+      with {:ok, attrs} <-
+             billing_query(params, types, ~w(test live), &invoice_validations/1),
+           filters = invoice_filters(attrs),
+           {:ok, position} <- billing_position(attrs, filters, principal.operator_id) do
+        {rows, next} =
+          Oversight.invoices_page(
+            Map.delete(filters, :list),
+            Map.get(attrs, :limit, 25),
+            position
+          )
+
+        {:ok,
+         %{
+           mode: filters.mode,
+           invoices: rows,
+           next_cursor: next && Cursor.encode(next, filters, principal.operator_id)
+         }, {"billing_invoice_list", nil}}
+      end
+    end)
+  end
+
+  @doc """
+  Reconciliation of one Stripe mode (`billing.reconciliation.read`, key check): links by
+  state, the webhook inbox and one page of discrepancies. Filters: `mode`; `limit`
+  1..50 (default 25); `cursor`. Each read is audited (`billing.reconciliation_read`).
+  """
+  @spec billing_reconciliation(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, map()} | {:error, error() | Ecto.Changeset.t()}
+  def billing_reconciliation(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("billing.reconciliation", user, session, ctx, fn principal ->
+      types = %{mode: :string, limit: :integer, cursor: :string}
+
+      with {:ok, attrs} <- billing_query(params, types, ~w(test live)),
+           mode = billing_mode(attrs),
+           filters = %{list: "billing_discrepancies", mode: mode},
+           {:ok, position} <- billing_position(attrs, filters, principal.operator_id) do
+        result =
+          Oversight.reconciliation(
+            mode,
+            Map.get(attrs, :limit, 25),
+            position,
+            Clock.utc_now()
+          )
+
+        {:ok,
+         result
+         |> Map.delete(:next)
+         |> Map.put(
+           :next_cursor,
+           result.next && Cursor.encode(result.next, filters, principal.operator_id)
+         ), {"billing_reconciliation", nil}}
+      end
+    end)
+  end
+
+  defp billing_query(params, types, modes, extra \\ & &1) do
+    {%{}, types}
+    |> cast(params, Map.keys(types), empty_values: [])
+    |> validate_inclusion(:mode, modes)
+    |> validate_page(types)
+    |> extra.()
+    |> apply_action(:validate)
+  end
+
+  defp subscription_validations(changeset) do
+    changeset
+    |> validate_inclusion(:status, Enum.map(Oversight.subscription_statuses(), &Atom.to_string/1))
+    |> validate_format(:plan_key, ~r/\A[a-z][a-z0-9_]{1,39}\z/)
+  end
+
+  defp invoice_validations(changeset) do
+    {statuses, payment_statuses} = Oversight.invoice_statuses()
+
+    changeset
+    |> validate_inclusion(:status, Enum.map(statuses, &Atom.to_string/1))
+    |> validate_inclusion(:payment_status, Enum.map(payment_statuses, &Atom.to_string/1))
+    |> validate_inclusion(:issue, ~w(any payment_failed action_required uncollectible))
+    |> validate_format(:currency, ~r/\A[A-Z]{3}\z/)
+  end
+
+  defp validate_page(changeset, %{limit: :integer, cursor: :string}) do
+    changeset
+    |> validate_number(:limit, greater_than: 0, less_than_or_equal_to: 50)
+    |> validate_length(:cursor, max: 1024)
+  end
+
+  defp validate_page(changeset, _types), do: changeset
+
+  # The mode a request reads: the one it names, else the deployment's. Never both.
+  defp billing_mode(%{mode: mode}) when mode in ~w(test live), do: String.to_existing_atom(mode)
+  defp billing_mode(_attrs), do: Oversight.configured_mode()
+
+  defp subscription_filters(attrs) do
+    environment =
+      case attrs[:mode] do
+        "none" -> :none
+        _ -> billing_mode(attrs)
+      end
+
+    %{
+      status: attrs[:status] && String.to_existing_atom(attrs.status),
+      plan_key: attrs[:plan_key],
+      plan_version_id: attrs[:plan_version_id],
+      gym_id: attrs[:gym_id]
+    }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.merge(%{environment: environment, list: "billing_subscriptions"})
+  end
+
+  defp invoice_filters(attrs) do
+    %{
+      status: attrs[:status] && String.to_existing_atom(attrs.status),
+      payment_status: attrs[:payment_status] && String.to_existing_atom(attrs.payment_status),
+      issue: attrs[:issue] && String.to_existing_atom(attrs.issue),
+      currency: attrs[:currency],
+      gym_id: attrs[:gym_id]
+    }
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.merge(%{mode: billing_mode(attrs), list: "billing_invoices"})
+  end
+
+  defp billing_position(%{cursor: _} = attrs, filters, operator_id),
+    do: gym_position(attrs, filters, operator_id)
+
+  defp billing_position(_attrs, _filters, _operator_id), do: {:ok, nil}
 
   ## Overview (SF-121)
 

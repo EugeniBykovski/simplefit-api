@@ -103,6 +103,19 @@ defmodule SimpleFit.Gyms.Oversight do
     end
   end
 
+  @doc """
+  Gym names by id, for the operator projections of other contexts (SF-127, billing):
+  only the name, never a gym's people. Unknown ids are absent.
+  """
+  @spec names([Ecto.UUID.t()]) :: %{Ecto.UUID.t() => String.t() | nil}
+  def names([]), do: %{}
+
+  def names(ids) when is_list(ids) do
+    from(g in Gym, where: g.id in ^Enum.uniq(ids), select: {g.id, g.name})
+    |> Repo.all(@unlogged)
+    |> Map.new()
+  end
+
   # The gym, its primary active location and its current verification status, as the
   # list and the detail both show them.
   defp base_query do
