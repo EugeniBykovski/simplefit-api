@@ -58,10 +58,12 @@ defmodule SimpleFit.Sponsors.Evidence do
       scanned: false
     }
 
-  @doc "Whether evidence uploads exist in this environment."
+  @doc """
+  Whether evidence uploads exist in this environment: enabled by the deployment
+  (`SPONSOR_EVIDENCE_UPLOADS`) and not suspended by an operator (SF-128).
+  """
   @spec enabled?() :: boolean()
-  def enabled?,
-    do: Elixir.Application.get_env(:simple_fit, SimpleFit.Sponsors, [])[:evidence_uploads] == true
+  def enabled?, do: SimpleFit.Configuration.enabled?("sponsor.evidence_uploads")
 
   @doc "The application's live (not removed) documents, oldest first."
   @spec live(Ecto.UUID.t()) :: [ApplicationEvidence.t()]

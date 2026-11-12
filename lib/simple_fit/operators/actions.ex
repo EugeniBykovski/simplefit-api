@@ -42,6 +42,7 @@ defmodule SimpleFit.Operators.Actions do
   alias SimpleFit.Operators.{
     Action,
     Audit,
+    ConfigurationActions,
     Confirmation,
     Operation,
     OperatorActions,
@@ -66,9 +67,13 @@ defmodule SimpleFit.Operators.Actions do
   @spec ids() :: [String.t()]
   def ids, do: Enum.map(definitions(), & &1.id)
 
-  # Operator administration (SF-111) and sponsor application review (SF-114).
+  # Operator administration (SF-111), sponsor application review (SF-114), user
+  # accounts (SF-122) and runtime flags (SF-128).
   defp definitions,
-    do: OperatorActions.definitions() ++ ReviewActions.definitions() ++ UserActions.definitions()
+    do:
+      OperatorActions.definitions() ++
+        ReviewActions.definitions() ++
+        UserActions.definitions() ++ ConfigurationActions.definitions()
 
   ## Preview
 

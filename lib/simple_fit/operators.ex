@@ -1479,6 +1479,41 @@ defmodule SimpleFit.Operators do
     end
   end
 
+  ## Configuration governance (SF-128)
+
+  @doc """
+  The configuration inventory (`config.read`, key check): every registered switch with
+  its variable, consumer, control, risk, deployment value, suspension and effective
+  value, the deployment environment, and the newest changes. Never a secret, URL or
+  credential: only registered switches exist. Not audited per load (no person's data).
+  """
+  @spec configuration(User.t(), Session.t(), ctx()) :: {:ok, map()} | {:error, error()}
+  def configuration(%User{} = user, %Session{} = session, ctx \\ %{}) do
+    with {:ok, _principal} <- authorize(user, session, "config.read", ctx) do
+      {:ok,
+       %{
+         environment: SimpleFit.Configuration.environment(),
+         observed_at: Clock.utc_now(),
+         flags: SimpleFit.Configuration.inventory(),
+         changes: SimpleFit.Configuration.recent_changes()
+       }}
+    end
+  end
+
+  @doc "One runtime flag with its history (`config.read`, key check), or `not_found`."
+  @spec configuration_flag(User.t(), Session.t(), term(), ctx()) ::
+          {:ok, map()} | {:error, error()}
+  def configuration_flag(%User{} = user, %Session{} = session, flag_id, ctx \\ %{}) do
+    with {:ok, _principal} <- authorize(user, session, "config.read", ctx) do
+      with {:ok, id} <- Ecto.UUID.cast(flag_id),
+           %{} = flag <- SimpleFit.Configuration.flag(id) do
+        {:ok, flag}
+      else
+        _ -> {:error, :not_found}
+      end
+    end
+  end
+
   ## Billing oversight (SF-127)
 
   @doc """
