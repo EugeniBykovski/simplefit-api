@@ -149,6 +149,7 @@ defmodule SimpleFitWeb.Router do
     get "/fighters/:fighter_id", AdminOversightController, :fighter
 
     get "/operators", OperatorAdminController, :index
+    get "/operator-permissions", OperatorAdminController, :permissions
     post "/operators", OperatorAdminController, :provision
     get "/operators/:operator_id", OperatorAdminController, :show
     # SF-111: each admin action has its own preview and execute route; no generic execute.

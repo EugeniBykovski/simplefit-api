@@ -14871,6 +14871,38 @@
         "title": "OperatorListResponse",
         "type": "object"
       },
+      "OperatorPermissionCatalogResponse": {
+        "description": "Every operator permission (SF-129): the catalog the database also enforces, each with the key-check\nassurance it needs (`key`: a current check; `fresh_key`: one in the last minutes). No role, bundle or\nsuperuser exists: permissions are granted one by one.\n",
+        "properties": {
+          "permissions": {
+            "items": {
+              "properties": {
+                "assurance": {
+                  "enum": [
+                    "key",
+                    "fresh_key"
+                  ],
+                  "type": "string"
+                },
+                "permission": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "permission",
+                "assurance"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "permissions"
+        ],
+        "title": "OperatorPermissionCatalogResponse",
+        "type": "object"
+      },
       "OperatorSecurityKeys": {
         "description": "Security keys the operator has registered, and how many the policy requires to be active.",
         "properties": {
@@ -14994,7 +15026,7 @@
         "type": "object"
       },
       "OperatorSummary": {
-        "description": "An operator as other operators see it. Ids only: no names or email addresses.",
+        "description": "An operator as other operators see it: ids, the account's short name (first name and an initial, SF-129)\nand never an email address. `grants` lists each active permission with where it came from;\n`last_key_check_at` is when the operator last completed a security-key check (null: never).\n",
         "properties": {
           "activated_at": {
             "format": "date-time",
@@ -15018,8 +15050,50 @@
             "nullable": true,
             "type": "string"
           },
+          "grants": {
+            "description": "Active permissions with their provenance (empty for a revoked operator).",
+            "items": {
+              "properties": {
+                "bootstrap": {
+                  "description": "Granted by the founder bootstrap ceremony, not by an operator.",
+                  "type": "boolean"
+                },
+                "granted_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "granted_by_operator_id": {
+                  "format": "uuid",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "permission": {
+                  "type": "string"
+                },
+                "reason_code": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "permission",
+                "granted_at",
+                "granted_by_operator_id",
+                "reason_code",
+                "bootstrap"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
+            "type": "string"
+          },
+          "last_key_check_at": {
+            "description": "The operator's last completed security-key check.",
+            "format": "date-time",
+            "nullable": true,
             "type": "string"
           },
           "permissions": {
@@ -15040,6 +15114,11 @@
           },
           "security_keys": {
             "$ref": "#/components/schemas/OperatorSecurityKeys"
+          },
+          "short_name": {
+            "description": "First name and an initial.",
+            "nullable": true,
+            "type": "string"
           },
           "status": {
             "enum": [
@@ -15091,8 +15170,13 @@
         "type": "object"
       },
       "ProvisionOperatorRequest": {
-        "description": "An existing account (by user id, never by email) with completed registration, and the exact permissions.",
+        "description": "An existing account with completed registration, named by exactly one of `user_id` or an exact `email` (SF-129; never part of either), and the exact permissions.",
         "properties": {
+          "email": {
+            "description": "The account's exact email address.",
+            "maxLength": 320,
+            "type": "string"
+          },
           "operation_id": {
             "format": "uuid",
             "type": "string"
@@ -15114,7 +15198,6 @@
           }
         },
         "required": [
-          "user_id",
           "permissions",
           "reason_code",
           "operation_id"
@@ -20916,6 +20999,47 @@
         ]
       }
     },
+    "/api/v1/admin/operator-permissions": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `operators.read`. Every permission with the key check it needs; no role or bundle exists.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n",
+        "operationId": "listOperatorPermissions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorPermissionCatalogResponse"
+                }
+              }
+            },
+            "description": "Catalog"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The operator permission catalog",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
     "/api/v1/admin/operators": {
       "get": {
         "callbacks": {},
@@ -20958,7 +21082,7 @@
       },
       "post": {
         "callbacks": {},
-        "description": "Needs `operators.manage` and a fresh key check. For an existing account with completed registration, named by user id. The new operator is `pending_enrollment` and holds exactly the listed permissions.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
+        "description": "Needs `operators.manage` and a fresh key check. For an existing account with completed registration, named by its user id or exact email address. The new operator is `pending_enrollment` and holds exactly the listed permissions.\n\n* `not_found` - the viewer isn't a usable operator (indistinguishable from an unknown route), or no such\n  operator.\n* `enrollment_required` - the viewer's security keys aren't registered yet.\n* `forbidden` - the permission isn't granted.\n* `step_up_required` - no key check in this session, or not fresh enough for this action.\n* `conflict` - `details.target: \"self\"`; `details.status`, `details.permission`, `details.operator`,\n  `details.user` or `details.operation_id` name the conflict.\n* `validation_error` - a malformed reason code, operation id or permission.\n",
         "operationId": "provisionOperator",
         "parameters": [],
         "requestBody": {
