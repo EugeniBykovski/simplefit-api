@@ -178,7 +178,13 @@ defmodule SimpleFitWeb.AdminOperationsControllerTest do
 
       assert %{"applied" => applied, "latest_version" => latest} = body["health"]["migrations"]
       assert applied == length(Path.wildcard("priv/repo/migrations/*.exs"))
-      assert latest == "20261205090000"
+      # The newest migration file, whichever ticket added it last.
+      assert latest ==
+               "priv/repo/migrations/*.exs"
+               |> Path.wildcard()
+               |> Enum.map(&(&1 |> Path.basename() |> String.split("_", parts: 2) |> hd()))
+               |> Enum.max()
+
       assert %{"source" => "default", "release" => release} = body["health"]["release"]
       assert release =~ "simplefit-api@"
       refute response.resp_body =~ "postgres"
