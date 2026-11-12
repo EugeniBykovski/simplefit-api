@@ -30,7 +30,8 @@ user attribute.
 * Enrollment expires. An unenrolled operator is revoked by a job.
 * Suspending or revoking takes effect on the next call: there is no cache, and it ends the
   operator's step-ups in the same transaction.
-* The last active holder of `operators.manage` can't be suspended or revoked through the API.
+* The last active holder of `operators.manage` can't be suspended or revoked through the API: no action
+  targets its actor, and the actor's permission is asked again under locks (SF-129 race tests).
 * Every change names an actor, a reason and an `operation_id`.
 
 ## 3. Authentication assurance
