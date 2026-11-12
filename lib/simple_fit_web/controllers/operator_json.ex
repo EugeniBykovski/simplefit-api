@@ -107,7 +107,12 @@ defmodule SimpleFitWeb.OperatorJSON do
       activated_at: op.activated_at,
       suspended_at: op.suspended_at,
       revoked_at: op.revoked_at,
-      created_at: op.inserted_at
+      created_at: op.inserted_at,
+      short_name: Map.get(s, :short_name),
+      last_key_check_at: Map.get(s, :last_key_check_at),
+      grants: Map.get(s, :grants, [])
     }
   end
+
+  def permissions(%{catalog: catalog}), do: %{permissions: catalog}
 end

@@ -70,6 +70,22 @@ defmodule SimpleFitWeb.OperatorAdminController do
     end
   end
 
+  operation :permissions,
+    operation_id: "listOperatorPermissions",
+    summary: "The operator permission catalog",
+    description:
+      "Needs `operators.read`. Every permission with the key check it needs; no role or bundle exists.\n\n" <>
+        @access,
+    security: @security,
+    responses:
+      [ok: {"Catalog", "application/json", Schemas.OperatorPermissionCatalogResponse}] ++ @base
+
+  def permissions(conn, _params) do
+    with {:ok, catalog} <- Operators.permission_catalog(user(conn), session(conn), ctx()) do
+      render(conn, :permissions, catalog: catalog)
+    end
+  end
+
   operation :show,
     operation_id: "getOperator",
     summary: "One operator",
@@ -89,7 +105,7 @@ defmodule SimpleFitWeb.OperatorAdminController do
     summary: "Provision an operator",
     description:
       "Needs `operators.manage` and a fresh key check. For an existing account with completed registration, " <>
-        "named by user id. The new operator is `pending_enrollment` and holds exactly the listed permissions.\n\n" <>
+        "named by its user id or exact email address. The new operator is `pending_enrollment` and holds exactly the listed permissions.\n\n" <>
         @access <> @write,
     security: @security,
     request_body: {"Provisioning", "application/json", Schemas.ProvisionOperatorRequest},

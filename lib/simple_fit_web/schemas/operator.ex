@@ -225,7 +225,11 @@ defmodule SimpleFitWeb.Schemas.OperatorSummary do
 
   OpenApiSpex.schema(%{
     title: "OperatorSummary",
-    description: "An operator as other operators see it. Ids only: no names or email addresses.",
+    description: """
+    An operator as other operators see it: ids, the account's short name (first name and an initial, SF-129)
+    and never an email address. `grants` lists each active permission with where it came from;
+    `last_key_check_at` is when the operator last completed a security-key check (null: never).
+    """,
     type: :object,
     required: [
       :id,
@@ -263,7 +267,66 @@ defmodule SimpleFitWeb.Schemas.OperatorSummary do
       activated_at: %Schema{type: :string, format: :"date-time", nullable: true},
       suspended_at: %Schema{type: :string, format: :"date-time", nullable: true},
       revoked_at: %Schema{type: :string, format: :"date-time", nullable: true},
-      created_at: %Schema{type: :string, format: :"date-time"}
+      created_at: %Schema{type: :string, format: :"date-time"},
+      short_name: %Schema{
+        type: :string,
+        nullable: true,
+        description: "First name and an initial."
+      },
+      last_key_check_at: %Schema{
+        type: :string,
+        format: :"date-time",
+        nullable: true,
+        description: "The operator's last completed security-key check."
+      },
+      grants: %Schema{
+        type: :array,
+        description: "Active permissions with their provenance (empty for a revoked operator).",
+        items: %Schema{
+          type: :object,
+          required: [:permission, :granted_at, :granted_by_operator_id, :reason_code, :bootstrap],
+          properties: %{
+            permission: %Schema{type: :string},
+            granted_at: %Schema{type: :string, format: :"date-time"},
+            granted_by_operator_id: %Schema{type: :string, format: :uuid, nullable: true},
+            reason_code: %Schema{type: :string, nullable: true},
+            bootstrap: %Schema{
+              type: :boolean,
+              description: "Granted by the founder bootstrap ceremony, not by an operator."
+            }
+          }
+        }
+      }
+    }
+  })
+end
+
+defmodule SimpleFitWeb.Schemas.OperatorPermissionCatalogResponse do
+  @moduledoc false
+  require OpenApiSpex
+  alias OpenApiSpex.Schema
+
+  OpenApiSpex.schema(%{
+    title: "OperatorPermissionCatalogResponse",
+    description: """
+    Every operator permission (SF-129): the catalog the database also enforces, each with the key-check
+    assurance it needs (`key`: a current check; `fresh_key`: one in the last minutes). No role, bundle or
+    superuser exists: permissions are granted one by one.
+    """,
+    type: :object,
+    required: [:permissions],
+    properties: %{
+      permissions: %Schema{
+        type: :array,
+        items: %Schema{
+          type: :object,
+          required: [:permission, :assurance],
+          properties: %{
+            permission: %Schema{type: :string},
+            assurance: %Schema{type: :string, enum: ["key", "fresh_key"]}
+          }
+        }
+      }
     }
   })
 end
@@ -320,11 +383,17 @@ defmodule SimpleFitWeb.Schemas.ProvisionOperatorRequest do
   OpenApiSpex.schema(%{
     title: "ProvisionOperatorRequest",
     description:
-      "An existing account (by user id, never by email) with completed registration, and the exact permissions.",
+      "An existing account with completed registration, named by exactly one of `user_id` or an exact `email` " <>
+        "(SF-129; never part of either), and the exact permissions.",
     type: :object,
-    required: [:user_id, :permissions, :reason_code, :operation_id],
+    required: [:permissions, :reason_code, :operation_id],
     properties: %{
       user_id: %Schema{type: :string, format: :uuid},
+      email: %Schema{
+        type: :string,
+        maxLength: 320,
+        description: "The account's exact email address."
+      },
       permissions: %Schema{type: :array, minItems: 1, items: %Schema{type: :string}},
       reason_code: %Schema{type: :string, pattern: "^[a-z][a-z0-9_]{1,59}$"},
       operation_id: %Schema{type: :string, format: :uuid}

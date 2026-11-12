@@ -193,3 +193,21 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
   revision, operation id, audit `config.flag_suspended` / `config.flag_restored`) on the four allowlisted
   `runtime_flags`; a suspension can only turn a feature off ([governance](../configuration-governance.md), D-SA35).
   Nothing here changes D-SA13: production operator access stays NO-GO.
+
+## Amendment (SF-129)
+
+* The operator projections (`GET /api/v1/admin/operators[/{id}]`) gain, additively: the account's short name
+  (first name and an initial, SF-123's rule; never a full name or an email address), each active permission's
+  provenance (`grants`: who granted it, when, under which reason, or the bootstrap ceremony) and the last completed
+  key check (`last_key_check_at`). Loaded in a fixed number of grouped queries; the list is bounded (200).
+* `GET /api/v1/admin/operator-permissions` (`operators.read`) lists the catalog with each permission's assurance.
+  There is no role, bundle or superuser: permissions are granted one by one.
+* Provisioning names the account by exactly one of `user_id` or an exact `email` (resolved as SF-122's search does,
+  never by part of either); an unknown address is refused like an ineligible account. A provisioned operator holds
+  nothing usable until they register their own keys.
+* **Last manager.** No counter is needed: an action never targets its actor, and the actor's own `operators.manage`
+  and status are asked again under row locks taken in id order, so whoever commits a suspension, revocation or
+  permission removal still holds `operators.manage` afterwards. Two managers removing each other at once serialize
+  on the same locks; the second finds its permission gone (`test/simple_fit/operator_governance_race_test.exs`).
+* **Two-person approval** doesn't exist and isn't simulated: every change is one operator's, under SF-111 (fresh key,
+  reason, one-time confirmation). D-SA36. Nothing here changes D-SA13: production operator access stays NO-GO.

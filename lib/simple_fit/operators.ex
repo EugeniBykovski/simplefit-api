@@ -421,12 +421,38 @@ defmodule SimpleFit.Operators do
 
   ## Operator administration
 
-  @doc "Every operator, with active permissions and key counts (`operators.read`)."
+  # The whole operator list, oldest first, bounded: operators are a handful of people.
+  @operator_limit 200
+
+  @doc """
+  Every operator, oldest first (at most #{@operator_limit}), with active permissions and
+  their provenance, key counts, short name and last key check (`operators.read`).
+  """
   @spec list_operators(User.t(), Session.t(), ctx()) :: {:ok, [map()]} | {:error, refusal()}
   def list_operators(%User{} = user, %Session{} = session, ctx \\ %{}) do
     with {:ok, _principal} <- authorize(user, session, "operators.read", ctx) do
-      ops = Repo.all(from(o in Operator, order_by: [asc: o.inserted_at, asc: o.id]))
-      {:ok, Enum.map(ops, &summary/1)}
+      ops =
+        Repo.all(
+          from(o in Operator, order_by: [asc: o.inserted_at, asc: o.id], limit: @operator_limit)
+        )
+
+      {:ok, summaries(ops)}
+    end
+  end
+
+  @doc """
+  The permission catalog with each permission's assurance (`operators.read`, SF-129):
+  what a grant can name. Not audited per load (the catalog isn't anyone's data).
+  """
+  @spec permission_catalog(User.t(), Session.t(), ctx()) ::
+          {:ok, [%{permission: String.t(), assurance: String.t()}]} | {:error, refusal()}
+  def permission_catalog(%User{} = user, %Session{} = session, ctx \\ %{}) do
+    with {:ok, _principal} <- authorize(user, session, "operators.read", ctx) do
+      {:ok,
+       Enum.map(
+         Policy.permissions(),
+         &%{permission: &1, assurance: Atom.to_string(Policy.assurance(&1))}
+       )}
     end
   end
 
@@ -454,13 +480,22 @@ defmodule SimpleFit.Operators do
   def provision(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
     types = %{
       user_id: Ecto.UUID,
+      email: :string,
       permissions: {:array, :string},
       reason_code: :string,
       operation_id: Ecto.UUID
     }
 
     with :ok <- concealed(user),
-         {:ok, attrs} <- cast_params(params, types, Map.keys(types), &validate_permissions/1) do
+         {:ok, attrs} <-
+           cast_params(
+             params,
+             types,
+             [:permissions, :reason_code, :operation_id],
+             &(&1 |> validate_permissions() |> validate_account_reference())
+           ) do
+      attrs = resolve_account(attrs)
+
       write(
         user,
         session,
@@ -574,7 +609,7 @@ defmodule SimpleFit.Operators do
   defp provision!(actor, _target, now, attrs, session, ctx) do
     if attrs.user_id == actor.user_id, do: Repo.rollback({:conflict, %{target: "self"}})
 
-    target_user = Repo.get(User, attrs.user_id)
+    target_user = if is_binary(attrs.user_id), do: Repo.get(User, attrs.user_id)
 
     unless target_user && Accounts.registration_complete?(target_user),
       do: Repo.rollback({:conflict, %{user: "not_eligible"}})
@@ -2092,6 +2127,34 @@ defmodule SimpleFit.Operators do
     |> extra.()
     |> apply_action(:validate)
   end
+
+  # Provisioning names the account by exactly one of its user id or an exact email
+  # address (SF-129; never part of either).
+  defp validate_account_reference(changeset) do
+    case {get_change(changeset, :user_id), get_change(changeset, :email)} do
+      {nil, nil} ->
+        add_error(changeset, :user_id, "can't be blank", validation: :required)
+
+      {id, email} when is_binary(id) and is_binary(email) ->
+        add_error(changeset, :email, "give a user id or an email, not both",
+          validation: :exclusion
+        )
+
+      _one ->
+        validate_length(changeset, :email, max: 320)
+    end
+  end
+
+  # An email resolves exactly as SF-122's search does (canonical address of an email
+  # sign-in identity). An unknown address becomes no account, which provisioning refuses
+  # like an ineligible one: managers learn nothing an exact lookup wouldn't tell them.
+  defp resolve_account(%{email: email} = attrs) when is_binary(email) do
+    attrs
+    |> Map.delete(:email)
+    |> Map.put(:user_id, Accounts.find_for_admin(email) || :unknown)
+  end
+
+  defp resolve_account(attrs), do: attrs
 
   defp validate_permissions(changeset) do
     validate_change(changeset, :permissions, fn :permissions, permissions ->

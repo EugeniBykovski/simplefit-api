@@ -148,12 +148,71 @@ defmodule SimpleFit.Operators.Authority do
 
   @doc "An operator with its active permissions and key counts (the read projection)."
   @spec summary(Operator.t()) :: map()
-  def summary(op) do
+  def summary(%Operator{} = op), do: [op] |> summaries() |> hd()
+
+  @doc """
+  The read projection of `ops` (SF-129), in one set of grouped queries whatever their
+  number: each operator's active permissions with where each came from (who granted it,
+  when, under which reason, or the bootstrap ceremony), unrevoked key count, the account's
+  short name (first name and an initial, SF-123's rule; never a full name or an address)
+  and when the operator last completed a key check. Nothing about keys beyond the count.
+  """
+  @spec summaries([Operator.t()]) :: [map()]
+  def summaries([]), do: []
+
+  def summaries(ops) when is_list(ops) do
+    ids = Enum.map(ops, & &1.id)
+
+    grants =
+      from(g in Grant,
+        where: g.operator_id in ^ids and is_nil(g.revoked_at),
+        order_by: [asc: g.operator_id, asc: g.permission]
+      )
+      |> Repo.all()
+      |> Enum.group_by(& &1.operator_id)
+
+    keys =
+      from(c in Credential,
+        where: c.operator_id in ^ids and is_nil(c.revoked_at),
+        group_by: c.operator_id,
+        select: {c.operator_id, count()}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    checks =
+      from(s in StepUp,
+        where: s.operator_id in ^ids,
+        group_by: s.operator_id,
+        select: {s.operator_id, max(s.verified_at)}
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    names = Accounts.short_names(Enum.map(ops, & &1.user_id))
+
+    Enum.map(ops, fn op ->
+      active = if op.status == :revoked, do: [], else: Map.get(grants, op.id, [])
+
+      %{
+        operator: op,
+        permissions: Enum.map(active, & &1.permission),
+        grants: Enum.map(active, &grant_view/1),
+        registered_keys: Map.get(keys, op.id, 0),
+        required_keys: Policy.required_authenticators(),
+        short_name: get_in(names, [op.user_id, :short_name]),
+        last_key_check_at: Map.get(checks, op.id)
+      }
+    end)
+  end
+
+  defp grant_view(%Grant{} = g) do
     %{
-      operator: op,
-      permissions: if(op.status == :revoked, do: [], else: active_permissions(op.id)),
-      registered_keys: active_credential_count(op.id),
-      required_keys: Policy.required_authenticators()
+      permission: g.permission,
+      granted_at: g.granted_at,
+      granted_by_operator_id: g.granted_by_operator_id,
+      reason_code: g.reason_code,
+      bootstrap: not is_nil(g.ceremony_id)
     }
   end
 end
