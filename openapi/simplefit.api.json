@@ -454,6 +454,38 @@
       }
     },
     "schemas": {
+      "AcceptSponsorProposalRequest": {
+        "additionalProperties": false,
+        "description": "Accept a partnership proposal under review (SF-130): SimpleFit will follow up. Creates nothing.",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The proposal's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "follow_up_planned"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "AcceptSponsorProposalRequest",
+        "type": "object"
+      },
       "AccountProfileResponse": {
         "additionalProperties": false,
         "description": "Always returned, also before registration has started (`status: not_started`, every requirement\nmissing), so a client can render the shared Basics & Consent step from this response alone.\n",
@@ -4804,6 +4836,32 @@
         "title": "ClaimSponsorApplicationRequest",
         "type": "object"
       },
+      "ClaimSponsorProposalRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "description": "Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "review_started"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "ClaimSponsorProposalRequest",
+        "type": "object"
+      },
       "CoachDataRulesAcknowledgeRequest": {
         "example": {
           "document_language": "en",
@@ -5921,6 +5979,80 @@
         "title": "CoachTrainingSessionResponse",
         "type": "object"
       },
+      "CreateSponsorPartnershipProposalRequest": {
+        "additionalProperties": false,
+        "description": "A new draft. A repeat with the same `client_request_id` and answers returns the same draft.",
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "description": "Only with the `cities` scope.",
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "description": "ISO 3166-1 alpha-2; none when the scope is `global`.",
+            "items": {
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "summary": {
+            "description": "Plain text: what the organization would like to explore with SimpleFit.",
+            "maxLength": 4000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id"
+        ],
+        "title": "CreateSponsorPartnershipProposalRequest",
+        "type": "object"
+      },
       "CurrentUserResponse": {
         "additionalProperties": false,
         "description": "The authenticated viewer. `user` is the one global SimpleFit user; capabilities such as profiles\nand workspace memberships will be added as sibling fields when they exist.\n",
@@ -5955,6 +6087,42 @@
           "user"
         ],
         "title": "CurrentUserResponse",
+        "type": "object"
+      },
+      "DeclineSponsorProposalRequest": {
+        "additionalProperties": false,
+        "description": "Decline a partnership proposal under review (SF-130). The reason is internal: never shown to the organization.",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The proposal's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "not_a_fit_now",
+              "outside_supported_categories",
+              "insufficient_information",
+              "duplicate_request",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "DeclineSponsorProposalRequest",
         "type": "object"
       },
       "EmailCodeRequest": {
@@ -7404,7 +7572,12 @@
               "billing.read",
               "billing.reconciliation.read",
               "config.read",
-              "config.flags.write"
+              "config.flags.write",
+              "sponsors.proposals.read",
+              "sponsors.proposals.claim",
+              "sponsors.proposals.request_changes",
+              "sponsors.proposals.accept",
+              "sponsors.proposals.decline"
             ],
             "type": "string"
           },
@@ -7466,7 +7639,12 @@
               "billing.read",
               "billing.reconciliation.read",
               "config.read",
-              "config.flags.write"
+              "config.flags.write",
+              "sponsors.proposals.read",
+              "sponsors.proposals.claim",
+              "sponsors.proposals.request_changes",
+              "sponsors.proposals.accept",
+              "sponsors.proposals.decline"
             ],
             "type": "string"
           },
@@ -14485,6 +14663,10 @@
                   "sponsor_application.reject",
                   "sponsor_application.suspend_organization",
                   "sponsor_application.reinstate_organization",
+                  "sponsor_proposal.claim",
+                  "sponsor_proposal.request_changes",
+                  "sponsor_proposal.accept",
+                  "sponsor_proposal.decline",
                   "user.suspend",
                   "user.lift_suspension",
                   "user.sign_out_everywhere",
@@ -15444,6 +15626,59 @@
         "title": "RequestSponsorApplicationChangesRequest",
         "type": "object"
       },
+      "RequestSponsorProposalChangesRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_revision": {
+            "description": "Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fields": {
+            "description": "The answers the organization may change.",
+            "items": {
+              "enum": [
+                "title",
+                "interests",
+                "market_scope",
+                "market_countries",
+                "market_cities",
+                "summary"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "message": {
+            "description": "Plain text shown to the organization's members. No email is sent.",
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "operation_id": {
+            "description": "Required to execute.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "missing_information",
+              "unclear_request",
+              "out_of_scope_detail",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code",
+          "fields",
+          "message"
+        ],
+        "title": "RequestSponsorProposalChangesRequest",
+        "type": "object"
+      },
       "RestoreRuntimeFlagRequest": {
         "additionalProperties": false,
         "description": "Restore a suspended feature (SF-128): the deployment decides again.",
@@ -16374,6 +16609,80 @@
           "upload"
         ],
         "title": "SponsorApplicationEvidenceResponse",
+        "type": "object"
+      },
+      "SponsorApplicationPartnershipAnswers": {
+        "additionalProperties": false,
+        "description": "What the organization's sponsor application last submitted about its interests, markets and goals: read\nfrom the immutable submission and never changed by preferences. No budget or contact.\n",
+        "properties": {
+          "goals": {
+            "nullable": true,
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "description": "Only with the `cities` scope.",
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "description": "ISO 3166-1 alpha-2; none when the scope is `global`.",
+            "items": {
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "policy_version": {
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submitted_at",
+          "policy_version",
+          "interests",
+          "market_scope",
+          "market_countries",
+          "market_cities",
+          "goals"
+        ],
+        "title": "SponsorApplicationPartnershipAnswers",
         "type": "object"
       },
       "SponsorApplicationPolicyResponse": {
@@ -17463,6 +17772,1091 @@
         "title": "SponsorOrganizationResponse",
         "type": "object"
       },
+      "SponsorPartnershipOpportunitiesResponse": {
+        "additionalProperties": false,
+        "description": "Partnership opportunities for the organization. No opportunity inventory exists and none is invented\n(D-SA21): `availability` is `unavailable` with reason `no_inventory`. A sponsor can still send a general\npartnership inquiry (a proposal), which names no opportunity.\n",
+        "properties": {
+          "availability": {
+            "enum": [
+              "unavailable"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "no_inventory"
+            ],
+            "type": "string"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sponsor_id",
+          "availability",
+          "reason"
+        ],
+        "title": "SponsorPartnershipOpportunitiesResponse",
+        "type": "object"
+      },
+      "SponsorPartnershipPolicyResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "policy": {
+            "additionalProperties": false,
+            "properties": {
+              "interests": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "open_limit": {
+                "description": "Open proposals an organization may have at once.",
+                "minimum": 1,
+                "type": "integer"
+              },
+              "preference_fields": {
+                "items": {
+                  "enum": [
+                    "interests",
+                    "market_scope",
+                    "market_countries",
+                    "market_cities",
+                    "goals"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "proposal_fields": {
+                "items": {
+                  "enum": [
+                    "title",
+                    "interests",
+                    "market_scope",
+                    "market_countries",
+                    "market_cities",
+                    "summary"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "required": {
+                "description": "Answers a submission needs, plus the market answers its scope needs.",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "scopes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "statuses": {
+                "items": {
+                  "enum": [
+                    "draft",
+                    "submitted",
+                    "under_review",
+                    "changes_requested",
+                    "accepted",
+                    "declined",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "version",
+              "interests",
+              "scopes",
+              "preference_fields",
+              "proposal_fields",
+              "required",
+              "open_limit",
+              "statuses"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "policy"
+        ],
+        "title": "SponsorPartnershipPolicyResponse",
+        "type": "object"
+      },
+      "SponsorPartnershipPreferences": {
+        "additionalProperties": false,
+        "description": "The organization's current partnership preferences. No budget (D-SA39); nothing commercial.",
+        "properties": {
+          "goals": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "description": "Only with the `cities` scope.",
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "description": "ISO 3166-1 alpha-2; none when the scope is `global`.",
+            "items": {
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "interests",
+          "market_scope",
+          "market_countries",
+          "market_cities",
+          "goals",
+          "updated_at"
+        ],
+        "title": "SponsorPartnershipPreferences",
+        "type": "object"
+      },
+      "SponsorPartnershipPreferencesResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "application_answers": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SponsorApplicationPartnershipAnswers"
+              }
+            ],
+            "description": "`null` for an organization not made from an application.",
+            "nullable": true,
+            "type": "object"
+          },
+          "can_edit": {
+            "description": "Display only: the owner or a manager of an active organization. Every save checks again.",
+            "type": "boolean"
+          },
+          "preferences": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SponsorPartnershipPreferences"
+              }
+            ],
+            "description": "`null` until first saved (save with `expected_revision: 0`).",
+            "nullable": true,
+            "type": "object"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sponsor_id",
+          "preferences",
+          "application_answers",
+          "can_edit"
+        ],
+        "title": "SponsorPartnershipPreferencesResponse",
+        "type": "object"
+      },
+      "SponsorPartnershipProposal": {
+        "additionalProperties": false,
+        "description": "A nonbinding partnership inquiry to SimpleFit (`binding` is always `false`). No status creates a payment,\ncampaign, placement, advertising entitlement, exposure guarantee or access to athlete or gym data;\n`accepted` means only that SimpleFit will follow up. Statuses come from the backend: clients must show an\nunknown status as such, never infer one.\n",
+        "properties": {
+          "allowed_actions": {
+            "additionalProperties": false,
+            "description": "Display only, for this viewer now. Every request checks again.",
+            "properties": {
+              "edit": {
+                "type": "boolean"
+              },
+              "submit": {
+                "type": "boolean"
+              },
+              "withdraw": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "edit",
+              "submit",
+              "withdraw"
+            ],
+            "type": "object"
+          },
+          "answers": {
+            "$ref": "#/components/schemas/SponsorPartnershipProposalAnswers"
+          },
+          "binding": {
+            "enum": [
+              false
+            ],
+            "type": "boolean"
+          },
+          "change_request": {
+            "additionalProperties": false,
+            "description": "While `changes_requested`: the answers that may change and SimpleFit's message.",
+            "nullable": true,
+            "properties": {
+              "fields": {
+                "items": {
+                  "enum": [
+                    "title",
+                    "interests",
+                    "market_scope",
+                    "market_countries",
+                    "market_cities",
+                    "summary"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "message": {
+                "type": "string"
+              },
+              "requested_at": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "fields",
+              "message",
+              "requested_at"
+            ],
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by": {
+            "additionalProperties": false,
+            "properties": {
+              "is_viewer": {
+                "type": "boolean"
+              },
+              "short_name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "short_name",
+              "is_viewer"
+            ],
+            "type": "object"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "history": {
+            "description": "Status changes, oldest first. Who at SimpleFit made them is not shown.",
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "actor": {
+                  "enum": [
+                    "sponsor_member",
+                    "simplefit"
+                  ],
+                  "type": "string"
+                },
+                "from_status": {
+                  "enum": [
+                    "draft",
+                    "submitted",
+                    "under_review",
+                    "changes_requested",
+                    "accepted",
+                    "declined",
+                    "withdrawn"
+                  ],
+                  "nullable": true,
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "to_status": {
+                  "enum": [
+                    "draft",
+                    "submitted",
+                    "under_review",
+                    "changes_requested",
+                    "accepted",
+                    "declined",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from_status",
+                "to_status",
+                "occurred_at",
+                "actor"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "general_inquiry"
+            ],
+            "type": "string"
+          },
+          "missing_fields": {
+            "description": "What a submission still needs.",
+            "items": {
+              "enum": [
+                "title",
+                "interests",
+                "market_scope",
+                "market_countries",
+                "market_cities",
+                "summary"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "proposal_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "submitted",
+              "under_review",
+              "changes_requested",
+              "accepted",
+              "declined",
+              "withdrawn"
+            ],
+            "type": "string"
+          },
+          "submissions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "sequence": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "submission_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "submitted_at": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "submission_id",
+                "sequence",
+                "submitted_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "withdrawn_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "sponsor_id",
+          "kind",
+          "status",
+          "revision",
+          "binding",
+          "answers",
+          "missing_fields",
+          "allowed_actions",
+          "change_request",
+          "submissions",
+          "history",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "submitted_at",
+          "decided_at",
+          "withdrawn_at"
+        ],
+        "title": "SponsorPartnershipProposal",
+        "type": "object"
+      },
+      "SponsorPartnershipProposalAnswers": {
+        "additionalProperties": false,
+        "properties": {
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "description": "Only with the `cities` scope.",
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "description": "ISO 3166-1 alpha-2; none when the scope is `global`.",
+            "items": {
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "summary": {
+            "description": "Plain text: what the organization would like to explore with SimpleFit.",
+            "maxLength": 4000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "interests",
+          "market_scope",
+          "market_countries",
+          "market_cities",
+          "summary"
+        ],
+        "title": "SponsorPartnershipProposalAnswers",
+        "type": "object"
+      },
+      "SponsorPartnershipProposalCommandRequest": {
+        "additionalProperties": false,
+        "description": "Submit or withdraw: the proposal's revision and an idempotency key (a repeat of the same request answers the same and changes nothing).",
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_revision",
+          "client_request_id"
+        ],
+        "title": "SponsorPartnershipProposalCommandRequest",
+        "type": "object"
+      },
+      "SponsorPartnershipProposalListResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "can_create": {
+            "description": "Display only: the viewer may manage partnerships, the organization is active and below its open proposal limit.",
+            "type": "boolean"
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/SponsorPartnershipProposalSummary"
+            },
+            "type": "array"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sponsor_id",
+          "proposals",
+          "next_cursor",
+          "can_create"
+        ],
+        "title": "SponsorPartnershipProposalListResponse",
+        "type": "object"
+      },
+      "SponsorPartnershipProposalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/SponsorPartnershipProposal"
+          }
+        },
+        "required": [
+          "proposal"
+        ],
+        "title": "SponsorPartnershipProposalResponse",
+        "type": "object"
+      },
+      "SponsorPartnershipProposalSummary": {
+        "additionalProperties": false,
+        "properties": {
+          "change_request_open": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "general_inquiry"
+            ],
+            "type": "string"
+          },
+          "proposal_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "submitted",
+              "under_review",
+              "changes_requested",
+              "accepted",
+              "declined",
+              "withdrawn"
+            ],
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "withdrawn_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "kind",
+          "status",
+          "revision",
+          "title",
+          "interests",
+          "change_request_open",
+          "created_at",
+          "updated_at",
+          "submitted_at",
+          "decided_at",
+          "withdrawn_at"
+        ],
+        "title": "SponsorPartnershipProposalSummary",
+        "type": "object"
+      },
+      "SponsorProposalOrganization": {
+        "additionalProperties": false,
+        "description": "The proposing organization: never its contacts or members.",
+        "properties": {
+          "display_name": {
+            "type": "string"
+          },
+          "sponsor_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "suspended",
+              "closed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "sponsor_id",
+          "display_name",
+          "status"
+        ],
+        "title": "SponsorProposalOrganization",
+        "type": "object"
+      },
+      "SponsorProposalQueueItem": {
+        "additionalProperties": false,
+        "properties": {
+          "change_request_open": {
+            "type": "boolean"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/SponsorProposalOrganization"
+          },
+          "proposal_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "submitted",
+              "under_review",
+              "changes_requested",
+              "accepted",
+              "declined",
+              "withdrawn"
+            ],
+            "type": "string"
+          },
+          "submissions": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "status",
+          "revision",
+          "title",
+          "interests",
+          "organization",
+          "submitted_at",
+          "submissions",
+          "change_request_open"
+        ],
+        "title": "SponsorProposalQueueItem",
+        "type": "object"
+      },
+      "SponsorProposalQueueResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/SponsorProposalQueueItem"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "proposals",
+          "next_cursor"
+        ],
+        "title": "SponsorProposalQueueResponse",
+        "type": "object"
+      },
+      "SponsorProposalReview": {
+        "additionalProperties": false,
+        "description": "A submitted partnership proposal as an operator reviews it: exactly what was last submitted. Nonbinding.",
+        "properties": {
+          "change_request": {
+            "additionalProperties": false,
+            "nullable": true,
+            "properties": {
+              "fields": {
+                "items": {
+                  "enum": [
+                    "title",
+                    "interests",
+                    "market_scope",
+                    "market_countries",
+                    "market_cities",
+                    "summary"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "message": {
+                "type": "string"
+              },
+              "reason_code": {
+                "type": "string"
+              },
+              "requested_at": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "reason_code",
+              "fields",
+              "message",
+              "requested_at"
+            ],
+            "type": "object"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "history": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "actor_kind": {
+                  "enum": [
+                    "sponsor_member",
+                    "operator"
+                  ],
+                  "type": "string"
+                },
+                "from_status": {
+                  "enum": [
+                    "draft",
+                    "submitted",
+                    "under_review",
+                    "changes_requested",
+                    "accepted",
+                    "declined",
+                    "withdrawn"
+                  ],
+                  "nullable": true,
+                  "type": "string"
+                },
+                "occurred_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "reason_code": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "to_status": {
+                  "enum": [
+                    "draft",
+                    "submitted",
+                    "under_review",
+                    "changes_requested",
+                    "accepted",
+                    "declined",
+                    "withdrawn"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "from_status",
+                "to_status",
+                "occurred_at",
+                "actor_kind",
+                "reason_code"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "general_inquiry"
+            ],
+            "type": "string"
+          },
+          "latest_submission": {
+            "additionalProperties": false,
+            "nullable": true,
+            "properties": {
+              "answers": {
+                "$ref": "#/components/schemas/SponsorPartnershipProposalAnswers"
+              },
+              "policy_version": {
+                "type": "string"
+              },
+              "sequence": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "submission_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "submitted_at": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "submission_id",
+              "sequence",
+              "submitted_at",
+              "policy_version",
+              "answers"
+            ],
+            "type": "object"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/SponsorProposalOrganization"
+          },
+          "proposal_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "submitted",
+              "under_review",
+              "changes_requested",
+              "accepted",
+              "declined",
+              "withdrawn"
+            ],
+            "type": "string"
+          },
+          "submissions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "sequence": {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "submission_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "submitted_at": {
+                  "format": "date-time",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "submission_id",
+                "sequence",
+                "submitted_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "viewer_is_party": {
+            "description": "The reader belongs to the proposing organization (or created it) and can't act on it.",
+            "type": "boolean"
+          },
+          "withdrawn_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "kind",
+          "status",
+          "revision",
+          "organization",
+          "latest_submission",
+          "submissions",
+          "change_request",
+          "history",
+          "viewer_is_party",
+          "submitted_at",
+          "decided_at",
+          "withdrawn_at"
+        ],
+        "title": "SponsorProposalReview",
+        "type": "object"
+      },
+      "SponsorProposalReviewResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/SponsorProposalReview"
+          }
+        },
+        "required": [
+          "proposal"
+        ],
+        "title": "SponsorProposalReviewResponse",
+        "type": "object"
+      },
       "SponsorViewerMembership": {
         "additionalProperties": false,
         "properties": {
@@ -17480,7 +18874,9 @@
               "enum": [
                 "view_organization",
                 "view_members",
-                "view_contacts"
+                "view_contacts",
+                "view_partnerships",
+                "manage_partnerships"
               ],
               "type": "string"
             },
@@ -17967,6 +19363,148 @@
           }
         },
         "title": "TrainingSessionUpdateRequest",
+        "type": "object"
+      },
+      "UpdateSponsorPartnershipPreferencesRequest": {
+        "additionalProperties": false,
+        "description": "Only the sent fields change. `null` clears `market_scope` or `goals`.",
+        "properties": {
+          "expected_revision": {
+            "description": "`0` when the organization has no preferences yet; otherwise the current revision.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "goals": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "description": "Only with the `cities` scope.",
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "description": "ISO 3166-1 alpha-2; none when the scope is `global`.",
+            "items": {
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "UpdateSponsorPartnershipPreferencesRequest",
+        "type": "object"
+      },
+      "UpdateSponsorPartnershipProposalRequest": {
+        "additionalProperties": false,
+        "description": "Only the sent answers change. `null` clears an answer.",
+        "properties": {
+          "expected_revision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "interests": {
+            "items": {
+              "enum": [
+                "sponsored_challenges",
+                "sponsored_events",
+                "equipment_partnerships",
+                "gym_partnerships",
+                "coach_partnerships",
+                "marketplace",
+                "community_campaigns",
+                "content",
+                "other"
+              ],
+              "type": "string"
+            },
+            "maxItems": 9,
+            "type": "array"
+          },
+          "market_cities": {
+            "description": "Only with the `cities` scope.",
+            "items": {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "market_countries": {
+            "description": "ISO 3166-1 alpha-2; none when the scope is `global`.",
+            "items": {
+              "pattern": "^[A-Za-z]{2}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "type": "array"
+          },
+          "market_scope": {
+            "enum": [
+              "global",
+              "countries",
+              "cities"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "summary": {
+            "description": "Plain text: what the organization would like to explore with SimpleFit.",
+            "maxLength": 4000,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expected_revision"
+        ],
+        "title": "UpdateSponsorPartnershipProposalRequest",
         "type": "object"
       },
       "ValidationErrorDetails": {
@@ -23199,6 +24737,738 @@
           }
         ],
         "summary": "Preview: suspend the organization of an approved application",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.read` and a key check. Submitted proposals (never drafts), oldest submission\nfirst, with the organization's name and status and nothing about its people. `limit` 1..100 (default 50);\n`cursor` from the previous page, valid only for the same filter and reader. Each query is audited.\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "listSponsorProposalsForReview",
+        "parameters": [
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "submitted",
+                "under_review",
+                "changes_requested",
+                "accepted",
+                "declined",
+                "withdrawn"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 1024,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorProposalQueueResponse"
+                }
+              }
+            },
+            "description": "A page"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The partnership proposal review queue",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.read` and a key check. Exactly what was last submitted. Each view is audited.\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "getSponsorProposalForReview",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorProposalReviewResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A partnership proposal for review",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/accept": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.accept` and a fresh key check. `under_review` -> `accepted`, final, for an active organization: SimpleFit will follow up outside the product. Creates nothing: no payment, campaign, placement, advertising entitlement, exposure guarantee, contract or access to athlete or gym data.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\nproposal, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of the\nsame request returns the current state and changes nothing).\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "acceptSponsorProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptSponsorProposalRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorProposalReviewResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Accept a partnership proposal",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/accept/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.accept` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "previewAcceptSponsorProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptSponsorProposalRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: accept a partnership proposal",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/claim": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.claim` and a fresh key check: `submitted` -> `under_review`, for an active organization. Takes `reason_code`, `expected_revision` and `operation_id` (a repeat changes nothing).\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "claimSponsorProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimSponsorProposalRequest"
+              }
+            }
+          },
+          "description": "Claim",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorProposalReviewResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Claim a partnership proposal for review",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/claim/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.claim` and a fresh key check. Changes nothing.\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "previewClaimSponsorProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimSponsorProposalRequest"
+              }
+            }
+          },
+          "description": "Claim",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview claiming a partnership proposal",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/decline": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.decline` and a fresh key check. `under_review` -> `declined`, final. Nothing is created; the reason is internal and never shown to the organization.\n\nNeeds a one-time `confirmation_token` from a preview of exactly this request (same operator, session,\nproposal, revision and reason), with `reason_code`, `expected_revision` and `operation_id` (a repeat of the\nsame request returns the current state and changes nothing).\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "declineSponsorProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineSponsorProposalRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorProposalReviewResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Decline a partnership proposal",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/decline/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.decline` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "previewDeclineSponsorProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineSponsorProposalRequest"
+              }
+            }
+          },
+          "description": "Decision",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: decline a partnership proposal",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/request-changes": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.request_changes` and a fresh key check: `under_review` -> `changes_requested`, for\nan active organization, with the answers its members may change and a plain-text message they see (no email\nis sent). The organization's next submission resolves it. Takes `reason_code`, `expected_revision` and\n`operation_id`.\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "requestSponsorProposalChanges",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestSponsorProposalChangesRequest"
+              }
+            }
+          },
+          "description": "Change request",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorProposalReviewResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Request changes to a partnership proposal",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/sponsor-proposals/{proposal_id}/request-changes/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `sponsors.proposals.request_changes` and a fresh key check. Changes nothing.\n\n* `not_found` - not a usable operator, or no such submitted proposal (drafts are never visible).\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n* `conflict` - `details.target: \"self\"` (the operator belongs to the proposing organization), the proposal's\n  status, or `details.organization` when the organization isn't active.\n* `revision_conflict` - the proposal changed since `expected_revision`.\n",
+        "operationId": "previewRequestSponsorProposalChanges",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestSponsorProposalChangesRequest"
+              }
+            }
+          },
+          "description": "Change request",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview requesting changes to a partnership proposal",
         "tags": [
           "Platform operators"
         ]
@@ -36527,6 +38797,673 @@
           }
         ],
         "summary": "Members of a sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/partnership-opportunities": {
+      "get": {
+        "callbacks": {},
+        "description": "No opportunity inventory exists and none is invented (D-SA21): the answer is always `unavailable` with reason\n`no_inventory`. Any member may read it.\n\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "listSponsorPartnershipOpportunities",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipOpportunitiesResponse"
+                }
+              }
+            },
+            "description": "Availability"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Partnership opportunities of a sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/partnership-preferences": {
+      "get": {
+        "callbacks": {},
+        "description": "The organization's current interests, markets and goals (`null` until first saved), beside what its\napplication last submitted (read-only, never changed). Any member may read them.\n\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "getSponsorPartnershipPreferences",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipPreferencesResponse"
+                }
+              }
+            },
+            "description": "Preferences"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Partnership preferences of a sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "Only the sent fields change, each validated now; an invalid save changes nothing. `expected_revision: 0`\ncreates the preferences; afterwards name the current revision. The application's submitted answers are\nnever changed.\n\nNeeds the owner or a manager (`manage_partnerships`) of an active organization.\n* `forbidden` - a member without that permission.\n* `conflict` - `details.organization: \"suspended\"` (read-only), or as described.\n* `revision_conflict` - stale `expected_revision` (`details.current_revision`).\n* `rate_limited` - too many writes.\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "updateSponsorPartnershipPreferences",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSponsorPartnershipPreferencesRequest"
+              }
+            }
+          },
+          "description": "Preferences",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipPreferencesResponse"
+                }
+              }
+            },
+            "description": "Preferences"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save partnership preferences",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/partnership-proposals": {
+      "get": {
+        "callbacks": {},
+        "description": "Newest first. `status` filters by one status; `limit` 1..100 (default 50); `cursor` from the previous page.\nAny member may read them.\n\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n* `validation_error` - a bad `status`, `limit` or `cursor`.\n",
+        "operationId": "listSponsorPartnershipProposals",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "draft",
+                "submitted",
+                "under_review",
+                "changes_requested",
+                "accepted",
+                "declined",
+                "withdrawn"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipProposalListResponse"
+                }
+              }
+            },
+            "description": "Proposals"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Partnership proposals of a sponsor organization",
+        "tags": [
+          "Sponsors"
+        ]
+      },
+      "post": {
+        "callbacks": {},
+        "description": "A new draft general inquiry (no opportunity: none exists). A repeat with the same `client_request_id` and\nanswers returns the same draft; the key with other answers is `conflict` (`details.client_request_id:\n\"reused\"`). `conflict` with `details.proposals: \"open_limit\"` at the open proposal limit. Nonbinding:\ncreates nothing commercial.\n\nNeeds the owner or a manager (`manage_partnerships`) of an active organization.\n* `forbidden` - a member without that permission.\n* `conflict` - `details.organization: \"suspended\"` (read-only), or as described.\n* `revision_conflict` - stale `expected_revision` (`details.current_revision`).\n* `rate_limited` - too many writes.\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "createSponsorPartnershipProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSponsorPartnershipProposalRequest"
+              }
+            }
+          },
+          "description": "Proposal",
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipProposalResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Start a partnership proposal",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/partnership-proposals/{proposal_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "The proposal's answers, status, what a submission still needs, the actions open to the viewer (display\nonly), the open change request, its submissions and status history. Any member may read it.\n\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "getSponsorPartnershipProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipProposalResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A partnership proposal",
+        "tags": [
+          "Sponsors"
+        ]
+      },
+      "patch": {
+        "callbacks": {},
+        "description": "A draft or a proposal with changes requested. Only the sent answers change; after a change request only\nthe answers it names (`validation_error` with `not_requested`). `conflict` with `details.proposal:\n\"not_editable\"` in another status.\n\nNeeds the owner or a manager (`manage_partnerships`) of an active organization.\n* `forbidden` - a member without that permission.\n* `conflict` - `details.organization: \"suspended\"` (read-only), or as described.\n* `revision_conflict` - stale `expected_revision` (`details.current_revision`).\n* `rate_limited` - too many writes.\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "updateSponsorPartnershipProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSponsorPartnershipProposalRequest"
+              }
+            }
+          },
+          "description": "Answers",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipProposalResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save a partnership proposal",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/partnership-proposals/{proposal_id}/submit": {
+      "post": {
+        "callbacks": {},
+        "description": "`draft` or `changes_requested` -> `submitted`, with an immutable snapshot of the answers. A repeat of the\nsame request answers the same and changes nothing; the key for another request is `conflict`\n(`details.client_request_id: \"reused\"`). `validation_error` naming each missing answer (`required`).\n`conflict` with `details.proposal: \"not_submittable\"` in another status. Nonbinding; no email is sent.\n\nNeeds the owner or a manager (`manage_partnerships`) of an active organization.\n* `forbidden` - a member without that permission.\n* `conflict` - `details.organization: \"suspended\"` (read-only), or as described.\n* `revision_conflict` - stale `expected_revision` (`details.current_revision`).\n* `rate_limited` - too many writes.\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "submitSponsorPartnershipProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorPartnershipProposalCommandRequest"
+              }
+            }
+          },
+          "description": "Submit",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipProposalResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Submit a partnership proposal",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-organizations/{sponsor_id}/partnership-proposals/{proposal_id}/withdraw": {
+      "post": {
+        "callbacks": {},
+        "description": "Any open proposal (`draft`, `submitted`, `under_review`, `changes_requested`) -> `withdrawn`, final. A\nrepeat of the same withdrawal answers the same. `conflict` with `details.proposal: \"not_withdrawable\"` once\ndecided or withdrawn.\n\nNeeds the owner or a manager (`manage_partnerships`) of an active organization.\n* `forbidden` - a member without that permission.\n* `conflict` - `details.organization: \"suspended\"` (read-only), or as described.\n* `revision_conflict` - stale `expected_revision` (`details.current_revision`).\n* `rate_limited` - too many writes.\n* `not_found` - the viewer isn't an active member of this organization, or it doesn't exist or is closed, or\n  the proposal isn't this organization's (indistinguishable).\n",
+        "operationId": "withdrawSponsorPartnershipProposal",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "sponsor_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "",
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SponsorPartnershipProposalCommandRequest"
+              }
+            }
+          },
+          "description": "Withdraw",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipProposalResponse"
+                }
+              }
+            },
+            "description": "The proposal"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Withdraw a partnership proposal",
+        "tags": [
+          "Sponsors"
+        ]
+      }
+    },
+    "/api/v1/sponsor-partnership-policy": {
+      "get": {
+        "callbacks": {},
+        "description": "Vocabularies, requiredness, the open proposal limit and the statuses (D-SA37). No budget is collected.",
+        "operationId": "getSponsorPartnershipPolicy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SponsorPartnershipPolicyResponse"
+                }
+              }
+            },
+            "description": "Policy"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The partnership preferences and proposal policy",
         "tags": [
           "Sponsors"
         ]

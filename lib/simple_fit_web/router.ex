@@ -231,6 +231,36 @@ defmodule SimpleFitWeb.Router do
     post "/sponsor-applications/:application_id/reinstate-organization",
          AdminSponsorApplicationController,
          :reinstate_organization
+
+    # SF-130: partnership proposal review (ADR 0034).
+    get "/sponsor-proposals", AdminSponsorProposalController, :index
+    get "/sponsor-proposals/:proposal_id", AdminSponsorProposalController, :show
+
+    post "/sponsor-proposals/:proposal_id/claim/preview",
+         AdminSponsorProposalController,
+         :preview_claim
+
+    post "/sponsor-proposals/:proposal_id/claim", AdminSponsorProposalController, :claim
+
+    post "/sponsor-proposals/:proposal_id/request-changes/preview",
+         AdminSponsorProposalController,
+         :preview_request_changes
+
+    post "/sponsor-proposals/:proposal_id/request-changes",
+         AdminSponsorProposalController,
+         :request_changes
+
+    post "/sponsor-proposals/:proposal_id/accept/preview",
+         AdminSponsorProposalController,
+         :preview_accept
+
+    post "/sponsor-proposals/:proposal_id/accept", AdminSponsorProposalController, :accept
+
+    post "/sponsor-proposals/:proposal_id/decline/preview",
+         AdminSponsorProposalController,
+         :preview_decline
+
+    post "/sponsor-proposals/:proposal_id/decline", AdminSponsorProposalController, :decline
   end
 
   scope "/api/v1", SimpleFitWeb do
@@ -359,6 +389,45 @@ defmodule SimpleFitWeb.Router do
     post "/sponsor-organizations/:sponsor_id/first-run/dismiss",
          SponsorFirstRunController,
          :dismiss
+
+    # SF-130: partnership preferences, opportunities and proposals (ADR 0034).
+    get "/sponsor-partnership-policy", SponsorPartnershipController, :policy
+
+    get "/sponsor-organizations/:sponsor_id/partnership-opportunities",
+        SponsorPartnershipController,
+        :opportunities
+
+    get "/sponsor-organizations/:sponsor_id/partnership-preferences",
+        SponsorPartnershipController,
+        :show_preferences
+
+    patch "/sponsor-organizations/:sponsor_id/partnership-preferences",
+          SponsorPartnershipController,
+          :update_preferences
+
+    get "/sponsor-organizations/:sponsor_id/partnership-proposals",
+        SponsorPartnershipController,
+        :index
+
+    post "/sponsor-organizations/:sponsor_id/partnership-proposals",
+         SponsorPartnershipController,
+         :create
+
+    get "/sponsor-organizations/:sponsor_id/partnership-proposals/:proposal_id",
+        SponsorPartnershipController,
+        :show
+
+    patch "/sponsor-organizations/:sponsor_id/partnership-proposals/:proposal_id",
+          SponsorPartnershipController,
+          :update
+
+    post "/sponsor-organizations/:sponsor_id/partnership-proposals/:proposal_id/submit",
+         SponsorPartnershipController,
+         :submit
+
+    post "/sponsor-organizations/:sponsor_id/partnership-proposals/:proposal_id/withdraw",
+         SponsorPartnershipController,
+         :withdraw
 
     get "/gyms/:gym_id", GymController, :show
     # SF-85: gym owner registration and setup (draft -> completed).

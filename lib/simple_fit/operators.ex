@@ -35,7 +35,7 @@ defmodule SimpleFit.Operators do
   alias SimpleFit.Operators.{Operation, Operator, Overview, Policy, Principal, Redaction}
   alias SimpleFit.Operators.{StepUp, WebAuthn}
   alias SimpleFit.{RateLimit, Repo}
-  alias SimpleFit.Sponsors.{Review, ReviewTarget}
+  alias SimpleFit.Sponsors.{ProposalReview, Review, ReviewTarget}
 
   @type ctx :: %{optional(:request_id) => String.t() | nil}
   @type refusal :: :not_found | :forbidden | :step_up_required | :enrollment_required
@@ -692,6 +692,14 @@ defmodule SimpleFit.Operators do
       permission: "sponsors.applications.read_files",
       audit: "sponsor_application.file_downloaded"
     },
+    "sponsor_proposals.queue" => %{
+      permission: "sponsors.proposals.read",
+      audit: "sponsor_proposals.queue_read"
+    },
+    "sponsor_proposals.detail" => %{
+      permission: "sponsors.proposals.read",
+      audit: "sponsor_proposal.viewed"
+    },
     "users.search" => %{permission: "users.read", audit: "user.searched"},
     "users.detail" => %{permission: "users.read", audit: "user.viewed"},
     "users.email" => %{permission: "users.reveal_email", audit: "user.email_revealed"},
@@ -815,6 +823,53 @@ defmodule SimpleFit.Operators do
   end
 
   @doc """
+  One page of the partnership proposal review queue (`sponsors.proposals.read`,
+  SF-130), oldest submission first. Filter `status` (any status but `draft`);
+  `limit` 1..100 (default 50); `cursor` from the previous page, valid only for the
+  same filter and reader. Drafts never appear. Each query is audited
+  (`sponsor_proposals.queue_read`).
+  """
+  @spec list_sponsor_proposals(User.t(), Session.t(), map(), ctx()) ::
+          {:ok, %{proposals: list(), next_cursor: String.t() | nil}} | {:error, error()}
+  def list_sponsor_proposals(%User{} = user, %Session{} = session, params, ctx \\ %{}) do
+    project("sponsor_proposals.queue", user, session, ctx, fn principal ->
+      with {:ok, attrs} <- proposal_queue_query(params),
+           filters = proposal_queue_filters(attrs),
+           {:ok, position} <- queue_position(attrs, filters, principal.operator_id) do
+        {rows, next} = ProposalReview.queue(filters, Map.get(attrs, :limit, 50), position)
+
+        {:ok,
+         %{
+           proposals: rows,
+           next_cursor: next && Cursor.encode(next, filters, principal.operator_id)
+         }, {"sponsor_proposal_queue", nil}}
+      end
+    end)
+  end
+
+  @doc """
+  A submitted partnership proposal for review (`sponsors.proposals.read`, SF-130):
+  status, its organization's name and status, every submission and the latest one's
+  answers, the open change request and the status history, and whether the reader is
+  a party (who can't act on it). Drafts are not found. Each view is audited.
+  """
+  @spec get_sponsor_proposal(User.t(), Session.t(), term(), ctx()) ::
+          {:ok, map()} | {:error, error()}
+  def get_sponsor_proposal(%User{} = user, %Session{} = session, id, ctx \\ %{}) do
+    project("sponsor_proposals.detail", user, session, ctx, fn principal ->
+      with {:ok, id} <- uuid(id),
+           %{} = proposal <- ProposalReview.fetch(id) do
+        party = ProposalReview.party?(proposal, principal.user_id)
+
+        {:ok, Map.put(ProposalReview.view(proposal), :viewer_is_party, party),
+         {"sponsor_proposal", proposal.id}}
+      else
+        _ -> {:error, :not_found}
+      end
+    end)
+  end
+
+  @doc """
   A short-lived (5 minutes), attachment-only presigned download of one submitted
   document of a submitted application (`sponsors.applications.read_files` with a
   fresh key check, SF-116). Never a draft's or an unsubmitted file, never the
@@ -918,6 +973,25 @@ defmodule SimpleFit.Operators do
     |> validate_inclusion(:status, Enum.map(Review.queue_statuses(), &Atom.to_string/1))
     |> validate_length(:cursor, max: 1024)
     |> apply_action(:validate)
+  end
+
+  defp proposal_queue_query(params) do
+    types = %{limit: :integer, cursor: :string, status: :string}
+
+    {%{}, types}
+    |> cast(params, Map.keys(types))
+    |> validate_number(:limit, greater_than: 0, less_than_or_equal_to: 100)
+    |> validate_inclusion(:status, Enum.map(ProposalReview.queue_statuses(), &Atom.to_string/1))
+    |> validate_length(:cursor, max: 1024)
+    |> apply_action(:validate)
+  end
+
+  defp proposal_queue_filters(attrs) do
+    attrs
+    |> Map.take([:status])
+    |> Map.update(:status, nil, &String.to_existing_atom/1)
+    |> Map.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.put(:queue, "sponsor_proposals")
   end
 
   # The scope a queue cursor is bound to: the filters and which list it pages.

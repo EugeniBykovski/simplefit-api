@@ -35,6 +35,9 @@ defmodule SimpleFit.Operators.Policy do
   # inbox metadata), read only at a current key check; no financial write exists.
   # SF-128 adds `config.read` (the configuration inventory and history, key check) and
   # `config.flags.write` (suspend or restore an allowlisted feature, fresh key check).
+  # SF-130 adds partnership proposal review, one permission per action as SF-116 did:
+  # `sponsors.proposals.read` (queue and detail, key check), `.claim`, `.request_changes`,
+  # `.accept` and `.decline` (fresh key check). None of them creates anything commercial.
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
                   sponsors.applications.claim sponsors.applications.request_changes
                   sponsors.applications.approve sponsors.applications.reject
@@ -42,7 +45,10 @@ defmodule SimpleFit.Operators.Policy do
                   platform.dashboard.read system.health.read
                   users.read users.reveal_email users.restrict users.sessions.revoke
                   gyms.read coaches.read fighters.read system.jobs.read
-                  billing.read billing.reconciliation.read config.read config.flags.write)
+                  billing.read billing.reconciliation.read config.read config.flags.write
+                  sponsors.proposals.read sponsors.proposals.claim
+                  sponsors.proposals.request_changes sponsors.proposals.accept
+                  sponsors.proposals.decline)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
@@ -67,7 +73,12 @@ defmodule SimpleFit.Operators.Policy do
     "billing.read" => :key,
     "billing.reconciliation.read" => :key,
     "config.read" => :key,
-    "config.flags.write" => :fresh_key
+    "config.flags.write" => :fresh_key,
+    "sponsors.proposals.read" => :key,
+    "sponsors.proposals.claim" => :fresh_key,
+    "sponsors.proposals.request_changes" => :fresh_key,
+    "sponsors.proposals.accept" => :fresh_key,
+    "sponsors.proposals.decline" => :fresh_key
   }
 
   @required_authenticators Application.compile_env(
