@@ -3083,6 +3083,239 @@
         "title": "AdminCoachSummary",
         "type": "object"
       },
+      "AdminConfigurationChange": {
+        "description": "One change of a runtime flag: append-only history.",
+        "properties": {
+          "change": {
+            "enum": [
+              "suspend",
+              "restore"
+            ],
+            "type": "string"
+          },
+          "changed_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "operator_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previous_suspended": {
+            "type": "boolean"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 2,
+            "type": "integer"
+          },
+          "suspended": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "revision",
+          "change",
+          "suspended",
+          "previous_suspended",
+          "operator_id",
+          "reason_code",
+          "changed_at"
+        ],
+        "title": "AdminConfigurationChange",
+        "type": "object"
+      },
+      "AdminConfigurationFlag": {
+        "description": "One registered feature switch (SF-128). `deployment_value` is what the deployment's environment variable\nset (a boolean, or `test`/`live` for the Stripe mode); `suspended` is an operator's runtime suspension;\n`effective` is what the consumer sees now. `control`: `suspendable` (an operator may suspend and restore\nit; it can never be enabled beyond the deployment), `read_only` (deployment only), `build` (read when the\nAPI is built: changes need a new build). `flag_id` and `revision` exist only for suspendable switches.\n",
+        "properties": {
+          "consumer": {
+            "description": "The code that reads it.",
+            "type": "string"
+          },
+          "control": {
+            "enum": [
+              "suspendable",
+              "read_only",
+              "build"
+            ],
+            "type": "string"
+          },
+          "decision": {
+            "description": "The decision or ticket that governs it.",
+            "type": "string"
+          },
+          "deployment_value": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": [
+                  "test",
+                  "live"
+                ],
+                "type": "string"
+              }
+            ]
+          },
+          "effective": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "enum": [
+                  "test",
+                  "live"
+                ],
+                "type": "string"
+              }
+            ]
+          },
+          "flag_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "group": {
+            "enum": [
+              "gyms",
+              "sponsors",
+              "coaching",
+              "payments",
+              "platform"
+            ],
+            "type": "string"
+          },
+          "impact": {
+            "description": "What a suspension does.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "key": {
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          },
+          "risk": {
+            "description": "Backend-registered.",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "type": "string"
+          },
+          "suspended": {
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "variable": {
+            "description": "The environment variable that sets it.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "group",
+          "variable",
+          "consumer",
+          "control",
+          "risk",
+          "decision",
+          "impact",
+          "deployment_value",
+          "suspended",
+          "effective",
+          "flag_id",
+          "revision",
+          "updated_at"
+        ],
+        "title": "AdminConfigurationFlag",
+        "type": "object"
+      },
+      "AdminConfigurationFlagResponse": {
+        "properties": {
+          "flag": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminConfigurationFlag"
+              },
+              {
+                "properties": {
+                  "history": {
+                    "items": {
+                      "$ref": "#/components/schemas/AdminConfigurationChange"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "flag"
+        ],
+        "title": "AdminConfigurationFlagResponse",
+        "type": "object"
+      },
+      "AdminConfigurationResponse": {
+        "description": "The configuration inventory (SF-128): every registered switch of this deployment, and the newest changes.\nSecrets, credentials, URLs, provider and operator settings are never registered or shown.\n",
+        "properties": {
+          "configuration": {
+            "properties": {
+              "changes": {
+                "items": {
+                  "$ref": "#/components/schemas/AdminConfigurationChange"
+                },
+                "type": "array"
+              },
+              "environment": {
+                "description": "This deployment's environment; changes only ever apply here.",
+                "type": "string"
+              },
+              "flags": {
+                "items": {
+                  "$ref": "#/components/schemas/AdminConfigurationFlag"
+                },
+                "type": "array"
+              },
+              "observed_at": {
+                "format": "date-time",
+                "type": "string"
+              }
+            },
+            "required": [
+              "environment",
+              "observed_at",
+              "flags",
+              "changes"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "configuration"
+        ],
+        "title": "AdminConfigurationResponse",
+        "type": "object"
+      },
       "AdminFighter": {
         "description": "One fighter for operators (SF-123): the fields a fighter shares with a coach they accept (without the\nbout count), onboarding (`profile_status`) and the account's state (`account_status`), separately.\nRelationships and gym memberships are counts only. Never weight, height, weight class, goals, fights,\nage or date of birth, health, training, notes or messages: no permission exists for them.\n",
         "properties": {
@@ -7169,7 +7402,9 @@
               "fighters.read",
               "system.jobs.read",
               "billing.read",
-              "billing.reconciliation.read"
+              "billing.reconciliation.read",
+              "config.read",
+              "config.flags.write"
             ],
             "type": "string"
           },
@@ -7229,7 +7464,9 @@
               "fighters.read",
               "system.jobs.read",
               "billing.read",
-              "billing.reconciliation.read"
+              "billing.reconciliation.read",
+              "config.read",
+              "config.flags.write"
             ],
             "type": "string"
           },
@@ -14250,7 +14487,9 @@
                   "sponsor_application.reinstate_organization",
                   "user.suspend",
                   "user.lift_suspension",
-                  "user.sign_out_everywhere"
+                  "user.sign_out_everywhere",
+                  "config.flag.suspend",
+                  "config.flag.restore"
                 ],
                 "type": "string"
               },
@@ -15120,6 +15359,43 @@
           "message"
         ],
         "title": "RequestSponsorApplicationChangesRequest",
+        "type": "object"
+      },
+      "RestoreRuntimeFlagRequest": {
+        "additionalProperties": false,
+        "description": "Restore a suspended feature (SF-128): the deployment decides again.",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "incident_resolved",
+              "provider_recovered",
+              "abuse_contained",
+              "release_fixed",
+              "maintenance_complete",
+              "suspended_in_error"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "RestoreRuntimeFlagRequest",
         "type": "object"
       },
       "RevokeOperatorPermissionPreviewRequest": {
@@ -17381,6 +17657,42 @@
         "title": "SuspendOperatorRequest",
         "type": "object"
       },
+      "SuspendRuntimeFlagRequest": {
+        "additionalProperties": false,
+        "description": "Suspend an allowlisted feature (SF-128): off whatever the deployment says, until restored.",
+        "properties": {
+          "confirmation_token": {
+            "description": "Required to execute: the one-time confirmation from a preview of exactly this request.",
+            "maxLength": 100,
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The application's revision. Required to execute.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "operation_id": {
+            "description": "Required to execute; a repeat of the same request changes nothing.",
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "incident_response",
+              "provider_outage",
+              "abuse_or_spam",
+              "release_issue",
+              "planned_maintenance"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "title": "SuspendRuntimeFlagRequest",
+        "type": "object"
+      },
       "SuspendSponsorOrganizationRequest": {
         "additionalProperties": false,
         "description": "Suspend the organization an approved application created (SF-116).",
@@ -19429,6 +19741,399 @@
           }
         ],
         "summary": "One coach",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/configuration": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `config.read` and a key check. Every registered switch with its environment variable, consumer, control, risk, deployment value, suspension and effective value; the newest changes.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such flag.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "getAdminConfiguration",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConfigurationResponse"
+                }
+              }
+            },
+            "description": "Inventory"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The configuration inventory",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/configuration/flags/{flag_id}": {
+      "get": {
+        "callbacks": {},
+        "description": "Needs `config.read` and a key check.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such flag.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "getAdminRuntimeFlag",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConfigurationFlagResponse"
+                }
+              }
+            },
+            "description": "The flag"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "One runtime flag and its history",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/configuration/flags/{flag_id}/restore": {
+      "post": {
+        "callbacks": {},
+        "description": "`suspended` -> `active`: the deployment decides again (a feature it left off stays off).\n\nNeeds `config.flags.write` and a fresh key check, and a one-time `confirmation_token` from a preview of\nexactly this request (same operator, session, flag, revision and reason), with `reason_code`,\n`expected_revision` and `operation_id` (a repeat of the same request returns the current state and changes\nnothing).\n* `conflict` - `details.status`: the flag is already in that state.\n* `revision_conflict` - the flag changed since `expected_revision`: preview again.\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such flag.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "restoreRuntimeFlag",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRuntimeFlagRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConfigurationFlagResponse"
+                }
+              }
+            },
+            "description": "The flag"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Restore a suspended feature",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/configuration/flags/{flag_id}/restore/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `config.flags.write` and a fresh key check. Changes nothing; returns the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such flag.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "previewRestoreRuntimeFlag",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRuntimeFlagRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: restore a suspended feature",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/configuration/flags/{flag_id}/suspend": {
+      "post": {
+        "callbacks": {},
+        "description": "`active` -> `suspended`: the consumer sees the feature off on its next check, in every instance, whatever the deployment says. Not retroactive.\n\nNeeds `config.flags.write` and a fresh key check, and a one-time `confirmation_token` from a preview of\nexactly this request (same operator, session, flag, revision and reason), with `reason_code`,\n`expected_revision` and `operation_id` (a repeat of the same request returns the current state and changes\nnothing).\n* `conflict` - `details.status`: the flag is already in that state.\n* `revision_conflict` - the flag changed since `expected_revision`: preview again.\n* `confirmation_required`, `confirmation_invalid` - missing, expired, used or for another request.\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such flag.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "suspendRuntimeFlag",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendRuntimeFlagRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminConfigurationFlagResponse"
+                }
+              }
+            },
+            "description": "The flag"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Suspend a feature",
+        "tags": [
+          "Platform operators"
+        ]
+      }
+    },
+    "/api/v1/admin/configuration/flags/{flag_id}/suspend/preview": {
+      "post": {
+        "callbacks": {},
+        "description": "Needs `config.flags.write` and a fresh key check. Changes nothing (no value, cache or consumer); returns the current and proposed state, the impact and a one-time confirmation.\n\n* `not_found` - not a usable operator (indistinguishable from an unknown route), or no such flag.\n* `enrollment_required`, `forbidden` (permission), `step_up_required` (key check).\n",
+        "operationId": "previewSuspendRuntimeFlag",
+        "parameters": [
+          {
+            "description": "",
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuspendRuntimeFlagRequest"
+              }
+            }
+          },
+          "description": "Action",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorActionPreviewResponse"
+                }
+              }
+            },
+            "description": "Preview"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "428": {
+            "$ref": "#/components/responses/ConfirmationRequired"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Preview: suspend a feature",
         "tags": [
           "Platform operators"
         ]

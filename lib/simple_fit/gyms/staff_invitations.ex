@@ -1110,10 +1110,12 @@ defmodule SimpleFit.Gyms.StaffInvitations do
     end
   end
 
-  @doc "Whether E06 staff invitations may be sent (see the moduledoc)."
+  @doc """
+  Whether E06 staff invitations may be sent (see the moduledoc): enabled by the
+  deployment (`GYM_STAFF_INVITATIONS`) and not suspended by an operator (SF-128).
+  """
   @spec delivery_enabled?() :: boolean()
-  def delivery_enabled?,
-    do: Application.get_env(:simple_fit, SimpleFit.Gyms, [])[:staff_invitations] == true
+  def delivery_enabled?, do: SimpleFit.Configuration.enabled?("gym.staff_invitations")
 
   defp delivery_enabled do
     if delivery_enabled?(),

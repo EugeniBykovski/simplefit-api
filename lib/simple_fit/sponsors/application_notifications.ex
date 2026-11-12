@@ -31,10 +31,12 @@ defmodule SimpleFit.Sponsors.ApplicationNotifications do
 
   @unlogged [log: false]
 
-  @doc "Whether sponsor application emails are sent in this environment."
+  @doc """
+  Whether sponsor application emails are sent in this environment: enabled by the
+  deployment (`SPONSOR_APPLICATION_EMAILS`) and not suspended by an operator (SF-128).
+  """
   @spec enabled?() :: boolean()
-  def enabled?,
-    do: Application.get_env(:simple_fit, SimpleFit.Sponsors, [])[:application_emails] == true
+  def enabled?, do: SimpleFit.Configuration.enabled?("sponsor.application_emails")
 
   @doc """
   Records the intent `kind` for `recipient` once per `dedupe_key`, and enqueues it

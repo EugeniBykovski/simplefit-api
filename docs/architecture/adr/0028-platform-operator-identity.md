@@ -181,3 +181,15 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
 * No financial write: refund, cancellation, price, entitlement, retry, replay and reconcile have no route, and no
   route forwards to Stripe. The SF-102 operator commands stay shell-only and refused in production builds
   (SF-138). D-SA34. Nothing here changes D-SA13: production operator access stays NO-GO.
+
+## Amendment (SF-128)
+
+* `config.read` (key check) and `config.flags.write` (fresh key check) join the catalog (migration
+  `20261209090000_create_runtime_flags`). Nothing is granted.
+* `GET /api/v1/admin/configuration[/flags/{id}]` (`config.read`, not audited per load: no person's data) lists
+  every registered switch with its source, consumer, control, risk and effective value. Secrets and credentials
+  are never registered.
+* `config.flag.suspend` / `config.flag.restore` are SF-111 actions (preview, one-time confirmation, expected
+  revision, operation id, audit `config.flag_suspended` / `config.flag_restored`) on the four allowlisted
+  `runtime_flags`; a suspension can only turn a feature off ([governance](../configuration-governance.md), D-SA35).
+  Nothing here changes D-SA13: production operator access stays NO-GO.

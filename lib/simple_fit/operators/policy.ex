@@ -33,6 +33,8 @@ defmodule SimpleFit.Operators.Policy do
   # SF-127 adds `billing.read` (the billing overview, plan catalog, gym subscriptions and
   # Stripe invoice outcomes) and `billing.reconciliation.read` (discrepancies and webhook
   # inbox metadata), read only at a current key check; no financial write exists.
+  # SF-128 adds `config.read` (the configuration inventory and history, key check) and
+  # `config.flags.write` (suspend or restore an allowlisted feature, fresh key check).
   @permissions ~w(operators.read operators.manage audit.read sponsors.applications.read
                   sponsors.applications.claim sponsors.applications.request_changes
                   sponsors.applications.approve sponsors.applications.reject
@@ -40,7 +42,7 @@ defmodule SimpleFit.Operators.Policy do
                   platform.dashboard.read system.health.read
                   users.read users.reveal_email users.restrict users.sessions.revoke
                   gyms.read coaches.read fighters.read system.jobs.read
-                  billing.read billing.reconciliation.read)
+                  billing.read billing.reconciliation.read config.read config.flags.write)
   @assurance %{
     "operators.read" => :key,
     "audit.read" => :key,
@@ -63,7 +65,9 @@ defmodule SimpleFit.Operators.Policy do
     "fighters.read" => :key,
     "system.jobs.read" => :key,
     "billing.read" => :key,
-    "billing.reconciliation.read" => :key
+    "billing.reconciliation.read" => :key,
+    "config.read" => :key,
+    "config.flags.write" => :fresh_key
   }
 
   @required_authenticators Application.compile_env(

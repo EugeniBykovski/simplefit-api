@@ -96,6 +96,23 @@ defmodule SimpleFitWeb.Router do
     get "/operations/jobs", AdminOperationsController, :jobs
     get "/operations/jobs/:job_id", AdminOperationsController, :job
 
+    # SF-128: configuration governance: the registered switches, one runtime flag, and
+    # suspend / restore through the SF-111 framework. No generic write, env or secret editor.
+    get "/configuration", AdminConfigurationController, :index
+    get "/configuration/flags/:flag_id", AdminConfigurationController, :show
+
+    post "/configuration/flags/:flag_id/suspend/preview",
+         AdminConfigurationController,
+         :preview_suspend
+
+    post "/configuration/flags/:flag_id/suspend", AdminConfigurationController, :suspend
+
+    post "/configuration/flags/:flag_id/restore/preview",
+         AdminConfigurationController,
+         :preview_restore
+
+    post "/configuration/flags/:flag_id/restore", AdminConfigurationController, :restore
+
     # SF-127: billing oversight, read-only projections of one Stripe mode. No refund,
     # cancellation, price, entitlement, retry, replay or reconcile route; no Stripe proxy.
     get "/billing/overview", AdminBillingController, :overview
