@@ -586,6 +586,12 @@ defmodule SimpleFit.Billing.Reconciliation do
     end)
   end
 
+  # Recorded without its subscription (the event's link wasn't committed yet when it
+  # was looked up), an invoice never detaches the one a concurrent reconciliation
+  # already linked: an active subscription keeps its paid invoice.
+  defp subscription_of(%{id: nil}, %Invoice{subscription_id: linked}), do: linked
+  defp subscription_of(subscription, _previous), do: subscription.id
+
   defp record_invoice!(invoice, subscription, mode, now) do
     payment_status = payment_status(invoice)
     previous = Repo.get_by(Invoice, [mode: mode, stripe_invoice_id: invoice.id], @unlogged)
@@ -593,7 +599,7 @@ defmodule SimpleFit.Billing.Reconciliation do
     attrs = %{
       mode: mode,
       gym_id: subscription.gym_id,
-      subscription_id: subscription.id,
+      subscription_id: subscription_of(subscription, previous),
       stripe_invoice_id: invoice.id,
       stripe_subscription_id: invoice.subscription,
       number: invoice.number,
