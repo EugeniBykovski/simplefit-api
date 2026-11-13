@@ -17,6 +17,8 @@ organization. No other context grants any of it. An operator isn't given these b
 | Invite and remove `manager`, change roles | ✓ | — | — |
 | Transfer ownership, close organization | ✓ | — | — |
 | Invoices (FUTURE) | ✓ | ✓ | — |
+| View partnership preferences and proposals (SF-130) | ✓ | ✓ | ✓ |
+| Edit preferences; create, edit, submit, withdraw proposals (SF-130, D-SA38) | ✓ | ✓ | — |
 | Campaigns (FUTURE) | Later | Later | Later |
 | Leave | After transfer | ✓ | ✓ |
 
@@ -83,6 +85,11 @@ SF-139's eleven permissions, renamed only for the prefix, and available **only i
 | `sponsors.applications.decide` | High | Approve, reject, request changes | | A2 | Write | Yes |
 | `sponsors.read` | Routine | Organizations, members' roles | Masked member emails | A1 | Each detail view | Yes |
 | `sponsors.restrict` | High | Suspend, reinstate, close | | A2 | Write | Yes |
+| `sponsors.proposals.read` | Routine | Proposal queue and detail (SF-130) | Submitted proposals and the organization's name and status. **Not drafts, contacts or members** | A1 | Each query and view | Yes (SF-130) |
+| `sponsors.proposals.claim` | Routine write | Claim a submitted proposal | | A2 | Write | Yes (SF-130) |
+| `sponsors.proposals.request_changes` | Routine write | Ask the organization for changes | | A2 | Write | Yes (SF-130) |
+| `sponsors.proposals.accept` | High | Accept (follow-up only; creates nothing) | | A2, confirmed | Write | Yes (SF-130) |
+| `sponsors.proposals.decline` | High | Decline | | A2, confirmed | Write | Yes (SF-130) |
 
 ### FUTURE
 

@@ -57,7 +57,13 @@ defmodule SimpleFitWeb.SponsorOrganizationControllerTest do
       call(:get, "/api/v1/sponsor-organizations/#{c.org.id}", member_token) |> json_response(200)
 
     assert_schema(show, "SponsorOrganizationResponse", ApiSpec.spec())
-    assert show["membership"]["permissions"] == ["view_organization", "view_members"]
+
+    assert show["membership"]["permissions"] == [
+             "view_organization",
+             "view_members",
+             "view_partnerships"
+           ]
+
     refute Map.has_key?(show["organization"], "provisioning_source")
 
     members =

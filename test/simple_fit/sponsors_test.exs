@@ -302,7 +302,7 @@ defmodule SimpleFit.SponsorsTest do
       assert {:ok, %{membership: %{role: :member}, permissions: perms}} =
                Sponsors.get_organization(c.member, c.a.id)
 
-      assert perms == [:view_organization, :view_members]
+      assert perms == [:view_organization, :view_members, :view_partnerships]
       assert {:ok, %{entries: members}} = Sponsors.list_members(c.member, c.a.id)
       assert Enum.map(members, & &1.role) == [:owner, :member]
       refute inspect(members) =~ "@"

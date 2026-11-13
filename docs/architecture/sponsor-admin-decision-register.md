@@ -36,7 +36,10 @@ Not reopened unless stated. Evidence is the merged document.
 | D-SA11 | Supported sponsor types | Businesses in SP1's industries. Restricted list as a **reviewer checklist**: gambling, alcohol, tobacco (from AS1, AdRules) | Automatic rejection; individual sponsors | Policy needs an owner. The design's list is not approved | Counsel | Founder, counsel | NEEDS DECISION |
 | D-SA12 | Multi-organization and invitations | Allowed; invitations in MVP after first approval. One current application per user | Single organization per user; invites later | An agency is plausible. Model handles it cheaply | D-SA26 | Founder | PROPOSED |
 | D-SA19 | Public versus internal Sponsor data | Nothing public in MVP. Budget, contact, goals, files never public | Public partner list, logos | Same logic as SF-139; a public logo is a claim | Counsel | Founder, counsel | PROPOSED |
-| D-SA21 | Marketplace scope | No opportunities, discovery or marketplace | Build with examples | No fake opportunities | Campaign domain | Founder | PROPOSED |
+| D-SA21 | Marketplace scope | No opportunities, discovery or marketplace | Build with examples | No fake opportunities | Campaign domain | Founder | **APPROVED by the founder (SF-130)**: an explicit `unavailable` / `no_inventory` answer, no inventory table, no example rows |
+| D-SA37 | Partnership proposals (SF-130) | A nonbinding general inquiry: `draft`, `submitted`, `under_review`, `changes_requested`, `accepted`, `declined`, `withdrawn`; operator claim, request changes, confirmed accept and decline through SF-111; the organization withdraws until decided. `accepted` = SimpleFit will follow up; creates nothing | Intake and changes only, no decision; sponsor intake only | No commercial layer exists, so a decision can only mean follow-up | D-SA21 | Founder | **APPROVED by the founder (SF-130)**: the full review lifecycle. Reason codes and the 25 open proposal limit are proposed defaults ([ADR 0034](adr/0034-sponsor-partnership-proposals.md)) |
+| D-SA38 | Partnership roles (SF-130) | Owner and managers edit preferences and create, edit, submit and withdraw proposals; members read; a suspended organization is read-only | Every member writes; owner only | Same split as brand edits in the SF-107 matrix | D-SA07 | Founder | **APPROVED by the founder (SF-130)** |
+| D-SA39 | Money in partnerships (SF-130) | No budget, amount or price on preferences or proposals; the budget stays only in the application's immutable snapshot | Reuse SP5's provisional bands | D-SA05 is undecided; keeps proposals nonbinding | D-SA05 | Founder | **APPROVED by the founder (SF-130)** |
 | D-SA22 | Staffing and service levels | Name who reviews and watches alerts. No promised times until then. Remove "5 business days", "Sarah" | Keep promises | A false promise and an unwatched queue | — | Founder | **BLOCKED**: no staff named |
 | D-SA23 | Monetization | None in MVP. Sponsor invoicing and flat fees are a later decision | Charge at approval | Stripe Live NO-GO; no B2B invoicing | SF-138 | Founder, finance | PROPOSED |
 | D-SA24 | Sponsor analytics | None until measured. If later: aggregate only, suppression threshold (design says 50) | Show examples | No invented reach. Threshold needs privacy review | Tracking, counsel | Founder, counsel | PROPOSED |
@@ -69,6 +72,11 @@ sponsor emails that stay off in production until S7 copy exists. D-SA03, D-SA10 
 SF-117 ([ADR 0030 amendment](adr/0030-sponsor-organizations-and-workspaces.md#amendment-sf-117)) records D-SA26 as
 approved and builds the web route on it. D-SA12 (several organizations) is used as SF-112 built it: every active
 membership of an active organization is a choice; invitations stay unbuilt and D-SA12 stays PROPOSED.
+
+SF-130 ([ADR 0034](adr/0034-sponsor-partnership-proposals.md)) built partnership preferences, an explicit
+"no opportunities" answer and nonbinding partnership proposals with operator review on D-SA21, D-SA37, D-SA38 and
+D-SA39, approved by the founder in that session. Nothing commercial is created, no email is sent (D-SA22), and the
+five `sponsors.proposals.*` permission names stay proposed under D-SA16.
 
 SF-116 ([ADR 0033](adr/0033-sponsor-application-decisions.md)) built approval, rejection and organization
 suspension or reinstatement on D-SA10's and D-SA07's recommended options (organization plus the applicant as owner,

@@ -82,10 +82,11 @@ Classification of what the current design shows. A design illustration is not a 
 | Partner overview, public page | SPX1 | **MVP** (exists, truthful) | Mock campaigns are labelled examples. No live metrics (SF-43) |
 | Named partner manager | SPX4, SRW1, SponsorNav | **DESIGN ONLY** | Nobody is staffed; no messaging exists |
 | Response promises (5 business days, 2 days, 1 day) | SPX2, SP9, SRW1 | **NEEDS PRODUCT DECISION** | No service level until someone is staffed ([D-SA22](sponsor-admin-decision-register.md)) |
-| Opportunities, sponsorship discovery | — | **FUTURE** | No board exists. No marketplace of invented opportunities |
+| Opportunities, sponsorship discovery | — | **FUTURE** | No board exists. No marketplace of invented opportunities. SF-130 answers `unavailable` / `no_inventory` (D-SA21, approved) |
 | Campaigns and review | SPX6, SPC1–SPC7, AC1–AC5 | **FUTURE** | No challenges, events or placements domain |
 | Sponsored placements | AV1, AV2, AV2b, MK11, AdRules | **FUTURE** | AdRules is a useful draft policy; it isn't approved |
-| Proposals | — | **FUTURE** | No board |
+| Proposals | — | **MVP (SF-130)**, API only | Nonbinding general inquiries with operator review; create nothing commercial ([ADR 0034](adr/0034-sponsor-partnership-proposals.md), D-SA37). No board yet |
+| Partnership preferences | SP3, SP4, SP6 (as organization data) | **MVP (SF-130)**, API only | Interests, markets, goals; no budget (D-SA39); the application snapshot is unchanged |
 | Contracts, data agreement | AS4, SPX9 | **BLOCKED** | Legal text and counsel. "Signed Sep 9" is illustrative |
 | Invoices | SPX8, AS4 | **BLOCKED** | Separate B2B invoicing doesn't exist; Stripe Live is NO-GO (SF-138) |
 | Payments | SPX8 | **BLOCKED** | Same |

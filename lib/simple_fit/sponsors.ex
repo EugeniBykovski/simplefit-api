@@ -267,6 +267,37 @@ defmodule SimpleFit.Sponsors do
     end
   end
 
+  @doc """
+  As `authorize/3` for a write, inside a transaction (SF-130): share-locks the
+  organization, then the viewer's membership (the order `Sponsors.Provisioning`
+  takes them in), so a concurrent revocation or suspension commits before the
+  write (then it's refused) or after it. `:not_found` and `:forbidden` as
+  `authorize/3`; `{:conflict, %{organization: "suspended"}}` for an organization
+  that is read-only.
+  """
+  @spec lock_access(User.t(), term(), Policy.permission()) ::
+          {:ok, access()} | {:error, :not_found | :forbidden | {:conflict, map()}}
+  def lock_access(%User{id: user_id}, sponsor_id, permission) do
+    with {:ok, id} <- uuid(sponsor_id),
+         %Organization{status: status} = organization when status != :closed <-
+           Repo.one(from(o in Organization, where: o.id == ^id, lock: "FOR SHARE")),
+         %Membership{} = membership <-
+           Repo.one(
+             from(m in Membership,
+               where: m.organization_id == ^id and m.user_id == ^user_id and m.status == :active,
+               lock: "FOR SHARE"
+             )
+           ) do
+      cond do
+        not Policy.allowed?(membership.role, permission) -> denied(:forbidden)
+        status != :active -> {:error, {:conflict, %{organization: Atom.to_string(status)}}}
+        true -> {:ok, %{organization: organization, membership: membership}}
+      end
+    else
+      _ -> denied(:not_found)
+    end
+  end
+
   defp denied(reason) do
     :telemetry.execute([:simple_fit, :sponsors, :access_denied], %{count: 1}, %{reason: reason})
     {:error, reason}

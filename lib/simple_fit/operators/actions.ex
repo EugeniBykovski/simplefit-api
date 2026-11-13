@@ -52,7 +52,7 @@ defmodule SimpleFit.Operators.Actions do
 
   alias SimpleFit.Operators.{Policy, Redaction}
   alias SimpleFit.{RateLimit, Repo}
-  alias SimpleFit.Sponsors.ReviewActions
+  alias SimpleFit.Sponsors.{ProposalReviewActions, ReviewActions}
 
   @token_prefix "sfc_"
   @token_bytes 32
@@ -73,6 +73,7 @@ defmodule SimpleFit.Operators.Actions do
     do:
       OperatorActions.definitions() ++
         ReviewActions.definitions() ++
+        ProposalReviewActions.definitions() ++
         UserActions.definitions() ++ ConfigurationActions.definitions()
 
   ## Preview
