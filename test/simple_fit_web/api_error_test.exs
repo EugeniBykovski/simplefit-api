@@ -20,10 +20,12 @@ defmodule SimpleFitWeb.APIErrorTest do
     "not_acceptable" => 406,
     "conflict" => 409,
     "verified_elsewhere" => 409,
+    "password_not_set" => 409,
     "payload_too_large" => 413,
     "unsupported_media_type" => 415,
     "validation_error" => 422,
     "code_invalid" => 422,
+    "invalid_credentials" => 422,
     "code_expired" => 422,
     "rate_limited" => 429,
     "internal_error" => 500,
@@ -45,7 +47,9 @@ defmodule SimpleFitWeb.APIErrorTest do
           "account_suspended",
           "security_key_rejected",
           "revision_conflict",
-          "confirmation_invalid"
+          "confirmation_invalid",
+          "invalid_credentials",
+          "password_not_set"
         ] do
       assert APIError.code_for_status(status) == code
     end

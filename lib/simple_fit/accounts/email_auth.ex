@@ -3,7 +3,7 @@ defmodule SimpleFit.Accounts.EmailAuth do
   Passwordless email authentication (ADR 0012). Called through
   `SimpleFit.Accounts`; internal to the context.
 
-  Three purposes, never interchangeable:
+  Four purposes, never interchangeable:
 
     * **Email verification** (registration, E01): proves ownership of a new
       address. A 6-digit code *or* a high-entropy link answers the same
@@ -17,6 +17,10 @@ defmodule SimpleFit.Accounts.EmailAuth do
       address becomes an email identity of that same user
       (`link_identity/3` rules: never moved, never merged). Never starts a
       session and never creates a user.
+    * **Password reset** (SF-157, ADR 0012 amendment): proves control of the
+      address of an existing email identity with a 6-digit code before its
+      user's password is set or replaced. Never starts a session: the caller
+      decides what the verified code does, in the same transaction.
 
   ## Sessions after verification (Design Version 66)
 
@@ -245,6 +249,37 @@ defmodule SimpleFit.Accounts.EmailAuth do
          :ok <- limit([ip_rule(@verify_ip, client_ip)]) do
       digest = Secrets.target_digest(email)
       transact(fn -> answer_sign_in(lock_latest(:sign_in, digest), email, code) end)
+    end
+  end
+
+  ## Password reset (SF-157)
+
+  @doc """
+  Sends a password code if the address has an email identity. Always answers
+  the same for a well-formed address.
+  """
+  @spec request_password_reset(term(), String.t()) :: {:ok, requested()} | error()
+  def request_password_reset(email, client_ip), do: request(:password_reset, email, client_ip)
+
+  @doc """
+  Verifies a password code for `email`. On success the challenge is closed and
+  `on_verified.(user, now)` runs in the same transaction (it may roll back);
+  its result is returned as `{:ok, result}`. Never starts a session.
+  """
+  @spec verify_password_reset_code(term(), term(), String.t(), (User.t(), DateTime.t() -> term())) ::
+          {:ok, term()} | error()
+  def verify_password_reset_code(email, code, client_ip, on_verified)
+      when is_function(on_verified, 2) do
+    with {:ok, %{email: email, code: code}} <-
+           validate(%{email: email, code: code}, %{email: :string, code: :string}),
+         {:ok, email} <- normalize(email),
+         :ok <- validate_code(code),
+         :ok <- limit([ip_rule(@verify_ip, client_ip)]) do
+      digest = Secrets.target_digest(email)
+
+      transact(fn ->
+        answer_password_reset(lock_latest(:password_reset, digest), email, code, on_verified)
+      end)
     end
   end
 
@@ -502,7 +537,7 @@ defmodule SimpleFit.Accounts.EmailAuth do
              registration_token_hash: registration_hash
          }, %{code: code, link_token: link_token, registration_token: registration_token}}
 
-      :sign_in ->
+      sign_in_or_reset when sign_in_or_reset in [:sign_in, :password_reset] ->
         {challenge, %{code: code}}
     end
   end
@@ -540,6 +575,9 @@ defmodule SimpleFit.Accounts.EmailAuth do
 
         :identity_link ->
           Templates.email_link_code(code: credentials.code, expires_in_minutes: minutes)
+
+        :password_reset ->
+          Templates.password_reset_code(code: credentials.code, expires_in_minutes: minutes)
       end
 
     with {:ok, rendered} <- rendered,
@@ -639,6 +677,44 @@ defmodule SimpleFit.Accounts.EmailAuth do
             reject(:sign_in, :code_expired)
         end
     end
+  end
+
+  defp answer_password_reset(nil, _email, _code, _on_verified),
+    do: reject(:password_reset, :code_invalid)
+
+  defp answer_password_reset(%Challenge{} = challenge, email, code, on_verified) do
+    now = now()
+
+    cond do
+      not Challenge.open?(challenge, now) ->
+        reject(:password_reset, :code_expired)
+
+      not Secrets.code_matches?(:password_reset, challenge.id, code, challenge.code_hash) ->
+        wrong_code(challenge, now)
+
+      true ->
+        case email_user(email) do
+          %User{} = user ->
+            close(challenge, :code_verified, now)
+            result = on_verified.(user, now)
+            emit(:verified, :password_reset, %{channel: :code})
+            {:ok, result}
+
+          nil ->
+            close(challenge, :conflict, now)
+            reject(:password_reset, :code_expired)
+        end
+    end
+  end
+
+  defp email_user(email) do
+    Repo.one(
+      from(u in User,
+        join: i in assoc(u, :identities),
+        where: i.provider == :email and i.provider_subject == ^email
+      ),
+      @quiet
+    )
   end
 
   # The user and its session are share-locked first: a concurrent logout,

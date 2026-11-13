@@ -173,8 +173,12 @@ defmodule SimpleFit.OperatorsTest do
       session = live_session!(user)
       bootstrap!(user)
 
-      assert {:ok, %{operator: %{status: :pending_enrollment}, permissions: []}} =
-               Operators.me(user, session)
+      # SF-157: the grants show (and read) while pending.
+      assert {:ok,
+              %{
+                operator: %{status: :pending_enrollment},
+                permissions: ["audit.read", "operators.manage", "operators.read"]
+              }} = Operators.me(user, session)
 
       [_k1] = enroll!(user, session, 1)
 
@@ -190,12 +194,15 @@ defmodule SimpleFit.OperatorsTest do
       assert [_] = actions("operator.activated")
     end
 
-    test "a pending operator can do nothing but enrol" do
+    test "SF-157: a pending operator reads at session assurance but can't act or check a key" do
       user = registered!("founder")
       session = live_session!(user)
       bootstrap!(user)
-      assert {:error, :enrollment_required} = Operators.list_operators(user, session)
+      assert {:ok, [_ | _]} = Operators.list_operators(user, session)
       assert {:error, :enrollment_required} = Operators.step_up_options(user, session)
+
+      assert {:error, :enrollment_required} =
+               Operators.authorize(user, session, "operators.manage")
     end
 
     test "rejects a replayed, expired, foreign or mismatched registration" do
@@ -290,22 +297,24 @@ defmodule SimpleFit.OperatorsTest do
   end
 
   describe "key checks" do
+    # SF-157: reads need only the session; a key check is probed with a write permission.
     test "are bound to one session and expire" do
       %{user: u, session: s} = f = stepped!(founder!())
-      assert {:ok, _} = Operators.list_operators(u, s)
+      assert {:ok, _} = Operators.authorize(u, s, "operators.manage")
 
       other = live_session!(u)
-      assert {:error, :step_up_required} = Operators.list_operators(u, other)
+      assert {:error, :step_up_required} = Operators.authorize(u, other, "operators.manage")
+      assert {:ok, _} = Operators.list_operators(u, other)
 
       Repo.update_all(StepUp, set: [expires_at: DateTime.utc_now()])
-      assert {:error, :step_up_required} = Operators.list_operators(u, s)
+      assert {:error, :step_up_required} = Operators.authorize(u, s, "operators.manage")
       _ = f
     end
 
     test "end with logout and with ending the check" do
       %{user: u, session: s} = stepped!(founder!())
       assert :ok = Operators.end_step_up(u, s)
-      assert {:error, :step_up_required} = Operators.list_operators(u, s)
+      assert {:error, :step_up_required} = Operators.authorize(u, s, "operators.manage")
     end
 
     test "high-risk actions need a fresh check; reads accept an older one" do
@@ -349,7 +358,7 @@ defmodule SimpleFit.OperatorsTest do
 
     test "a client can't claim a check: only a verified assertion records one" do
       %{user: u, session: s} = founder!()
-      assert {:error, :step_up_required} = Operators.list_operators(u, s)
+      assert {:error, :step_up_required} = Operators.authorize(u, s, "operators.manage")
       assert {:error, %Ecto.Changeset{}} = Operators.verify_step_up(u, s, %{"verified" => true})
       assert Repo.aggregate(StepUp, :count) == 0
     end
@@ -457,7 +466,9 @@ defmodule SimpleFit.OperatorsTest do
       assert {:ok, %{operator: %{status: :active}}} =
                act(c.user, c.session, "operator.reinstate", c.op2.id)
 
-      assert {:error, :step_up_required} = Operators.list_operators(c.second, c.second_session)
+      # SF-157: reinstated, it reads again at session assurance; its key checks stay
+      # revoked (above), so acting needs a new one.
+      assert {:ok, _} = Operators.list_operators(c.second, c.second_session)
 
       assert {:ok, %{operator: %{status: :revoked}, permissions: []}} =
                act(c.user, c.session, "operator.revoke", c.op2.id)
@@ -547,7 +558,11 @@ defmodule SimpleFit.OperatorsTest do
                  op("lost_key")
                )
 
-      assert {:error, :enrollment_required} = Operators.list_operators(c.second, c.second_session)
+      # SF-157: back to enrolment, it still reads, but can't check a key until it re-enrols.
+      assert {:ok, _} = Operators.list_operators(c.second, c.second_session)
+
+      assert {:error, :enrollment_required} =
+               Operators.step_up_options(c.second, c.second_session)
     end
 
     test "an operator can't revoke their own key below the minimum", c do

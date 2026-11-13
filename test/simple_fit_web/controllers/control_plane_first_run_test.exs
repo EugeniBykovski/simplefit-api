@@ -57,12 +57,14 @@ defmodule SimpleFitWeb.ControlPlaneFirstRunTest do
     assert record(token, "completed") |> json_response(409)
   end
 
-  test "a pending operator (keys not registered) isn't offered it yet" do
+  test "SF-157: a pending operator (keys not registered) is offered it: it reads the Control Plane at session assurance" do
     user = registered!("pending-operator")
     {token, _} = token!(user)
     _ = bootstrap!(user)
-    assert %{"status" => "unavailable"} = state(token)
-    assert record(token, "dismissed") |> json_response(409)
+    assert %{"status" => "pending"} = state(token)
+
+    assert %{"experience" => %{"status" => "dismissed"}} =
+             record(token, "dismissed") |> json_response(200)
   end
 
   test "an active operator: pending, then the first outcome is final and grants nothing" do

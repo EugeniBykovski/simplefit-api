@@ -69,6 +69,8 @@ defmodule SimpleFitWeb.APIError do
     {"conflict", 409, "The request conflicts with the current state of the resource"},
     {"revision_conflict", 409,
      "The resource changed since you last read it; read it again before retrying"},
+    {"password_not_set", 409,
+     "This account has no password yet; set one with a code sent to its email address"},
     {"verified_elsewhere", 409,
      "This email was verified on another device; sign in with a code to continue"},
     {"invitation_unavailable", 410, "This invitation is no longer available"},
@@ -76,6 +78,7 @@ defmodule SimpleFitWeb.APIError do
     {"unsupported_media_type", 415, "The request content type is not supported"},
     {"validation_error", 422, "Request validation failed"},
     {"code_invalid", 422, "The code is not correct"},
+    {"invalid_credentials", 422, "The email address or password is not correct"},
     {"security_key_rejected", 422, "The security key response was not accepted"},
     {"confirmation_invalid", 422,
      "The confirmation does not match this request or is no longer valid; preview the action again"},
@@ -100,7 +103,9 @@ defmodule SimpleFitWeb.APIError do
     "enrollment_required",
     "security_key_rejected",
     "revision_conflict",
-    "confirmation_invalid"
+    "confirmation_invalid",
+    "invalid_credentials",
+    "password_not_set"
   ]
 
   @doc "All catalogued error codes, in catalog order."

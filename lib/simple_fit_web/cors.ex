@@ -16,7 +16,8 @@ defmodule SimpleFitWeb.CORS do
       cookie (`POST /api/auth/session/refresh`, `POST /api/auth/logout`,
       ADR 0010; `POST /api/auth/email/registrations/verify`,
       `POST /api/auth/email/sign-in/verify`, ADR 0012;
-      `POST /api/auth/google`, ADR 0013); every other path stays
+      `POST /api/auth/google`, ADR 0013; `POST /api/auth/password/sign-in`,
+      SF-157); every other path stays
       credential-free.
     * `x-request-id` is exposed so browser clients can read it for support.
 
@@ -44,7 +45,9 @@ defmodule SimpleFitWeb.CORS do
     # Google sign-in can start a session with the cookie transport (ADR 0013).
     "/api/auth/google",
     # So can Sign in with Apple (ADR 0014).
-    "/api/auth/apple"
+    "/api/auth/apple",
+    # And password sign-in (SF-157).
+    "/api/auth/password/sign-in"
   ]
 
   @origin_format ~r"\Ahttps?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\z"

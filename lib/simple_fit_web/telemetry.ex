@@ -87,6 +87,13 @@ defmodule SimpleFitWeb.Telemetry do
       counter("simple_fit.auth.email.verified.count", tags: [:purpose, :channel]),
       counter("simple_fit.auth.email.rejected.count", tags: [:purpose, :reason]),
       counter("simple_fit.auth.email.rate_limited.count"),
+      # SF-157: password sign-in, set, change and reset (no address, no user).
+      counter("simple_fit.auth.password.signed_in.count"),
+      counter("simple_fit.auth.password.rejected.count", tags: [:operation, :reason]),
+      counter("simple_fit.auth.password.rate_limited.count"),
+      counter("simple_fit.auth.password.password_set.count"),
+      counter("simple_fit.auth.password.password_reset.count"),
+      counter("simple_fit.auth.password.password_changed.count"),
 
       # Google sign-in (ADR 0013): outcome and bounded reason only.
       counter("simple_fit.auth.google.verified.count", tags: [:account]),

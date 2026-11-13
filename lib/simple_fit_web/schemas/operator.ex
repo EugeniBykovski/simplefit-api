@@ -309,9 +309,9 @@ defmodule SimpleFitWeb.Schemas.OperatorPermissionCatalogResponse do
   OpenApiSpex.schema(%{
     title: "OperatorPermissionCatalogResponse",
     description: """
-    Every operator permission (SF-129): the catalog the database also enforces, each with the key-check
-    assurance it needs (`key`: a current check; `fresh_key`: one in the last minutes). No role, bundle or
-    superuser exists: permissions are granted one by one.
+    Every operator permission (SF-129): the catalog the database also enforces, each with the assurance it
+    needs (`session`: the signed-in session, whatever the sign-in method, SF-157; `fresh_key`: a security-key
+    check in the last minutes). No role, bundle or superuser exists: permissions are granted one by one.
     """,
     type: :object,
     required: [:permissions],
@@ -323,7 +323,7 @@ defmodule SimpleFitWeb.Schemas.OperatorPermissionCatalogResponse do
           required: [:permission, :assurance],
           properties: %{
             permission: %Schema{type: :string},
-            assurance: %Schema{type: :string, enum: ["key", "fresh_key"]}
+            assurance: %Schema{type: :string, enum: ["session", "fresh_key"]}
           }
         }
       }
@@ -542,7 +542,7 @@ defmodule SimpleFitWeb.Schemas.OperatorActionPreviewResponse do
             description: "Codes, e.g. `access_blocked`, `irreversible`."
           },
           required_permission: %Schema{type: :string},
-          required_assurance: %Schema{type: :string, enum: ["key", "fresh_key"]},
+          required_assurance: %Schema{type: :string, enum: ["fresh_key"]},
           reason_code: %Schema{type: :string},
           confirmation: %Schema{
             type: :object,

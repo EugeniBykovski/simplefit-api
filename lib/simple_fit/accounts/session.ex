@@ -11,7 +11,8 @@ defmodule SimpleFit.Accounts.Session do
 
   alias SimpleFit.Accounts.{RefreshToken, User}
 
-  @type revoked_reason :: :logout | :refresh_reuse | :operator_revoked | :account_suspended
+  @type revoked_reason ::
+          :logout | :refresh_reuse | :operator_revoked | :account_suspended | :password_changed
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
@@ -35,7 +36,7 @@ defmodule SimpleFit.Accounts.Session do
     field :revoked_at, :utc_datetime
 
     field :revoked_reason, Ecto.Enum,
-      values: [:logout, :refresh_reuse, :operator_revoked, :account_suspended]
+      values: [:logout, :refresh_reuse, :operator_revoked, :account_suspended, :password_changed]
 
     has_many :refresh_tokens, RefreshToken
 

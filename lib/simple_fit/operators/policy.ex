@@ -5,11 +5,15 @@ defmodule SimpleFit.Operators.Policy do
   * **Permissions** - the catalog the database also enforces. SF-110 needs only
     operator management and audit; each later admin ticket adds its own
     permissions in a reviewed migration (SF-107 lists the candidates).
-  * **Assurance** - `:key` needs a current security-key check bound to the
-    session; `:fresh_key` needs one in the last `fresh_window/0` seconds.
+  * **Assurance** - `:session` needs only the operator's signed-in session (any
+    sign-in method, including a password, SF-157); `:fresh_key` needs a
+    security-key check bound to the session in the last `fresh_window/0` seconds.
+    Reads are `:session`; every write is `:fresh_key` (SF-157, ADR 0028
+    amendment: before SF-157 reads needed a current key check, `:key`).
   * **Authenticators** - an operator becomes active only with
     `required_authenticators/0` registered keys (SF-107 proposed two). A
-    production build refuses fewer than two.
+    production build refuses fewer than two. A `pending_enrollment` operator
+    reads at `:session` but can't act until it is active (SF-157).
   """
 
   # SF-114 adds the first sponsor review permissions, one per action (D-SA16 naming,
@@ -50,31 +54,31 @@ defmodule SimpleFit.Operators.Policy do
                   sponsors.proposals.request_changes sponsors.proposals.accept
                   sponsors.proposals.decline)
   @assurance %{
-    "operators.read" => :key,
-    "audit.read" => :key,
+    "operators.read" => :session,
+    "audit.read" => :session,
     "operators.manage" => :fresh_key,
-    "sponsors.applications.read" => :key,
+    "sponsors.applications.read" => :session,
     "sponsors.applications.claim" => :fresh_key,
     "sponsors.applications.request_changes" => :fresh_key,
     "sponsors.applications.approve" => :fresh_key,
     "sponsors.applications.reject" => :fresh_key,
     "sponsors.applications.read_files" => :fresh_key,
     "sponsors.restrict" => :fresh_key,
-    "platform.dashboard.read" => :key,
-    "system.health.read" => :key,
-    "users.read" => :key,
+    "platform.dashboard.read" => :session,
+    "system.health.read" => :session,
+    "users.read" => :session,
     "users.reveal_email" => :fresh_key,
     "users.restrict" => :fresh_key,
     "users.sessions.revoke" => :fresh_key,
-    "gyms.read" => :key,
-    "coaches.read" => :key,
-    "fighters.read" => :key,
-    "system.jobs.read" => :key,
-    "billing.read" => :key,
-    "billing.reconciliation.read" => :key,
-    "config.read" => :key,
+    "gyms.read" => :session,
+    "coaches.read" => :session,
+    "fighters.read" => :session,
+    "system.jobs.read" => :session,
+    "billing.read" => :session,
+    "billing.reconciliation.read" => :session,
+    "config.read" => :session,
     "config.flags.write" => :fresh_key,
-    "sponsors.proposals.read" => :key,
+    "sponsors.proposals.read" => :session,
     "sponsors.proposals.claim" => :fresh_key,
     "sponsors.proposals.request_changes" => :fresh_key,
     "sponsors.proposals.accept" => :fresh_key,
@@ -92,7 +96,7 @@ defmodule SimpleFit.Operators.Policy do
   end
 
   @type permission :: String.t()
-  @type assurance :: :key | :fresh_key
+  @type assurance :: :session | :fresh_key
 
   @doc "Every permission an operator can hold."
   @spec permissions() :: [permission()]

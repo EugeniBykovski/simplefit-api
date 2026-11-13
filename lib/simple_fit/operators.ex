@@ -53,17 +53,17 @@ defmodule SimpleFit.Operators do
   ## Current operator
 
   @doc """
-  Whether the user is an **active** operator (enrolled, not suspended or revoked), for
-  presentation only (SF-120: the Control Plane first run is offered to active operators).
-  It authorizes nothing: every operator call checks permission and key on its own.
+  Whether the user's operator can open the Control Plane: pending enrolment or active,
+  neither suspended nor revoked (SF-157: the Control Plane opens at session assurance,
+  so its first run is offered to both). For presentation only: it authorizes nothing,
+  every operator call checks permission and assurance on its own.
   """
-  @spec active_operator?(User.t()) :: boolean()
-  def active_operator?(%User{id: user_id}) when is_binary(user_id) do
-    match?(%{status: :active}, usable_operator(user_id))
-  end
+  @spec console_operator?(User.t()) :: boolean()
+  def console_operator?(%User{id: user_id}) when is_binary(user_id),
+    do: usable_operator(user_id) != nil
 
   @doc """
-  The viewer's own operator state: status, permissions (while active), keys and
+  The viewer's own operator state: status, permissions, keys and
   the key check of this session. `:not_found` for anyone without a usable operator.
   """
   @spec me(User.t(), Session.t()) :: {:ok, map()} | {:error, :not_found}
@@ -77,7 +77,8 @@ defmodule SimpleFit.Operators do
   defp view(operator, session_id) do
     %{
       operator: operator,
-      permissions: if(operator.status == :active, do: active_permissions(operator.id), else: []),
+      # SF-157: a pending operator reads with its permissions too (`:session`).
+      permissions: active_permissions(operator.id),
       registered_keys: active_credential_count(operator.id),
       required_keys: Policy.required_authenticators(),
       step_up: current_step_up(operator.id, session_id)

@@ -310,3 +310,33 @@ cascading), answered by its 6-digit code in that session only, and closed
 index now excludes `identity_link`. Verifiers, expiry, attempts, cleanup,
 redaction and telemetry are those of this ADR, with `purpose:
 :identity_link`. This is the account linking listed as out of scope above.
+
+## Amendment (SF-157): an optional password credential
+
+Approved by the founder on 2026-11-13 for SF-157 (security-reviewer sign-off still open, D-SF157-01). SimpleFit
+stays passwordless by default; a user **may** add a password, which signs in through one of their email
+identities. Nothing above changes for email codes, Google or Apple.
+
+* **Storage.** `password_credentials`: at most one per user (unique `user_id`, cascades with the user), an Argon2id
+  hash only (`argon2_elixir`, CHECK `$argon2id$`), never on `users` (ADR 0009). Test builds use the cheapest
+  Argon2 parameters; every other build uses the library defaults (Argon2id, t=3, m=64 MiB, p=4).
+* **Fourth challenge purpose `password_reset`.** Shaped like `sign_in` (digest only, decoy for unknown addresses,
+  one open per address, 5 wrong codes, 10 minutes), with its own verifier domain, so a sign-in or link code never
+  sets a password. Entering the code with a new password (12–128 characters, not the address; checked before the
+  code is used) sets or replaces the password in the same transaction that closes the challenge, and revokes
+  every session of the user (`password_changed`). It never starts a session. Setting the first password and
+  resetting a forgotten one are this one flow: a password is never established without proof of the mailbox.
+* **Sign-in.** `POST /api/auth/password/sign-in` starts an SF-20 session (body or cookie transport, same CSRF and
+  CORS rules as the other sign-in endpoints). A wrong password, an unknown address, an account without a password
+  and an oversized input all answer `invalid_credentials` (422) after the same Argon2 work. Limits: 30 per client
+  per 10 minutes, 5 per address per minute and 20 per hour, keyed by HMAC like the code limits. A suspended account
+  gets `account_suspended`.
+* **Change.** `PUT /api/me/password` needs the current password; it revokes every other session of the user and
+  keeps this one. `password_not_set` (409) for an account without a password. Lock order: the credential, then the
+  user and session (a reset takes the challenge, the credential, then the sessions), so the two never deadlock
+  (`test/simple_fit/accounts/password_race_test.exs`).
+* **Audit.** `account_security_events` (append-only by trigger): `password_set`, `password_reset`,
+  `password_changed`, with the session when there is one. No address, password or IP. Telemetry counters
+  `simple_fit.auth.password.*`. Passwords never reach logs, responses or the debug query log.
+* **Not here.** No password on the public `/login` or in registration (only the Control Plane sign-in offers it,
+  D-SF157-02), no breached-password list, no password expiry, no recovery questions.

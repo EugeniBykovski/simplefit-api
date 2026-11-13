@@ -113,29 +113,14 @@ defmodule SimpleFitWeb.OperatorControllerTest do
 
     assert %{
              "status" => "pending_enrollment",
-             "permissions" => [],
+             "permissions" => [_ | _],
              "security_keys" => %{"required" => 2}
            } = me["operator"]
-
-    assert %{"error" => %{"code" => "enrollment_required"}} =
-             call(:get, "/api/v1/admin/operators", token) |> json_response(403)
-
-    [key | _] = enroll_http!(token)
-
-    assert %{"operator" => %{"status" => "active", "step_up" => nil}} =
-             call(:get, "/api/v1/admin/me", token) |> json_response(200)
-
-    assert %{"error" => %{"code" => "step_up_required"}} =
-             call(:get, "/api/v1/admin/operators", token) |> json_response(403)
-
-    _key = step_up_http!(token, key)
-    list = call(:get, "/api/v1/admin/operators", token) |> json_response(200)
-    assert_schema(list, "OperatorListResponse", ApiSpec.spec())
 
     second = registered!("second")
     second_token = token!(second)
 
-    provisioned =
+    provision = fn ->
       call(
         :post,
         "/api/v1/admin/operators",
@@ -145,7 +130,28 @@ defmodule SimpleFitWeb.OperatorControllerTest do
           "permissions" => ["operators.read"]
         })
       )
-      |> json_response(200)
+    end
+
+    # SF-157: reads need only the session; acting needs registered keys, then a key check.
+    list = call(:get, "/api/v1/admin/operators", token) |> json_response(200)
+    assert_schema(list, "OperatorListResponse", ApiSpec.spec())
+
+    assert %{"error" => %{"code" => "enrollment_required"}} =
+             provision.() |> json_response(403)
+
+    [key | _] = enroll_http!(token)
+
+    assert %{"operator" => %{"status" => "active", "step_up" => nil}} =
+             call(:get, "/api/v1/admin/me", token) |> json_response(200)
+
+    assert call(:get, "/api/v1/admin/operators", token) |> json_response(200)
+
+    assert %{"error" => %{"code" => "step_up_required"}} =
+             provision.() |> json_response(403)
+
+    _key = step_up_http!(token, key)
+
+    provisioned = provision.() |> json_response(200)
 
     assert_schema(provisioned, "OperatorSummaryResponse", ApiSpec.spec())
     id = provisioned["operator"]["id"]

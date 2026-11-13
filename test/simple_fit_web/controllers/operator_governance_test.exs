@@ -236,12 +236,15 @@ defmodule SimpleFitWeb.OperatorGovernanceTest do
                )
                |> json_response(409)
 
-      # Provisioning grants authority to nobody until keys are registered.
+      # SF-157: a provisioned operator reads with its grants at session assurance, but
+      # holds nothing beyond them, and stays pending until keys are registered.
       operator = Repo.get!(Operator, created["operator"]["id"])
       {:ok, session} = Accounts.create_session(target)
 
-      assert {:error, :enrollment_required} =
-               Operators.authorize(target, session.session, "audit.read")
+      assert {:ok, _principal} = Operators.authorize(target, session.session, "audit.read")
+
+      assert {:error, :forbidden} =
+               Operators.authorize(target, session.session, "operators.read")
 
       assert operator.status == :pending_enrollment
     end

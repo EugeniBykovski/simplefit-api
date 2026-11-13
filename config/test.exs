@@ -66,6 +66,9 @@ config :simple_fit, SimpleFit.Identity.Apple,
 # (Oban.Testing) and run them explicitly with perform_job/2.
 config :simple_fit, Oban, testing: :manual
 
+# SF-157: the cheapest Argon2id parameters, for speed. Never outside test.
+config :argon2_elixir, t_cost: 1, m_cost: 8
+
 # The local web client origin, so CORS behaviour is tested deterministically.
 config :simple_fit, SimpleFitWeb.CORS, allowed_origins: ["http://localhost:3000"]
 config :simple_fit, :attach_job_logger, false
