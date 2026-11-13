@@ -97,23 +97,22 @@ defmodule SimpleFitWeb.AdminOverviewControllerTest do
       end
     end
 
-    test "a pending operator: enrollment_required; no key check: step_up_required" do
+    test "SF-157: a pending operator reads it at session assurance, without keys" do
       pending = registered!("pending")
       {pending_token, _} = session!(pending)
       _ = bootstrap!(pending, ["platform.dashboard.read"])
 
-      assert %{"error" => %{"code" => "enrollment_required"}} =
-               get_overview(pending_token) |> json_response(403)
+      assert %{"overview" => %{"metrics" => [_ | _]}} =
+               get_overview(pending_token) |> json_response(200)
     end
 
-    test "an active operator without a key check in this session: step_up_required" do
+    test "SF-157: an active operator without a key check in this session reads it too" do
       user = registered!("unchecked")
       {token, session} = session!(user)
       _ = bootstrap!(user, ["platform.dashboard.read"])
       _ = enroll!(user, session)
 
-      assert %{"error" => %{"code" => "step_up_required"}} =
-               get_overview(token) |> json_response(403)
+      assert %{"overview" => %{"metrics" => [_ | _]}} = get_overview(token) |> json_response(200)
     end
 
     test "an operator with none of the overview's permissions: forbidden, and the refusal is audited" do

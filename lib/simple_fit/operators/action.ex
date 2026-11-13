@@ -60,7 +60,7 @@ defmodule SimpleFit.Operators.Action do
   @type t :: %__MODULE__{
           id: String.t(),
           permission: String.t(),
-          assurance: :key | :fresh_key,
+          assurance: :fresh_key,
           target_type: String.t(),
           target: module(),
           reasons: [String.t()],

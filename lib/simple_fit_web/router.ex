@@ -51,6 +51,11 @@ defmodule SimpleFitWeb.Router do
     post "/auth/email/sign-in", EmailAuthController, :request_sign_in
     post "/auth/email/sign-in/verify", EmailAuthController, :verify_sign_in
 
+    # SF-157: the optional password credential (ADR 0012 amendment).
+    post "/auth/password/sign-in", PasswordAuthController, :sign_in
+    post "/auth/password/reset", PasswordAuthController, :request_reset
+    post "/auth/password/reset/confirm", PasswordAuthController, :confirm_reset
+
     # Google sign-in (ADR 0013).
     post "/auth/google", GoogleAuthController, :authenticate
     # Sign in with Apple (ADR 0014).
@@ -61,6 +66,9 @@ defmodule SimpleFitWeb.Router do
     pipe_through [:api, :authenticated]
 
     get "/me", MeController, :show
+    # SF-157: the viewer's password (set or reset only with an emailed code).
+    get "/me/password", PasswordAuthController, :status
+    put "/me/password", PasswordAuthController, :change
   end
 
   # SF-102: Stripe webhooks, authenticated by their signature over the raw

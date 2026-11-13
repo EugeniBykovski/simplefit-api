@@ -251,6 +251,25 @@ defmodule SimpleFit.Email.TemplatesTest do
       end
     end
 
+    test "password code (SF-157): not in the design inventory, code only, no sign-in" do
+      r = rendered!(:password_reset_code)
+
+      refute Enum.any?(Inventory.entries(), &(&1.template == :password_reset_code))
+      assert r.subject == "Your SimpleFit password code: 604218"
+      assert r.html =~ "604 218"
+      assert r.html =~ "Set your password</h1>"
+      assert r.text =~ "Your account will be signed out on every device."
+      assert r.text =~ "Without the code, your password doesn’t change."
+      assert r.text =~ @footers.security
+      refute r.html =~ "<a href"
+      refute r.text =~ "http"
+
+      for bad <- ["12345", "12a456"] do
+        assert {:error, {:invalid_template_data, [code: :invalid_format]}} =
+                 render(:password_reset_code, %{code: bad})
+      end
+    end
+
     test "email identity link code (SF-77): not in the design inventory, code only" do
       r = rendered!(:email_link_code)
 

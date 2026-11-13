@@ -99,7 +99,10 @@ Toolchain pinned in `.tool-versions` (OTP 29.1.1, Elixir 1.20.4).
     Transactional emails are rendered by `SimpleFit.Email.Templates`
     (ADR 0011): explicit per-template functions, validated variables, escaped
     HTML plus plain text, never provider-hosted templates; queued email
-    payloads stay encrypted. Email authentication is passwordless (ADR 0012):
+    payloads stay encrypted. Email authentication is passwordless (ADR 0012),
+    with one optional exception: an Argon2id password credential set only
+    with an emailed code (SF-157 amendment; the password itself is never
+    stored, logged or returned):
     codes are stored only as keyed verifiers, tokens only as hashes, emails
     and IPs only as digests in rate-limit rows; a session is issued only for a
     code entered by the requesting client, never for an E01 link.

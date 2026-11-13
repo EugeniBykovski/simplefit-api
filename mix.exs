@@ -59,6 +59,9 @@ defmodule SimpleFit.MixProject do
       # (SF-110, ADR 0027): attestation, authenticator data, COSE keys and
       # signature checks. No hand-rolled WebAuthn verification.
       {:wax_, "~> 0.7.0"},
+      # Argon2id password hashing for the optional password credential (SF-157,
+      # ADR 0012 amendment). No hand-rolled password hashing.
+      {:argon2_elixir, "~> 4.1"},
 
       # Observability (see docs/architecture/adr/0008-observability.md)
       {:telemetry_metrics, "~> 1.2"},

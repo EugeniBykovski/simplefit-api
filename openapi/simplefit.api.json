@@ -181,6 +181,24 @@
         },
         "description": "500 An unexpected error occurred"
       },
+      "InvalidCredentials": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "invalid_credentials",
+                "details": {},
+                "message": "The email address or password is not correct",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "422 The email address or password is not correct"
+      },
       "InvitationRecipientMismatch": {
         "content": {
           "application/json": {
@@ -252,6 +270,24 @@
           }
         },
         "description": "404 The requested resource was not found"
+      },
+      "PasswordNotSet": {
+        "content": {
+          "application/json": {
+            "example": {
+              "error": {
+                "code": "password_not_set",
+                "details": {},
+                "message": "This account has no password yet; set one with a code sent to its email address",
+                "request_id": "GHx3kP0vZ8sAAAAB"
+              }
+            },
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "description": "409 This account has no password yet; set one with a code sent to its email address"
       },
       "PayloadTooLarge": {
         "content": {
@@ -6897,7 +6933,7 @@
         },
         "properties": {
           "code": {
-            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `step_up_required`, `enrollment_required`, `account_suspended`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `revision_conflict`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `security_key_rejected`, `confirmation_invalid`, `code_expired`, `confirmation_required`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
+            "description": "Stable snake_case error code. Clients branch on this value, never on `message`.\nNew codes may be added over time; treat unknown codes according to the HTTP status.\nKnown codes: `bad_request`, `unauthorized`, `forbidden`, `step_up_required`, `enrollment_required`, `account_suspended`, `invitation_recipient_mismatch`, `not_found`, `not_acceptable`, `conflict`, `revision_conflict`, `password_not_set`, `verified_elsewhere`, `invitation_unavailable`, `payload_too_large`, `unsupported_media_type`, `validation_error`, `code_invalid`, `invalid_credentials`, `security_key_rejected`, `confirmation_invalid`, `code_expired`, `confirmation_required`, `rate_limited`, `internal_error`, `service_unavailable`.\n",
             "example": "not_found",
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
@@ -14725,7 +14761,6 @@
               },
               "required_assurance": {
                 "enum": [
-                  "key",
                   "fresh_key"
                 ],
                 "type": "string"
@@ -15054,14 +15089,14 @@
         "type": "object"
       },
       "OperatorPermissionCatalogResponse": {
-        "description": "Every operator permission (SF-129): the catalog the database also enforces, each with the key-check\nassurance it needs (`key`: a current check; `fresh_key`: one in the last minutes). No role, bundle or\nsuperuser exists: permissions are granted one by one.\n",
+        "description": "Every operator permission (SF-129): the catalog the database also enforces, each with the assurance it\nneeds (`session`: the signed-in session, whatever the sign-in method, SF-157; `fresh_key`: a security-key\ncheck in the last minutes). No role, bundle or superuser exists: permissions are granted one by one.\n",
         "properties": {
           "permissions": {
             "items": {
               "properties": {
                 "assurance": {
                   "enum": [
-                    "key",
+                    "session",
                     "fresh_key"
                   ],
                   "type": "string"
@@ -15349,6 +15384,156 @@
           "operator"
         ],
         "title": "OperatorSummaryResponse",
+        "type": "object"
+      },
+      "PasswordChangeRequest": {
+        "additionalProperties": false,
+        "example": {
+          "current_password": "correct horse battery staple",
+          "password": "a different long passphrase"
+        },
+        "properties": {
+          "current_password": {
+            "description": "The current password.",
+            "format": "password",
+            "minLength": 1,
+            "type": "string",
+            "writeOnly": true
+          },
+          "password": {
+            "description": "The new password. Not one of the account's email addresses.",
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 12,
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "current_password",
+          "password"
+        ],
+        "title": "PasswordChangeRequest",
+        "type": "object"
+      },
+      "PasswordResetAccepted": {
+        "additionalProperties": false,
+        "description": "Always returned for a well-formed address. If it is an account's email address, a 6-digit password code is on its way.",
+        "example": {
+          "expires_in_seconds": 600,
+          "resend_after_seconds": 60
+        },
+        "properties": {
+          "expires_in_seconds": {
+            "description": "Lifetime of the code (and link).",
+            "example": 600,
+            "type": "integer"
+          },
+          "resend_after_seconds": {
+            "description": "Wait at least this long before requesting another code.",
+            "example": 60,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expires_in_seconds",
+          "resend_after_seconds"
+        ],
+        "title": "PasswordResetAccepted",
+        "type": "object"
+      },
+      "PasswordResetConfirmRequest": {
+        "additionalProperties": false,
+        "example": {
+          "code": "604218",
+          "email": "founder@example.com",
+          "password": "correct horse battery staple"
+        },
+        "properties": {
+          "code": {
+            "description": "The 6-digit code from the email.",
+            "example": "123456",
+            "pattern": "^[0-9]{6}$",
+            "type": "string"
+          },
+          "email": {
+            "description": "Email address; matched in canonical form (ADR 0009).",
+            "example": "fighter@example.com",
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "password": {
+            "description": "The new password. Not the account's email address. Replaces any previous password.",
+            "format": "password",
+            "maxLength": 128,
+            "minLength": 12,
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "code",
+          "password"
+        ],
+        "title": "PasswordResetConfirmRequest",
+        "type": "object"
+      },
+      "PasswordSignInRequest": {
+        "additionalProperties": false,
+        "example": {
+          "email": "founder@example.com",
+          "password": "correct horse battery staple",
+          "refresh_token_transport": "cookie"
+        },
+        "properties": {
+          "email": {
+            "description": "Email address; matched in canonical form (ADR 0009).",
+            "example": "fighter@example.com",
+            "format": "email",
+            "maxLength": 254,
+            "type": "string"
+          },
+          "password": {
+            "description": "The account's password.",
+            "format": "password",
+            "minLength": 1,
+            "type": "string",
+            "writeOnly": true
+          },
+          "refresh_token_transport": {
+            "default": "body",
+            "description": "How to deliver the refresh token (ADR 0010). `body` (mobile) returns it in JSON. `cookie` (web) sets\nthe `HttpOnly` refresh cookie and requires an allow-listed `Origin` and `x-simplefit-csrf: 1`.\n",
+            "enum": [
+              "body",
+              "cookie"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "PasswordSignInRequest",
+        "type": "object"
+      },
+      "PasswordStatus": {
+        "additionalProperties": false,
+        "example": {
+          "password_set": true
+        },
+        "properties": {
+          "password_set": {
+            "description": "Whether the viewer can sign in with a password. Never the password or anything derived from it.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "password_set"
+        ],
+        "title": "PasswordStatus",
         "type": "object"
       },
       "ProvisionOperatorRequest": {
@@ -20311,6 +20496,204 @@
         ]
       }
     },
+    "/api/auth/password/reset": {
+      "post": {
+        "callbacks": {},
+        "description": "If the address is an account's email address, sends a 6-digit code that sets a new password for that account\n(also the first one). The response is the same for every well-formed address and never reveals whether an\naccount exists. Requesting again replaces the previous code.\n",
+        "operationId": "requestPasswordReset",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailCodeRequest"
+              }
+            }
+          },
+          "description": "Email address",
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetAccepted"
+                }
+              }
+            },
+            "description": "Password code requested"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Send a code to set or reset a password",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/password/reset/confirm": {
+      "post": {
+        "callbacks": {},
+        "description": "Sets the password of the account whose email address received the code, replacing any previous password, and\nsigns that account out everywhere. Signs nobody in: sign in with the new password afterwards.\n\n* `code_invalid` - wrong code. After 5 wrong codes the code stops working.\n* `code_expired` - the code expired, was replaced, was already used or stopped working: request a new one.\n* `validation_error` - the new password is shorter than 12 or longer than 128 characters, or is the email\n  address. Checked before the code, so a bad password doesn't use up the code.\n",
+        "operationId": "confirmPasswordReset",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirmRequest"
+              }
+            }
+          },
+          "description": "Email address, code and new password",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password set; every session of the account was signed out"
+          },
+          "422": {
+            "$ref": "#/components/responses/CodeInvalid"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Set or reset a password with its code",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/password/sign-in": {
+      "post": {
+        "callbacks": {},
+        "description": "Starts an SF-20 session for the user whose email identity has this address, when the password is that\nuser's. Authentication only: it creates no account, operator or permission, and Control Plane access is still\ndecided by every operator endpoint.\n\n* `invalid_credentials` - the same answer, after the same work, for a wrong password, an unknown address and\n  an account without a password.\n* `account_suspended` - the password is right but the account is suspended.\n* `rate_limited` - too many attempts from this client or for this address.\n",
+        "operationId": "signInWithPassword",
+        "parameters": [
+          {
+            "description": "Required (value `1`) with `refresh_token_transport: cookie`, together with an allow-listed `Origin`.",
+            "in": "header",
+            "name": "x-simplefit-csrf",
+            "required": false,
+            "schema": {
+              "enum": [
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordSignInRequest"
+              }
+            }
+          },
+          "description": "Email address and password",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionTokens"
+                }
+              }
+            },
+            "description": "Session credentials",
+            "headers": {
+              "set-cookie": {
+                "description": "Cookie transport only: the refresh token (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`).",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/AccountSuspended"
+          },
+          "422": {
+            "$ref": "#/components/responses/InvalidCredentials"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "summary": "Sign in with an email address and password",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/auth/session/refresh": {
       "post": {
         "callbacks": {},
@@ -20443,6 +20826,102 @@
           }
         ],
         "summary": "The authenticated user",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/me/password": {
+      "get": {
+        "callbacks": {},
+        "operationId": "getMyPasswordStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordStatus"
+                }
+              }
+            },
+            "description": "Password status"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Whether the viewer has a password",
+        "tags": [
+          "Auth"
+        ]
+      },
+      "put": {
+        "callbacks": {},
+        "description": "Replaces the viewer's password, given the current one, and signs out every other session of the account; this\nsession stays signed in.\n\n* `invalid_credentials` - the current password is not correct.\n* `password_not_set` - the account has no password yet: set one with a code (`requestPasswordReset`).\n* `conflict` - the password changed meanwhile (another change or a reset): try again.\n",
+        "operationId": "changeMyPassword",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChangeRequest"
+              }
+            }
+          },
+          "description": "Current and new password",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Password changed; every other session was signed out"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "409": {
+            "$ref": "#/components/responses/PasswordNotSet"
+          },
+          "422": {
+            "$ref": "#/components/responses/InvalidCredentials"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Too many requests",
+            "headers": {
+              "retry-after": {
+                "description": "Seconds until another request is accepted (with `429 rate_limited`).",
+                "schema": {
+                  "type": "integer"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Change the viewer's password",
         "tags": [
           "Auth"
         ]

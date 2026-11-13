@@ -211,3 +211,25 @@ D-SA28 covers that. Simulated authenticators in tests and the local E2E run are 
   on the same locks; the second finds its permission gone (`test/simple_fit/operator_governance_race_test.exs`).
 * **Two-person approval** doesn't exist and isn't simulated: every change is one operator's, under SF-111 (fresh key,
   reason, one-time confirmation). D-SA36. Nothing here changes D-SA13: production operator access stays NO-GO.
+
+## Amendment (SF-157): ordinary entry at session assurance
+
+Approved by the founder on 2026-11-13 for SF-157, which revises D-SA15 for ordinary Control Plane entry (the
+security reviewer's sign-off is still open, D-SF157-01). Authentication and authorization stay separate: any
+SimpleFit sign-in (email code, Google, Apple or the SF-157 password) proves only the user; every operator endpoint
+still finds the operator from the session's user, its status and its grants in the database on every call.
+
+* **Assurance.** Two levels: `session` (the signed-in session itself) for every read permission that needed a
+  current key check (`key`) before; `fresh_key` (a key check in this session in the last 5 minutes) for every write,
+  unchanged. `key` no longer exists. The catalog answers `session` or `fresh_key`.
+* **Pending operators read.** A `pending_enrollment` operator uses its grants at `session` assurance, so the
+  Control Plane opens without registering two keys. Every SF-111 action, a key check and permission management
+  still need an **active** operator (two registered keys, a production build refuses fewer) with a fresh key check;
+  a pending operator gets `enrollment_required`. Confirmation, reason codes, idempotency and the audit are
+  unchanged.
+* **Unchanged.** Bootstrap (signed ceremony; production still trusts no key, D-SA13), provisioning only by an
+  operator with `operators.manage` (never at sign-in, never from email or role), the lifecycle and its triggers,
+  suspension and revocation (`not_found` at once, whatever the sign-in), the enrolment window for registering keys
+  with the session alone (24 h after a ceremony, 72 h after provisioning; after it, a recovery ceremony or a new
+  provisioning reopens it, D-SF157-03) and permission revocation taking effect on the next call.
+* The Control Plane's first run is offered to pending and active operators alike (`Operators.console_operator?/1`).

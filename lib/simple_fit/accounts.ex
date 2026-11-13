@@ -1,8 +1,9 @@
 defmodule SimpleFit.Accounts do
   @moduledoc """
   Users, the identities that sign them in (ADR 0009), their SimpleFit
-  sessions (ADR 0010), passwordless email authentication (ADR 0012),
-  verified email identity linking (ADR 0024) and shared account
+  sessions (ADR 0010), email authentication (ADR 0012), the optional
+  password credential (SF-157, ADR 0012 amendment), verified email
+  identity linking (ADR 0024) and shared account
   registration: basics and consents (ADR 0016).
 
   One person is one global `User`; a user owns any number of `Identity`
@@ -39,6 +40,7 @@ defmodule SimpleFit.Accounts do
     EmailAuth,
     GoogleAuth,
     Identity,
+    Passwords,
     Registration,
     Restrictions,
     Session,
@@ -312,6 +314,32 @@ defmodule SimpleFit.Accounts do
   defdelegate verify_email_sign_in_code(email, code, client_ip),
     to: EmailAuth,
     as: :verify_sign_in_code
+
+  ## Password (SF-157)
+
+  @doc "Signs in with an email identity's address and the user's password."
+  @spec password_sign_in(term(), term(), String.t()) ::
+          {:ok, Sessions.credentials()} | Passwords.error()
+  defdelegate password_sign_in(email, password, client_ip), to: Passwords, as: :sign_in
+
+  @doc "Sends a code to set or reset a password if the address has an email identity."
+  @spec request_password_reset(term(), String.t()) ::
+          {:ok, EmailAuth.requested()} | Passwords.error()
+  defdelegate request_password_reset(email, client_ip), to: Passwords, as: :request_reset
+
+  @doc "Sets or replaces a password with an emailed code; revokes every session."
+  @spec reset_password(term(), term(), term(), String.t()) :: :ok | Passwords.error()
+  defdelegate reset_password(email, code, password, client_ip), to: Passwords, as: :reset
+
+  @doc "Changes the viewer's password with the current one; revokes their other sessions."
+  @spec change_password(User.t(), Session.t(), term(), term()) :: :ok | Passwords.error()
+  defdelegate change_password(user, session, current_password, password),
+    to: Passwords,
+    as: :change
+
+  @doc "Whether the user has a password."
+  @spec password_set?(User.t()) :: boolean()
+  defdelegate password_set?(user), to: Passwords, as: :set?
 
   ## Verified email identity linking (ADR 0024)
 

@@ -13,6 +13,10 @@ defmodule SimpleFit.Accounts.EmailAuth.Challenge do
       controls `email` before it becomes an email identity of that same
       user. Bound to `user_id` and the requesting `session_id`; answered by
       the 6-digit code only, in that session. Never issues a session.
+    * `:password_reset` (SF-157): proves control of the address of an existing
+      email identity before its user's password is set or replaced. Shaped like
+      `:sign_in` (digest only); answered by the 6-digit code only. Never issues
+      a session.
 
   A challenge is open until `closed_at`; expiry is derived from
   `expires_at`. Closed reasons:
@@ -34,7 +38,7 @@ defmodule SimpleFit.Accounts.EmailAuth.Challenge do
 
   @type t :: %__MODULE__{
           id: Ecto.UUID.t() | nil,
-          purpose: :verification | :sign_in | :identity_link | nil,
+          purpose: :verification | :sign_in | :identity_link | :password_reset | nil,
           user_id: Ecto.UUID.t() | nil,
           session_id: Ecto.UUID.t() | nil,
           target_digest: binary() | nil,
@@ -56,7 +60,7 @@ defmodule SimpleFit.Accounts.EmailAuth.Challenge do
   @timestamps_opts [type: :utc_datetime_usec, updated_at: false]
 
   schema "email_auth_challenges" do
-    field :purpose, Ecto.Enum, values: [:verification, :sign_in, :identity_link]
+    field :purpose, Ecto.Enum, values: [:verification, :sign_in, :identity_link, :password_reset]
     field :user_id, :binary_id
     field :session_id, :binary_id
     field :target_digest, :binary, redact: true

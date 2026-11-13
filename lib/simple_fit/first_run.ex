@@ -105,7 +105,7 @@ defmodule SimpleFit.FirstRun do
   # ARW1 (SF-120): only an active operator (enrolled, not suspended or revoked). A
   # recorded outcome stays final whatever happens to the operator later, and recording
   # one grants, restores or checks nothing (D-SA25).
-  defp available?(user, :control_plane_web_tour), do: Operators.active_operator?(user)
+  defp available?(user, :control_plane_web_tour), do: Operators.console_operator?(user)
 
   # A recorded outcome stays final even if availability were ever to change.
   defp state(experience, _available?, %Outcome{outcome: outcome, recorded_at: at}),

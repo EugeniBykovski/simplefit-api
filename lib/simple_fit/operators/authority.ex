@@ -4,9 +4,10 @@ defmodule SimpleFit.Operators.Authority do
   action framework, ADR 0029). Internal to `SimpleFit.Operators`. Each reads the
   database, with no cache:
 
-      session → operator of that user, not suspended or revoked → active (keys
-      enrolled) → an active grant of the permission → a key check in this session,
-      fresh enough for the permission
+      session → operator of that user, not suspended or revoked → an active grant
+      of the permission → the permission's assurance: `:session` is met by the
+      session itself (any sign-in method, SF-157); `:fresh_key` needs an active
+      operator (keys enrolled) with a fresh key check in this session
 
   The operator always comes from the session's user, never from the request.
   """
@@ -31,19 +32,20 @@ defmodule SimpleFit.Operators.Authority do
 
   def check(nil, _session_id, _permission, _assurance), do: {:error, :not_found, nil}
 
-  def check(%Operator{status: :pending_enrollment} = op, _session_id, _permission, _assurance),
-    do: {:error, :enrollment_required, op}
-
-  def check(%Operator{status: :active} = op, session_id, permission, assurance) do
+  def check(%Operator{status: status} = op, session_id, permission, assurance)
+      when status in [:pending_enrollment, :active] do
     cond do
       not Policy.permission?(permission) or not granted?(op.id, permission) ->
         {:error, :forbidden, op}
 
-      not step_up_satisfies?(
-        op.id,
-        session_id,
-        strongest(Policy.assurance(permission), assurance)
-      ) ->
+      strongest(Policy.assurance(permission), assurance) == :session ->
+        {:ok, %Principal{operator_id: op.id, user_id: op.user_id, session_id: session_id}}
+
+      # A key check needs keys: a pending operator registers them first.
+      status == :pending_enrollment ->
+        {:error, :enrollment_required, op}
+
+      not step_up_satisfies?(op.id, session_id, :fresh_key) ->
         {:error, :step_up_required, op}
 
       true ->
@@ -55,7 +57,7 @@ defmodule SimpleFit.Operators.Authority do
 
   defp strongest(:fresh_key, _other), do: :fresh_key
   defp strongest(_one, :fresh_key), do: :fresh_key
-  defp strongest(one, _other), do: one
+  defp strongest(:session, _other), do: :session
 
   @doc "The user's operator if it can use operator endpoints at all: not suspended, not revoked."
   @spec usable_operator(Ecto.UUID.t()) :: Operator.t() | nil
@@ -141,7 +143,7 @@ defmodule SimpleFit.Operators.Authority do
         false
 
       step_up ->
-        assurance == :key or
+        assurance == :session or
           DateTime.diff(DateTime.utc_now(), step_up.verified_at) <= Policy.fresh_window()
     end
   end
