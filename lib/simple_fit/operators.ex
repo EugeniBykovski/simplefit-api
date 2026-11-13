@@ -889,7 +889,9 @@ defmodule SimpleFit.Operators do
     project("sponsor_applications.file", user, session, ctx, fn principal ->
       with {:ok, id} <- uuid(application_id),
            %{} = application <- Review.fetch(id),
-           false <- application.applicant_user_id == principal.user_id,
+           # SF-132: the same party rule as the review actions (applicant, or a member of
+           # the organization the application provisioned), not the applicant alone.
+           false <- ReviewTarget.party?(application, principal),
            %{} = document <- Review.submitted_document(application, evidence_id),
            {:ok, download} <-
              SimpleFit.Storage.presign_download(document.object_key,

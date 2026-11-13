@@ -60,12 +60,33 @@ defmodule SimpleFit.Sponsors.ProposalReview do
     do: Repo.one(from(p in Proposal, where: p.id == ^id and not is_nil(p.submitted_at)))
 
   @doc false
+  # SF-132: the organization is share-locked first, then the proposal: the order the
+  # organization's own writes take (`Sponsors.lock_access/3`), so a decision and a
+  # concurrent suspension serialize (the plan re-reads the organization under the lock)
+  # without a new deadlock path.
   @spec lock!(Ecto.UUID.t()) :: Proposal.t() | nil
-  def lock!(id),
-    do:
-      Repo.one(
-        from(p in Proposal, where: p.id == ^id and not is_nil(p.submitted_at), lock: "FOR UPDATE")
-      )
+  def lock!(id) do
+    case Repo.one(
+           from(p in Proposal,
+             where: p.id == ^id and not is_nil(p.submitted_at),
+             select: p.organization_id
+           )
+         ) do
+      nil ->
+        nil
+
+      org_id ->
+        _organization =
+          Repo.one!(from(o in Organization, where: o.id == ^org_id, lock: "FOR SHARE"))
+
+        Repo.one(
+          from(p in Proposal,
+            where: p.id == ^id and not is_nil(p.submitted_at),
+            lock: "FOR UPDATE"
+          )
+        )
+    end
+  end
 
   @doc """
   Whether `user_id` holds a non-revoked membership (any role) of the proposal's
