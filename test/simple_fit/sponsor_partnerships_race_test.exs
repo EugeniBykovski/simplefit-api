@@ -205,6 +205,62 @@ defmodule SimpleFit.SponsorPartnershipsRaceTest do
     assert Repo.reload!(p).status in [:accepted, :declined]
   end
 
+  test "an acceptance racing the organization's suspension never lands after it (SF-132)", c do
+    founder = founder!(review_permissions() ++ ~w(operators.read operators.manage))
+    track(c.users, founder.user)
+
+    for _ <- 1..5 do
+      # Active again for this round (the first round finds it active already).
+      _ = Provisioning.reinstate_organization(fixture_authority(), c.org.id, "e2e_check")
+      p = submitted_proposal!(c.owner, c.org, draft_proposal!(c.owner, c.org))
+      {:ok, _} = claim(founder, p)
+
+      {:ok, preview} =
+        SimpleFit.Operators.preview(
+          "sponsor_proposal.accept",
+          founder.user,
+          founder.session,
+          p.id,
+          %{
+            "reason_code" => "follow_up_planned"
+          }
+        )
+
+      [accepted, suspended] =
+        concurrently([
+          fn ->
+            SimpleFit.Operators.execute(
+              "sponsor_proposal.accept",
+              founder.user,
+              founder.session,
+              p.id,
+              %{
+                "reason_code" => "follow_up_planned",
+                "expected_revision" => preview.expected_revision,
+                "operation_id" => Ecto.UUID.generate(),
+                "confirmation_token" => preview.confirmation.token
+              }
+            )
+          end,
+          fn ->
+            Provisioning.suspend_organization(fixture_authority(), c.org.id, "policy_review")
+          end
+        ])
+
+      assert {:ok, %{status: :suspended, suspended_at: suspended_at}} = suspended
+      proposal = Repo.reload!(p)
+
+      case accepted do
+        {:ok, _} ->
+          assert proposal.status == :accepted
+          assert DateTime.compare(proposal.decided_at, suspended_at) != :gt
+
+        {:error, {:conflict, %{organization: "suspended"}}} ->
+          assert proposal.status == :under_review
+      end
+    end
+  end
+
   test "a membership revoked while its member submits: the submit is before or refused", c do
     for _ <- 1..5 do
       manager = track(c.users, registered!("racer"))

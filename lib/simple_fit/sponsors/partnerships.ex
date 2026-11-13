@@ -934,6 +934,11 @@ defmodule SimpleFit.Sponsors.Partnerships do
 
     with true <- code in ~w(revision_stale conflict submission_incomplete),
          true <- is_binary(proposal_id),
+         # SF-132: refusals can't fill the append-only history: at most 300 a user an hour.
+         :ok <-
+           RateLimit.hit([
+             {"sponsor_partnership_refusal_event", :crypto.hash(:sha256, user.id), 300, 3600}
+           ]),
          {:ok, access} <- Sponsors.authorize(user, sponsor_id, :view_partnerships),
          %Proposal{} = proposal <- find(access.organization.id, proposal_id, false) do
       _ =

@@ -413,6 +413,26 @@ defmodule SimpleFit.SponsorPartnershipsTest do
       refused_by_db(~r/no_delete/, fn -> Repo.delete!(Repo.reload!(p)) end)
     end
 
+    test "refused writes can't fill the history: 300 recorded an hour, the rest only refused (SF-132)",
+         c do
+      p = draft_proposal!(c.owner, c.org)
+
+      for _ <- 1..305 do
+        assert {:error, {:revision_conflict, _}} =
+                 Partnerships.update_proposal(c.owner, c.org.id, p.id, %{
+                   "expected_revision" => 999,
+                   "title" => "Stale"
+                 })
+      end
+
+      assert Repo.aggregate(
+               from(e in PartnershipEvent,
+                 where: e.outcome == :refused and e.proposal_id == ^p.id
+               ),
+               :count
+             ) == 300
+    end
+
     test "the database allows only the lifecycle's transitions", c do
       p = draft_proposal!(c.owner, c.org)
 

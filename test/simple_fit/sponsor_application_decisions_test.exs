@@ -733,6 +733,47 @@ defmodule SimpleFit.SponsorApplicationDecisionsTest do
       refute inspect(Map.from_struct(audit)) =~ download.url
     end
 
+    test "a member of the organization the application created is a party: no download (SF-132)",
+         c do
+      {:ok, _} =
+        exec(c.r, "sponsor_application.claim", c.doc_app, %{"reason_code" => "review_started"})
+
+      {:ok, %{organization: org}} = decide(c.r, "sponsor_application.approve", c.doc_app)
+      # Another operator who is not the applicant but manages the approved organization.
+      insider =
+        reviewer!(c.r, "insider", [
+          "sponsors.applications.read",
+          "sponsors.applications.read_files"
+        ])
+
+      SimpleFit.SponsorHelpers.member!(org, insider.user, :manager)
+
+      assert {:error, {:conflict, %{target: "self"}}} =
+               Operators.download_sponsor_application_document(
+                 insider.user,
+                 insider.session,
+                 c.doc_app.id,
+                 c.evidence.id
+               )
+
+      refute Repo.exists?(
+               from(e in AuditEvent,
+                 where:
+                   e.action == "sponsor_application.file_downloaded" and e.outcome == :allowed and
+                     e.actor_user_id == ^insider.user.id
+               )
+             )
+
+      # A reviewer outside the organization still downloads it.
+      assert {:ok, _download} =
+               Operators.download_sponsor_application_document(
+                 c.r.user,
+                 c.r.session,
+                 c.doc_app.id,
+                 c.evidence.id
+               )
+    end
+
     test "needs read_files; never another application's or an unsubmitted document", c do
       reader = reviewer!(c.r, "nofiles", ["sponsors.applications.read"])
 

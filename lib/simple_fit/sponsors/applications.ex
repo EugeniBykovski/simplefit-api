@@ -710,6 +710,11 @@ defmodule SimpleFit.Sponsors.Applications do
 
     with true <-
            code in ~w(revision_stale submission_incomplete declaration_unavailable declaration_stale),
+         # SF-132: refusals can't fill the append-only history: at most 300 a user an hour.
+         :ok <-
+           RateLimit.hit([
+             {"sponsor_application_refusal_event", :crypto.hash(:sha256, user.id), 300, 3600}
+           ]),
          %Application{} = application <- latest(user.id) do
       _ =
         Repo.insert!(%ApplicationEvent{
