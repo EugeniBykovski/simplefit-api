@@ -199,6 +199,34 @@ defmodule SimpleFit.Accounts do
   end
 
   @doc """
+  The user's sign-in methods (SF-161), oldest first (methods added within the
+  same second by provider): every identity of the
+  user with its provider and when it was added. An email identity carries its
+  canonical address; a Google or Apple identity carries nothing else (its
+  subject is the provider's account id and is never exposed). Never another
+  user's identities. Holds no credential: whether a password exists is not a
+  sign-in method of the public apps (D-SF157-02).
+  """
+  @spec list_sign_in_methods(User.t()) :: [
+          %{provider: Identity.provider(), email: String.t() | nil, linked_at: DateTime.t()}
+        ]
+  def list_sign_in_methods(%User{id: user_id}) when is_binary(user_id) do
+    from(i in Identity,
+      where: i.user_id == ^user_id,
+      order_by: [asc: i.inserted_at, asc: i.provider, asc: i.id],
+      select: %{provider: i.provider, subject: i.provider_subject, linked_at: i.inserted_at}
+    )
+    |> Repo.all(@unlogged)
+    |> Enum.map(fn %{provider: provider, subject: subject, linked_at: linked_at} ->
+      %{
+        provider: provider,
+        email: if(provider == :email, do: subject),
+        linked_at: linked_at
+      }
+    end)
+  end
+
+  @doc """
   Creates a new user together with its first identity, atomically.
 
   Returns the user with `identities` loaded. If the identity already exists

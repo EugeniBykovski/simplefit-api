@@ -285,6 +285,8 @@ defmodule SimpleFitWeb.Router do
     # SF-77: the viewer's email identities and verified email identity
     # linking (ADR 0024). The user and session come from the token only.
     get "/me/email-identities", EmailIdentityController, :index
+    # SF-161: how the viewer can sign in (Settings · Sign-in & security).
+    get "/me/sign-in-methods", SignInMethodController, :index
     post "/me/email-identities/link-challenge", EmailIdentityController, :request_link
     post "/me/email-identities/confirm-link", EmailIdentityController, :confirm_link
 

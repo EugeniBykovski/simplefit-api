@@ -16246,6 +16246,100 @@
         "title": "SessionTokens",
         "type": "object"
       },
+      "SignInMethod": {
+        "additionalProperties": false,
+        "description": "A way to sign in to the viewer's account. Carries no credential and no provider account id.",
+        "properties": {
+          "email": {
+            "description": "The canonical address of an `email` method; `null` for `google` and `apple` (a provider-reported email is never listed).",
+            "format": "email",
+            "nullable": true,
+            "type": "string"
+          },
+          "linked_at": {
+            "description": "When the method was added to this account.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "provider": {
+            "description": "`email`: a 6-digit code sent to `email`; `google`, `apple`: that provider's sign-in.",
+            "enum": [
+              "email",
+              "google",
+              "apple"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "email",
+          "linked_at"
+        ],
+        "title": "SignInMethod",
+        "type": "object"
+      },
+      "SignInMethodList": {
+        "additionalProperties": false,
+        "description": "The viewer's sign-in methods, oldest first.",
+        "example": {
+          "sign_in_methods": [
+            {
+              "email": "fighter@example.com",
+              "linked_at": "2026-10-01T10:00:00Z",
+              "provider": "email"
+            },
+            {
+              "email": null,
+              "linked_at": "2026-10-05T18:30:00Z",
+              "provider": "google"
+            }
+          ]
+        },
+        "properties": {
+          "sign_in_methods": {
+            "items": {
+              "additionalProperties": false,
+              "description": "A way to sign in to the viewer's account. Carries no credential and no provider account id.",
+              "properties": {
+                "email": {
+                  "description": "The canonical address of an `email` method; `null` for `google` and `apple` (a provider-reported email is never listed).",
+                  "format": "email",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "linked_at": {
+                  "description": "When the method was added to this account.",
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "provider": {
+                  "description": "`email`: a 6-digit code sent to `email`; `google`, `apple`: that provider's sign-in.",
+                  "enum": [
+                    "email",
+                    "google",
+                    "apple"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "provider",
+                "email",
+                "linked_at"
+              ],
+              "title": "SignInMethod",
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sign_in_methods"
+        ],
+        "title": "SignInMethodList",
+        "type": "object"
+      },
       "SignOutUserEverywhereRequest": {
         "additionalProperties": false,
         "description": "Revoke every active session of an account (SF-122).",
@@ -37557,6 +37651,41 @@
         "summary": "Cancel one of my product subscriptions",
         "tags": [
           "Gym member products"
+        ]
+      }
+    },
+    "/api/v1/me/sign-in-methods": {
+      "get": {
+        "callbacks": {},
+        "description": "How the viewer's account can be signed in to, oldest first (within the same second, by provider): every email address whose ownership was proven\nwith a code, and every Google or Apple account that signed in to it. An email method carries its address; a\nGoogle or Apple method carries only its provider and when it was added (the provider's account id is never\nreturned, and an email a provider reported is never listed). Credentials are never included.\n",
+        "operationId": "listMySignInMethods",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInMethodList"
+                }
+              }
+            },
+            "description": "The viewer's sign-in methods"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "My sign-in methods",
+        "tags": [
+          "Account"
         ]
       }
     },
